@@ -1,0 +1,573 @@
+"""Settings panels: per-figure options and sheet options."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from typing import Any, Dict
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
+                               QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+                               QPushButton, QScrollArea, QSpinBox, QToolButton, QVBoxLayout,
+                               QWidget)
+
+from ..settings import FigureSettings, SheetSettings
+
+# value -> what the (editable) model box shows, where they differ
+MODEL_NAMES = {"mask": "mask image file"}
+MODEL_VALUES = {v: k for k, v in MODEL_NAMES.items()}
+MODELS = ["auto", "rmbg-1.4", "alpha", "mask", "rembg:u2net", "rembg:isnet-general-use",
+          "rembg:birefnet-general"]
+
+# Groups follow the workflow: how big and how many, how the figure is found,
+# the outline/cut line around it, the stand tab, its label, and the back.
+# (field, label, kind, extra) - kind: f=float, i=int, b=bool, c=choice, s=str,
+# col=colour, heading=sub-heading inside a group (not a setting)
+SECTIONS = [
+    ("Print", [
+        ("height_mm", "Figure height", "f", (5, 400, 1, 2, " mm")),
+        ("copies", "Copies on sheet", "i", (0, 999, 1, "")),
+        ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
+    ]),
+    ("Background removal", [
+        ("model", "Model", "model", None),
+        ("mask", "Mask image file", "file", None),
+        ("crop", "Crop", "crop", None),
+        ("threshold", "Threshold", "i", (0, 254, 1, " /255")),
+        ("close", "Closing radius", "close", None),
+        ("keep_all", "Keep detached parts", "b", None),
+        ("min_area", "Min. part area", "i", (0, 10_000_000, 100, " px")),
+    ]),
+    ("Outline and cut line", [
+        ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
+        ("margin_fill", "Margin fill", "c", [("color", "Colour"), ("image", "Original image")]),
+        ("margin_color", "Margin colour", "col", None),
+        ("smooth_mm", "Outline smoothing", "f", (0, 5, 0.1, 2, " mm")),
+        ("_cut_line", "Cut line", "heading", None),
+        ("no_smooth", "Straight segments only (no curves)", "b", None),
+        ("simplify_mm", "Simplify", "f", (0.01, 2, 0.05, 3, " mm")),
+        ("cutter", "Cutting-machine style (red hairline)", "b", None),
+        ("bleed_mm", "Bleed", "f", (0, 5, 0.1, 1, " mm")),
+        ("cut_color", "Colour", "col", None),
+        ("cut_width_mm", "Width", "f", (0.01, 2, 0.05, 2, " mm")),
+    ]),
+    ("Tab", [
+        ("no_tab", "No tab", "b", None),
+        ("tab_shape", "Shape", "c", [("square", "Square (stand)"),
+                                     ("round", "Round (base)")]),
+        ("tab_width_mm", "Width", "f", (2, 200, 1, 1, " mm")),
+        ("tab_radius_mm", "Radius", "f", (1, 100, 0.5, 1, " mm")),
+        ("tab_height_mm", "Height", "f", (1, 100, 0.5, 1, " mm")),
+        ("tab_overlap_mm", "Overlap into figure", "f", (0, 30, 0.5, 1, " mm")),
+        ("fold_mm", "Fold above lowest point", "f", (0, 20, 0.1, 1, " mm")),
+        ("tab_color", "Fill colour", "col", None),
+        ("_tab_label", "Label", "heading", None),
+        ("no_label", "No label", "nolabel", None),
+        ("label", "Text", "label", None),
+        ("label_size_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
+        ("label_color", "Colour", "col", None),
+    ]),
+    ("Double-sided", [
+        ("double_sided", "Print a back side (fold over the top)", "b", None),
+        ("back", "Back side", "c", [("mirror", "Mirrored drawing"), ("blank", "Blank"),
+                                    ("text", "Text")]),
+        ("back_color", "Back colour", "col", None),
+        ("back_text", "Back text", "s", None),
+        ("back_text_color", "Back text colour", "col", None),
+    ]),
+]
+
+TIPS = {
+    "height_mm": "Height of the drawn figure on paper, without margin and tab.",
+    "copies": "How many of this figure go on the print sheet.",
+    "dpi": "Resolution of the embedded artwork. 300 dpi suits most printers.",
+    "model": "How the figure is separated from the background.\n"
+             "auto: the PNG's transparency if it has any, else rmbg-1.4.\n"
+             "alpha: the PNG's own transparency (no file needed).\n"
+             "mask image file: your own black-and-white mask (white = figure).\n"
+             "rembg:* needs the optional rembg package. You can also type a .onnx path.",
+    "mask": "Your own mask image: white = figure, black = background, same picture size.",
+    "crop": "Only this region is searched for the figure (x0,y0,x1,y1, fractions or px).\n"
+            "Drag a box on the Source / crop tab to set it.",
+    "threshold": "How sure the model must be that a pixel is figure (0-255).\n"
+                 "Lower keeps faint pencil lines; higher drops more background.",
+    "close": "Closes small gaps in the silhouette. auto scales with the image (9 px at 1400 px).",
+    "keep_all": "Keep separate parts (a floating prop) and join them with bridges,\n"
+                "instead of keeping only the largest part.",
+    "min_area": "With 'keep detached parts': smaller parts than this are dropped as specks.",
+    "margin_mm": "White border between the drawing and the cut line.",
+    "margin_fill": "Colour: the margin colour below; Original image: the picture around the\n"
+                   "figure shows in the margin.",
+    "margin_color": "Colour of the margin around the drawing.",
+    "smooth_mm": "Rounds the outline; higher values give a calmer cut line.",
+    "no_smooth": "Cut line made of straight segments instead of smooth curves.",
+    "simplify_mm": "How far the cut line may deviate to use fewer points.",
+    "cutter": "Red 0.1 mm cut line, which many cutting machines treat as the cut layer.",
+    "bleed_mm": "Prints the background this far beyond the cut line, so a slightly misaligned\n"
+                "machine cut never shows a white edge. The colour at the edge (margin, tab or\n"
+                "back colour) is extended.",
+    "cut_color": "Colour of the cut line.",
+    "cut_width_mm": "Width of the printed cut line.",
+    "no_tab": "No fold-over stand tab (e.g. for slotted or magnetic bases).",
+    "tab_shape": "Square: a tab to slot into a (3D printed) stand.\n"
+                 "Round: a half disc that folds out into a round base. On a double-sided\n"
+                 "mini the two halves fold out to opposite sides and form a full circle.",
+    "tab_width_mm": "Width of the square tab.",
+    "tab_radius_mm": "Radius of the round tab (a half disc). 12.5 mm makes a 25 mm base.",
+    "tab_height_mm": "How far the square tab reaches below the fold line.",
+    "tab_overlap_mm": "How far the tab reaches up past the fold line. It only adds paper where "
+                      "the figure's bottom is narrower than the tab (feet, a tail), to "
+                      "strengthen the joint.",
+    "fold_mm": "Where the tab folds, measured up from the figure's lowest point.",
+    "no_label": "A plain tab in the fill colour, without text.",
+    "label": "Text printed on the tab (empty = the file name). Also the default back text.",
+    "label_size_mm": "Largest text size; long labels shrink to fit the tab.",
+    "label_color": "Colour of the tab label.",
+    "tab_color": "Colour of the tab (everything below the fold), behind the label.\n"
+                 "Independent of the margin colour; e.g. grass green for a plain tab.",
+    "double_sided": "Print front and back joined at a fold above the head; glue them back to back.",
+    "back": "mirror: the drawing seen from behind; blank: plain paper; "
+            "text: plain paper with text (a name or stats).",
+    "back_text": "Text for the back (empty = the tab label). It is sized to fit the body.",
+    "back_color": "Colour of a blank or text back (the back tab keeps the tab's fill colour).",
+    "back_text_color": "Colour of the back text.",
+}
+
+
+class _WheelGuard:
+    """Only react to the mouse wheel when focused, so scrolling the settings
+    panel never changes a value by accident (and the panel scrolls instead)."""
+
+    def _init_guard(self):
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, e):
+        if self.hasFocus():
+            super().wheelEvent(e)
+        else:
+            e.ignore()
+
+
+class SpinBox(_WheelGuard, QSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_guard()
+        self.setKeyboardTracking(False)
+
+
+class DoubleSpinBox(_WheelGuard, QDoubleSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_guard()
+        self.setKeyboardTracking(False)
+
+
+class ComboBox(_WheelGuard, QComboBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_guard()
+        # long item names must not widen the settings panel (the list still shows them)
+        self.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.setMinimumContentsLength(8)
+
+
+class ColorButton(QPushButton):
+    colorChanged = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._color = "#000000"
+        self.clicked.connect(self._pick)
+        self.setFixedWidth(90)
+
+    def color(self) -> str:
+        return self._color
+
+    def set_color(self, c: str):
+        self._color = c
+        fg = "#fff" if QColor(c).lightness() < 128 else "#000"
+        self.setText(c)
+        # scoped to this button: an unscoped style sheet is inherited by child widgets,
+        # which painted the whole colour dialog in the selected colour
+        self.setStyleSheet(f"QPushButton {{ background: {c}; color: {fg}; }}")
+
+    def _pick(self):
+        c = QColorDialog.getColor(QColor(self._color), self.window(), "Colour")
+        if c.isValid():
+            self.set_color(c.name())
+            self.colorChanged.emit(c.name())
+
+
+class FigurePanel(QScrollArea):
+    """Edits a FigureSettings; emits ``changed`` with a new copy on every edit."""
+
+    changed = Signal(object)
+    applyToAll = Signal()
+    clearCrop = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setMinimumWidth(320)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._s = FigureSettings()
+        self._w: Dict[str, Any] = {}
+        self._shown: Dict[str, Any] = {}  # widget values as last shown/emitted
+        self._rows: Dict[str, Any] = {}   # name -> (form layout, row widget), to hide rows
+        self._loading = False
+        body = QWidget()
+        lay = QVBoxLayout(body)
+        self.title = QLabel("No figure selected")
+        self.title.setStyleSheet("font-weight:bold; font-size:13px")
+        lay.addWidget(self.title)
+
+        for title, items in SECTIONS:
+            box = QGroupBox(title)
+            form = QFormLayout(box)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            for name, label, kind, extra in items:
+                if kind == "heading":
+                    h = QLabel(label)
+                    h.setStyleSheet("font-weight: bold; margin-top: 6px")
+                    form.addRow(h)
+                    self._rows[name] = (form, h)
+                    continue
+                w = self._make(name, kind, extra)
+                self._rows[name] = (form, w)
+                if kind == "nolabel":
+                    w.setToolTip(TIPS[name])
+                    form.addRow(w)
+                    continue
+                if name in TIPS:
+                    w.setToolTip(TIPS[name])
+                if kind == "b":
+                    form.addRow(w)
+                else:
+                    form.addRow(label, w)
+                    form.labelForField(w).setToolTip(TIPS.get(name, ""))
+                if name == "tab_overlap_mm":
+                    self.overlap_hint = QLabel()
+                    self.overlap_hint.setWordWrap(True)
+                    self.overlap_hint.setStyleSheet("color: gray; font-size: 11px")
+                    self.overlap_hint.setVisible(False)
+                    form.addRow(self.overlap_hint)
+            lay.addWidget(box)
+
+        self.copies = self._w["copies"][1]
+        self.apply_all = QPushButton("Apply these settings to all figures")
+        self.apply_all.setToolTip("Copies everything except label, crop, mask and copies")
+        self.apply_all.clicked.connect(self.applyToAll)
+        lay.addWidget(self.apply_all)
+        lay.addStretch()
+        self.setWidget(body)
+        self.setEnabled(False)
+
+    # ----------------------------------------------------------------- widgets
+    def _make(self, name: str, kind: str, extra):
+        if kind == "f":
+            lo, hi, step, dec, suffix = extra
+            w = DoubleSpinBox()
+            w.setRange(lo, hi)
+            w.setSingleStep(step)
+            w.setDecimals(dec)
+            w.setSuffix(suffix)
+            w.setKeyboardTracking(False)
+            w.valueChanged.connect(self._emit)
+        elif kind == "i":
+            lo, hi, step, suffix = extra
+            w = SpinBox()
+            w.setRange(lo, hi)
+            w.setSingleStep(step)
+            w.setSuffix(suffix)
+            w.setKeyboardTracking(False)
+            w.valueChanged.connect(self._emit)
+        elif kind == "close":
+            w = SpinBox()
+            w.setRange(0, 1000)
+            w.setSuffix(" px")
+            w.setSpecialValueText("auto")
+            w.setKeyboardTracking(False)
+            w.valueChanged.connect(self._emit)
+        elif kind == "b":
+            w = QCheckBox(dict((n, l) for _, its in SECTIONS for n, l, *_ in its)[name])
+            w.toggled.connect(self._emit)
+        elif kind == "c":
+            w = ComboBox()
+            for item in extra:
+                value, text = item if isinstance(item, tuple) else (item, item)
+                w.addItem(text, value)
+            w.currentIndexChanged.connect(self._emit)
+        elif kind == "s":
+            w = QLineEdit()
+            w.setPlaceholderText("the label (or file name)")
+            w.editingFinished.connect(self._emit)
+        elif kind == "col":
+            w = ColorButton()
+            w.colorChanged.connect(self._emit)
+        elif kind == "model":
+            w = ComboBox()
+            w.setEditable(True)
+            from ..segment import rembg_available
+
+            w.addItems([MODEL_NAMES.get(m, m) for m in MODELS
+                        if not m.startswith("rembg:") or rembg_available()])
+            w.activated.connect(self._emit)
+            w.lineEdit().editingFinished.connect(self._emit)
+        elif kind == "file":
+            w = QWidget()
+            h = QHBoxLayout(w)
+            h.setContentsMargins(0, 0, 0, 0)
+            edit = QLineEdit()
+            edit.setPlaceholderText("choose a mask image (white = figure)")
+            edit.editingFinished.connect(self._emit)
+            b = QToolButton()
+            b.setText("…")
+            b.clicked.connect(lambda: self._browse_mask(edit))
+            h.addWidget(edit)
+            h.addWidget(b)
+            w.edit = edit
+        elif kind == "crop":
+            w = QWidget()
+            h = QHBoxLayout(w)
+            h.setContentsMargins(0, 0, 0, 0)
+            edit = QLineEdit()
+            edit.setPlaceholderText("none - drag on the Source tab")
+            edit.editingFinished.connect(self._emit)
+            b = QToolButton()
+            b.setText("Clear")
+            b.clicked.connect(lambda: (edit.clear(), self._emit()))
+            h.addWidget(edit)
+            h.addWidget(b)
+            w.edit = edit
+        elif kind == "label":
+            w = QLineEdit()
+            w.editingFinished.connect(self._emit)
+        elif kind == "nolabel":
+            # not a setting of its own: ticked means label "" (see _read)
+            w = QCheckBox("No label")
+            w.toggled.connect(self._emit)
+            self.no_label = w
+            return w
+        else:  # pragma: no cover
+            raise ValueError(kind)
+        self._w[name] = (kind, w)
+        return w
+
+    def _browse_mask(self, edit: QLineEdit):
+        f, _ = QFileDialog.getOpenFileName(self, "Mask image (white = figure)", "",
+                                           "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)")
+        if f:
+            edit.setText(f)
+            self._emit()
+
+    # ----------------------------------------------------------------- values
+    def set_settings(self, s: FigureSettings, title: str = "", stem: str = ""):
+        self._loading = True
+        try:
+            self._s = s
+            self.title.setText(title)
+            for name, (kind, w) in self._w.items():
+                v = getattr(s, name)
+                if kind in ("f", "i"):
+                    w.setValue(v)
+                elif kind == "close":
+                    w.setValue(v or 0)
+                elif kind == "b":
+                    w.setChecked(bool(v))
+                elif kind == "c":
+                    w.setCurrentIndex(max(0, w.findData(v)))
+                elif kind == "s":
+                    w.setText(v or "")
+                elif kind == "col":
+                    w.set_color(v)
+                elif kind == "model":
+                    w.setCurrentText(MODEL_NAMES.get(v, v))
+                elif kind == "file":
+                    w.edit.setText(v or "")
+                elif kind == "crop":
+                    w.edit.setText(_crop_text(v))
+                elif kind == "label":
+                    w.setPlaceholderText(stem or "file name")
+                    self.no_label.setChecked(v == "")
+                    w.setText(v or "")
+            self._sync_visible()
+            self.setEnabled(True)
+            self._shown = self._read()
+        finally:
+            self._loading = False
+
+    def settings(self) -> FigureSettings:
+        """Current settings: fields whose widget was not touched keep their exact
+        value (a loaded 42.25 mm or dpi 3000 is not rounded/clamped by a widget)."""
+        read = self._read()
+        changed = {k: v for k, v in read.items() if v != self._shown.get(k)}
+        return replace(self._s, **changed)
+
+    def _read(self) -> Dict[str, Any]:
+        vals: Dict[str, Any] = {}
+        for name, (kind, w) in self._w.items():
+            if kind in ("f", "i"):
+                vals[name] = w.value()
+            elif kind == "close":
+                vals[name] = w.value() or None
+            elif kind == "b":
+                vals[name] = w.isChecked()
+            elif kind == "c":
+                vals[name] = w.currentData()
+            elif kind == "s":
+                vals[name] = w.text().strip() or None
+            elif kind == "col":
+                vals[name] = w.color()
+            elif kind == "model":
+                text = w.currentText().strip() or "auto"
+                vals[name] = MODEL_VALUES.get(text, text)
+            elif kind == "file":
+                vals[name] = w.edit.text().strip() or None
+            elif kind == "crop":
+                vals[name] = _parse_crop_text(w.edit.text(), self._s.crop)
+            elif kind == "label":
+                vals[name] = "" if self.no_label.isChecked() else (w.text().strip() or None)
+        return vals
+
+    OVERLAP_HINTS = {
+        "unused": "No effect on this figure: its bottom is wider than the tab, so the overlap "
+                  "is already inside the outline. It only matters for narrow feet or tails.",
+        "narrow": "Only {joint:.1f} mm of paper joins the tab to the figure (its bottom is "
+                  "narrow), which may tear when folded. Raise the overlap to strengthen it.",
+    }
+
+    def set_overlap_hint(self, kind=None, joint: float = 0.0):
+        """Note under 'Overlap into figure': None, "unused" or "narrow" (with the joint width)."""
+        show = kind in self.OVERLAP_HINTS and not self._w["no_tab"][1].isChecked()
+        if show:
+            self.overlap_hint.setText(self.OVERLAP_HINTS[kind].format(joint=joint))
+        self.overlap_hint.setVisible(show)
+
+    def set_crop(self, crop):
+        """Crop set from the Source tab."""
+        self._w["crop"][1].edit.setText(_crop_text(crop))
+        self._emit()
+
+    def is_shown(self, name: str) -> bool:
+        form, w = self._rows[name]
+        return form.isRowVisible(w)
+
+    def _sync_visible(self):
+        """Only show the fields that do something in the current state."""
+        val = lambda n: self._w[n][1].currentData()  # noqa: E731
+        tab = not self._w["no_tab"][1].isChecked()
+        label = tab and not self.no_label.isChecked()
+        square = val("tab_shape") == "square"
+        double = self._w["double_sided"][1].isChecked()
+        model = self._w["model"][1].currentText().strip()
+        show = {
+            "mask": MODEL_VALUES.get(model, model) == "mask",
+            "min_area": self._w["keep_all"][1].isChecked(),
+            "margin_color": val("margin_fill") == "color",
+            "cut_color": not self._w["cutter"][1].isChecked(),
+            "cut_width_mm": not self._w["cutter"][1].isChecked(),
+            "bleed_mm": self._w["cutter"][1].isChecked(),
+            "tab_shape": tab,
+            "tab_width_mm": tab and square,
+            "tab_height_mm": tab and square,
+            "tab_radius_mm": tab and not square,
+            "tab_overlap_mm": tab,
+            "fold_mm": tab,
+            "tab_color": tab,
+            "_tab_label": tab,
+            "no_label": tab,
+            "label": label,
+            "label_size_mm": label,
+            "label_color": label,
+            "back": double,
+            "back_color": double and val("back") in ("blank", "text"),
+            "back_text": double and val("back") == "text",
+            "back_text_color": double and val("back") == "text",
+        }
+        for name, visible in show.items():
+            form, w = self._rows[name]
+            form.setRowVisible(w, visible)
+        if not tab:
+            self.overlap_hint.setVisible(False)
+
+    def _emit(self, *_):
+        if self._loading:
+            return
+        self._sync_visible()
+        new = self.settings()
+        self._shown = self._read()
+        if new != self._s:
+            self._s = new
+            self.changed.emit(new)
+
+
+def _crop_text(crop) -> str:
+    if crop is None or crop == "":
+        return ""
+    if isinstance(crop, str):
+        return crop
+    return ", ".join(f"{v:g}" for v in crop)
+
+
+def _parse_crop_text(text: str, old):
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        vals = [float(v) for v in text.replace(" ", "").split(",")]
+    except ValueError:
+        return old
+    return vals if len(vals) == 4 else old
+
+
+class SheetPanel(QWidget):
+    """Paper, title, margins - edits a SheetSettings."""
+
+    changed = Signal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(6, 4, 6, 4)
+        self.paper = ComboBox()
+        self.paper.addItems(["a4", "letter"])
+        self.title = QLineEdit()
+        self.title.setMinimumWidth(180)
+        self.margin = DoubleSpinBox()
+        self.margin.setRange(0, 50)
+        self.margin.setSuffix(" mm")
+        self.gap = DoubleSpinBox()
+        self.gap.setRange(0, 50)
+        self.gap.setSuffix(" mm")
+        for lbl, w in (("Paper", self.paper), ("Title", self.title),
+                       ("Margin", self.margin), ("Gap", self.gap)):
+            h.addWidget(QLabel(lbl))
+            h.addWidget(w)
+        h.addStretch()
+        self.info = QLabel()
+        h.addWidget(self.info)
+        self.paper.currentTextChanged.connect(self._emit)
+        self.title.editingFinished.connect(self._emit)
+        self.margin.valueChanged.connect(self._emit)
+        self.gap.valueChanged.connect(self._emit)
+        self._s = SheetSettings()
+        self._loading = False
+
+    def set_settings(self, s: SheetSettings):
+        self._loading = True
+        self._s = s
+        self.paper.setCurrentText(s.paper)
+        self.title.setText(s.title)
+        self.margin.setValue(s.margin_mm)
+        self.gap.setValue(s.gap_mm)
+        self._loading = False
+
+    def _emit(self, *_):
+        if self._loading:
+            return
+        new = replace(self._s, paper=self.paper.currentText(), title=self.title.text(),
+                      margin_mm=self.margin.value(), gap_mm=self.gap.value())
+        if new != self._s:
+            self._s = new
+            self.changed.emit(new)

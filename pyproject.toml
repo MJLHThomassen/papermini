@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "papermini"
+version = "0.1.0"
+description = "Turn an illustration into a print-ready paper miniature (SVG + PDF sheet)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.22",
+    "pillow>=9.0",
+    "opencv-python-headless>=4.6",
+    "onnxruntime>=1.14",
+    "reportlab>=3.6",
+    "pyyaml>=6.0",
+    "tqdm>=4.60",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6-Essentials>=6.8"]
+rembg = ["rembg>=2.0.50"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+papermini = "papermini.cli:main"
+
+[project.gui-scripts]
+papermini-gui = "papermini.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

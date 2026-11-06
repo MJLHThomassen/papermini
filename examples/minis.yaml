@@ -1,0 +1,40 @@
+# papermini batch config - paths are relative to this file.
+#   papermini batch examples/minis.yaml
+#
+# Every per-figure option of `papermini make` can be used here (with
+# underscores or dashes): height_mm, margin_mm, threshold, close, crop,
+# keep_all, min_area, no_tab, double_sided, label, model, mask, cutter, ...
+
+output: minis                 # folder for the SVGs (and debug output)
+
+sheet:
+  output: minis/sheet.pdf
+  paper: a4                   # or letter
+  copies: 1                   # default copies per figure
+  preview: true               # also write sheet.png
+  title: Ghost hunt
+
+defaults:
+  height_mm: 42
+  threshold: 40
+  close: 9
+
+figures:
+  - image: ghost-girl.jpg
+    label: Lotje
+    copies: 2
+
+  - image: ghost-chef.jpg
+    label: Bertus
+
+  - image: ghost-glutton.jpg
+    label: Smulpaap
+    height_mm: 34
+
+  # Busy background: let the model look only at the figure's region.
+  - image: boss-attic.jpg
+    label: Acererak
+    height_mm: 56
+    threshold: 60
+    close: 7
+    crop: [0.08, 0, 0.92, 0.62]
