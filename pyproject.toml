@@ -7,7 +7,7 @@ name = "papermini"
 dynamic = ["version"]  # from the git tag (vMAJOR.MINOR.PATCH), see [tool.setuptools_scm]
 description = "Turn an illustration into a print-ready paper miniature (SVG + PDF sheet)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [

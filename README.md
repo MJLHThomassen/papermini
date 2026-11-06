@@ -42,7 +42,7 @@ The builds are not code-signed, so the first start needs one extra step:
 
 <details><summary>Run from source instead</summary>
 
-You need Python 3.9 or newer. The setup script creates a virtual environment
+You need Python 3.10 or newer. The setup script creates a virtual environment
 in `~/.venvs/papermini` and installs papermini with the desktop app:
 
 ```bash

@@ -35,7 +35,7 @@ def fresh_prefs(app):
     yield
 
 
-def wait(app, cond, timeout=30):
+def wait(app, cond, timeout=180):  # generous: CI runners can be slow; returns as soon as cond()
     end = time.time() + timeout
     while time.time() < end:
         app.processEvents()

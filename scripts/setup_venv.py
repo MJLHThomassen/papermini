@@ -31,8 +31,8 @@ def main() -> int:
                     help="also install PyInstaller, to build the standalone binaries")
     a = ap.parse_args()
 
-    if sys.version_info < (3, 9):
-        sys.exit("papermini needs Python 3.9 or newer")
+    if sys.version_info < (3, 10):
+        sys.exit("papermini needs Python 3.10 or newer")
     target = Path(a.dir).expanduser().resolve()
     if not (target / "pyvenv.cfg").exists():
         print(f"Creating venv in {target}")
