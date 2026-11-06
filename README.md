@@ -294,6 +294,15 @@ figures:
     crop: [0.08, 0, 0.92, 0.62]
 ```
 
+[examples/sample/sample.yaml](examples/sample/sample.yaml) builds the sample
+outputs in that folder: a default mini, a round coloured base, a double-sided
+mini with back text, and a print-and-cut mini with bleed. Their sheet is
+[examples/sample/sample-sheet.pdf](examples/sample/sample-sheet.pdf).
+
+```bash
+papermini batch examples/sample/sample.yaml
+```
+
 ## How it works
 
 1. **Segmentation.** RMBG-1.4 runs at 1024×1024 and its mask is scaled back to the

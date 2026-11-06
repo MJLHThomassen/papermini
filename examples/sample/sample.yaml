@@ -1,0 +1,42 @@
+# Rebuilds the sample outputs in this folder:
+#   papermini batch examples/sample/sample.yaml
+# ghost-edge.png is a synthetic pencil-style test drawing (an arm runs off the
+# image edge, to show that the margin stays rounded there).
+
+output: .
+
+sheet:
+  output: sample-sheet.pdf
+  paper: a4
+  title: papermini sample sheet
+
+figures:
+  # all defaults: square tab with the file name as label
+  - image: ghost-edge.png
+
+  # round fold-out base in a colour, cream margin, own label
+  - image: ghost-edge.png
+    name: ghost-round
+    label: Lotje
+    margin_color: "#f3e6c8"
+    tab_shape: round
+    tab_color: "#dde8f5"
+
+  # double-sided: round green base on both halves, text on the back
+  - image: ghost-edge.png
+    name: ghost-double
+    label: ""
+    tab_shape: round
+    tab_color: "#3b6e2a"
+    double_sided: true
+    back: text
+    back_text: Lotje the Lost Ghost
+
+  # print-and-cut: red hairline, 1 mm bleed of the dark margin and tab colour
+  - image: ghost-edge.png
+    name: ghost-cutter
+    label: ""
+    cutter: true
+    bleed_mm: 1.0
+    margin_color: "#1d1d2b"
+    tab_color: "#3b6e2a"
