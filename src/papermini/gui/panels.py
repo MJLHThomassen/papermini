@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Dict
 
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
                                QWidget)
 
 from ..settings import FigureSettings, SheetSettings
-from . import theme
+from . import prefs, theme
 
 # value -> what the (editable) model box shows, where they differ
 MODEL_NAMES = {"mask": "mask image file"}
@@ -196,7 +196,7 @@ class Section(QWidget):
         v.addWidget(self.header)
         v.addWidget(self.body)
         self.header.toggled.connect(self._toggle)
-        open_ = QSettings("papermini", "papermini").value(self._key, True, type=bool)
+        open_ = prefs.store().value(self._key, True, type=bool)
         self.header.setChecked(open_)
         self._toggle(open_)
 
@@ -204,7 +204,7 @@ class Section(QWidget):
         self.body.setVisible(open_)
         self.header.setIcon(theme.icon("chevron_down" if open_ else "chevron_right",
                                        theme.current.muted, 14))
-        QSettings("papermini", "papermini").setValue(self._key, open_)
+        prefs.store().setValue(self._key, open_)
 
 
 class ColorButton(QPushButton):
@@ -246,7 +246,6 @@ class FigurePanel(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWidgetResizable(True)
-        self.setMinimumWidth(320)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
         self._w: Dict[str, Any] = {}
@@ -592,15 +591,18 @@ class SheetPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        from .widgets import FlowLayout
+
         self.setObjectName("SheetBar")
         self.setAttribute(Qt.WA_StyledBackground)
-        h = QHBoxLayout(self)
+        # wraps onto a second line when the canvas is narrow (a single row would hold
+        # the canvas - and so the side panels - at ~760 px)
+        h = FlowLayout(self, spacing=14)
         h.setContentsMargins(14, 8, 14, 8)
-        h.setSpacing(8)
         self.paper = ComboBox()
         self.paper.addItems(["a4", "letter"])
         self.title = QLineEdit()
-        self.title.setMinimumWidth(180)
+        self.title.setFixedWidth(180)
         self.margin = DoubleSpinBox()
         self.margin.setRange(0, 50)
         self.margin.setSuffix(" mm")
@@ -609,12 +611,15 @@ class SheetPanel(QWidget):
         self.gap.setSuffix(" mm")
         for lbl, w in (("Paper", self.paper), ("Title", self.title),
                        ("Margin", self.margin), ("Gap", self.gap)):
+            pair = QWidget()  # a label and its field wrap together
+            ph = QHBoxLayout(pair)
+            ph.setContentsMargins(0, 0, 0, 0)
+            ph.setSpacing(6)
             lab = QLabel(lbl)
             lab.setObjectName("FormLabel")
-            h.addWidget(lab)
-            h.addWidget(w)
-            h.addSpacing(6)
-        h.addStretch()
+            ph.addWidget(lab)
+            ph.addWidget(w)
+            h.addWidget(pair)
         self.info = QLabel()
         self.info.setObjectName("Muted")
         h.addWidget(self.info)

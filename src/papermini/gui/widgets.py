@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton,
-                               QStyle, QStyledItemDelegate, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QLayout, QPushButton,
+                               QSizePolicy, QStyle, QStyledItemDelegate, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from . import theme
 
@@ -119,6 +120,7 @@ class ZoomBar(QFrame):
         one = QToolButton()
         one.setText("1:1")
         one.setToolTip("Actual size  (Ctrl+1)")
+        one.setAccessibleName("Actual size")
         one.clicked.connect(self.actual)
         one.setCursor(Qt.PointingHandCursor)
         h.addWidget(one)
@@ -126,6 +128,7 @@ class ZoomBar(QFrame):
     def _button(self, name, tip, sig):
         b = QToolButton()
         b.setToolTip(tip)
+        b.setAccessibleName(tip.split("  (")[0])
         b.setIconSize(QSize(16, 16))
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(sig)
@@ -156,10 +159,12 @@ class EmptyState(QFrame):
         title = QLabel("Start with a drawing")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignCenter)
-        text = QLabel("Drop images or a project (.yaml) anywhere in this window,\n"
+        text = QLabel("Drop images or a project (.yaml) anywhere in this window, "
                       "or pick them from your computer.")
         text.setObjectName("Muted")
         text.setAlignment(Qt.AlignCenter)
+        text.setWordWrap(True)
+        self.setMaximumWidth(460)
         self.button = QPushButton("Add images…")
         self.button.setProperty("primary", True)
         self.button.setCursor(Qt.PointingHandCursor)
@@ -196,6 +201,67 @@ class Banner(QFrame):
         self.icon.setPixmap(theme.pixmap("warning", theme.current.danger, 20))
         self.text.setText(f"<b>{title}</b><br>{body}")
         self.show()
+
+
+class FlowLayout(QLayout):
+    """Lays items out left to right and wraps onto the next line when the row is
+    full, so a bar of controls never forces its parent to stay wide."""
+
+    def __init__(self, parent=None, spacing: int = 8, line_spacing: int = 6):
+        super().__init__(parent)
+        self._items = []
+        self._h, self._v = spacing, line_spacing
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, i):
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i):
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), apply=False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, apply=True)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for it in self._items:
+            size = size.expandedTo(it.minimumSize())
+        m = self.contentsMargins()
+        return size + QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _do_layout(self, rect, apply: bool) -> int:
+        m = self.contentsMargins()
+        r = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x, y, line_h = r.x(), r.y(), 0
+        for it in self._items:
+            if it.widget() is not None and not it.widget().isVisible() and apply:
+                continue
+            hint = it.sizeHint()
+            if x > r.x() and x + hint.width() > r.right() + 1:
+                x, y, line_h = r.x(), y + line_h + self._v, 0
+            if apply:
+                it.setGeometry(QRect(QPoint(x, y), hint))
+            x += hint.width() + self._h
+            line_h = max(line_h, hint.height())
+        return y + line_h - rect.y() + m.bottom()
 
 
 def overlay_wrap(w: QWidget, margins=(16, 16, 16, 16)) -> QWidget:

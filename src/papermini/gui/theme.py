@@ -66,6 +66,13 @@ ICONS: Dict[str, str] = {
     "zoom_in": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M11 8v6M8 11h6"/>',
     "zoom_out": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8 11h6"/>',
     "trash": '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10.5 11v5M13.5 11v5"/>',
+    # side panel toggles: outline = hidden, filled strip = shown
+    "panel_left": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/>',
+    "panel_left_on": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/>'
+                     '<path d="M9.5 4.5h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h4z" fill="currentColor"/>',
+    "panel_right": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>',
+    "panel_right_on": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>'
+                      '<path d="M14.5 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4z" fill="currentColor"/>',
     "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
     "plus": '<path d="M12 5.5v13M5.5 12h13"/>',
     "chevron_down": '<path d="M7 10l5 5 5-5"/>',
@@ -172,6 +179,7 @@ QToolTip {{ background: {t.surface}; color: {t.text}; border: 1px solid {t.borde
 #Header QToolButton {{ border: none; border-radius: 7px; padding: 6px; background: transparent; }}
 #Header QToolButton:hover {{ background: {t.surface2}; }}
 #Header QToolButton:pressed {{ background: {t.border}; }}
+#Header QToolButton:focus {{ border: 2px solid {t.accent}; padding: 4px; }}
 #Header QToolButton::menu-indicator {{ image: none; width: 0; }}
 
 /* segmented view switch */
@@ -195,6 +203,7 @@ QPushButton[primary="true"]:disabled {{ background: {t.surface2}; color: {t.mute
                                         border-color: {t.border}; }}
 QToolButton {{ border: none; border-radius: 6px; padding: 4px; background: transparent; }}
 QToolButton:hover {{ background: {t.surface2}; }}
+QToolButton:focus {{ border: 2px solid {t.accent}; padding: 2px; }}
 
 /* inputs */
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{

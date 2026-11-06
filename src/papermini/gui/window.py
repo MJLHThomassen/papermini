@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
@@ -22,7 +22,7 @@ from ..segment import ModelError
 from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
 from ..sheet import pack, write_pdf
 from ..svg import write_svg
-from . import theme
+from . import prefs, theme
 from .panels import FigurePanel, Section, SheetPanel
 from .views import (CropView, ZoomView, array_to_qimage, draw_mini_page, draw_sheet, load_qimage,
                     pil_to_qimage)
@@ -111,9 +111,10 @@ class MainWindow(QMainWindow):
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
         self._sheet_timer = QTimer(self, singleShot=True, interval=150, timeout=self._refresh_sheet)
 
-        self._theme_mode = QSettings("papermini", "papermini").value("theme", "system", type=str)
+        self._theme_mode = prefs.store().value("theme", "system", type=str)
         self._make_ui()
         self._make_actions()
+        self._restore_layout()
         self._refresh_theme()
         app = QApplication.instance()
         if app is not None:
@@ -146,7 +147,7 @@ class MainWindow(QMainWindow):
 
         split = QSplitter(Qt.Horizontal)
         split.setHandleWidth(1)
-        split.setChildrenCollapsible(False)
+        self.splitter = split
         split.addWidget(self._make_figure_list())
         split.addWidget(canvas)
         right = QFrame()
@@ -154,9 +155,18 @@ class MainWindow(QMainWindow):
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
         rv.addWidget(self.panel)
+        # usable width or dragged shut - never a sliver with clipped fields
+        right.setMinimumWidth(self.panel.widget().minimumSizeHint().width()
+                              + self.panel.verticalScrollBar().sizeHint().width())
         split.addWidget(right)
         split.setStretchFactor(1, 1)
         split.setSizes([260, 820, 380])
+        # the side panels can be dragged shut (and back open); the canvas cannot
+        split.setCollapsible(0, True)
+        split.setCollapsible(1, False)
+        split.setCollapsible(2, True)
+        split.splitterMoved.connect(lambda *_: self._side_dragged())
+        self._side_width = {0: 260, 2: 380}  # width to reopen a collapsed panel at
         root.addWidget(split, 1)
         self.setCentralWidget(central)
 
@@ -167,6 +177,7 @@ class MainWindow(QMainWindow):
     def _tool(self, icon: str, tip: str, slot, size: int = 18) -> QToolButton:
         b = QToolButton()
         b.setToolTip(tip)
+        b.setAccessibleName(tip.split("  (")[0])  # icon-only: name it for screen readers
         b.setIconSize(QSize(size, size))
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(slot)
@@ -215,12 +226,27 @@ class MainWindow(QMainWindow):
         h.addSpacing(4)
         self.menu_btn = QToolButton()
         self.menu_btn.setToolTip("Menu")
+        self.menu_btn.setAccessibleName("Menu")
         self.menu_btn.setIconSize(QSize(18, 18))
         self.menu_btn.setPopupMode(QToolButton.InstantPopup)
         self.menu_btn.setCursor(Qt.PointingHandCursor)
         self._tinted.append((self.menu_btn, "menu", "text", 18))
         h.addWidget(self.menu_btn)
         return bar
+
+    def _side_button(self, i: int):
+        """A floating button on the canvas that hides / shows side panel ``i``."""
+        card = QFrame()
+        card.setObjectName("ZoomBar")  # same floating card as the zoom controls
+        h = QHBoxLayout(card)
+        h.setContentsMargins(4, 3, 4, 3)
+        b = QToolButton()
+        b.setIconSize(QSize(16, 16))
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(lambda: self.toggle_side(i))
+        b.setFocusPolicy(Qt.TabFocus)  # keyboard focus ring, but no stuck ring after a click
+        h.addWidget(b)
+        return b, card
 
     def _make_figure_list(self) -> QFrame:
         left = QFrame()
@@ -301,7 +327,18 @@ class MainWindow(QMainWindow):
         self.zoombar.zoomOut.connect(lambda: self._active_view().zoom_by(0.8))
         self.zoombar.fit.connect(self._fit)
         self.zoombar.actual.connect(self._actual)
-        self.zoom_box = overlay_wrap(self.zoombar)
+        # side panel toggles in the bottom corners, next to the panel they control
+        # (always shown, so a collapsed panel can be brought back)
+        self.btn_left, left_card = self._side_button(0)
+        grid.addWidget(overlay_wrap(left_card), 0, 0, Qt.AlignBottom | Qt.AlignLeft)
+        self.btn_right, right_card = self._side_button(2)
+        self.zoom_box = QWidget()
+        self.zoom_box.setAttribute(Qt.WA_TranslucentBackground)
+        zb = QHBoxLayout(self.zoom_box)
+        zb.setContentsMargins(16, 16, 16, 16)
+        zb.setSpacing(8)
+        zb.addWidget(self.zoombar, 0, Qt.AlignBottom)
+        zb.addWidget(right_card, 0, Qt.AlignBottom)
         grid.addWidget(self.zoom_box, 0, 0, Qt.AlignBottom | Qt.AlignRight)
         for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
             v.zoomChanged.connect(lambda z, v=v: v is self._active_view() and self.zoombar.set_zoom(z))
@@ -335,11 +372,21 @@ class MainWindow(QMainWindow):
         self.a_fit = act("Fit to window", self._fit, "Ctrl+0")
         self.a_actual = act("Actual size", self._actual, "Ctrl+1",
                             "Show at real size (depends on your screen's reported DPI)")
+        self.a_left = act("Figure list", lambda on: self.set_side_visible(0, on), "Ctrl+B",
+                          "Show or hide the figure list")
+        self.a_right = act("Settings", lambda on: self.set_side_visible(2, on), "Ctrl+Alt+B",
+                           "Show or hide the settings panel")
+        for a in (self.a_left, self.a_right):
+            a.setCheckable(True)
+            a.setChecked(True)
 
         m = self.menu = QMenu(self)
         for a in (self.a_new, self.a_open, self.a_add, None, self.a_save, self.a_save_as, None,
-                  self.a_svg, self.a_svgs, self.a_pdf, None, self.a_fit, self.a_actual):
+                  self.a_svg, self.a_svgs, self.a_pdf, None):
             m.addSeparator() if a is None else m.addAction(a)
+        vm = m.addMenu("View")
+        for a in (self.a_left, self.a_right, None, self.a_fit, self.a_actual):
+            vm.addSeparator() if a is None else vm.addAction(a)
         tm = m.addMenu("Theme")
         group = QActionGroup(self)
         self.theme_actions = {}
@@ -354,11 +401,85 @@ class MainWindow(QMainWindow):
         m.addAction("About papermini", self._about)
         m.addAction(self.a_quit)
         self.menu_btn.setMenu(m)
+        self._sync_sides()
+
+    # ----------------------------------------------------------------- side panels
+    SIDE_NAMES = {0: "figure list", 2: "settings"}
+
+    def side_visible(self, i: int) -> bool:
+        return self.splitter.sizes()[i] > 0
+
+    def toggle_side(self, i: int):
+        self.set_side_visible(i, not self.side_visible(i))
+
+    def set_side_visible(self, i: int, show: bool):
+        """Collapse a side panel, or reopen it at the width it had."""
+        sizes = self.splitter.sizes()
+        if (sizes[i] > 0) != show:
+            if show:
+                w = max(self._side_width[i], self.splitter.widget(i).minimumSizeHint().width(),
+                        self.splitter.widget(i).minimumWidth())
+                sizes[i], sizes[1] = w, max(sizes[1] - w, 0)
+            else:
+                self._side_width[i] = sizes[i]
+                sizes[1] += sizes[i]
+                sizes[i] = 0
+            self.splitter.setSizes(sizes)
+        self._sync_sides()
+
+    def _restore_layout(self):
+        """Panel widths and which panels are collapsed, as they were last time."""
+        st = prefs.store()
+        state = st.value("layout/splitter")
+        if isinstance(state, QByteArray) and not state.isEmpty():
+            self.splitter.restoreState(state)
+            self.splitter.setCollapsible(1, False)  # (not part of the saved state)
+        for i, key in ((0, "layout/left_width"), (2, "layout/right_width")):
+            w = st.value(key, 0, type=int)
+            if w > 0:
+                self._side_width[i] = w
+        self._sync_sides()
+
+    def _save_layout(self):
+        sizes = self.splitter.sizes()
+        for i in self._side_width:
+            if sizes[i] > 0:
+                self._side_width[i] = sizes[i]
+        st = prefs.store()
+        st.setValue("layout/splitter", self.splitter.saveState())
+        st.setValue("layout/left_width", self._side_width[0])
+        st.setValue("layout/right_width", self._side_width[2])
+
+    def _side_dragged(self):
+        # remember open widths while dragging, so a panel dragged shut reopens at the
+        # width it had just before
+        for i, w in enumerate(self.splitter.sizes()):
+            if i in self._side_width and w > 0:
+                self._side_width[i] = w
+        self._sync_sides()
+
+    def _sync_sides(self):
+        """Toggle buttons and menu checks follow the panels, however they were moved."""
+        if not hasattr(self, "a_left"):
+            return
+        t = theme.current
+        for i, btn, a in ((0, self.btn_left, self.a_left), (2, self.btn_right, self.a_right)):
+            on = self.side_visible(i)
+            name = ("panel_left" if i == 0 else "panel_right") + ("_on" if on else "")
+            btn.setIcon(theme.icon(name, t.text, 16))
+            key = a.shortcut().toString(QKeySequence.NativeText)
+            verb = "Hide" if on else "Show"
+            btn.setToolTip(f"{verb} the {self.SIDE_NAMES[i]}  ({key})")
+            btn.setAccessibleName(f"{verb} the {self.SIDE_NAMES[i]}")
+            btn.setAccessibleDescription(f"Shortcut: {key}")
+            a.blockSignals(True)
+            a.setChecked(on)
+            a.blockSignals(False)
 
     # ----------------------------------------------------------------- theme
     def set_theme(self, mode: str):
         self._theme_mode = mode
-        QSettings("papermini", "papermini").setValue("theme", mode)
+        prefs.store().setValue("theme", mode)
         app = QApplication.instance()
         if app is not None:
             theme.apply(app, mode)
@@ -377,6 +498,7 @@ class MainWindow(QMainWindow):
                 w.setIcon(theme.icon(name, getattr(t, token), size))
         self.zoombar.refresh_icons()
         self.empty.refresh_icons()
+        self._sync_sides()
         for sec in self.panel.findChildren(Section):
             sec._toggle(sec.header.isChecked())
         for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
@@ -571,7 +693,7 @@ class MainWindow(QMainWindow):
             w.setEnabled(has)
         self.btn_pdf.setEnabled(bool(self.figures))
         self.empty.setVisible(not self.figures)
-        self.zoom_box.setVisible(bool(self.figures))
+        self.zoombar.setVisible(bool(self.figures))
         if not has:
             self.panel.set_settings(FigureSettings(), "No figure selected")
             self.panel.subtitle.setText("Add an image to see its settings here")
@@ -889,6 +1011,7 @@ class MainWindow(QMainWindow):
             segment.PROGRESS_HOOK = None
             self.pool.waitForDone(15000)    # builds stop at the next checkpoint
             segment.CANCEL.clear()
+            self._save_layout()
             e.accept()
         else:
             e.ignore()

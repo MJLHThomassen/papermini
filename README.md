@@ -172,10 +172,14 @@ Windows, macOS and Linux (Qt 6 / PySide6).
 
 - **Header.** Open, add images and save on the left; a switch between the four
   views in the middle; **Export SVG** and **Export PDF** on the right. The ☰ menu
-  holds everything else: new project, save as, export all SVGs, zoom, the
-  **theme** (follow the system, light or dark) and about. Keyboard shortcuts
-  work without opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+S save,
-  Ctrl+E export SVG, Ctrl+P export PDF, Ctrl+0 fit, Ctrl+1 actual size.
+  holds everything else: new project, save as, export all SVGs, **View**
+  (show or hide the side panels, zoom), the **theme** (follow the system, light
+  or dark) and about. Keyboard shortcuts work without opening the menu: Ctrl+O
+  open, Ctrl+I add images, Ctrl+S save, Ctrl+E export SVG, Ctrl+P export PDF,
+  Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
+- **Side panels.** Drag the dividers to resize the figure list and the settings,
+  or drag them shut. The buttons in the bottom corners of the canvas hide and
+  show them (filled = shown) and stay put while a panel is hidden.
 - **Figures** (left). Each figure is a card with a thumbnail of the finished
   piece, its height and number of copies. Add images with **+**, or drop
   files or a project anywhere in the window. Drag to reorder; **Delete**
