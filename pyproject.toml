@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "papermini"
-version = "0.1.0"
+dynamic = ["version"]  # from the git tag (vMAJOR.MINOR.PATCH), see [tool.setuptools_scm]
 description = "Turn an illustration into a print-ready paper miniature (SVG + PDF sheet)"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=1.22",
     "pillow>=9.0",
@@ -23,6 +24,7 @@ dependencies = [
 gui = ["PySide6-Essentials>=6.8"]
 rembg = ["rembg>=2.0.50"]
 dev = ["pytest>=7"]
+build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
 
 [project.scripts]
 papermini = "papermini.cli:main"
@@ -32,6 +34,12 @@ papermini-gui = "papermini.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools_scm]
+# Semantic versioning from git tags: tag v1.2.3 builds version 1.2.3; commits after
+# a tag get a development version such as 1.2.4.dev3+g1a2b3c4.
+version_file = "src/papermini/_version.py"
+fallback_version = "0.0.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

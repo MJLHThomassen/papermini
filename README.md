@@ -21,9 +21,29 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 
 # Usage
 
-You need Python 3.9 or newer. Clone the repository and run the setup script. It
-creates a virtual environment in `~/.venvs/papermini` and installs papermini
-with the desktop app, on Windows, macOS and Linux:
+Download the archive for your system from the
+[latest release](https://github.com/MJLHThomassen/papermini/releases/latest),
+unpack it and start papermini. No Python needed.
+
+| System | Download | Start |
+|---|---|---|
+| Windows (64-bit) | `papermini-<version>-windows-x64.zip` | `papermini-gui.exe` |
+| macOS (Apple silicon) | `papermini-<version>-macos-arm64.zip` | `papermini.app` |
+| macOS (Intel) | `papermini-<version>-macos-x64.zip` | `papermini.app` |
+| Linux (64-bit) | `papermini-<version>-linux-x64.tar.gz` | `papermini-gui` |
+
+The builds are not code-signed, so the first start needs one extra step:
+
+- **Windows:** if SmartScreen warns, click *More info*, then *Run anyway*.
+- **macOS:** right-click `papermini.app` and choose *Open*. If macOS says the
+  app is damaged, run `xattr -dr com.apple.quarantine papermini.app` once.
+- **Linux:** Qt needs a few X11 libraries; on Debian and Ubuntu,
+  `sudo apt install libxcb-cursor0`.
+
+<details><summary>Run from source instead</summary>
+
+You need Python 3.9 or newer. The setup script creates a virtual environment
+in `~/.venvs/papermini` and installs papermini with the desktop app:
 
 ```bash
 git clone https://github.com/MJLHThomassen/papermini.git
@@ -37,17 +57,9 @@ cd papermini
 python scripts/setup_venv.py
 ```
 
-Then start the app. On Windows:
-
-```bash
-~/.venvs/papermini/Scripts/papermini-gui
-```
-
-On macOS and Linux:
-
-```bash
-~/.venvs/papermini/bin/papermini-gui
-```
+Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
+`~/.venvs/papermini/bin/papermini-gui` (macOS, Linux).
+</details>
 
 1. **Add images.** Drop images onto the window, or use **+**. Each one becomes
    a figure in the list on the left.
@@ -78,8 +90,10 @@ that, papermini works offline.
 
 # Usage via CLI
 
-The same venv has the `papermini` command (in `Scripts/` on Windows, `bin/` on
-macOS and Linux). Activate the venv to use it from any folder.
+The `papermini` command comes with the app: next to `papermini-gui` in the
+Windows and Linux downloads, and at `papermini.app/Contents/MacOS/papermini` on
+macOS. When running from source, it is in the venv (`Scripts/` on Windows,
+`bin/` on macOS and Linux).
 
 Make one SVG per image:
 
@@ -140,3 +154,39 @@ After changing the look of the app, regenerate the screenshots in
 ```
 
 Contributors and coding agents: read [AGENTS.md](AGENTS.md) first.
+
+## Versions and releases
+
+papermini uses [semantic versioning](https://semver.org). The version comes
+from git tags, so there is no version number to edit: tag `v1.2.3` builds
+version 1.2.3, and commits after it report a development version such as
+`1.2.4.dev3+g1a2b3c4` (`papermini --version`).
+
+To release, tag a commit on `main` and push the tag:
+
+```bash
+git tag v1.2.0
+```
+
+```bash
+git push origin v1.2.0
+```
+
+The [release workflow](.github/workflows/release.yml) then runs the tests,
+builds the Windows, macOS and Linux downloads and publishes them as a GitHub
+release with generated notes and SHA-256 checksums. A tag with a suffix, such
+as `v1.2.0-rc.1`, makes a pre-release. To try the builds without releasing, run
+the workflow by hand from the *Actions* tab; the downloads appear as workflow
+artifacts.
+
+## Building the binaries locally
+
+```bash
+python scripts/setup_venv.py --dev --build
+```
+
+```bash
+~/.venvs/papermini/Scripts/pyinstaller packaging/papermini.spec --noconfirm
+```
+
+The result is in `dist/`. PyInstaller builds for the system it runs on only.

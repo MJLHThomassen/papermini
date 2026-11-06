@@ -27,6 +27,8 @@ def main() -> int:
                     help="where to create the venv (default: ~/.venvs/papermini)")
     ap.add_argument("--no-gui", action="store_true", help="skip the Qt GUI dependencies")
     ap.add_argument("--dev", action="store_true", help="also install pytest")
+    ap.add_argument("--build", action="store_true",
+                    help="also install PyInstaller, to build the standalone binaries")
     a = ap.parse_args()
 
     if sys.version_info < (3, 9):
@@ -36,7 +38,7 @@ def main() -> int:
         print(f"Creating venv in {target}")
         venv.EnvBuilder(with_pip=True).create(target)
     py = target / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    extras = [x for x, on in (("gui", not a.no_gui), ("dev", a.dev)) if on]
+    extras = [x for x, on in (("gui", not a.no_gui), ("dev", a.dev), ("build", a.build)) if on]
     spec = f"{ROOT}[{','.join(extras)}]" if extras else str(ROOT)
     subprocess.check_call([str(py), "-m", "pip", "install", "--upgrade", "pip"])
     subprocess.check_call([str(py), "-m", "pip", "install", "-e", spec])

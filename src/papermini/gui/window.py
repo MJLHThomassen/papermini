@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
                                QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import segment
+from .. import __version__, segment
 from ..mini import Mini
 from ..segment import ModelError
 from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
@@ -990,7 +990,8 @@ class MainWindow(QMainWindow):
     def _about(self):
         QMessageBox.about(
             self, "About papermini",
-            "<b>papermini</b> turns illustrations into print-ready paper miniatures.<br><br>"
+            f"<b>papermini {__version__}</b><br><br>"
+            "Turns illustrations into print-ready paper miniatures.<br><br>"
             "The default background-removal model, BRIA RMBG-1.4, is licensed for "
             "<b>non-commercial use only</b>.<br><br>"
             "Projects are saved as batch YAML files, so you can also run them from the "

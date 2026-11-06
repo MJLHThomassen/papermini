@@ -6,3 +6,4 @@ build/
 dist/
 debug/
 *.pyc
+src/papermini/_version.py

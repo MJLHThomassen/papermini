@@ -17,6 +17,10 @@ Rules for anyone, human or coding agent, working in this repository.
 - **No backwards-compatibility code.** There are no released project files to
   support yet: rename or remove options and settings outright, without
   aliases, migrations or fallbacks, unless the maintainer asks for them.
+- **Never hard-code a version number.** The version comes from git tags
+  through setuptools-scm (`src/papermini/_version.py` is generated and
+  ignored). Releases are cut only by the maintainer, by pushing a
+  `vMAJOR.MINOR.PATCH` tag; never create or push tags yourself unless asked.
 - **Respect the model licence.** The default segmentation model (BRIA
   RMBG-1.4) is non-commercial. Never add model weights to the repository; they
   are downloaded to `~/.cache/papermini/` on first use.
@@ -38,6 +42,8 @@ src/papermini/
                 prefs)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py
+packaging/      PyInstaller spec, entry scripts and app icon (make_icon.py)
+.github/        CI (tests on push/PR) and release (binaries on version tags)
 examples/       batch YAML examples and generated sample outputs
 docs/           reference.md (full option docs) and README screenshots
 ```
@@ -58,6 +64,9 @@ docs/           reference.md (full option docs) and README screenshots
 - **Regenerate the samples** in `examples/sample/` with
   `papermini batch examples/sample/sample.yaml` when the output format or
   defaults change.
+- **Binaries:** new runtime dependencies or data files must also work in the
+  PyInstaller build (`packaging/papermini.spec`). After such a change, build
+  locally and run the frozen `papermini --version` and a `papermini make`.
 - **Docs:** user-facing behaviour goes in `docs/reference.md`; keep `README.md`
   short (features, usage with screenshots, CLI basics, development setup).
 
