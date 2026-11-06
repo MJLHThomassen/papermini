@@ -28,11 +28,11 @@ jobs:
           - os: ubuntu-22.04  # has builds of older Pythons that newer images lack
             python: "3.10"  # the oldest version pyproject.toml promises
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # setuptools-scm reads the version from the tags
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip

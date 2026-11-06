@@ -64,11 +64,11 @@ jobs:
           - os: ubuntu-22.04  # older glibc, so the binary runs on more distributions
             target: linux-x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # setuptools-scm reads the version from the tags
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -126,7 +126,7 @@ jobs:
           esac
           ls -l out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: papermini-${{ matrix.target }}
           path: out/*
@@ -140,7 +140,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: out
           merge-multiple: true
