@@ -25,7 +25,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.12"]
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04  # newer Ubuntu images have no Python 3.9 builds
             python: "3.9"  # the oldest version pyproject.toml promises
     steps:
       - uses: actions/checkout@v4
