@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Dict
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
                                QWidget)
 
 from ..settings import FigureSettings, SheetSettings
+from . import theme
 
 # value -> what the (editable) model box shows, where they differ
 MODEL_NAMES = {"mask": "mask image file"}
@@ -154,6 +155,7 @@ class SpinBox(_WheelGuard, QSpinBox):
         super().__init__(parent)
         self._init_guard()
         self.setKeyboardTracking(False)
+        self.lineEdit().setTextMargins(5, 0, 0, 0)  # line up with combo box text
 
 
 class DoubleSpinBox(_WheelGuard, QDoubleSpinBox):
@@ -161,6 +163,7 @@ class DoubleSpinBox(_WheelGuard, QDoubleSpinBox):
         super().__init__(parent)
         self._init_guard()
         self.setKeyboardTracking(False)
+        self.lineEdit().setTextMargins(5, 0, 0, 0)  # line up with combo box text
 
 
 class ComboBox(_WheelGuard, QComboBox):
@@ -170,6 +173,38 @@ class ComboBox(_WheelGuard, QComboBox):
         # long item names must not widen the settings panel (the list still shows them)
         self.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.setMinimumContentsLength(8)
+
+
+class Section(QWidget):
+    """A settings group with a clickable header that folds it open/closed
+    (remembered between sessions)."""
+
+    def __init__(self, title: str, parent=None):
+        super().__init__(parent)
+        self.setObjectName("Section")
+        self.setAttribute(Qt.WA_StyledBackground)
+        self._key = f"sections/{title}"
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 10)
+        v.setSpacing(2)
+        self.header = QPushButton(title)
+        self.header.setObjectName("SectionHeader")
+        self.header.setCheckable(True)
+        self.header.setCursor(Qt.PointingHandCursor)
+        self.header.setFocusPolicy(Qt.NoFocus)
+        self.body = QWidget()
+        v.addWidget(self.header)
+        v.addWidget(self.body)
+        self.header.toggled.connect(self._toggle)
+        open_ = QSettings("papermini", "papermini").value(self._key, True, type=bool)
+        self.header.setChecked(open_)
+        self._toggle(open_)
+
+    def _toggle(self, open_: bool):
+        self.body.setVisible(open_)
+        self.header.setIcon(theme.icon("chevron_down" if open_ else "chevron_right",
+                                       theme.current.muted, 14))
+        QSettings("papermini", "papermini").setValue(self._key, open_)
 
 
 class ColorButton(QPushButton):
@@ -190,7 +225,9 @@ class ColorButton(QPushButton):
         self.setText(c)
         # scoped to this button: an unscoped style sheet is inherited by child widgets,
         # which painted the whole colour dialog in the selected colour
-        self.setStyleSheet(f"QPushButton {{ background: {c}; color: {fg}; }}")
+        self.setStyleSheet(f"QPushButton {{ background: {c}; color: {fg}; border-radius: 6px; "
+                           f"border: 1px solid rgba(128, 128, 128, 0.45); padding: 3px 8px; "
+                           f"font-family: Consolas, monospace; }}")
 
     def _pick(self):
         c = QColorDialog.getColor(QColor(self._color), self.window(), "Colour")
@@ -218,18 +255,28 @@ class FigurePanel(QScrollArea):
         self._loading = False
         body = QWidget()
         lay = QVBoxLayout(body)
+        lay.setContentsMargins(18, 16, 14, 16)
+        lay.setSpacing(0)
         self.title = QLabel("No figure selected")
-        self.title.setStyleSheet("font-weight:bold; font-size:13px")
+        self.title.setObjectName("PanelTitle")
         lay.addWidget(self.title)
+        self.subtitle = QLabel("Settings for the selected figure")
+        self.subtitle.setObjectName("PanelSub")
+        lay.addWidget(self.subtitle)
+        lay.addSpacing(8)
 
         for title, items in SECTIONS:
-            box = QGroupBox(title)
-            form = QFormLayout(box)
+            box = Section(title)
+            form = QFormLayout(box.body)
+            form.setContentsMargins(2, 0, 0, 0)
+            form.setHorizontalSpacing(12)
+            form.setVerticalSpacing(8)
+            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
             for name, label, kind, extra in items:
                 if kind == "heading":
-                    h = QLabel(label)
-                    h.setStyleSheet("font-weight: bold; margin-top: 6px")
+                    h = QLabel(label.upper())
+                    h.setObjectName("SubHeading")
                     form.addRow(h)
                     self._rows[name] = (form, h)
                     continue
@@ -246,22 +293,38 @@ class FigurePanel(QScrollArea):
                 else:
                     form.addRow(label, w)
                     form.labelForField(w).setToolTip(TIPS.get(name, ""))
+                    form.labelForField(w).setObjectName("FormLabel")
                 if name == "tab_overlap_mm":
                     self.overlap_hint = QLabel()
                     self.overlap_hint.setWordWrap(True)
-                    self.overlap_hint.setStyleSheet("color: gray; font-size: 11px")
+                    self.overlap_hint.setObjectName("Hint")
                     self.overlap_hint.setVisible(False)
                     form.addRow(self.overlap_hint)
             lay.addWidget(box)
 
+        labels = [lab for form, _ in self._rows.values()
+                  for lab in [form.labelForField(_)] if isinstance(lab, QLabel)]
+        widest = max((lab.sizeHint().width() for lab in labels), default=0)
+        for lab in labels:
+            lab.setMinimumWidth(widest)
+        self.sections = self.findChildren(Section)
         self.copies = self._w["copies"][1]
-        self.apply_all = QPushButton("Apply these settings to all figures")
-        self.apply_all.setToolTip("Copies everything except label, crop, mask and copies")
+        lay.addSpacing(12)
+        self.apply_all = QPushButton("Apply to all figures")
+        self.apply_all.setToolTip("Copies these settings to every figure, except label, crop, "
+                                  "mask and copies")
         self.apply_all.clicked.connect(self.applyToAll)
         lay.addWidget(self.apply_all)
         lay.addStretch()
         self.setWidget(body)
         self.setEnabled(False)
+        self.set_empty(True)
+
+    def set_empty(self, empty: bool):
+        """No figure selected: only the heading, not a wall of disabled fields."""
+        for sec in self.sections:
+            sec.setVisible(not empty)
+        self.apply_all.setVisible(not empty)
 
     # ----------------------------------------------------------------- widgets
     def _make(self, name: str, kind: str, extra):
@@ -393,6 +456,7 @@ class FigurePanel(QScrollArea):
                     w.setText(v or "")
             self._sync_visible()
             self.setEnabled(True)
+            self.set_empty(False)
             self._shown = self._read()
         finally:
             self._loading = False
@@ -528,8 +592,11 @@ class SheetPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("SheetBar")
+        self.setAttribute(Qt.WA_StyledBackground)
         h = QHBoxLayout(self)
-        h.setContentsMargins(6, 4, 6, 4)
+        h.setContentsMargins(14, 8, 14, 8)
+        h.setSpacing(8)
         self.paper = ComboBox()
         self.paper.addItems(["a4", "letter"])
         self.title = QLineEdit()
@@ -542,10 +609,14 @@ class SheetPanel(QWidget):
         self.gap.setSuffix(" mm")
         for lbl, w in (("Paper", self.paper), ("Title", self.title),
                        ("Margin", self.margin), ("Gap", self.gap)):
-            h.addWidget(QLabel(lbl))
+            lab = QLabel(lbl)
+            lab.setObjectName("FormLabel")
+            h.addWidget(lab)
             h.addWidget(w)
+            h.addSpacing(6)
         h.addStretch()
         self.info = QLabel()
+        self.info.setObjectName("Muted")
         h.addWidget(self.info)
         self.paper.currentTextChanged.connect(self._emit)
         self.title.editingFinished.connect(self._emit)

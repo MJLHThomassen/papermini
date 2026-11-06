@@ -1,0 +1,208 @@
+"""Small building blocks of the window: figure cards, canvas overlays, header bits."""
+
+from __future__ import annotations
+
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton,
+                               QStyle, QStyledItemDelegate, QToolButton, QVBoxLayout, QWidget)
+
+from . import theme
+
+SUBTITLE_ROLE = Qt.UserRole + 1
+
+
+class FigureDelegate(QStyledItemDelegate):
+    """Figure list entries as cards: thumbnail, name and a one-line status."""
+
+    H = 68
+
+    def sizeHint(self, option, index):
+        return QSize(option.rect.width(), self.H)
+
+    def paint(self, p: QPainter, option, index):
+        t = theme.current
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(option.rect).adjusted(6, 3, -6, -3)
+        selected = bool(option.state & QStyle.State_Selected)
+        hover = bool(option.state & QStyle.State_MouseOver)
+        if selected or hover:
+            path = QPainterPath()
+            path.addRoundedRect(r, 9, 9)
+            p.fillPath(path, QColor(t.accent_soft if selected else t.surface2))
+            if selected:
+                p.setPen(QPen(QColor(t.accent), 1))
+                p.drawPath(path)
+        # thumbnail on a small canvas tile
+        tile = QRectF(r.left() + 8, r.top() + 6, r.height() - 12, r.height() - 12)
+        tp = QPainterPath()
+        tp.addRoundedRect(tile, 7, 7)
+        p.fillPath(tp, QColor(t.canvas))
+        icon = index.data(Qt.DecorationRole)
+        if icon is not None:
+            pm = icon.pixmap(QSize(int(tile.width()) - 8, int(tile.height()) - 8))
+            if not pm.isNull():
+                s = pm.deviceIndependentSize()
+                p.drawPixmap(int(tile.center().x() - s.width() / 2),
+                             int(tile.center().y() - s.height() / 2), pm)
+        # text
+        x = tile.right() + 12
+        w = r.right() - x - 8
+        f = QFont(option.font)
+        f.setWeight(QFont.DemiBold)
+        p.setFont(f)
+        p.setPen(QColor(t.text))
+        name = p.fontMetrics().elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, int(w))
+        p.drawText(QRectF(x, r.top() + 13, w, 20), Qt.AlignLeft | Qt.AlignVCenter, name)
+        p.setFont(option.font)
+        p.setPen(QColor(t.muted))
+        sub = index.data(SUBTITLE_ROLE) or ""
+        sub = p.fontMetrics().elidedText(sub, Qt.ElideRight, int(w))
+        p.drawText(QRectF(x, r.top() + 33, w, 18), Qt.AlignLeft | Qt.AlignVCenter, sub)
+        p.restore()
+
+
+class Segmented(QFrame):
+    """A row of mutually exclusive buttons (a segmented control)."""
+
+    changed = Signal(int)
+
+    def __init__(self, labels, parent=None):
+        super().__init__(parent)
+        self.setObjectName("Segmented")
+        h = QHBoxLayout(self)
+        h.setContentsMargins(3, 3, 3, 3)
+        h.setSpacing(2)
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)
+        for i, (text, tip) in enumerate(labels):
+            b = QPushButton(text)
+            b.setCheckable(True)
+            b.setToolTip(tip)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFocusPolicy(Qt.NoFocus)
+            self.group.addButton(b, i)
+            h.addWidget(b)
+        self.group.idClicked.connect(self.changed)
+        self.group.button(0).setChecked(True)
+
+    def set_index(self, i: int):
+        self.group.button(i).setChecked(True)
+
+
+class ZoomBar(QFrame):
+    """Floating zoom controls for the canvas."""
+
+    zoomIn = Signal()
+    zoomOut = Signal()
+    fit = Signal()
+    actual = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("ZoomBar")
+        h = QHBoxLayout(self)
+        h.setContentsMargins(4, 3, 4, 3)
+        h.setSpacing(0)
+        self.buttons = {}
+        for name, tip, sig in (("zoom_out", "Zoom out", self.zoomOut),):
+            h.addWidget(self._button(name, tip, sig))
+        self.label = QLabel("100%")
+        self.label.setMinimumWidth(44)
+        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setToolTip("Zoom (100% = actual size)")
+        h.addWidget(self.label)
+        for name, tip, sig in (("zoom_in", "Zoom in", self.zoomIn),
+                               ("fit", "Fit to window  (Ctrl+0)", self.fit)):
+            h.addWidget(self._button(name, tip, sig))
+        one = QToolButton()
+        one.setText("1:1")
+        one.setToolTip("Actual size  (Ctrl+1)")
+        one.clicked.connect(self.actual)
+        one.setCursor(Qt.PointingHandCursor)
+        h.addWidget(one)
+
+    def _button(self, name, tip, sig):
+        b = QToolButton()
+        b.setToolTip(tip)
+        b.setIconSize(QSize(16, 16))
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(sig)
+        self.buttons[name] = b
+        return b
+
+    def refresh_icons(self):
+        for name, b in self.buttons.items():
+            b.setIcon(theme.icon(name, theme.current.text, 16))
+
+    def set_zoom(self, z: float):
+        self.label.setText(f"{z * 100:.0f}%")
+
+
+class EmptyState(QFrame):
+    """Shown on the canvas when there is nothing to preview yet."""
+
+    addClicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("EmptyCard")
+        v = QVBoxLayout(self)
+        v.setContentsMargins(40, 32, 40, 32)
+        v.setSpacing(10)
+        self.icon = QLabel()
+        self.icon.setAlignment(Qt.AlignCenter)
+        title = QLabel("Start with a drawing")
+        title.setObjectName("EmptyTitle")
+        title.setAlignment(Qt.AlignCenter)
+        text = QLabel("Drop images or a project (.yaml) anywhere in this window,\n"
+                      "or pick them from your computer.")
+        text.setObjectName("Muted")
+        text.setAlignment(Qt.AlignCenter)
+        self.button = QPushButton("Add images…")
+        self.button.setProperty("primary", True)
+        self.button.setCursor(Qt.PointingHandCursor)
+        self.button.clicked.connect(self.addClicked)
+        v.addWidget(self.icon)
+        v.addWidget(title)
+        v.addWidget(text)
+        v.addSpacing(6)
+        v.addWidget(self.button, 0, Qt.AlignCenter)
+
+    def refresh_icons(self):
+        self.icon.setPixmap(theme.pixmap("logo", theme.current.accent, 56))
+
+
+class Banner(QFrame):
+    """A message card on top of the canvas (e.g. why a miniature could not be built)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("ErrorBanner")
+        self.setMaximumWidth(560)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(14, 12, 16, 12)
+        h.setSpacing(12)
+        self.icon = QLabel()
+        self.icon.setAlignment(Qt.AlignTop)
+        self.text = QLabel()
+        self.text.setWordWrap(True)
+        self.text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        h.addWidget(self.icon)
+        h.addWidget(self.text, 1)
+
+    def show_message(self, title: str, body: str):
+        self.icon.setPixmap(theme.pixmap("warning", theme.current.danger, 20))
+        self.text.setText(f"<b>{title}</b><br>{body}")
+        self.show()
+
+
+def overlay_wrap(w: QWidget, margins=(16, 16, 16, 16)) -> QWidget:
+    """Wrap an overlay so it keeps a margin from the canvas edge."""
+    box = QWidget()
+    box.setAttribute(Qt.WA_TranslucentBackground)
+    lay = QVBoxLayout(box)
+    lay.setContentsMargins(*margins)
+    lay.addWidget(w)
+    return box

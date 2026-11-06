@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+import html
 import itertools
 import traceback
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDockWidget, QFileDialog,
+from PySide6.QtCore import QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-                               QMessageBox, QProgressDialog, QPushButton, QTabWidget, QToolBar,
-                               QVBoxLayout, QWidget)
+                               QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
+                               QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from .. import segment
 from ..mini import Mini
@@ -21,9 +22,12 @@ from ..segment import ModelError
 from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
 from ..sheet import pack, write_pdf
 from ..svg import write_svg
-from .panels import FigurePanel, SheetPanel
+from . import theme
+from .panels import FigurePanel, Section, SheetPanel
 from .views import (CropView, ZoomView, array_to_qimage, draw_mini_page, draw_sheet, load_qimage,
                     pil_to_qimage)
+from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, ZoomBar,
+                      overlay_wrap)
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)"
@@ -88,7 +92,7 @@ class BuildJob(QRunnable):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.resize(1400, 900)
+        self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = Project()
         self.figures: List[Figure] = []
@@ -107,53 +111,160 @@ class MainWindow(QMainWindow):
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
         self._sheet_timer = QTimer(self, singleShot=True, interval=150, timeout=self._refresh_sheet)
 
+        self._theme_mode = QSettings("papermini", "papermini").value("theme", "system", type=str)
         self._make_ui()
         self._make_actions()
+        self._refresh_theme()
+        app = QApplication.instance()
+        if app is not None:
+            app.styleHints().colorSchemeChanged.connect(self._system_scheme_changed)
+        self.tabs.currentChanged.connect(self.views.set_index)
+        self.sheet_panel.set_settings(self.project.sheet)
         self._update_title()
         self._show_current()
 
     # ----------------------------------------------------------------- ui
-    def _make_ui(self):
-        # left: figure list
-        left = QWidget()
-        lv = QVBoxLayout(left)
-        lv.setContentsMargins(4, 4, 4, 4)
-        self.list = QListWidget()
-        self.list.setIconSize(QSize(56, 56))
-        self.list.setDragDropMode(QAbstractItemView.InternalMove)
-        self.list.currentRowChanged.connect(lambda _: self._show_current())
-        self.list.model().rowsMoved.connect(self._rows_moved)
-        lv.addWidget(self.list)
-        row = QHBoxLayout()
-        add = QPushButton("Add images…")
-        add.clicked.connect(self.add_images_dialog)
-        rem = QPushButton("Remove")
-        rem.clicked.connect(self.remove_current)
-        row.addWidget(add)
-        row.addWidget(rem)
-        lv.addLayout(row)
-        hint = QLabel("Tip: drop image files or a project .yaml on the window.")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("color: gray")
-        lv.addWidget(hint)
-        dock = QDockWidget("Figures", self)
-        dock.setObjectName("figures")
-        dock.setWidget(left)
-        dock.setFeatures(QDockWidget.DockWidgetMovable)
-        self.addDockWidget(Qt.LeftDockWidgetArea, dock)
+    VIEWS = [("Miniature", "The piece as it will print"),
+             ("Cut-away", "Red = cut away, light blue = white margin, black = cut line"),
+             ("Source", "The original image. Drag a box to limit what the model looks at; "
+                        "drag its handles to resize, inside to move, Delete to clear"),
+             ("Print sheet", "The PDF page layout")]
 
-        # right: settings
+    def _make_ui(self):
+        self._tinted = []  # (widget, icon name, colour token, size): re-tinted on theme change
+        central = QWidget()
+        central.setObjectName("Body")
+        root = QVBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
         self.panel = FigurePanel()
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
-        dock = QDockWidget("Settings", self)
-        dock.setObjectName("settings")
-        dock.setWidget(self.panel)
-        dock.setFeatures(QDockWidget.DockWidgetMovable)
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        canvas = self._make_canvas()
+        root.addWidget(self._make_header())
 
-        # centre: tabs
+        split = QSplitter(Qt.Horizontal)
+        split.setHandleWidth(1)
+        split.setChildrenCollapsible(False)
+        split.addWidget(self._make_figure_list())
+        split.addWidget(canvas)
+        right = QFrame()
+        right.setObjectName("SideRight")
+        rv = QVBoxLayout(right)
+        rv.setContentsMargins(0, 0, 0, 0)
+        rv.addWidget(self.panel)
+        split.addWidget(right)
+        split.setStretchFactor(1, 1)
+        split.setSizes([260, 820, 380])
+        root.addWidget(split, 1)
+        self.setCentralWidget(central)
+
+        self.info = QLabel()
+        self.statusBar().addPermanentWidget(self.info)
+        self.statusBar().setSizeGripEnabled(False)
+
+    def _tool(self, icon: str, tip: str, slot, size: int = 18) -> QToolButton:
+        b = QToolButton()
+        b.setToolTip(tip)
+        b.setIconSize(QSize(size, size))
+        b.setCursor(Qt.PointingHandCursor)
+        b.clicked.connect(slot)
+        self._tinted.append((b, icon, "text", size))
+        return b
+
+    def _make_header(self) -> QFrame:
+        bar = QFrame()
+        bar.setObjectName("Header")
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(14, 8, 12, 8)
+        h.setSpacing(4)
+        self.logo = QLabel()
+        self._tinted.append((self.logo, "logo", "accent", 24))
+        name = QLabel("papermini")
+        name.setObjectName("AppName")
+        self.project_label = QLabel()
+        self.project_label.setObjectName("ProjectName")
+        h.addWidget(self.logo)
+        h.addSpacing(4)
+        h.addWidget(name)
+        h.addSpacing(10)
+        h.addWidget(self.project_label)
+        h.addSpacing(14)
+        h.addWidget(self._tool("open", "Open a project or images  (Ctrl+O)", self.open_dialog))
+        h.addWidget(self._tool("add", "Add images  (Ctrl+I)", self.add_images_dialog))
+        h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
+        h.addStretch(1)
+        self.views = Segmented(self.VIEWS)
+        self.views.changed.connect(self.tabs.setCurrentIndex)
+        h.addWidget(self.views)
+        h.addStretch(1)
+        self.btn_svg = QPushButton("Export SVG")
+        self.btn_svg.setToolTip("Save the selected miniature as SVG  (Ctrl+E)")
+        self.btn_svg.clicked.connect(self.export_current_svg)
+        self._tinted.append((self.btn_svg, "export", "text", 16))
+        self.btn_pdf = QPushButton("Export PDF")
+        self.btn_pdf.setProperty("primary", True)
+        self.btn_pdf.setToolTip("Save the print sheet as PDF  (Ctrl+P)")
+        self.btn_pdf.clicked.connect(self.export_pdf)
+        self._tinted.append((self.btn_pdf, "pdf", "accent_text", 16))
+        for btn in (self.btn_svg, self.btn_pdf):
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setIconSize(QSize(16, 16))
+            h.addWidget(btn)
+        h.addSpacing(4)
+        self.menu_btn = QToolButton()
+        self.menu_btn.setToolTip("Menu")
+        self.menu_btn.setIconSize(QSize(18, 18))
+        self.menu_btn.setPopupMode(QToolButton.InstantPopup)
+        self.menu_btn.setCursor(Qt.PointingHandCursor)
+        self._tinted.append((self.menu_btn, "menu", "text", 18))
+        h.addWidget(self.menu_btn)
+        return bar
+
+    def _make_figure_list(self) -> QFrame:
+        left = QFrame()
+        left.setObjectName("SideLeft")
+        v = QVBoxLayout(left)
+        v.setContentsMargins(10, 14, 10, 10)
+        v.setSpacing(8)
+        head = QHBoxLayout()
+        head.setContentsMargins(8, 0, 0, 0)
+        title = QLabel("Figures")
+        title.setObjectName("PanelTitle")
+        self.count_label = QLabel("0")
+        self.count_label.setObjectName("Muted")
+        head.addWidget(title)
+        head.addSpacing(4)
+        head.addWidget(self.count_label)
+        head.addStretch(1)
+        head.addWidget(self._tool("plus", "Add images  (Ctrl+I)", self.add_images_dialog, 16))
+        self.btn_remove = self._tool("trash", "Remove the selected figure  (Del)", self.remove_current, 16)
+        head.addWidget(self.btn_remove)
+        v.addLayout(head)
+        self.list = QListWidget()
+        self.list.setObjectName("Figures")
+        self.list.setItemDelegate(FigureDelegate(self.list))
+        self.list.setMouseTracking(True)
+        self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.list.currentRowChanged.connect(lambda _: self._show_current())
+        self.list.model().rowsMoved.connect(self._rows_moved)
+        v.addWidget(self.list, 1)
+        hint = QLabel("Drop images or a project file anywhere in the window. Drag to reorder.")
+        hint.setObjectName("Hint")
+        hint.setWordWrap(True)
+        hint.setContentsMargins(8, 0, 8, 0)
+        v.addWidget(hint)
+        return left
+
+    def _make_canvas(self) -> QWidget:
+        canvas = QWidget()
+        grid = QGridLayout(canvas)
+        grid.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
+        self.tabs.tabBar().hide()
+        self.tabs.setDocumentMode(True)
         self.mini_view = ZoomView()
         self.overlay_view = ZoomView()
         self.crop_view = CropView()
@@ -161,23 +272,40 @@ class MainWindow(QMainWindow):
         sheet_page = QWidget()
         sv = QVBoxLayout(sheet_page)
         sv.setContentsMargins(0, 0, 0, 0)
+        sv.setSpacing(0)
         self.sheet_panel = SheetPanel()
         self.sheet_panel.changed.connect(self._sheet_changed)
         self.sheet_view = ZoomView()
         sv.addWidget(self.sheet_panel)
         sv.addWidget(self.sheet_view)
-        self.tabs.addTab(self.mini_view, "Miniature")
-        self.tabs.addTab(self.overlay_view, "Cut-away check")
-        self.tabs.addTab(self.crop_view, "Source / crop")
-        self.tabs.addTab(sheet_page, "Print sheet")
-        self.tabs.setTabToolTip(1, "Red = cut away, light blue = white margin, black = cut line")
-        self.tabs.setTabToolTip(2, "Drag a box to limit what the model looks at; drag its handles "
-                                   "to resize, inside to move, Delete to clear")
+        for view, (label, tip) in zip((self.mini_view, self.overlay_view, self.crop_view, sheet_page),
+                                      self.VIEWS):
+            self.tabs.addTab(view, label)
         self.tabs.currentChanged.connect(self._tab_changed)
-        self.setCentralWidget(self.tabs)
+        grid.addWidget(self.tabs, 0, 0)
 
-        self.info = QLabel()
-        self.statusBar().addPermanentWidget(self.info)
+        self.empty = EmptyState()
+        self.empty.addClicked.connect(self.add_images_dialog)
+        grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
+        self.banner = Banner()
+        self.banner_box = overlay_wrap(self.banner)
+        self.banner_box.hide()
+        grid.addWidget(self.banner_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
+        self.busy = QLabel("Building preview…")
+        self.busy.setObjectName("Busy")
+        self.busy_box = overlay_wrap(self.busy)
+        self.busy_box.hide()
+        grid.addWidget(self.busy_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
+        self.zoombar = ZoomBar()
+        self.zoombar.zoomIn.connect(lambda: self._active_view().zoom_by(1.25))
+        self.zoombar.zoomOut.connect(lambda: self._active_view().zoom_by(0.8))
+        self.zoombar.fit.connect(self._fit)
+        self.zoombar.actual.connect(self._actual)
+        self.zoom_box = overlay_wrap(self.zoombar)
+        grid.addWidget(self.zoom_box, 0, 0, Qt.AlignBottom | Qt.AlignRight)
+        for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
+            v.zoomChanged.connect(lambda z, v=v: v is self._active_view() and self.zoombar.set_zoom(z))
+        return canvas
 
     def _make_actions(self):
         def act(text, slot, key=None, tip=None):
@@ -187,6 +315,7 @@ class MainWindow(QMainWindow):
                 a.setShortcut(QKeySequence(key))
             if tip:
                 a.setStatusTip(tip)
+            self.addAction(a)  # shortcuts work without a menu bar
             return a
 
         self.a_new = act("New project", self.new_project, QKeySequence.New)
@@ -199,28 +328,64 @@ class MainWindow(QMainWindow):
                          "Save the selected miniature as SVG")
         self.a_svgs = act("Export all SVGs…", self.export_all_svgs, "Ctrl+Shift+E")
         self.a_pdf = act("Export PDF sheet…", self.export_pdf, "Ctrl+P")
+        self.a_remove = act("Remove figure", self.remove_current, QKeySequence.Delete)
+        self.a_remove.setShortcutContext(Qt.WidgetShortcut)
+        self.list.addAction(self.a_remove)
         self.a_quit = act("Quit", self.close, QKeySequence.Quit)
-        self.a_fit = act("Fit", self._fit, "Ctrl+0")
+        self.a_fit = act("Fit to window", self._fit, "Ctrl+0")
         self.a_actual = act("Actual size", self._actual, "Ctrl+1",
                             "Show at real size (depends on your screen's reported DPI)")
 
-        m = self.menuBar().addMenu("&File")
+        m = self.menu = QMenu(self)
         for a in (self.a_new, self.a_open, self.a_add, None, self.a_save, self.a_save_as, None,
-                  self.a_svg, self.a_svgs, self.a_pdf, None, self.a_quit):
+                  self.a_svg, self.a_svgs, self.a_pdf, None, self.a_fit, self.a_actual):
             m.addSeparator() if a is None else m.addAction(a)
-        m = self.menuBar().addMenu("&View")
-        m.addAction(self.a_fit)
-        m.addAction(self.a_actual)
-        m = self.menuBar().addMenu("&Help")
-        m.addAction(act("About papermini", self._about))
+        tm = m.addMenu("Theme")
+        group = QActionGroup(self)
+        self.theme_actions = {}
+        for mode, text in (("system", "Follow system"), ("light", "Light"), ("dark", "Dark")):
+            a = tm.addAction(text)
+            a.setCheckable(True)
+            a.setChecked(mode == self._theme_mode)
+            a.triggered.connect(lambda _=False, mode=mode: self.set_theme(mode))
+            group.addAction(a)
+            self.theme_actions[mode] = a
+        m.addSeparator()
+        m.addAction("About papermini", self._about)
+        m.addAction(self.a_quit)
+        self.menu_btn.setMenu(m)
 
-        tb = QToolBar("Main")
-        tb.setObjectName("main")
-        tb.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        for a in (self.a_open, self.a_add, self.a_save, None, self.a_svg, self.a_pdf, None,
-                  self.a_fit, self.a_actual):
-            tb.addSeparator() if a is None else tb.addAction(a)
-        self.addToolBar(tb)
+    # ----------------------------------------------------------------- theme
+    def set_theme(self, mode: str):
+        self._theme_mode = mode
+        QSettings("papermini", "papermini").setValue("theme", mode)
+        app = QApplication.instance()
+        if app is not None:
+            theme.apply(app, mode)
+        self._refresh_theme()
+
+    def _system_scheme_changed(self, *_):
+        if self._theme_mode == "system":
+            self.set_theme("system")
+
+    def _refresh_theme(self):
+        t = theme.current
+        for w, name, token, size in self._tinted:
+            if isinstance(w, QLabel):
+                w.setPixmap(theme.pixmap(name, getattr(t, token), size))
+            else:
+                w.setIcon(theme.icon(name, getattr(t, token), size))
+        self.zoombar.refresh_icons()
+        self.empty.refresh_icons()
+        for sec in self.panel.findChildren(Section):
+            sec._toggle(sec.header.isChecked())
+        for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
+            v.viewport().update()
+        self.list.viewport().update()
+        fig = self.current()
+        if fig is not None and fig.mini is not None:
+            self._show_mini(fig)  # paper shadow colour
+        self._sheet_timer.start()
 
     # ----------------------------------------------------------------- figures
     def current(self) -> Optional[Figure]:
@@ -253,7 +418,28 @@ class MainWindow(QMainWindow):
                 112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))))
         item.setToolTip(str(entry.image))
         item.setData(Qt.UserRole, fig.uid)
+        item.setData(SUBTITLE_ROLE, "Building…")
+        item.setSizeHint(QSize(0, FigureDelegate.H))
         self.list.addItem(item)
+        self.count_label.setText(str(len(self.figures)))
+
+    def _refresh_card(self, fig: Figure):
+        """Figure list entry: name, a thumbnail of the finished piece, size and copies."""
+        item = self._list_item(fig)
+        if item is None:
+            return
+        item.setText(fig.entry.display_name)
+        n = fig.entry.settings.copies
+        copies = f"{n} cop{'y' if n == 1 else 'ies'}"
+        if fig.error and not fig.up_to_date:
+            item.setData(SUBTITLE_ROLE, "Needs attention · " + copies)
+        elif fig.mini is None:
+            item.setData(SUBTITLE_ROLE, "Building…")
+        else:
+            item.setData(SUBTITLE_ROLE, f"{fig.mini.figure_height_mm:.0f} mm · {copies}")
+            if fig.pixmap is not None:
+                item.setIcon(QIcon(fig.pixmap.scaled(112, 112, Qt.KeepAspectRatio,
+                                                     Qt.SmoothTransformation)))
 
     def remove_current(self):
         r = self.list.currentRow()
@@ -261,6 +447,7 @@ class MainWindow(QMainWindow):
             return
         self.figures.pop(r)
         self.list.takeItem(r)
+        self.count_label.setText(str(len(self.figures)))
         self._set_modified()
         self._show_current()
         self._sheet_timer.start()
@@ -287,9 +474,7 @@ class MainWindow(QMainWindow):
         fig.entry.settings = s
         fig.gen += 1
         fig.error = fig.queued = None
-        item = self._list_item(fig)
-        if item:
-            item.setText(fig.entry.display_name)
+        self._refresh_card(fig)
         self.crop_view.set_crop(s.crop)
         self._set_modified()
         self._build_timer.start()
@@ -338,6 +523,7 @@ class MainWindow(QMainWindow):
         if not fig.up_to_date or fig.mini.overlay is None:
             self._queue(fig, overlay=True)
             self.info.setText("building…")
+            self.busy_box.setVisible(fig.mini is None or not fig.up_to_date)
         else:
             self._show_mini(fig)  # settings went back to what is already built
 
@@ -351,6 +537,7 @@ class MainWindow(QMainWindow):
             mini.overlay = fig.mini.overlay
         fig.mini, fig.built_key, fig.error = mini, key, None
         fig.pixmap = QPixmap.fromImage(pil_to_qimage(mini.art))
+        self._refresh_card(fig)
         if fig is self.current():
             self._show_mini(fig)
         self._status("Ready")
@@ -363,6 +550,7 @@ class MainWindow(QMainWindow):
         if fig is None or fig.key() != key:
             return
         fig.error, fig.queued = msg, None
+        self._refresh_card(fig)
         if fig is self.current():
             self._show_mini(fig)
         self._check_export()
@@ -379,20 +567,26 @@ class MainWindow(QMainWindow):
     def _show_current(self):
         fig = self.current()
         has = fig is not None
-        for a in (self.a_svg,):
-            a.setEnabled(has)
+        for w in (self.a_svg, self.btn_svg, self.btn_remove):
+            w.setEnabled(has)
+        self.btn_pdf.setEnabled(bool(self.figures))
+        self.empty.setVisible(not self.figures)
+        self.zoom_box.setVisible(bool(self.figures))
         if not has:
             self.panel.set_settings(FigureSettings(), "No figure selected")
+            self.panel.subtitle.setText("Add an image to see its settings here")
             self.panel.setEnabled(False)
+            self.panel.set_empty(True)
             self.mini_view.scene().clear()
             self.overlay_view.scene().clear()
             self.crop_view.set_image(None)
+            self.banner_box.hide()
+            self.busy_box.hide()
             self.info.setText("")
-            if not self.figures:
-                self.mini_view.scene().addText("Add or drop an image to start").setScale(1.5)
             return
         e = fig.entry
-        self.panel.set_settings(e.settings, e.image.name, e.image.stem)
+        self.panel.set_settings(e.settings, e.display_name, e.image.stem)
+        self.panel.subtitle.setText(e.image.name)
         self.crop_view.set_image(load_qimage(e.image))
         self.crop_view.set_crop(e.settings.crop)
         self.mini_view.refit_on_next_show()
@@ -407,16 +601,18 @@ class MainWindow(QMainWindow):
         if fig.error and not fig.up_to_date:
             sc.clear()
             self.overlay_view.scene().clear()
-            t = sc.addText(f"Could not build this miniature:\n\n{fig.error}\n\n"
-                           "Try a lower threshold, a crop, or another model.")
-            t.setDefaultTextColor(Qt.white)
-            self.mini_view.fit()
+            self.busy_box.hide()
+            msg = html.escape(fig.error).replace("\n", "<br>")
+            self.banner.show_message("This miniature could not be built",
+                                     f"{msg}<br><br>Try a lower threshold, a crop, or another model.")
+            self.banner_box.show()
             self.info.setText("error")
             return
+        self.banner_box.hide()
         m = fig.mini
+        self.busy_box.setVisible(m is None or not fig.up_to_date)
         if m is None:
             sc.clear()
-            sc.addText("Building…").setDefaultTextColor(Qt.white)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
         draw_mini_page(sc, m)
@@ -442,6 +638,7 @@ class MainWindow(QMainWindow):
     def _tab_changed(self, i):
         if i == 3:
             self._refresh_sheet()
+        QTimer.singleShot(0, self._tab_zoom)
 
     def _refresh_sheet(self):
         if self.tabs.currentIndex() != 3:
@@ -456,14 +653,14 @@ class MainWindow(QMainWindow):
         sc = self.sheet_view.scene()
         if not ready:
             sc.clear()
-            sc.addText("No miniatures yet" if not missing else "Building…").setDefaultTextColor(Qt.white)
+            self.sheet_panel.info.setText("Building…" if missing else "No miniatures yet")
             return
         try:
             lay = pack([(f.mini, f.entry.settings.copies) for f in ready], sh.paper,
                        sh.margin_mm, sh.gap_mm)
         except ValueError as e:
             sc.clear()
-            sc.addText(str(e)).setDefaultTextColor(Qt.white)
+            self.sheet_panel.info.setText(str(e))
             return
         first = sc.itemsBoundingRect().isEmpty()
         draw_sheet(sc, lay, sh.title, sh.margin_mm, {id(f.mini): f.pixmap for f in ready})
@@ -479,6 +676,9 @@ class MainWindow(QMainWindow):
 
     def _fit(self):
         self._active_view().fit()
+
+    def _tab_zoom(self):
+        self.zoombar.set_zoom(self._active_view().zoom())
 
     def _actual(self):
         self._active_view().actual_size()
@@ -596,6 +796,7 @@ class MainWindow(QMainWindow):
         self.project = proj
         self.figures.clear()
         self.list.clear()
+        self.count_label.setText("0")
         for e in proj.figures:
             if e.image.exists():
                 self._append(e)
@@ -662,6 +863,7 @@ class MainWindow(QMainWindow):
     def _update_title(self):
         name = self.project.path.name if self.project.path else "untitled"
         self.setWindowTitle(f"{name}{' *' if self._modified else ''} — papermini")
+        self.project_label.setText(f"{name}{'  •  unsaved changes' if self._modified else ''}")
 
     def _about(self):
         QMessageBox.about(

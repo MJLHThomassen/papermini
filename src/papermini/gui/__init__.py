@@ -14,6 +14,11 @@ def run(files: Optional[List[str]] = None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName("papermini")
     app.setOrganizationName("papermini")
+    from PySide6.QtCore import QSettings
+
+    from . import theme
+
+    theme.apply(app, QSettings("papermini", "papermini").value("theme", "system", type=str))
     w = MainWindow()
     if files:
         w.open_paths(files)

@@ -170,22 +170,31 @@ papermini-gui
 You can also run `papermini gui [project.yaml | images...]`. The app runs on
 Windows, macOS and Linux (Qt 6 / PySide6).
 
-- **Figures** (left). Add images with the button or by dropping files on the
-  window. Drag to reorder. A new figure starts with the settings of the one
+- **Header.** Open, add images and save on the left; a switch between the four
+  views in the middle; **Export SVG** and **Export PDF** on the right. The ☰ menu
+  holds everything else: new project, save as, export all SVGs, zoom, the
+  **theme** (follow the system, light or dark) and about. Keyboard shortcuts
+  work without opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+S save,
+  Ctrl+E export SVG, Ctrl+P export PDF, Ctrl+0 fit, Ctrl+1 actual size.
+- **Figures** (left). Each figure is a card with a thumbnail of the finished
+  piece, its height and number of copies. Add images with **+**, or drop
+  files or a project anywhere in the window. Drag to reorder; **Delete**
+  removes the selected one. A new figure starts with the settings of the one
   that is selected.
-- **Settings** (right). Every option from `papermini make`. The preview updates
-  about a second after each change, and fast series of changes (holding an
-  arrow key) only build the final value. The model only runs once per image
-  and crop. Changing *Copies* only updates the sheet. The mouse wheel only
-  changes a field after you click into it, so scrolling the panel never edits
-  values. *Apply these settings to all figures* copies everything except
-  label, crop, mask and copies.
-- **Miniature** tab. The piece as it will print, with a 10 mm scale bar. Use
-  View → *Actual size* (Ctrl+1) to see it at real size, depending on the DPI
-  your screen reports.
-- **Cut-away check** tab. Red is cut away, light blue is the white margin, black
-  is the cut line. Use it to spot problems.
-- **Source / crop** tab. The original image. Drag a box to set `--crop` for busy
+- **Settings** (right). Every option from `papermini make`, in sections you can
+  fold open and closed (the app remembers which). The preview updates about a
+  second after each change, and fast series of changes (holding an arrow key)
+  only build the final value. The model only runs once per image and crop.
+  Changing *Copies* only updates the sheet. Number fields step with the arrow
+  keys, or the mouse wheel once you click into them, so scrolling the panel
+  never edits values. *Apply to all figures* copies everything except label,
+  crop, mask and copies.
+- **Miniature** view. The piece as it will print, with a 10 mm scale bar. The
+  zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
+  real size (*1:1*, Ctrl+1), depending on the DPI your screen reports.
+- **Cut-away** view. Red is cut away, light blue is the white margin, black is
+  the cut line. Use it to spot problems.
+- **Source** view. The original image. Drag a box to set `--crop` for busy
   backgrounds. Afterwards:
   - drag its **handles** (corners and edge midpoints, or anywhere along an
     edge) to resize it;
@@ -194,11 +203,10 @@ Windows, macOS and Linux (Qt 6 / PySide6).
   - press **Delete** to clear it, or **Esc** to cancel a drag.
 
   The mouse wheel zooms and the middle mouse button pans.
-- **Print sheet** tab. A live preview of the PDF layout, with paper, title,
-  margin and gap settings.
-- **File menu.** Export the selected SVG, all SVGs, or the PDF sheet. Anything
-  that still needs building is built in the background first; the window stays
-  responsive and you can cancel.
+- **Print sheet** view. A live preview of the PDF layout, with paper, title,
+  margin and gap settings in the bar above it.
+- **Exporting.** Anything that still needs building is built in the background
+  first; the window stays responsive and you can cancel.
 
 Projects are saved as **batch YAML** files, the same format as
 `papermini batch`. Anything you set up in the app can also be rebuilt from the

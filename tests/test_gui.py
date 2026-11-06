@@ -294,3 +294,18 @@ def test_bleed_only_with_cutter(app):
     p._w["cutter"][1].setChecked(True)
     assert p.is_shown("bleed_mm") and not p.is_shown("cut_color")
     assert p.settings().cutter and p.settings().bleed_mm == 1.0
+
+
+
+def test_new_window_shows_sheet_settings(app):
+    """Regression: a new project's sheet bar showed 0 mm margins and an empty title
+    (and editing it would have saved those)."""
+    from papermini.gui.window import MainWindow
+
+    w = MainWindow()
+    try:
+        assert w.sheet_panel.margin.value() == 12 and w.sheet_panel.gap.value() == 7
+        assert w.sheet_panel.title.text() == "Paper miniatures"
+        assert not any(sec.isVisibleTo(w.panel) for sec in w.panel.sections)  # empty state
+    finally:
+        w.close()
