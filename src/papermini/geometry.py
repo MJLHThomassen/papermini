@@ -189,7 +189,7 @@ def clean_mask(
 @dataclass
 class Params:
     height_mm: float = 42.0       # figure height, excluding margin and tab
-    margin_mm: float = 1.6        # white border between drawing and cut line
+    margin_mm: float = 1.6        # distance between drawing and cut line
     smooth_mm: float = 0.6        # Gaussian sigma that rounds the outline
     tab: bool = True
     tab_width_mm: float = 22.0    # square tab

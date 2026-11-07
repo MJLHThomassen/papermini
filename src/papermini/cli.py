@@ -19,7 +19,7 @@ D = FigureSettings()  # defaults shown in --help
 def add_figure_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("size and shape")
     g.add_argument("--height-mm", type=float, default=D.height_mm, help="figure height without tab (42)")
-    g.add_argument("--margin-mm", type=float, default=D.margin_mm, help="white border around the drawing (1.6)")
+    g.add_argument("--margin-mm", type=float, default=D.margin_mm, help="distance between the drawing and the cut line (1.6)")
     g.add_argument("--smooth-mm", type=float, default=D.smooth_mm, help="outline rounding, Gaussian sigma (0.6)")
     g.add_argument("--margin-fill", choices=["color", "image"], default=D.margin_fill,
                    help="what shows between drawing and cut line: --margin-color (default) "

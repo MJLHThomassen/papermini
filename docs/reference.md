@@ -95,7 +95,7 @@ papermini make *.png -o minis --debug
 | option | default | meaning |
 |---|---|---|
 | `--height-mm` | 42 | height of the drawn figure, without margin and tab |
-| `--margin-mm` | 1.6 | white border between the drawing and the cut line |
+| `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
 | `--smooth-mm` | 0.6 | how much the outline is rounded |
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
 | `--tab-width-mm` / `--tab-height-mm` | 22 / 12 | square tab size (height measured below the fold) |

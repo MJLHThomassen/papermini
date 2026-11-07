@@ -42,8 +42,8 @@ SECTIONS = [
     ]),
     ("Outline and cut line", [
         ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
-        ("margin_fill", "Margin fill", "c", [("color", "Colour"), ("image", "Original image")]),
-        ("margin_color", "Margin colour", "col", None),
+        ("margin_fill", "Margin fill type", "c", [("color", "Colour"), ("image", "Original image")]),
+        ("margin_color", "Margin fill colour", "col", None),
         ("smooth_mm", "Outline smoothing", "f", (0, 5, 0.1, 2, " mm")),
         ("_cut_line", "Cut line", "heading", None),
         ("no_smooth", "Straight segments only (no curves)", "b", None),
@@ -103,10 +103,13 @@ TIPS = {
     "keep_all": "Keep separate parts (a floating prop) and join them with bridges,\n"
                 "instead of keeping only the largest part.",
     "min_area": "With 'keep detached parts': smaller parts than this are dropped as specks.",
-    "margin_mm": "White border between the drawing and the cut line.",
-    "margin_fill": "Colour: the margin colour below; Original image: the picture around the\n"
-                   "figure shows in the margin.",
-    "margin_color": "Colour of the margin around the drawing.",
+    "margin_mm": "Distance between the drawing and the cut line. The margin is filled\n"
+                 "with a colour or the original image (see Margin fill type).",
+    "margin_fill": "What fills the margin, the strip between the cut-out drawing and its\n"
+                   "cut line:\n"
+                   "Colour: one solid colour (Margin fill colour).\n"
+                   "Original image: the picture around the figure, as it is in the image.",
+    "margin_color": "The colour of the margin between the drawing and the cut line.",
     "smooth_mm": "Rounds the outline; higher values give a calmer cut line.",
     "no_smooth": "Cut line made of straight segments instead of smooth curves.",
     "simplify_mm": "How far the cut line may deviate to use fewer points.",
