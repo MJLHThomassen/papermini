@@ -56,7 +56,8 @@ docs/           reference.md (full option docs) and README screenshots
   the options table in `docs/reference.md`. Add a test.
 - **Test before you finish.** Run the whole suite with the venv's Python. Add
   a regression test for every bug you fix. Tests must not need the network or
-  the segmentation model.
+  the segmentation model: `tests/conftest.py` gives every test an empty model
+  cache and blocks `urlopen`, and the GUI tests get a fake default model.
 - **Look at GUI changes.** Render the window off-screen (`WA_DontShowOnScreen`
   plus `grab()`) and check the image, in both light and dark themes. After a
   visible change, regenerate the README screenshots with

@@ -19,6 +19,7 @@ jobs:
   version:
     name: Check version tag
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       release: ${{ steps.tag.outputs.release }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
@@ -51,6 +52,7 @@ jobs:
     name: Build (${{ matrix.target }})
     needs: [version, test]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10  # builds take 1-5 minutes (Windows is slowest)
     strategy:
       fail-fast: false
       matrix:
@@ -137,6 +139,7 @@ jobs:
     needs: [version, build]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:

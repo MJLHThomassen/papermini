@@ -35,6 +35,29 @@ def fresh_prefs(app):
     yield
 
 
+class DarkSegmenter:
+    """Stands in for a real model: everything darker than mid-grey is the figure."""
+
+    def __init__(self, path, *a, **k):
+        self.path = path
+
+    def __call__(self, im):
+        return np.where(np.asarray(im.convert("L")) < 128, 255, 0).astype(np.uint8)
+
+
+@pytest.fixture(autouse=True)
+def fake_default_model(monkeypatch, isolated_model_cache):
+    """The default model is "downloaded" (a dummy file) and segments by darkness, so
+    figures build without the real model and without a download prompt; the other
+    models stay missing."""
+    from papermini import segment
+
+    monkeypatch.setattr(segment, "OnnxSegmenter", DarkSegmenter)
+    path = segment.model_path(segment.DEFAULT_MODEL)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"not a real model")
+
+
 def wait(app, cond, timeout=180):  # generous: CI runners can be slow; returns as soon as cond()
     end = time.time() + timeout
     while time.time() < end:

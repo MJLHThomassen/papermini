@@ -3,6 +3,7 @@ for the ONNX file, and no network access happens."""
 
 import sys
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -196,3 +197,11 @@ def test_download_reports_progress_and_can_be_cancelled(monkeypatch, tmp_path):
     with pytest.raises(ModelError, match="cancelled"):
         segment.download("https://example.org/m.onnx", tmp_path / "n.onnx", cancel=cancel)
     assert not (tmp_path / "n.onnx").exists() and not list(tmp_path.glob("*.part"))
+
+
+def test_tests_never_use_the_network_or_the_real_cache(tmp_path):
+    """Regression: GUI tests built with the real default model, downloading it on CI;
+    once the app asked before downloading, CI hung on the invisible dialog."""
+    assert str(segment.cache_dir()) != str(Path.home() / ".cache" / "papermini")
+    with pytest.raises(AssertionError, match="must not use the network"):
+        segment.download("https://example.org/m.onnx", tmp_path / "m.onnx")
