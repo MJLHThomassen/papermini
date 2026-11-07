@@ -778,7 +778,7 @@ class MainWindow(QMainWindow):
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
             hint = "" if "not downloaded" in fig.error else \
-                "<br><br>Try a lower threshold, a crop, or another model."
+                "<br><br>Try a lower strength, a crop, or another model."
             self.banner.show_message("This miniature could not be built", msg + hint)
             self.banner_box.show()
             self.info.setText("error")
@@ -796,6 +796,7 @@ class MainWindow(QMainWindow):
         if first:
             self.mini_view.fit()
         self.crop_view.set_cut(m.source_cut, m.source_folds, m.source_top)
+        self.panel.set_auto_fill_gaps(m.close_px)
         if not m.tab_overlap_used:
             self.panel.set_overlap_hint("unused")
         elif m.tab_width_mm and m.tab_joint_mm < min(10.0, 0.6 * m.tab_width_mm):

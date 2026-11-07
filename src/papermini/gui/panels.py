@@ -9,8 +9,8 @@ from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QScrollArea, QSpinBox, QToolButton, QVBoxLayout,
-                               QWidget)
+                               QPushButton, QScrollArea, QSlider, QSpinBox, QToolButton,
+                               QVBoxLayout, QWidget)
 
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
@@ -23,7 +23,8 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 # Groups follow the workflow: how big and how many, how the figure is found,
 # the outline/cut line around it, the stand tab, its label, and the back.
 # (field, label, kind, extra) - kind: f=float, i=int, b=bool, c=choice, s=str,
-# col=colour, heading=sub-heading inside a group (not a setting)
+# col=colour, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
+# heading=sub-heading inside a group (not a setting)
 SECTIONS = [
     ("Print", [
         ("height_mm", "Figure height", "f", (5, 400, 1, 2, " mm")),
@@ -34,8 +35,8 @@ SECTIONS = [
         ("model", "Model", "model", None),
         ("mask", "Mask image file", "file", None),
         ("crop", "Crop", "crop", None),
-        ("threshold", "Threshold", "i", (0, 254, 1, " /255")),
-        ("close", "Closing radius", "close", None),
+        ("strength", "Strength", "slider", (0, 254, 254, "", False)),
+        ("fill_gaps", "Gap filling", "slider", (0, 1000, 40, " px", True)),
         ("keep_all", "Keep detached parts", "b", None),
         ("min_area", "Min. part area", "i", (0, 10_000_000, 100, " px")),
     ]),
@@ -95,9 +96,10 @@ TIPS = {
     "mask": "Your own mask image: white = figure, black = background, same picture size.",
     "crop": "Only this region is searched for the figure (x0,y0,x1,y1, fractions or px).\n"
             "Drag a box on the Source / crop tab to set it.",
-    "threshold": "How sure the model must be that a pixel is figure (0-255).\n"
-                 "Lower keeps faint pencil lines; higher drops more background.",
-    "close": "Closes small gaps in the silhouette. auto scales with the image (9 px at 1400 px).",
+    "strength": "How sure the model must be that a pixel belongs to the figure (0-254).\n"
+                "Lower keeps faint pencil lines; higher removes more background.",
+    "fill_gaps": "Fills gaps and notches in the outline up to this size (0 = off).\n"
+                 "Auto scales with the image: 9 px at 1400 px.",
     "keep_all": "Keep separate parts (a floating prop) and join them with bridges,\n"
                 "instead of keeping only the largest part.",
     "min_area": "With 'keep detached parts': smaller parts than this are dropped as specks.",
@@ -160,6 +162,85 @@ class SpinBox(_WheelGuard, QSpinBox):
         self._init_guard()
         self.setKeyboardTracking(False)
         self.lineEdit().setTextMargins(5, 0, 0, 0)  # line up with combo box text
+
+
+class Slider(_WheelGuard, QSlider):
+    def __init__(self, parent=None):
+        super().__init__(Qt.Horizontal, parent)
+        self._init_guard()
+
+
+class SliderField(QWidget):
+    """A slider with a number box beside it for exact values. With ``auto`` an "Auto"
+    checkbox goes underneath (so all sliders line up): while it is ticked the slider shows
+    the automatic value greyed out and ``value()`` is None."""
+
+    valueChanged = Signal()
+
+    def __init__(self, lo: int, hi: int, slider_hi: int, suffix: str = "", auto: bool = False,
+                 auto_value: int = 9, parent=None):
+        super().__init__(parent)
+        self._auto_value = auto_value
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(6)
+        h = QHBoxLayout()
+        h.setSpacing(10)
+        v.addLayout(h)
+        self.auto = QCheckBox("Auto (scales with the image)") if auto else None
+        self.slider = Slider()
+        self.slider.setRange(lo, min(hi, slider_hi))  # larger values: type them in the box
+        self.slider.setPageStep(max(1, (slider_hi - lo) // 10))
+        self.spin = SpinBox()
+        self.spin.setRange(lo, hi)
+        self.spin.setSuffix(suffix)
+        self.spin.setFixedWidth(64)
+        h.addWidget(self.slider, 1)
+        h.addWidget(self.spin)
+        if self.auto is not None:
+            self.auto.toggled.connect(self._auto_toggled)
+            v.addWidget(self.auto)
+        self.slider.valueChanged.connect(self._changed)
+        self.spin.valueChanged.connect(self._changed)
+
+    def is_auto(self) -> bool:
+        return self.auto is not None and self.auto.isChecked()
+
+    def value(self):
+        return None if self.is_auto() else self.spin.value()
+
+    def setValue(self, v) -> None:
+        if self.auto is not None:
+            self.auto.blockSignals(True)
+            self.auto.setChecked(v is None)
+            self.auto.blockSignals(False)
+        self._show(self._auto_value if v is None else v)
+        self._sync_enabled()
+
+    def set_auto_value(self, v: int) -> None:
+        self._auto_value = v
+        if self.is_auto():
+            self._show(v)
+
+    def _show(self, v: int) -> None:
+        for w in (self.slider, self.spin):
+            w.blockSignals(True)
+            w.setValue(v)  # the slider stops at its end for larger typed values
+            w.blockSignals(False)
+
+    def _sync_enabled(self) -> None:
+        for w in (self.slider, self.spin):
+            w.setEnabled(not self.is_auto())
+
+    def _changed(self, v: int) -> None:
+        self._show(v)
+        self.valueChanged.emit()
+
+    def _auto_toggled(self, on: bool) -> None:
+        if on:
+            self._show(self._auto_value)
+        self._sync_enabled()  # unticked: carry on from the automatic value
+        self.valueChanged.emit()
 
 
 def _point_locale() -> QLocale:
@@ -396,12 +477,9 @@ class FigurePanel(QScrollArea):
             w.setSuffix(suffix)
             w.setKeyboardTracking(False)
             w.valueChanged.connect(self._emit)
-        elif kind == "close":
-            w = SpinBox()
-            w.setRange(0, 1000)
-            w.setSuffix(" px")
-            w.setSpecialValueText("auto")
-            w.setKeyboardTracking(False)
+        elif kind == "slider":
+            lo, hi, slider_hi, suffix, auto = extra
+            w = SliderField(lo, hi, slider_hi, suffix, auto)
             w.valueChanged.connect(self._emit)
         elif kind == "b":
             w = QCheckBox(dict((n, l) for _, its in SECTIONS for n, l, *_ in its)[name])
@@ -482,8 +560,8 @@ class FigurePanel(QScrollArea):
                 v = getattr(s, name)
                 if kind in ("f", "i"):
                     w.setValue(v)
-                elif kind == "close":
-                    w.setValue(v or 0)
+                elif kind == "slider":
+                    w.setValue(v)
                 elif kind == "b":
                     w.setChecked(bool(v))
                 elif kind == "c":
@@ -520,8 +598,8 @@ class FigurePanel(QScrollArea):
         for name, (kind, w) in self._w.items():
             if kind in ("f", "i"):
                 vals[name] = w.value()
-            elif kind == "close":
-                vals[name] = w.value() or None
+            elif kind == "slider":
+                vals[name] = w.value()
             elif kind == "b":
                 vals[name] = w.isChecked()
             elif kind == "c":
@@ -554,6 +632,10 @@ class FigurePanel(QScrollArea):
         if show:
             self.overlap_hint.setText(self.OVERLAP_HINTS[kind].format(joint=joint))
         self.overlap_hint.setVisible(show)
+
+    def set_auto_fill_gaps(self, px: int):
+        """The gap filling the last build picked automatically, shown while Auto is on."""
+        self._w["fill_gaps"][1].set_auto_value(px)
 
     def set_crop(self, crop):
         """Crop set from the Source tab."""

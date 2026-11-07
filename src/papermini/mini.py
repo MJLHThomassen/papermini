@@ -256,6 +256,7 @@ def make_mini(
         tab_overlap_used=lay.tab_overlap_used or not prm.tab or prm.tab_overlap_mm == 0,
         tab_joint_mm=lay.tab_joint_px * s if prm.tab else 0.0,
         tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
+        close_px=geo.default_close_px(raw.shape[1], raw.shape[0]) if close_px is None else close_px,
     )
     if lay.back_box is not None:
         text = back_text if back_text else (label or image_path.stem)

@@ -45,8 +45,8 @@ class FigureSettings:
     model: str = "auto"
     mask: Optional[str] = None
     crop: Any = None                 # "x0,y0,x1,y1" or [x0, y0, x1, y1], fractions or px
-    threshold: int = 40
-    close: Optional[int] = None      # None = scales with the image
+    strength: int = 40               # mask threshold 0-254: higher removes more background
+    fill_gaps: Optional[int] = None  # closing radius in px; None = scales with the image
     keep_all: bool = False
     min_area: int = 1000
     margin_fill: str = "color"       # "color" (margin_color) or "image"
@@ -123,7 +123,7 @@ def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
         raise ValueError("model 'mask' needs a mask image file - choose one")
     return make_mini(
         Path(image), s.params(),
-        label=s.label, back_text=s.back_text, threshold=s.threshold, close_px=s.close, min_area=s.min_area,
+        label=s.label, back_text=s.back_text, threshold=s.strength, close_px=s.fill_gaps, min_area=s.min_area,
         crop=s.crop, model="auto" if s.model == "mask" else s.model,
         mask_path=Path(s.mask) if use_mask else None,
         dpi=s.dpi, simplify_mm=s.simplify_mm, smooth_path=not s.no_smooth,

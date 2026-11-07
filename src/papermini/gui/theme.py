@@ -249,6 +249,14 @@ QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSp
     width: 0px; border: none; }}
 QSpinBox::up-arrow, QSpinBox::down-arrow, QDoubleSpinBox::up-arrow, QDoubleSpinBox::down-arrow {{
     image: none; width: 0px; height: 0px; }}
+QSlider {{ min-height: 22px; }}
+QSlider::groove:horizontal {{ height: 4px; border-radius: 2px; background: {t.border}; }}
+QSlider::sub-page:horizontal {{ height: 4px; border-radius: 2px; background: {t.accent}; }}
+QSlider::handle:horizontal {{ width: 12px; height: 12px; margin: -6px 0; border-radius: 8px;
+    background: {t.surface}; border: 2px solid {t.accent}; }}
+QSlider::handle:horizontal:hover {{ background: {t.accent_soft}; }}
+QSlider::sub-page:horizontal:disabled {{ background: {t.muted}; }}
+QSlider::handle:horizontal:disabled {{ border-color: {t.muted}; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox::down-arrow {{ image: url({down}); width: 12px; height: 12px; }}
 QComboBox QAbstractItemView {{ background: {t.surface}; border: 1px solid {t.border};

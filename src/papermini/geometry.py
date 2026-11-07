@@ -80,7 +80,7 @@ def bbox(m: np.ndarray) -> Tuple[int, int, int, int]:
     ys, xs = np.nonzero(m)
     if len(ys) == 0:
         raise ValueError("empty mask: nothing was detected as foreground "
-                         "(try a lower --threshold, a --crop, or another --model)")
+                         "(try a lower --strength, a --crop, or another --model)")
     return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
 
@@ -99,7 +99,7 @@ def connect_components(m: np.ndarray, width_px: int) -> np.ndarray:
         return m
     if k > MAX_PARTS:
         raise ValueError(f"{k} separate parts is too many to bridge (max {MAX_PARTS}); "
-                         "raise the min. part area or the threshold, or turn off keep-all")
+                         "raise the min. part area or the strength, or turn off keep-all")
     pts = []
     for c in cs:  # outline points, thinned to bound the pairwise cost
         p = c[:, 0, :].astype(np.float32)

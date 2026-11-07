@@ -85,7 +85,7 @@ papermini make lotje.png --height-mm 42 --label Lotje
 ```
 
 ```bash
-papermini make boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --threshold 60 --close 7
+papermini make boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --strength 60 --fill-gaps 7
 ```
 
 ```bash
@@ -110,8 +110,8 @@ papermini make *.png -o minis --debug
 | `--back-color` | #ffffff | colour of a `blank` or `text` back |
 | `--back-text-color` | #2f5597 | colour of the back text |
 | `--crop x0,y0,x1,y1` | | region the model looks at, as fractions (0–1) or pixels |
-| `--threshold` | 40 | mask threshold (0–255); go lower for faint pencil, higher for busy scenes |
-| `--close` | auto | closing radius in px (auto ≈ 9 px at a 1400 px image) |
+| `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
+| `--fill-gaps` | auto | fill gaps and notches in the outline up to this many px; 0 = off (auto ≈ 9 px at a 1400 px image) |
 | `--keep-all` / `--min-area` | / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
 | `--margin-color` | #ffffff | colour of the margin around the drawing |
@@ -146,7 +146,7 @@ See [examples/minis.yaml](../examples/minis.yaml):
 ```yaml
 output: minis
 sheet: {output: minis/sheet.pdf, paper: a4, copies: 1, preview: true}
-defaults: {height_mm: 42, threshold: 40, close: 9}
+defaults: {height_mm: 42, strength: 40, fill_gaps: 9}
 figures:
   - image: ghost-girl.jpg
     label: Lotje
@@ -154,8 +154,8 @@ figures:
   - image: boss-attic.jpg
     label: Acererak
     height_mm: 56
-    threshold: 60
-    close: 7
+    strength: 60
+    fill_gaps: 7
     crop: [0.08, 0, 0.92, 0.62]
 ```
 
@@ -237,9 +237,9 @@ halves line up. What shows on the back is up to you:
 - **Tune with `--debug`.** `debug/<name>_overlay.png` shows red for what will be
   cut away and light blue for the white margin. It also writes the masks from
   each step (`0_raw` → `5_cut`).
-- **Faint pencil.** Lower `--threshold` (for example 25–40) and raise `--close` if
+- **Faint pencil.** Lower `--strength` (for example 25–40) and raise `--fill-gaps` if
   the silhouette has gaps.
-- **Busy background.** Use `--crop` around the figure and try `--threshold 60`. A
+- **Busy background.** Use `--crop` around the figure and try `--strength 60`. A
   flat edge from the crop at the bottom is fine, because it sits on the tab.
 - **Props lost.** Floating props are dropped by default. `--keep-all` keeps them
   and adds a bridge.
@@ -257,7 +257,7 @@ halves line up. What shows on the back is up to you:
 1. **Segmentation.** The model (RMBG-1.4 or BiRefNet) runs at 1024×1024 and its
    mask is scaled back to the image size. With `--crop`, the model only sees the crop, and the result is
    pasted into an empty full-size mask.
-2. **Clean-up.** Threshold, then morphological closing, then **hole filling** (so
+2. **Clean-up.** Threshold (`strength`), then morphological closing (`fill_gaps`), then **hole filling** (so
    translucent ghosts become solid), then keep the largest part (or every part,
    with `--keep-all`).
 3. **Scale.** `px_per_mm = figure height in px / --height-mm`.
@@ -291,7 +291,7 @@ stages it affects:
 
 - **Cosmetic** (label, colours, line width, resolution): a fraction of a second.
 - **Shape** (height, margin, smoothing, tab): about a second.
-- **Mask clean-up** (threshold, closing, keep-all): reruns the clean-up.
+- **Mask clean-up** (strength, gap filling, keep-all): reruns the clean-up.
 - **Model or crop**: reruns the AI model.
 
 Small figures from very large images are processed at a bounded resolution

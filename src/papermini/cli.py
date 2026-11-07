@@ -56,9 +56,12 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                         "'auto' uses the alpha channel of transparent PNGs, or --mask if given")
     g.add_argument("--mask", help="your own mask image (white = figure) instead of a model")
     g.add_argument("--crop", help="x0,y0,x1,y1 region (fractions or px) the model looks at")
-    g.add_argument("--threshold", type=int, default=D.threshold, help="mask threshold 0-255 (40)")
-    g.add_argument("--close", type=int, default=None,
-                   help="closing radius in px (default scales with image: 9 px at 1400 px)")
+    g.add_argument("--strength", type=int, default=D.strength,
+                   help="background removal strength 0-254: lower keeps faint lines, "
+                        "higher removes more background (40)")
+    g.add_argument("--fill-gaps", type=int, default=None,
+                   help="fill gaps and notches in the outline up to this many px; 0 = off "
+                        "(default scales with the image: 9 px at 1400 px)")
     g.add_argument("--keep-all", action="store_true",
                    help="keep detached parts (>= --min-area) and bridge them to the figure")
     g.add_argument("--min-area", type=int, default=D.min_area, help="smallest part kept with --keep-all (px)")

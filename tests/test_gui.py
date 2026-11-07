@@ -223,12 +223,13 @@ def test_review_regressions(app, tmp_path):
         assert w._build_timer.interval() == 250
 
         # 2. a wheel tick over an unfocused spin box changes nothing
-        spin = w.panel._w["threshold"][1]
-        before = spin.value()
-        ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, 120),
-                         Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
-        app.sendEvent(spin, ev)
-        assert spin.value() == before
+        field = w.panel._w["strength"][1]
+        before = field.value()
+        for part in (field.slider, field.spin):  # nor over an unfocused slider
+            ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, 120),
+                             Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+            app.sendEvent(part, ev)
+        assert field.value() == before
 
         # 3. copies only change the sheet: same Mini object, no rebuild
         mini = fig.mini
@@ -585,7 +586,7 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         fig = w.current()
         assert wait(app, lambda: fig.error is not None, 30)
         assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
-        assert "Models" in w.banner.text.text() and "lower threshold" not in w.banner.text.text()
+        assert "Models" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
         assert model_cache == []
         assert w._confirm_download("birefnet-lite") is False   # declined: not asked again
         assert asked == ["birefnet-lite"]
@@ -786,5 +787,38 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
         assert "#fd3c1b" in colours(w.empty.icon.pixmap())
     finally:
         w.close()
+
+
+def test_strength_and_gap_filling_sliders(app):
+    """Strength and gap filling are sliders with a number box; gap filling has an
+    Auto checkbox (it used to be a spin box where 0 meant auto, so 0 = off was impossible)."""
+    from papermini.gui.panels import FigurePanel
+
+    p = FigurePanel()
+    p.set_settings(FigureSettings(strength=60, fill_gaps=None), "x", "x")
+    th, cl = p._w["strength"][1], p._w["fill_gaps"][1]
+    assert th.slider.value() == th.spin.value() == 60 and th.auto is None
+    assert cl.auto.isChecked() and not cl.slider.isEnabled() and not cl.spin.isEnabled()
+    got = []
+    p.changed.connect(got.append)
+
+    th.slider.setValue(80)                       # slider and box stay in step
+    assert th.spin.value() == 80 and got[-1].strength == 80
+    th.spin.setValue(25)
+    assert th.slider.value() == 25 and got[-1].strength == 25
+
+    p.set_auto_fill_gaps(14)                         # what the last build picked
+    assert cl.spin.value() == 14 and p.settings().fill_gaps is None
+    cl.auto.setChecked(False)                    # carry on from the automatic value
+    assert cl.slider.isEnabled() and got[-1].fill_gaps == 14
+    cl.slider.setValue(0)                        # 0 = no gap filling, now possible
+    assert got[-1].fill_gaps == 0
+    cl.spin.setValue(300)                        # past the slider's end: typed in the box
+    assert got[-1].fill_gaps == 300 and cl.slider.value() == cl.slider.maximum()
+    cl.auto.setChecked(True)
+    assert got[-1].fill_gaps is None and cl.spin.value() == 14
+
+    p.set_settings(FigureSettings(fill_gaps=0), "x", "x")
+    assert not cl.auto.isChecked() and cl.spin.value() == 0 and p.settings().fill_gaps == 0
 
 
