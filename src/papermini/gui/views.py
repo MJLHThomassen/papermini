@@ -8,12 +8,13 @@ import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (QBrush, QColor, QFont, QImage, QImageReader, QPainter, QPainterPath,
                            QPen, QPixmap, QTransform)
-from PySide6.QtWidgets import (QGraphicsPathItem, QGraphicsPixmapItem,
+from PySide6.QtWidgets import (QGraphicsItem, QGraphicsPathItem, QGraphicsPixmapItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView)
 
 from . import theme
 
+from ..geometry import CutPath
 from ..mini import Mini
 from ..sheet import INSTRUCTIONS, INSTRUCTIONS_DOUBLE, SheetLayout
 
@@ -155,20 +156,25 @@ def _text(scene: QGraphicsScene, text: str, size_mm: float, color: str, family: 
     return item
 
 
-def cut_painter_path(m: Mini, x: float = 0.0, y: float = 0.0) -> QPainterPath:
+def qpath(cut: CutPath, x: float = 0.0, y: float = 0.0) -> QPainterPath:
+    """A closed cut path as a QPainterPath, moved by (x, y)."""
     p = QPainterPath()
-    pts = m.cut.points
+    pts = cut.points
     p.moveTo(x + pts[0, 0], y + pts[0, 1])
     n = len(pts)
     for i in range(n):
         q = pts[(i + 1) % n]
-        if m.cut.controls is None:
+        if cut.controls is None:
             p.lineTo(x + q[0], y + q[1])
         else:
-            c1, c2 = m.cut.controls[i]
+            c1, c2 = cut.controls[i]
             p.cubicTo(x + c1[0], y + c1[1], x + c2[0], y + c2[1], x + q[0], y + q[1])
     p.closeSubpath()
     return p
+
+
+def cut_painter_path(m: Mini, x: float = 0.0, y: float = 0.0) -> QPainterPath:
+    return qpath(m.cut, x, y)
 
 
 def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
@@ -311,7 +317,9 @@ _HANDLE_CURSORS = {
 
 
 class CropView(ZoomView):
-    """Source image with an editable crop box.
+    """Source image with the cut line on it and an editable crop box.
+
+    Outside the cut line the image is washed out: that is what gets cut away.
 
     Drag on the image to draw a box. Afterwards drag its corner/edge handles to
     resize it, drag inside it to move it, or drag outside it to draw a new one.
@@ -334,6 +342,8 @@ class CropView(ZoomView):
         self._handles: dict = {}
         self._drag = None                           # (mode, start scene pos, box at start)
         self._pan = None
+        self._cut = None                            # (CutPath, folds) in image pixels
+        self._cut_items: list = []
         self.viewport().setCursor(Qt.CrossCursor)
 
     # ----------------------------------------------------------------- image / box
@@ -342,6 +352,7 @@ class CropView(ZoomView):
         sc.clear()
         self._rect_item = self._shade = None
         self._handles = {}
+        self._cut, self._cut_items = None, []  # a new image: its cut line comes with its build
         self._box = None
         self._drag = None
         if img is None or img.isNull():
@@ -353,6 +364,58 @@ class CropView(ZoomView):
         sc.setSceneRect(QRectF(0, 0, *self._img_size))
         self.refit_on_next_show()
         self.fit()
+
+    # ----------------------------------------------------------------- cut line
+    def set_cut(self, cut: Optional[CutPath], folds=(), top: float = 0.0):
+        """Show the cut line (and fold lines) of the built piece, in image pixels.
+        Above row ``top`` the piece is a double-sided back, not this image."""
+        self._cut = None if cut is None else (cut, list(folds), top)
+        self._draw_cut()
+
+    def refresh_theme(self):
+        self._draw_cut()
+
+    def _draw_cut(self):
+        sc = self.scene()
+        for it in self._cut_items:
+            sc.removeItem(it)
+        self._cut_items = []
+        if self._img_size is None or self._cut is None:
+            return
+        cut, folds, top = self._cut
+        t = theme.current
+        W, H = self._img_size
+        area = QPainterPath()
+        area.addRect(QRectF(0, 0, W, H))
+        front = QRectF(0, top, W, max(0.0, H - top))
+        kept = QPainterPath()
+        kept.addRect(front)
+        inside = qpath(cut)
+        wash = QColor(t.canvas)
+        wash.setAlpha(200)
+        shade = sc.addPath(area.subtracted(inside.intersected(kept)), QPen(Qt.NoPen),
+                           QBrush(wash))
+        shade.setZValue(0.5)
+        # the cut line is clipped to the image (a tab can reach past its edge) and to
+        # the front side: a double-sided back is the mirrored front, not this image
+        clip = sc.addRect(front, QPen(Qt.NoPen))
+        clip.setFlag(QGraphicsItem.ItemClipsChildrenToShape)
+        clip.setZValue(0.6)
+        pen = QPen(QColor(t.accent), 2)
+        pen.setCosmetic(True)
+        QGraphicsPathItem(inside, clip).setPen(pen)
+        # folds on the image (the top fold of a double-sided piece lies on the clip edge,
+        # so they are drawn unclipped, limited to the image width)
+        fold = QPen(QColor(t.accent), 1.5, Qt.DashLine)
+        fold.setCosmetic(True)
+        lines = QPainterPath()
+        for x0, x1, y in folds:
+            if top - 0.5 <= y <= H and x1 > 0 and x0 < W:
+                lines.moveTo(max(0.0, x0), y)
+                lines.lineTo(min(float(W), x1), y)
+        fold_item = sc.addPath(lines, fold)
+        fold_item.setZValue(0.7)
+        self._cut_items = [shade, clip, fold_item]
 
     def set_crop(self, crop):
         """Show ``crop`` (fractions/px list or string); ignored while dragging."""

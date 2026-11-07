@@ -47,7 +47,7 @@ class Figure:
     gen: int = 0
     error: Optional[str] = None
     pixmap: Optional[QPixmap] = None   # art of ``mini`` as a QPixmap (cached for the sheet)
-    queued: Optional[tuple] = None     # (key, overlay) of the job waiting in the pool
+    queued: Optional[str] = None       # key of the job waiting in the pool
 
     def key(self) -> str:
         d = asdict(self.entry.settings)
@@ -69,18 +69,18 @@ class Signals(QObject):
 
 
 class BuildJob(QRunnable):
-    def __init__(self, sig: Signals, fig: Figure, overlay: bool, is_current):
+    def __init__(self, sig: Signals, fig: Figure, is_current):
         super().__init__()
         self.sig, self.uid, self.gen = sig, fig.uid, fig.gen
         self.image, self.settings, self.key = fig.entry.image, fig.entry.settings, fig.key()
-        self.overlay, self.is_current = overlay, is_current
+        self.is_current = is_current
 
     def run(self):
         if not self.is_current(self.uid, self.key):
             return  # settings changed while queued
         self.sig.status.emit(f"Building {self.image.name}…")
         try:
-            m = build_mini(self.image, self.settings, want_overlay=self.overlay, log=lambda *_: None)
+            m = build_mini(self.image, self.settings, log=lambda *_: None)
         except (Exception, SystemExit) as e:  # noqa: BLE001 - always report back, never die silently
             expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
             msg = str(e) if isinstance(e, expected) else \
@@ -132,10 +132,11 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- ui
     VIEWS = [("Miniature", "The piece as it will print"),
-             ("Cut-away", "Red = cut away, light blue = white margin, black = cut line"),
-             ("Source", "The original image. Drag a box to limit what the model looks at; "
-                        "drag its handles to resize, inside to move, Delete to clear"),
+             ("Source", "The original image with the cut line: everything outside it is cut "
+                        "away. Drag a box to limit what the model looks at; drag its handles "
+                        "to resize, inside to move, Delete to clear"),
              ("Print sheet", "The PDF page layout")]
+    SHEET = 2  # index of the Print sheet view
 
     def _make_ui(self):
         self._tinted = []  # (widget, icon name, colour token, size): re-tinted on theme change
@@ -298,7 +299,6 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().hide()
         self.tabs.setDocumentMode(True)
         self.mini_view = ZoomView()
-        self.overlay_view = ZoomView()
         self.crop_view = CropView()
         self.crop_view.cropChanged.connect(self.panel.set_crop)
         sheet_page = QWidget()
@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
         self.sheet_view = ZoomView()
         sv.addWidget(self.sheet_panel)
         sv.addWidget(self.sheet_view)
-        for view, (label, tip) in zip((self.mini_view, self.overlay_view, self.crop_view, sheet_page),
+        for view, (label, tip) in zip((self.mini_view, self.crop_view, sheet_page),
                                       self.VIEWS):
             self.tabs.addTab(view, label)
         self.tabs.currentChanged.connect(self._tab_changed)
@@ -346,7 +346,7 @@ class MainWindow(QMainWindow):
         zb.addWidget(self.zoombar, 0, Qt.AlignBottom)
         zb.addWidget(right_card, 0, Qt.AlignBottom)
         grid.addWidget(self.zoom_box, 0, 0, Qt.AlignBottom | Qt.AlignRight)
-        for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
+        for v in (self.mini_view, self.crop_view, self.sheet_view):
             v.zoomChanged.connect(lambda z, v=v: v is self._active_view() and self.zoombar.set_zoom(z))
         return canvas
 
@@ -508,10 +508,11 @@ class MainWindow(QMainWindow):
         self.zoombar.refresh_icons()
         self.empty.refresh_icons()
         self.panel.refresh_icons()
+        self.crop_view.refresh_theme()
         self._sync_sides()
         for sec in self.panel.findChildren(Section):
             sec._toggle(sec.header.isChecked())
-        for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
+        for v in (self.mini_view, self.crop_view, self.sheet_view):
             v.viewport().update()
         self.list.viewport().update()
         fig = self.current()
@@ -641,21 +642,21 @@ class MainWindow(QMainWindow):
         f = self._figure(uid)
         return f is not None and f.key() == key
 
-    def _queue(self, fig: Figure, overlay: bool):
-        job = (fig.key(), overlay)
-        if fig.queued == job or (fig.queued == (job[0], True) and not overlay):
-            return  # an equivalent (or better) build is already waiting
-        fig.queued = job
+    def _queue(self, fig: Figure):
+        key = fig.key()
+        if fig.queued == key:
+            return  # this build is already waiting
+        fig.queued = key
         # the selected figure jumps ahead of background (sheet) builds
         priority = 10 if fig is self.current() else 0
-        self.pool.start(BuildJob(self.sig, fig, overlay, self._is_current), priority)
+        self.pool.start(BuildJob(self.sig, fig, self._is_current), priority)
 
     def _build_current(self):
         fig = self.current()
         if fig is None:
             return
-        if not fig.up_to_date or fig.mini.overlay is None:
-            self._queue(fig, overlay=True)
+        if not fig.up_to_date:
+            self._queue(fig)
             self.info.setText("building…")
             self.busy_box.setVisible(fig.mini is None or not fig.up_to_date)
         else:
@@ -665,10 +666,8 @@ class MainWindow(QMainWindow):
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
             return  # settings changed meanwhile (a newer build is queued)
-        if fig.queued and fig.queued[0] == key and (mini.overlay is not None or not fig.queued[1]):
+        if fig.queued == key:
             fig.queued = None
-        if mini.overlay is None and fig.mini is not None and fig.built_key == key:
-            mini.overlay = fig.mini.overlay
         fig.mini, fig.built_key, fig.error = mini, key, None
         fig.pixmap = QPixmap.fromImage(pil_to_qimage(mini.art))
         self._refresh_card(fig)
@@ -676,7 +675,7 @@ class MainWindow(QMainWindow):
             self._show_mini(fig)
         self._status("Ready")
         self._check_export()
-        if self.tabs.currentIndex() == 3:
+        if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
     def _on_failed(self, uid, gen, key, msg):
@@ -731,7 +730,7 @@ class MainWindow(QMainWindow):
                 f.gen += 1
                 self._refresh_card(f)
         self._build_current()
-        if self.tabs.currentIndex() == 3:
+        if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
     def _download_progress(self, done, total, msg):
@@ -755,7 +754,6 @@ class MainWindow(QMainWindow):
             self.panel.set_empty(True, "Select a figure in the list to see its settings here."
                                  if self.figures else "Add images to see their settings here.")
             self.mini_view.scene().clear()
-            self.overlay_view.scene().clear()
             self.crop_view.set_image(None)
             self.banner_box.hide()
             self.busy_box.hide()
@@ -767,9 +765,8 @@ class MainWindow(QMainWindow):
         self.crop_view.set_image(load_qimage(e.image))
         self.crop_view.set_crop(e.settings.crop)
         self.mini_view.refit_on_next_show()
-        self.overlay_view.refit_on_next_show()
         self._show_mini(fig)
-        if not fig.up_to_date or fig.mini.overlay is None:
+        if not fig.up_to_date:
             QTimer.singleShot(0, self._build_current)  # (start(0) would kill the debounce)
 
     def _show_mini(self, fig: Figure):
@@ -777,7 +774,7 @@ class MainWindow(QMainWindow):
         self.panel.set_overlap_hint(None)
         if fig.error and not fig.up_to_date:
             sc.clear()
-            self.overlay_view.scene().clear()
+            self.crop_view.set_cut(None)
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
             hint = "" if "not downloaded" in fig.error else \
@@ -791,20 +788,14 @@ class MainWindow(QMainWindow):
         self.busy_box.setVisible(m is None or not fig.up_to_date)
         if m is None:
             sc.clear()
+            self.crop_view.set_cut(None)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
         draw_mini_page(sc, m)
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.mini_view.fit()
-        if m.overlay is not None:
-            osc = self.overlay_view.scene()
-            osc.clear()
-            item = osc.addPixmap(QPixmap.fromImage(array_to_qimage(m.overlay)))
-            item.setTransformationMode(Qt.SmoothTransformation)
-            osc.setSceneRect(item.boundingRect())
-            if self.overlay_view._fit_pending:
-                self.overlay_view.fit()
+        self.crop_view.set_cut(m.source_cut, m.source_folds, m.source_top)
         if not m.tab_overlap_used:
             self.panel.set_overlap_hint("unused")
         elif m.tab_width_mm and m.tab_joint_mm < min(10.0, 0.6 * m.tab_width_mm):
@@ -814,17 +805,17 @@ class MainWindow(QMainWindow):
                           f"{m.height_mm:.1f} mm · {len(m.cut.points)} cut nodes{stale}")
 
     def _tab_changed(self, i):
-        if i == 3:
+        if i == self.SHEET:
             self._refresh_sheet()
         QTimer.singleShot(0, self._tab_zoom)
 
     def _refresh_sheet(self):
-        if self.tabs.currentIndex() != 3:
+        if self.tabs.currentIndex() != self.SHEET:
             return
         missing = [f for f in self.figures if not f.up_to_date and f.error is None]
         failed = [f for f in self.figures if not f.up_to_date and f.error is not None]
         for f in missing:
-            self._queue(f, overlay=False)
+            self._queue(f)
         # stale pieces stay visible while they rebuild, but not when their settings fail
         ready = [f for f in self.figures if f.mini is not None and f not in failed]
         sh = self.project.sheet
@@ -862,7 +853,7 @@ class MainWindow(QMainWindow):
         self._active_view().actual_size()
 
     def _active_view(self) -> ZoomView:
-        return [self.mini_view, self.overlay_view, self.crop_view, self.sheet_view][
+        return [self.mini_view, self.crop_view, self.sheet_view][
             self.tabs.currentIndex()]
 
     # ----------------------------------------------------------------- export
@@ -879,7 +870,7 @@ class MainWindow(QMainWindow):
         self._export = (figs, then, dlg, len(todo))
         for f in todo:
             f.error = None  # retry figures that failed before
-            self._queue(f, overlay=f is self.current())
+            self._queue(f)
         self._check_export()
 
     def _check_export(self):

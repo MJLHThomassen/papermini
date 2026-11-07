@@ -42,10 +42,12 @@ the desktop app in depth, and how the pipeline works.
 - **Miniature** view. The piece as it will print, with a 10 mm scale bar. The
   zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
   real size (*1:1*, Ctrl+1), depending on the DPI your screen reports.
-- **Cut-away** view. Red is cut away, light blue is the white margin, black is
-  the cut line. Use it to spot problems.
-- **Source** view. The original image. Drag a box to set `--crop` for busy
-  backgrounds. Afterwards:
+- **Source** view. The original image with the cut line and fold lines of the
+  built piece on it. Everything outside the cut line is faded: that part of the
+  image is cut away, so you can spot a clipped sword tip or a detached part
+  that was dropped. (A tab or the back of a double-sided piece reaching past
+  the image is not drawn.) Drag a box to set `--crop` for busy backgrounds.
+  Afterwards:
   - drag its **handles** (corners and edge midpoints, or anywhere along an
     edge) to resize it;
   - drag **inside** it to move it;

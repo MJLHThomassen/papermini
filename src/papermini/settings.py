@@ -115,7 +115,7 @@ def norm_keys(d: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
-               debug_dir: Optional[Path] = None, want_overlay: bool = False,
+               debug_dir: Optional[Path] = None,
                log=print) -> Mini:
     # model "mask" = your own mask image; "auto" also uses a mask image if one is given
     use_mask = s.model == "mask" or (s.model == "auto" and bool(s.mask))
@@ -129,7 +129,7 @@ def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
         dpi=s.dpi, simplify_mm=s.simplify_mm, smooth_path=not s.no_smooth,
         bleed_mm=s.bleed_mm if s.cutter else 0.0,
         use_cache=use_cache, style=s.style(), debug_dir=debug_dir,
-        want_overlay=want_overlay, log=log,
+        log=log,
     )
 
 

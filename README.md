@@ -65,9 +65,9 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
    a figure in the list on the left.
 2. **Adjust the settings** on the right: height, background removal, margin,
    tab shape and label, double-sided. The preview updates as you go.
-3. **Check the cut.** The *Cut-away* view shows what is cut away (red) and the
-   margin (blue). If the outline is wrong, try a lower threshold or drag a crop
-   box in the *Source* view.
+3. **Check the cut.** The *Source* view draws the cut line on your original
+   image and fades everything that is cut away. If the outline is wrong, try a
+   lower strength or drag a crop box there.
 4. **Print.** The *Print sheet* view lays all figures out on pages. Click
    **Export PDF** and print it at 100% ("actual size"). Each page has a 50 mm
    bar to check the scale.
@@ -75,9 +75,9 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
 Save your work as a project (Ctrl+S). Projects are plain YAML files that the
 command line can rebuild too.
 
-| Cut-away view | Print sheet | Dark theme |
+| Source view | Print sheet | Dark theme |
 |---|---|---|
-| ![Cut-away view](docs/screenshots/app-cutaway.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
+| ![Source view with the cut line](docs/screenshots/app-source.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
 
 The first time it needs the background-removal model (about 176 MB), the app
 asks before downloading it. After that, papermini works offline. **Models…**

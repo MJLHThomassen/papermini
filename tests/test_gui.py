@@ -82,7 +82,7 @@ def test_build_edit_and_save(app, tmp_path):
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         assert fig.mini.figure_height_mm == pytest.approx(42, abs=0.05)
-        assert fig.mini.overlay is not None
+        assert fig.mini.source_cut is not None and w.crop_view._cut_items  # on the source
         # defaults (fold and overlap 0) on a wide joint: no note under the overlap field
         assert fig.mini.tab_overlap_used and fig.mini.tab_joint_mm > 10
         assert not w.panel.overlap_hint.isVisibleTo(w.panel)
@@ -98,7 +98,7 @@ def test_build_edit_and_save(app, tmp_path):
         assert fig.entry.settings.crop == [0.1, 0.1, 0.9, 0.9]
 
         # sheet tab builds a layout
-        w.tabs.setCurrentIndex(3)
+        w.tabs.setCurrentIndex(w.SHEET)
         assert wait(app, lambda: "piece" in w.sheet_panel.info.text())
 
         from pathlib import Path
@@ -692,6 +692,39 @@ def test_decimal_fields_take_a_point_in_any_locale(app):
         assert p.settings().height_mm == 12.5
     finally:
         QLocale.setDefault(old)
+
+
+def test_source_view_shows_the_cut_line(app, tmp_path):
+    """The Cut-away view is gone: the Source view draws the cut line on the original
+    image instead, and forgets it when another image is shown."""
+    from papermini.gui.views import load_qimage
+    from papermini.gui.window import MainWindow
+
+    im = np.full((900, 700, 3), 255, np.uint8)
+    cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "b.png")
+    w = MainWindow()
+    try:
+        assert [w.tabs.tabText(i) for i in range(w.tabs.count())] ==             ["Miniature", "Source", "Print sheet"]
+        assert w.tabs.tabText(w.SHEET) == "Print sheet"
+        w.add_images([tmp_path / "a.png"])
+        fig = w.current()
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        cv = w.crop_view
+        shade, clip, folds = cv._cut_items
+        assert shade.scene() is cv.scene() and len(clip.childItems()) == 1   # the cut line
+        assert folds.path().elementCount() == 2                               # the tab fold
+        r = clip.childItems()[0].path().boundingRect()
+        assert 120 < r.left() < 150 and 120 < r.top() < 150                 # 150 - margin
+
+        cv.refresh_theme()                                 # redrawn, not duplicated
+        assert len(cv._cut_items) == 3
+        cv.set_image(load_qimage(tmp_path / "b.png"))    # another image: no stale cut line
+        assert cv._cut is None and cv._cut_items == []
+    finally:
+        w._modified = False
+        w.close()
 
 
 def test_closed_window_never_asks_to_download(app, monkeypatch):

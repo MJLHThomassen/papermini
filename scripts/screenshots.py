@@ -59,12 +59,11 @@ def main() -> None:
         w.resize(1360, 820)
         w.show()
         w.load(args.project)
-        w.tabs.setCurrentIndex(3)  # the sheet builds every figure
+        w.tabs.setCurrentIndex(w.SHEET)  # the sheet builds every figure
         settle(lambda: all(f.up_to_date for f in w.figures))
         w.list.setCurrentRow(row)
         w.tabs.setCurrentIndex(tab)
-        settle(lambda: all(f.up_to_date and f.mini.overlay is not None
-                           for f in [w.current()] if f is not None))
+        settle(lambda: all(f.up_to_date for f in [w.current()] if f is not None))
         w._fit()
         settle()
         path = args.out / f"{name}.png"
@@ -74,10 +73,10 @@ def main() -> None:
         w.close()
 
     # (theme, file name, figure row in the sample project, view: 0 miniature,
-    #  1 cut-away, 2 source, 3 print sheet)
+    #  1 source, 2 print sheet)
     shot("light", "app-miniature", 1, 0)
-    shot("light", "app-cutaway", 0, 1)
-    shot("light", "app-sheet", 0, 3)
+    shot("light", "app-source", 0, 1)
+    shot("light", "app-sheet", 0, 2)
     shot("dark", "app-dark", 2, 0)
 
 
