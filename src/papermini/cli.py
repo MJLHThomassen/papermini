@@ -52,7 +52,7 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                    help="colour of the back text (#2f5597)")
     g = p.add_argument_group("mask")
     g.add_argument("--model", default=D.model,
-                   help="rmbg-1.4, rembg:<name>, alpha, mask (with --mask) or a .onnx file; "
+                   help="rmbg-1.4, birefnet, birefnet-lite, alpha, mask (with --mask) or a .onnx file; "
                         "'auto' uses the alpha channel of transparent PNGs, or --mask if given")
     g.add_argument("--mask", help="your own mask image (white = figure) instead of a model")
     g.add_argument("--crop", help="x0,y0,x1,y1 region (fractions or px) the model looks at")

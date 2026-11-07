@@ -27,7 +27,7 @@ a = Analysis(  # noqa: F821
     pathex=[str(ROOT / "src")],
     datas=collect_data_files("reportlab"),  # fonts used for the PDF sheet
     hiddenimports=["papermini._version"],
-    excludes=["tkinter", "matplotlib", "IPython", "pytest", "rembg"],
+    excludes=["tkinter", "matplotlib", "IPython", "pytest"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)  # noqa: F821

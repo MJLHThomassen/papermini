@@ -19,7 +19,7 @@ the desktop app in depth, and how the pipeline works.
   views in the middle; **Export SVG** and **Export PDF** on the right. The ☰ menu
   holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
-  or dark) and about. Keyboard shortcuts work without opening the menu: Ctrl+O
+  or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
   open, Ctrl+I add images, Ctrl+S save, Ctrl+E export SVG, Ctrl+P export PDF,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
 - **Side panels.** Drag the dividers to resize the figure list and the settings,
@@ -56,6 +56,15 @@ the desktop app in depth, and how the pipeline works.
   margin and gap settings in the bar above it.
 - **Exporting.** Anything that still needs building is built in the background
   first; the window stays responsive and you can cancel.
+- **Model downloads.** The first time a figure needs a model that is not on
+  this computer yet, the app asks first: it shows the model, its download size,
+  where it comes from, where it will be kept and its licence. *Download* shows
+  the progress and can be cancelled; *Not now* leaves the figure with a note,
+  and the app does not ask again until you pick another model.
+- **Models…** (☰ menu). Every built-in model with its licence, whether it is
+  downloaded, its size and file name, and the folder it is kept in (*Open
+  folder*). *Download* or *Download again* (to replace a damaged file), and
+  *Delete* to free disk space.
 
 Projects are saved as **batch YAML** files, the same format as
 `papermini batch`, so anything set up in the app can be rebuilt from the
@@ -158,18 +167,21 @@ papermini batch examples/sample/sample.yaml
 
 ## Model licence
 
-The default model is **BRIA RMBG-1.4**
-(<https://huggingface.co/briaai/RMBG-1.4>). Its licence allows **non-commercial
-use only**. For commercial use, get a licence from BRIA or switch to another
-model with `--model`:
+The default model, [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4), is
+licensed for **non-commercial use only** (see its model card). For commercial
+use, pick one of the [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) models
+([MIT licence](https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE)), use
+images with transparency (`alpha`), paint your own mask, or bring your own ONNX
+model. Every model downloads once, without an account.
 
 | `--model`              | what                                                        |
 |------------------------|-------------------------------------------------------------|
 | `auto` (default)       | the image's alpha channel if it has transparency, else `rmbg-1.4` |
-| `rmbg-1.4`             | BRIA RMBG-1.4 ONNX, run with onnxruntime                    |
-| `rembg:u2net`          | any [rembg](https://github.com/danielgatis/rembg) model; needs the `[rembg]` extra. For example `rembg:isnet-general-use` or `rembg:birefnet-general` |
+| `rmbg-1.4`             | BRIA RMBG-1.4 (176 MB download), run with onnxruntime       |
+| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a 930 MB download and about 20× slower than RMBG-1.4 on a CPU (half a minute per image) |
+| `birefnet-lite`        | BiRefNet general with a small backbone: 215 MB download, about 7× slower than RMBG-1.4 |
 | `alpha`                | use the PNG's own transparency                              |
-| `path/to/model.onnx`   | your own ONNX model with RMBG-style input (RGB, `x/255-0.5`) |
+| `path/to/model.onnx`   | your own ONNX model with RMBG-1.4-style input (RGB, `x/255-0.5`) |
 
 You can also skip segmentation and pass a mask you painted yourself:
 `--mask hero_mask.png` (white = figure).
@@ -239,8 +251,8 @@ halves line up. What shows on the back is up to you:
 
 ## How it works
 
-1. **Segmentation.** RMBG-1.4 runs at 1024×1024 and its mask is scaled back to the
-   image size. With `--crop`, the model only sees the crop, and the result is
+1. **Segmentation.** The model (RMBG-1.4 or BiRefNet) runs at 1024×1024 and its
+   mask is scaled back to the image size. With `--crop`, the model only sees the crop, and the result is
    pasted into an empty full-size mask.
 2. **Clean-up.** Threshold, then morphological closing, then **hole filling** (so
    translucent ghosts become solid), then keep the largest part (or every part,
@@ -261,8 +273,9 @@ halves line up. What shows on the back is up to you:
 
 ## Caching and speed
 
-The first run downloads the segmentation model (~176 MB) into
-`~/.cache/papermini/`. You can change that folder with the `PAPERMINI_CACHE`
+The first run downloads the segmentation model (~176 MB for RMBG-1.4, 215 MB
+or 930 MB for BiRefNet) into
+`~/.cache/papermini/`; the desktop app asks before it downloads. You can change that folder with the `PAPERMINI_CACHE`
 environment variable. After that, everything works offline, and each image takes
 a few seconds on a CPU. AI model masks are cached on disk per image, crop and
 model, so re-running with a different `--threshold` or `--height-mm` skips the

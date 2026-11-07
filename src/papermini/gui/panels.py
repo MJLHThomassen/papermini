@@ -18,8 +18,7 @@ from . import prefs, theme
 # value -> what the (editable) model box shows, where they differ
 MODEL_NAMES = {"mask": "mask image file"}
 MODEL_VALUES = {v: k for k, v in MODEL_NAMES.items()}
-MODELS = ["auto", "rmbg-1.4", "alpha", "mask", "rembg:u2net", "rembg:isnet-general-use",
-          "rembg:birefnet-general"]
+MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 
 # Groups follow the workflow: how big and how many, how the figure is found,
 # the outline/cut line around it, the stand tab, its label, and the back.
@@ -85,9 +84,14 @@ TIPS = {
     "dpi": "Resolution of the embedded artwork. 300 dpi suits most printers.",
     "model": "How the figure is separated from the background.\n"
              "auto: the PNG's transparency if it has any, else rmbg-1.4.\n"
+             "rmbg-1.4: BRIA's background removal model, non-commercial use only\n"
+             "(downloads 176 MB once).\n"
+             "birefnet: sharper edges and fine detail, slower, free for any use\n"
+             "(downloads 930 MB once).\n"
+             "birefnet-lite: a smaller, faster BiRefNet (downloads 215 MB once).\n"
              "alpha: the PNG's own transparency (no file needed).\n"
              "mask image file: your own black-and-white mask (white = figure).\n"
-             "rembg:* needs the optional rembg package. You can also type a .onnx path.",
+             "You can also type the path of your own .onnx model.",
     "mask": "Your own mask image: white = figure, black = background, same picture size.",
     "crop": "Only this region is searched for the figure (x0,y0,x1,y1, fractions or px).\n"
             "Drag a box on the Source / crop tab to set it.",
@@ -370,10 +374,7 @@ class FigurePanel(QScrollArea):
         elif kind == "model":
             w = ComboBox()
             w.setEditable(True)
-            from ..segment import rembg_available
-
-            w.addItems([MODEL_NAMES.get(m, m) for m in MODELS
-                        if not m.startswith("rembg:") or rembg_available()])
+            w.addItems([MODEL_NAMES.get(m, m) for m in MODELS])
             w.activated.connect(self._emit)
             w.lineEdit().editingFinished.connect(self._emit)
         elif kind == "file":

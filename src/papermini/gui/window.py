@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import itertools
+import threading
 import traceback
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -13,7 +14,7 @@ from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPoo
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-                               QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
+                               QDialog, QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from .. import __version__, segment
@@ -23,6 +24,7 @@ from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_pr
 from ..sheet import pack, write_pdf
 from ..svg import write_svg
 from . import prefs, theme
+from .models import DownloadDialog, ModelsDialog
 from .panels import FigurePanel, Section, SheetPanel
 from .views import (CropView, ZoomView, array_to_qimage, draw_mini_page, draw_sheet, load_qimage,
                     pil_to_qimage)
@@ -63,6 +65,7 @@ class Signals(QObject):
     done = Signal(int, int, str, object)   # uid, gen, key, Mini
     failed = Signal(int, int, str, str)     # uid, gen, key, message
     status = Signal(str)
+    ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
 
 
 class BuildJob(QRunnable):
@@ -105,7 +108,10 @@ class MainWindow(QMainWindow):
         self.sig.done.connect(self._on_done)
         self.sig.failed.connect(self._on_failed)
         self.sig.status.connect(self._status)
+        self.sig.ask_download.connect(self._ask_download)
+        self._declined = set()  # models the user did not want to download (until they change model)
         segment.PROGRESS_HOOK = self._download_progress
+        segment.CONFIRM_DOWNLOAD = self._confirm_download
         segment.CANCEL.clear()
 
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
@@ -379,6 +385,8 @@ class MainWindow(QMainWindow):
         for a in (self.a_left, self.a_right):
             a.setCheckable(True)
             a.setChecked(True)
+        self.a_models = act("Models…", self.show_models, None,
+                            "See, download or delete the background-removal models")
 
         m = self.menu = QMenu(self)
         for a in (self.a_new, self.a_open, self.a_add, None, self.a_save, self.a_save_as, None,
@@ -397,6 +405,7 @@ class MainWindow(QMainWindow):
             a.triggered.connect(lambda _=False, mode=mode: self.set_theme(mode))
             group.addAction(a)
             self.theme_actions[mode] = a
+        m.addAction(self.a_models)
         m.addSeparator()
         m.addAction("About papermini", self._about)
         m.addAction(self.a_quit)
@@ -593,6 +602,8 @@ class MainWindow(QMainWindow):
         fig = self.current()
         if fig is None:
             return
+        if s.model != fig.entry.settings.model:
+            self._declined.clear()  # a new model choice may ask again
         fig.entry.settings = s
         fig.gen += 1
         fig.error = fig.queued = None
@@ -678,6 +689,47 @@ class MainWindow(QMainWindow):
         self._check_export()
         self._status(f"{fig.entry.image.name}: {msg.splitlines()[0]}")
 
+    def _confirm_download(self, model: str) -> bool:
+        """Build thread: ask (on the GUI thread) before a model is downloaded. The
+        dialog downloads it, so the build continues with the file on disk."""
+        if model in self._declined or segment.CANCEL.is_set():
+            return False
+        answer, done = {"ok": False}, threading.Event()
+        self.sig.ask_download.emit(model, answer, done)
+        while not done.wait(0.1):
+            if segment.CANCEL.is_set():  # the window is closing
+                return False
+        return answer["ok"]
+
+    def _ask_download(self, model: str, answer: dict, done: threading.Event):
+        try:
+            if segment.model_path(model).exists():  # downloaded meanwhile (Models window)
+                answer["ok"] = True
+                return
+            ok = DownloadDialog(model, self).exec() == QDialog.Accepted
+            answer["ok"] = ok
+            if not ok:
+                self._declined.add(model)
+        finally:
+            done.set()
+
+    def show_models(self):
+        dlg = ModelsDialog(self)
+        dlg.changed.connect(self._models_changed)
+        dlg.exec()
+
+    def _models_changed(self, model: str):
+        """Retry figures that failed, e.g. because a model was not downloaded."""
+        self._declined.discard(model)
+        for f in self.figures:
+            if f.error and not f.up_to_date:
+                f.error = None
+                f.gen += 1
+                self._refresh_card(f)
+        self._build_current()
+        if self.tabs.currentIndex() == 3:
+            self._sheet_timer.start()
+
     def _download_progress(self, done, total, msg):
         t = f" / {total / 1e6:.0f}" if total else ""
         self.sig.status.emit(f"{msg}: {done / 1e6:.0f}{t} MB (first run only)")
@@ -725,8 +777,9 @@ class MainWindow(QMainWindow):
             self.overlay_view.scene().clear()
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
-            self.banner.show_message("This miniature could not be built",
-                                     f"{msg}<br><br>Try a lower threshold, a crop, or another model.")
+            hint = "" if "not downloaded" in fig.error else \
+                "<br><br>Try a lower threshold, a crop, or another model."
+            self.banner.show_message("This miniature could not be built", msg + hint)
             self.banner_box.show()
             self.info.setText("error")
             return
@@ -993,7 +1046,8 @@ class MainWindow(QMainWindow):
             f"<b>papermini {__version__}</b><br><br>"
             "Turns illustrations into print-ready paper miniatures.<br><br>"
             "The default background-removal model, BRIA RMBG-1.4, is licensed for "
-            "<b>non-commercial use only</b>.<br><br>"
+            "<b>non-commercial use only</b>. The BiRefNet models are MIT-licensed."
+            "<br><br>"
             "Projects are saved as batch YAML files, so you can also run them from the "
             "command line: <code>papermini batch project.yaml</code>")
 
@@ -1009,7 +1063,7 @@ class MainWindow(QMainWindow):
         if self._maybe_save():
             self.pool.clear()               # drop queued builds
             segment.CANCEL.set()            # abort a model download in progress
-            segment.PROGRESS_HOOK = None
+            segment.PROGRESS_HOOK = segment.CONFIRM_DOWNLOAD = None
             self.pool.waitForDone(15000)    # builds stop at the next checkpoint
             segment.CANCEL.clear()
             self._save_layout()

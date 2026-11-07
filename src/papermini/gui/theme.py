@@ -154,7 +154,8 @@ def apply(app: QApplication, mode: str = "system") -> Theme:
                     (QPalette.ButtonText, t.text), (QPalette.Highlight, t.accent),
                     (QPalette.HighlightedText, t.accent_text), (QPalette.ToolTipBase, t.surface),
                     (QPalette.ToolTipText, t.text), (QPalette.PlaceholderText, t.muted),
-                    (QPalette.Mid, t.border), (QPalette.Dark, t.border), (QPalette.Light, t.surface)):
+                    (QPalette.Mid, t.border), (QPalette.Dark, t.border), (QPalette.Light, t.surface),
+                    (QPalette.Link, t.accent), (QPalette.LinkVisited, t.accent)):
         pal.setColor(role, QColor(c))
     for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
         pal.setColor(QPalette.Disabled, role, QColor(t.muted))
@@ -275,5 +276,10 @@ QMenu::item {{ padding: 6px 22px 6px 12px; border-radius: 5px; }}
 QMenu::item:selected {{ background: {t.accent_soft}; color: {t.text}; }}
 QMenu::item:disabled {{ color: {t.muted}; }}
 QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 6px; }}
-QProgressDialog, QMessageBox {{ background: {t.surface}; }}
+QProgressDialog, QMessageBox, #DownloadDialog, #ModelsDialog {{ background: {t.surface}; }}
+#DialogTitle {{ font-size: 11pt; font-weight: 600; }}
+#ModelCard {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 10px; }}
+#DownloadDialog QProgressBar {{ background: {t.surface2}; border: 1px solid {t.border};
+    border-radius: 4px; }}
+#DownloadDialog QProgressBar::chunk {{ background: {t.accent}; border-radius: 3px; }}
 """

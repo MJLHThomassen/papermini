@@ -22,7 +22,6 @@ dependencies = [
 
 [project.optional-dependencies]
 gui = ["PySide6-Essentials>=6.8"]
-rembg = ["rembg>=2.0.50"]
 dev = ["pytest>=7"]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
 

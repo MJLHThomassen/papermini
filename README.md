@@ -79,13 +79,17 @@ command line can rebuild too.
 |---|---|---|
 | ![Cut-away view](docs/screenshots/app-cutaway.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
 
-The first run downloads the background-removal model (about 176 MB). After
-that, papermini works offline.
+The first time it needs the background-removal model (about 176 MB), the app
+asks before downloading it. After that, papermini works offline. **Models…**
+in the ☰ menu shows which models are downloaded, and where.
 
 > [!IMPORTANT]
-> The default model, [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4),
-> is licensed for **non-commercial use only**. For commercial use, pick another
-> model (`--model`, or *Model* in the app) or use images with transparency. See
+> The default background-removal model,
+> [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4), is licensed for
+> **non-commercial use only**. For commercial use, pick a
+> [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) model
+> ([MIT licence](https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE)) or
+> use images with transparency. See
 > [background removal models](docs/reference.md#model-licence).
 
 # Usage via CLI

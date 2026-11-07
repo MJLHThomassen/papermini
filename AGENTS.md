@@ -21,9 +21,9 @@ Rules for anyone, human or coding agent, working in this repository.
   through setuptools-scm (`src/papermini/_version.py` is generated and
   ignored). Releases are cut only by the maintainer, by pushing a
   `vMAJOR.MINOR.PATCH` tag; never create or push tags yourself unless asked.
-- **Respect the model licence.** The default segmentation model (BRIA
-  RMBG-1.4) is non-commercial. Never add model weights to the repository; they
-  are downloaded to `~/.cache/papermini/` on first use.
+- **Respect the model licences.** The default segmentation model, BRIA
+  RMBG-1.4, is non-commercial; BiRefNet is MIT. Never add model weights to the
+  repository; they are downloaded to `~/.cache/papermini/` on first use.
 
 ## Layout
 
@@ -32,14 +32,14 @@ src/papermini/
   cli.py        command line: make | sheet | batch | gui
   settings.py   FigureSettings / Project: the one definition of every option,
                 shared by the CLI, batch YAML and the GUI
-  segment.py    background removal (RMBG-1.4 ONNX, rembg, alpha, mask files)
+  segment.py    background removal (RMBG-1.4 / BiRefNet ONNX, alpha, masks)
                 and the on-disk mask cache
   geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
   mini.py       the pipeline: image -> mask -> layout -> cut path (mm units)
   cache.py      in-memory LRU caches for the pipeline stages
   svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
-                prefs)
+                prefs, models: download dialog and Models window)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py
 packaging/      PyInstaller spec, entry scripts and app icon (make_icon.py)

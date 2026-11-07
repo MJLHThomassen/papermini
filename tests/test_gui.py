@@ -466,3 +466,149 @@ def test_panel_layout_is_remembered(app):
         assert w.btn_left.focusPolicy() == Qt.TabFocus
     finally:
         w.close()
+
+
+@pytest.fixture
+def model_cache(monkeypatch, tmp_path):
+    """An empty model folder and a fake download (no network, no real model)."""
+    from papermini import segment
+
+    monkeypatch.setenv("PAPERMINI_CACHE", str(tmp_path / "cache"))
+    calls = []
+
+    def fake_download(url, dest, progress=None, cancel=None, **_):
+        calls.append(dest.name)
+        for i in range(1, 4):
+            if cancel is not None and cancel.is_set():
+                raise segment.ModelError("model download cancelled")
+            if progress:
+                progress(i * 10, 30, "")
+            time.sleep(0.01)
+        dest.write_bytes(b"x" * 30)
+        return dest
+
+    monkeypatch.setattr(segment, "download", fake_download)
+    return calls
+
+
+def test_download_dialog_asks_then_downloads(app, model_cache):
+    from PySide6.QtWidgets import QDialog
+
+    from papermini import segment
+    from papermini.gui.models import DownloadDialog
+
+    d = DownloadDialog("rmbg-1.4")
+    assert "Download the BRIA RMBG-1.4 model?" in d.title.text()
+    assert "176 MB" in d.body.text() and "non-commercial" in d.body.text()
+    assert d.btn_go.text() == "Download"
+    d.btn_no.click()                                   # "Not now"
+    assert d.result() == QDialog.Rejected and model_cache == []
+
+    d = DownloadDialog("rmbg-1.4")
+    d.btn_go.click()                                   # "Download"
+    assert d.btn_no.text() == "Cancel"
+    assert wait(app, lambda: d.result() == QDialog.Accepted, 10)
+    assert d.bar.value() == 1000 and d.status.text() == "0 of 0 MB"  # 30 bytes
+    assert segment.model_path("rmbg-1.4").exists() and model_cache == ["rmbg-1.4.onnx"]
+
+
+def test_download_dialog_cancel(app, model_cache, monkeypatch):
+    import threading
+
+    from PySide6.QtWidgets import QDialog
+
+    from papermini import segment
+    from papermini.gui.models import DownloadDialog
+
+    gate = threading.Event()
+    real = segment.download
+
+    def slow(url, dest, progress=None, cancel=None, **k):
+        gate.wait(5)
+        return real(url, dest, progress=progress, cancel=cancel, **k)
+
+    monkeypatch.setattr(segment, "download", slow)
+    d = DownloadDialog("birefnet-lite", ask=False)
+    d.reject()                                         # Cancel / Esc while downloading
+    assert d.isVisible() is False and d.result() != QDialog.Accepted
+    assert "Cancelling" in d.status.text()
+    gate.set()
+    assert wait(app, lambda: not d.downloading, 10)
+    assert d.result() == QDialog.Rejected
+    assert not segment.model_path("birefnet-lite").exists()
+
+
+def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    from papermini import segment
+    from papermini.gui import models
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "plain.png")
+    asked = []
+
+    class Refuse:
+        def __init__(self, model, parent=None):
+            asked.append(model)
+
+        def exec(self):
+            return QDialog.Rejected
+
+    monkeypatch.setattr("papermini.gui.window.DownloadDialog", Refuse)
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "plain.png"], FigureSettings(model="birefnet-lite"))
+        fig = w.current()
+        assert wait(app, lambda: fig.error is not None, 30)
+        assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
+        assert "Models" in w.banner.text.text() and "lower threshold" not in w.banner.text.text()
+        assert model_cache == []
+        assert w._confirm_download("birefnet-lite") is False   # declined: not asked again
+        assert asked == ["birefnet-lite"]
+
+        # the Models window lists every model, downloads one, and the figure is retried
+        dlg = models.ModelsDialog(w)
+        dlg.changed.connect(w._models_changed)
+        assert set(dlg.cards) == set(segment.ONNX_MODELS)
+        card = dlg.cards["birefnet-lite"]
+        assert "Not downloaded" in card.state.text() and not card.btn_del.isEnabled()
+        monkeypatch.setattr(models.DownloadDialog, "exec",
+                            lambda self: segment.fetch_model(self.model, self.force) and 1)
+        card.btn_get.click()
+        assert "Downloaded" in card.state.text() and card.btn_get.text() == "Download again"
+        assert "birefnet-lite.onnx" in card.state.text() and str(segment.cache_dir()) in dlg.folder.text()
+        assert "birefnet-lite" not in w._declined and fig.error is None
+
+        monkeypatch.setattr(models.QMessageBox, "question", lambda *a, **k: models.QMessageBox.Yes)
+        card.btn_del.click()
+        assert not segment.model_path("birefnet-lite").exists()
+        assert "Not downloaded" in card.state.text()
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_models_menu_entry(app):
+    from papermini.gui.window import MainWindow
+
+    w = MainWindow()
+    try:
+        assert w.a_models in w.menu.actions()
+    finally:
+        w.close()
+
+
+def test_licences_are_links(app, model_cache):
+    from papermini import segment
+    from papermini.gui.models import DownloadDialog, ModelsDialog
+
+    for model, spec in segment.ONNX_MODELS.items():
+        assert spec["licence_url"].startswith("https://")
+        d = DownloadDialog(model)
+        assert f'<a href="{spec["licence_url"]}">' in d.body.text()
+        assert d.body.openExternalLinks()
+    dlg = ModelsDialog()
+    card = dlg.cards["birefnet"]
+    assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
+    assert card.licence.openExternalLinks()
