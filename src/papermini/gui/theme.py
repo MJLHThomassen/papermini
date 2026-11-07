@@ -36,13 +36,15 @@ class Theme:
     shadow: str
 
 
+DRAGON_RED = "#fd3c1b"  # the logo's red: the accent in both themes
+
 LIGHT = Theme("light", bg="#f4f4f6", surface="#ffffff", surface2="#f7f7f9", canvas="#e9e9ee",
               dots="#d4d4dc", border="#e2e2e8", text="#1d1d22", muted="#6e6e7a",
-              accent="#5b5bd6", accent_text="#ffffff", accent_soft="#ececfb",
+              accent=DRAGON_RED, accent_text="#ffffff", accent_soft="#ffe9e4",
               danger="#d64545", shadow="#00000028")
 DARK = Theme("dark", bg="#161618", surface="#1e1e21", surface2="#26262a", canvas="#111113",
              dots="#26262b", border="#2f2f34", text="#ececf0", muted="#9a9aa6",
-             accent="#8b8bf0", accent_text="#14141a", accent_soft="#2b2b45",
+             accent=DRAGON_RED, accent_text="#ffffff", accent_soft="#45231f",
              danger="#f07070", shadow="#00000070")
 
 current: Theme = LIGHT
