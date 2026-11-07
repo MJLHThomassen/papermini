@@ -71,8 +71,9 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
    image and fades everything that is cut away. If the outline is wrong, try a
    lower strength or drag a crop box there.
 4. **Print.** The *Print sheet* view lays all figures out on pages. Click
-   **Export PDF** and print it at 100% ("actual size"). Each page has a 50 mm
-   bar to check the scale.
+   **Print…** to print them straight away at real size, or **Export PDF** and
+   print that at 100% ("actual size"). Each page has a 50 mm bar to check the
+   scale.
 
 Save your work as a project (Ctrl+S). Projects are plain YAML files that the
 command line can rebuild too.

@@ -907,3 +907,79 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
         w.close()
 
 
+def test_print_is_true_to_size_and_follows_the_page_range(app):
+    """The printed sheet must be exactly to scale: its 50 mm bar is 50 mm on paper."""
+    from PySide6.QtGui import QColor, QImage
+
+    from papermini.gui.views import print_sheet
+    from papermini.mini import Mini
+    from papermini.geometry import CutPath
+    from papermini.sheet import pack
+
+    class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
+        def __init__(self, first=0, last=0):
+            super().__init__(round(210 / 25.4 * 100), round(297 / 25.4 * 100), QImage.Format_RGB32)
+            self.fill(0xFF808080)
+            self.range, self.pages = (first, last), 1
+
+        def fromPage(self):
+            return self.range[0]
+
+        def toPage(self):
+            return self.range[1]
+
+        def resolution(self):
+            return 100
+
+        def newPage(self):
+            self.pages += 1
+            return True
+
+    sq = CutPath(np.array([[0, 0], [30, 0], [30, 40], [0, 40]], float))
+    m = Mini("m", 30, 40, Image.new("RGBA", (300, 400), (200, 40, 30, 255)), sq)
+    lay = pack([(m, 30)], "a4", 12, 7)
+    assert lay.pages > 1
+    pr = ImagePrinter()
+    assert print_sheet(pr, lay, "test", 12) == lay.pages == pr.pages
+    k = 100 / 25.4
+    y = round((12 + lay.header_mm - 4) * k)             # the scale bar's row
+    dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
+    assert abs(dark[0] - 12 * k) <= 2 and abs(dark[-1] - 62 * k) <= 2   # 12 mm .. 62 mm
+    assert QColor(pr.pixel(2, 2)).lightness() > 250       # white paper from the very corner
+
+    pr = ImagePrinter(2, 2)                                # "pages 2 to 2" in the dialog
+    assert print_sheet(pr, lay, "test", 12) == 1 and pr.pages == 1
+
+
+def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
+    from PySide6.QtPrintSupport import QPrinter
+
+    from papermini.gui.window import MainWindow
+
+    im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
+    from PIL import ImageDraw
+    ImageDraw.Draw(im).ellipse((30, 30, 270, 420), fill=(200, 40, 30, 255))
+    im.save(tmp_path / "hero.png")
+    out = tmp_path / "printed.pdf"
+    seen = []
+
+    def fake_dialog(self, printer, pages):  # instead of the system print dialog
+        seen.append((printer.fullPage(), printer.pageLayout().pageSize().id(), pages))
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(str(out))
+        return True
+
+    monkeypatch.setattr(MainWindow, "_print_dialog", fake_dialog)
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "hero.png"])
+        w.tabs.setCurrentIndex(w.SHEET)
+        assert w.sheet_panel.print_btn.isVisibleTo(w.sheet_panel)
+        w.sheet_panel.print_btn.click()                   # builds first if needed, then prints
+        assert wait(app, lambda: out.exists() and out.stat().st_size > 1000)
+        from PySide6.QtGui import QPageSize
+        assert seen == [(True, QPageSize.A4, 1)]          # true size on the sheet's paper
+        assert out.read_bytes().startswith(b"%PDF")
+    finally:
+        w._modified = False
+        w.close()

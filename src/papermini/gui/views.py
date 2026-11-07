@@ -18,6 +18,35 @@ from ..geometry import CutPath
 from ..mini import Mini
 from ..sheet import INSTRUCTIONS, INSTRUCTIONS_DOUBLE, SheetLayout
 
+
+def print_sheet(printer, lay: SheetLayout, title: str, margin_mm: float = 12.0) -> int:
+    """Print the sheet at its real size (1 mm on the sheet = 1 mm on paper), the pages
+    chosen in the print dialog or all of them. Returns the number of pages printed.
+
+    ``printer`` must be set to full page, so the drawing starts at the paper's corner
+    like the PDF; scaling to the printable area would make the minis the wrong size.
+    """
+    from PySide6.QtWidgets import QGraphicsScene
+
+    scene = QGraphicsScene()
+    pages = draw_sheet(scene, lay, title, margin_mm)
+    first, last = printer.fromPage(), printer.toPage()  # 1-based; 0 = all pages
+    chosen = [r for i, r in enumerate(pages, 1)
+              if not first or first <= i <= (last or len(pages))]
+    k = printer.resolution() / 25.4  # device pixels per mm
+    p = QPainter()
+    if not chosen or not p.begin(printer):
+        return 0
+    try:
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
+        for n, r in enumerate(chosen):
+            if n:
+                printer.newPage()
+            scene.render(p, QRectF(0, 0, r.width() * k, r.height() * k), r)
+    finally:
+        p.end()
+    return len(chosen)
+
 PAGE_GAP_MM = 12.0
 
 

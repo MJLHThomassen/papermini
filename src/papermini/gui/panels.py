@@ -719,9 +719,10 @@ def _parse_crop_text(text: str, old):
 
 
 class SheetPanel(QWidget):
-    """Paper, title, margins - edits a SheetSettings."""
+    """Paper, title, margins - edits a SheetSettings - and a Print button."""
 
     changed = Signal(object)
+    printClicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -757,6 +758,11 @@ class SheetPanel(QWidget):
         self.info = QLabel()
         self.info.setObjectName("Muted")
         h.addWidget(self.info)
+        self.print_btn = QPushButton("Print…")
+        self.print_btn.setToolTip("Print the sheet at its real size  (Ctrl+Shift+P)")
+        self.print_btn.setCursor(Qt.PointingHandCursor)
+        self.print_btn.clicked.connect(self.printClicked)
+        h.addWidget(self.print_btn)
         self.paper.currentTextChanged.connect(self._emit)
         self.title.editingFinished.connect(self._emit)
         self.margin.valueChanged.connect(self._emit)

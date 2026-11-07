@@ -27,7 +27,7 @@ from ..svg import write_svg
 from . import prefs, theme
 from .models import DownloadDialog, ModelsDialog
 from .panels import FigurePanel, Section, SheetPanel
-from .views import (CropView, ZoomView, array_to_qimage, draw_mini_page, draw_sheet, load_qimage,
+from .views import (CropView, ZoomView, draw_mini_page, draw_sheet, load_qimage, print_sheet,
                     pil_to_qimage)
 from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, ZoomBar,
                       overlay_wrap)
@@ -311,6 +311,8 @@ class MainWindow(QMainWindow):
         sv.setSpacing(0)
         self.sheet_panel = SheetPanel()
         self.sheet_panel.changed.connect(self._sheet_changed)
+        self.sheet_panel.printClicked.connect(self.print_sheet)
+        self._tinted.append((self.sheet_panel.print_btn, "printer", "text", 16))
         self.sheet_view = ZoomView()
         sv.addWidget(self.sheet_panel)
         sv.addWidget(self.sheet_view)
@@ -378,6 +380,8 @@ class MainWindow(QMainWindow):
                          "Save the selected miniature as SVG")
         self.a_svgs = act("Export all SVGs…", self.export_all_svgs, "Ctrl+Shift+E")
         self.a_pdf = act("Export PDF sheet…", self.export_pdf, "Ctrl+P")
+        self.a_print = act("Print sheet…", self.print_sheet, "Ctrl+Shift+P",
+                           "Print the sheet at its real size")
         self.a_remove = act("Remove figure", self.remove_current, QKeySequence.Delete)
         self.a_remove.setShortcutContext(Qt.WidgetShortcut)
         self.list.addAction(self.a_remove)
@@ -895,6 +899,8 @@ class MainWindow(QMainWindow):
         ready = [f for f in self.figures if f.mini is not None and f not in failed]
         sh = self.project.sheet
         sc = self.sheet_view.scene()
+        self.sheet_panel.print_btn.setEnabled(bool(self.figures))
+        self.a_print.setEnabled(bool(self.figures))
         if not ready:
             sc.clear()
             self.sheet_panel.info.setText("Building…" if missing else "No miniatures yet")
@@ -1014,6 +1020,53 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "papermini", str(e))
             return
         self._status(f"Saved {f} ({len(lay.placements)} pieces, {lay.pages} page(s))")
+
+    def print_sheet(self):
+        if self.figures:
+            self._when_built(list(self.figures), self._print)
+
+    def _print(self):
+        from PySide6.QtGui import QPageLayout, QPageSize
+        from PySide6.QtPrintSupport import QPrinter
+
+        sh = self.project.sheet
+        try:
+            lay = pack([(x.mini, x.entry.settings.copies) for x in self.figures], sh.paper,
+                       sh.margin_mm, sh.gap_mm)
+        except ValueError as e:
+            QMessageBox.warning(self, "papermini", str(e))
+            return
+        printer = QPrinter(QPrinter.HighResolution)
+        size = QPageSize.A4 if sh.paper == "a4" else QPageSize.Letter
+        printer.setPageSize(QPageSize(size))
+        printer.setPageOrientation(QPageLayout.Portrait)
+        printer.setFullPage(True)  # true size: no scaling to the printable area
+        printer.setDocName(self.project.path.stem if self.project.path else "papermini sheet")
+        printer.setFromTo(0, 0)
+        if not self._print_dialog(printer, lay.pages):
+            return
+        chosen = printer.pageLayout().pageSize().id()
+        if chosen != size and QMessageBox.question(
+                self, "papermini",
+                f"The sheet is laid out for {sh.paper.upper()} paper, but the printer is set to "
+                f"{printer.pageLayout().pageSize().name()}. The minis still print at their real "
+                "size, but parts of the sheet may be cut off.\n\nPrint anyway?") \
+                != QMessageBox.Yes:
+            return
+        n = print_sheet(printer, lay, sh.title, sh.margin_mm)
+        if n:
+            self._status(f"Sent {n} page(s) to {printer.printerName() or 'the printer'}")
+        else:
+            QMessageBox.warning(self, "papermini", "Could not print: the printer did not start.")
+
+    def _print_dialog(self, printer, pages: int) -> bool:
+        from PySide6.QtPrintSupport import QAbstractPrintDialog, QPrintDialog
+
+        dlg = QPrintDialog(printer, self)
+        dlg.setWindowTitle("Print sheet")
+        dlg.setMinMax(1, pages)
+        dlg.setOption(QAbstractPrintDialog.PrintPageRange, pages > 1)
+        return dlg.exec() == QDialog.Accepted
 
     # ----------------------------------------------------------------- project
     def open_paths(self, paths):

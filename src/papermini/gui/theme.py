@@ -61,6 +61,8 @@ ICONS: Dict[str, str] = {
     "export": '<path d="M12 4v10.5M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14"/>',
     "pdf": '<path d="M6.5 3.5h7.5l4.5 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5z"/>'
            '<path d="M14 3.5V8h4.5M8.5 13h7M8.5 16.5h5"/>',
+    "printer": '<path d="M7 9V4.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/>'
+               '<path d="M7 13.5h10v6H7z"/><path d="M17 11.5h.01"/>',
     "fit": '<path d="M4.5 9V4.5H9M19.5 9V4.5H15M4.5 15v4.5H9M19.5 15v4.5H15"/>',
     "zoom_in": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M11 8v6M8 11h6"/>',
     "zoom_out": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8 11h6"/>',

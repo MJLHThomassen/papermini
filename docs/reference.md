@@ -63,7 +63,11 @@ the desktop app in depth, and how the pipeline works.
 
   The mouse wheel zooms and the middle mouse button pans.
 - **Print sheet** view. A live preview of the PDF layout, with paper, title,
-  margin and gap settings in the bar above it.
+  margin and gap settings in the bar above it. **Print…** there (or
+  Ctrl+Shift+P) prints the sheet straight away, without saving a PDF first.
+  It always prints at real size, from the corner of the paper, on the sheet's
+  paper (A4 or Letter); the app warns if the printer is set to another paper
+  size. With several pages you can pick which to print.
 - **Exporting.** Anything that still needs building is built in the background
   first; the window stays responsive and you can cancel.
 - **Model downloads.** The first time a figure needs a model that is not on
@@ -256,8 +260,8 @@ halves line up. What shows on the back is up to you:
   flat edge from the crop at the bottom is fine, because it sits on the tab.
 - **Props lost.** Floating props are dropped by default. `--keep-all` keeps them
   and adds a bridge.
-- **Printing.** Print at 100% / "actual size", never "fit to page". Measure the
-  50 mm bar to check.
+- **Printing.** Print a PDF at 100% / "actual size", never "fit to page"
+  (the app's **Print…** does this for you). Measure the 50 mm bar to check.
 - **Cutting machines.** Import the SVG and use `path#cut` as the cut layer.
   `--cutter` gives a red hairline that many tools treat as a cut line. It also
   adds a bleed (`--bleed-mm`, 1 mm by default): the background is printed a
