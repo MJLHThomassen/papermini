@@ -907,6 +907,53 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
         w.close()
 
 
+def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
+    """Paste a link in the bar above the figures and press Enter (or Add) to add it.
+    The add-images button sits in the figure list, not in the header."""
+    from PySide6.QtCore import QMimeData
+    from PySide6.QtWidgets import QFrame, QToolButton
+
+    from papermini.gui.window import MainWindow
+
+    w = MainWindow()
+    try:
+        header_tips = [b.toolTip() for b in w.findChild(QFrame, "Header").findChildren(QToolButton)]
+        assert not any("Add images" in t for t in header_tips)
+        left = w.splitter.widget(0)
+        assert any("Add images" in b.toolTip() for b in left.findChildren(QToolButton))
+        assert w.link_edit.parent() is left and not w.link_add.isEnabled()
+        lay = left.layout()
+        row = [i for i in range(lay.count()) if lay.itemAt(i).layout()
+               and lay.itemAt(i).layout().indexOf(w.link_edit) >= 0]
+        assert row and row[0] < lay.indexOf(w.list)          # right above the list
+
+        added = []
+        monkeypatch.setattr(w, "add_links", lambda links, *a: added.append(links))
+        url = "https://example.com/art/goblin.webp"
+        w.link_edit.setText(f"  {url} ")
+        assert w.link_add.isEnabled()
+        w.link_edit.returnPressed.emit()
+        assert added == [[url]] and w.link_edit.text() == ""
+
+        w.link_edit.setText("goblin.webp")              # not a link: kept, nothing added
+        w.link_add.click()
+        assert added == [[url]] and w.link_edit.text() == "goblin.webp"
+        assert "not a link" in w.statusBar().currentMessage()
+
+        w.link_edit.clear()
+        clip = QMimeData()
+        clip.setText(url)
+        QApplication.clipboard().setMimeData(clip)
+        w.set_side_visible(0, False)
+        w.a_add_link.trigger()                          # Ctrl+L: shows the list, fills in the link
+        assert w.side_visible(0) and w.link_edit.text() == url
+        w.empty.link_button.click()                     # the start card's link does the same
+        assert w.link_edit.text() == url
+    finally:
+        w._modified = False
+        w.close()
+
+
 def test_print_is_true_to_size_and_follows_the_page_range(app):
     """The printed sheet must be exactly to scale: its 50 mm bar is 50 mm on paper."""
     from PySide6.QtGui import QColor, QImage

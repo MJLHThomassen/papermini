@@ -63,8 +63,10 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
 `~/.venvs/papermini/bin/papermini-gui` (macOS, Linux).
 </details>
 
-1. **Add images.** Drop images onto the window, or use **+**. Each one becomes
-   a figure in the list on the left.
+1. **Add images.** Drop images onto the window, or use the add-image button
+   above the figure list. You can also drag a picture from your browser, paste
+   one with Ctrl+V, or paste its link into the link bar. Each image becomes a
+   figure in the list on the left.
 2. **Adjust the settings** on the right: height, background removal, margin,
    tab shape and label, double-sided. The preview updates as you go.
 3. **Check the cut.** The *Source* view draws the cut line on your original

@@ -15,12 +15,13 @@ the desktop app in depth, and how the pipeline works.
 
 ## Desktop app
 
-- **Header.** Open, add images and save on the left; a switch between the four
+- **Header.** Open and save on the left; a switch between the three
   views in the middle; **Export SVG** and **Export PDF** on the right. The ☰ menu
   holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
   or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
-  open, Ctrl+I add images, Ctrl+S save, Ctrl+E export SVG, Ctrl+P export PDF,
+  open, Ctrl+I add images, Ctrl+L add an image from a link, Ctrl+V paste images, Ctrl+S save,
+  Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export PDF,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
 - **Images.** PNG, JPG, WebP, BMP and TIFF. Besides files, an image can come
   from the web: paste its link (URL) into the bar at the top of the figure list
@@ -33,8 +34,9 @@ the desktop app in depth, and how the pipeline works.
   or drag them shut. The buttons in the bottom corners of the canvas hide and
   show them (filled = shown) and stay put while a panel is hidden.
 - **Figures** (left). Each figure is a card with a thumbnail of the finished
-  piece, its height and number of copies. Add images with **+**, or drop
-  files or a project anywhere in the window. Drag to reorder; **Delete**
+  piece, its height and number of copies. Add images with the add-image button
+  above the list, add one from the web by pasting its link into the link bar
+  under it, or drop files or a project anywhere in the window. Drag to reorder; **Delete**
   removes the selected one. A new figure starts with the settings of the one
   that is selected.
 - **Settings** (right). Every option from `papermini make`, in sections you can

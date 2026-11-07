@@ -15,8 +15,9 @@ from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPoo
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-                               QDialog, QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
-                               QTabWidget, QToolButton, QVBoxLayout, QWidget)
+                               QDialog, QLineEdit, QMenu, QMessageBox, QProgressDialog,
+                               QPushButton, QSplitter, QTabWidget, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from .. import __version__, remote, segment
 from ..mini import Mini
@@ -214,7 +215,6 @@ class MainWindow(QMainWindow):
         h.addWidget(self.project_label)
         h.addSpacing(14)
         h.addWidget(self._tool("open", "Open a project or images  (Ctrl+O)", self.open_dialog))
-        h.addWidget(self._tool("add", "Add images  (Ctrl+I)", self.add_images_dialog))
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
         h.addStretch(1)
         self.views = Segmented(self.VIEWS)
@@ -275,10 +275,11 @@ class MainWindow(QMainWindow):
         head.addSpacing(4)
         head.addWidget(self.count_label)
         head.addStretch(1)
-        head.addWidget(self._tool("plus", "Add images  (Ctrl+I)", self.add_images_dialog, 16))
+        head.addWidget(self._tool("add", "Add images  (Ctrl+I)", self.add_images_dialog, 16))
         self.btn_remove = self._tool("trash", "Remove the selected figure  (Del)", self.remove_current, 16)
         head.addWidget(self.btn_remove)
         v.addLayout(head)
+        v.addLayout(self._make_link_bar())
         self.list = QListWidget()
         self.list.setObjectName("Figures")
         self.list.setItemDelegate(FigureDelegate(self.list))
@@ -288,12 +289,35 @@ class MainWindow(QMainWindow):
         self.list.currentRowChanged.connect(lambda _: self._show_current())
         self.list.model().rowsMoved.connect(self._rows_moved)
         v.addWidget(self.list, 1)
-        hint = QLabel("Drop images or a project file anywhere in the window. Drag to reorder.")
+        hint = QLabel("Drop images, image links or a project file anywhere in the window. "
+                      "Drag to reorder.")
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
         hint.setContentsMargins(8, 0, 8, 0)
         v.addWidget(hint)
         return left
+
+    def _make_link_bar(self) -> QHBoxLayout:
+        """A field to paste image links into: Enter (or Add) downloads and adds them."""
+        h = QHBoxLayout()
+        h.setSpacing(6)
+        self.link_edit = QLineEdit()
+        self.link_edit.setObjectName("LinkEdit")
+        self.link_edit.setPlaceholderText("Paste an image link")
+        self.link_edit.setToolTip("Paste the link of an image on the web and press Enter. "
+                                  "In a browser: right-click the picture, Copy image address.")
+        self.link_edit.setClearButtonEnabled(True)
+        self._link_icon = self.link_edit.addAction(QIcon(), QLineEdit.LeadingPosition)
+        self.link_edit.returnPressed.connect(self.add_from_link_bar)
+        self.link_add = QPushButton("Add")
+        self.link_add.setToolTip("Download the image and add it as a figure  (Enter)")
+        self.link_add.setCursor(Qt.PointingHandCursor)
+        self.link_add.setEnabled(False)
+        self.link_add.clicked.connect(self.add_from_link_bar)
+        self.link_edit.textChanged.connect(lambda t: self.link_add.setEnabled(bool(t.strip())))
+        h.addWidget(self.link_edit, 1)
+        h.addWidget(self.link_add)
+        return h
 
     def _make_canvas(self) -> QWidget:
         canvas = QWidget()
@@ -325,6 +349,7 @@ class MainWindow(QMainWindow):
         self.empty = EmptyState()
         self.empty.addClicked.connect(self.add_images_dialog)
         self.empty.openClicked.connect(self.open_dialog)
+        self.empty.linkClicked.connect(self.focus_link_bar)
         grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
         self.banner = Banner()
         self.banner_box = overlay_wrap(self.banner)
@@ -372,6 +397,8 @@ class MainWindow(QMainWindow):
         self.a_open = act("Open…", self.open_dialog, QKeySequence.Open,
                           "Open a project (.yaml) or images")
         self.a_add = act("Add images…", self.add_images_dialog, "Ctrl+I")
+        self.a_add_link = act("Add image from a link…", self.focus_link_bar, "Ctrl+L",
+                              "Download an image from the web by its link (URL)")
         self.a_paste = act("Paste images", self.paste, QKeySequence.Paste,
                            "Add copied image files, or an image or its link copied in a browser")
         self.a_save = act("Save project", self.save, QKeySequence.Save)
@@ -400,8 +427,9 @@ class MainWindow(QMainWindow):
                             "See, download or delete the background-removal models")
 
         m = self.menu = QMenu(self)
-        for a in (self.a_new, self.a_open, self.a_add, None, self.a_save, self.a_save_as, None,
-                  self.a_svg, self.a_svgs, self.a_pdf, None):
+        for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None, self.a_save,
+                  self.a_save_as, None,
+                  self.a_svg, self.a_svgs, self.a_pdf, self.a_print, None):
             m.addSeparator() if a is None else m.addAction(a)
         vm = m.addMenu("View")
         for a in (self.a_left, self.a_right, None, self.a_fit, self.a_actual):
@@ -511,6 +539,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_theme(self):
         t = theme.current
+        self._link_icon.setIcon(theme.icon("link", theme.current.muted, 16))
         for w, name, token, size in self._tinted:
             if isinstance(w, QLabel):
                 w.setPixmap(theme.pixmap(name, getattr(t, token), size))
@@ -595,6 +624,30 @@ class MainWindow(QMainWindow):
         self.list.setCurrentRow(len(self.figures) - 1)
         self._set_modified()
         self._status(f"Added {Path(path).name}")
+
+    def focus_link_bar(self):
+        """Show the figure list and put the cursor in its link field, with a copied
+        link already filled in."""
+        self.set_side_visible(0, True)
+        clip = QApplication.clipboard().text().strip()
+        if not self.link_edit.text().strip() and remote.is_url(clip):
+            self.link_edit.setText(clip)
+        self.link_edit.setFocus(Qt.ShortcutFocusReason)
+        self.link_edit.selectAll()
+
+    def add_from_link_bar(self):
+        """Add the link(s) typed or pasted into the link field."""
+        words = self.link_edit.text().split()
+        if not words:
+            return
+        links = [w for w in words if remote.is_url(w)]
+        if len(links) != len(words):
+            self._status("That is not a link: it should start with http:// or https://")
+            self.link_edit.setFocus()
+            self.link_edit.selectAll()
+            return
+        self.link_edit.clear()
+        self.add_links(links)
 
     @staticmethod
     def _sources(mime):

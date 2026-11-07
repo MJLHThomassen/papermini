@@ -78,7 +78,8 @@ ICONS: Dict[str, str] = {
                '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>'
                '<circle cx="13" cy="17" r="2"/>',
     "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
-    "plus": '<path d="M12 5.5v13M5.5 12h13"/>',
+    "link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
+            '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     "chevron_down": '<path d="M7 10l5 5 5-5"/>',
     "chevron_right": '<path d="M10 7l5 5-5 5"/>',
     "chevron_up": '<path d="M7 14l5-5 5 5"/>',
@@ -289,6 +290,9 @@ QListWidget#Figures {{ background: transparent; border: none; outline: none; }}
 #ZoomBar {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 9px; }}
 #ZoomBar QLabel {{ color: {t.muted}; padding: 0 4px; }}
 #EmptyCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
+QPushButton#LinkButton {{ background: transparent; border: none; color: {t.accent};
+    padding: 2px 4px; min-height: 0; }}
+QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #EmptyTitle {{ font-size: 12pt; font-weight: 600; }}
 #PanelEmpty #Muted {{ font-size: 10pt; }}
 #ErrorBanner {{ background: {t.surface}; border: 1px solid {t.danger}; border-radius: 10px; }}

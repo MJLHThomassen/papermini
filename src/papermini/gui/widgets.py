@@ -148,6 +148,7 @@ class EmptyState(QFrame):
 
     addClicked = Signal()
     openClicked = Signal()
+    linkClicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -179,11 +180,16 @@ class EmptyState(QFrame):
         buttons.addWidget(self.button)
         buttons.addWidget(self.open_button)
         buttons.addStretch(1)
+        self.link_button = QPushButton("or add from a link…")
+        self.link_button.setObjectName("LinkButton")
+        self.link_button.setCursor(Qt.PointingHandCursor)
+        self.link_button.clicked.connect(self.linkClicked)
         v.addWidget(self.icon)
         v.addWidget(title)
         v.addWidget(text)
         v.addSpacing(6)
         v.addLayout(buttons)
+        v.addWidget(self.link_button, 0, Qt.AlignCenter)
 
     def refresh_icons(self):
         self.icon.setPixmap(theme.logo_pixmap(104))
