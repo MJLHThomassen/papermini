@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
                                QPushButton, QScrollArea, QSlider, QSpinBox, QToolButton,
                                QVBoxLayout, QWidget)
 
+from .. import remote
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
 
@@ -548,7 +549,7 @@ class FigurePanel(QScrollArea):
 
     def _browse_mask(self, edit: QLineEdit):
         f, _ = QFileDialog.getOpenFileName(self, "Mask image (white = figure)", "",
-                                           "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)")
+                                           remote.IMAGE_FILTER)
         if f:
             edit.setText(f)
             self._emit()

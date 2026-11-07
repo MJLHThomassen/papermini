@@ -22,6 +22,13 @@ the desktop app in depth, and how the pipeline works.
   or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
   open, Ctrl+I add images, Ctrl+S save, Ctrl+E export SVG, Ctrl+P export PDF,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
+- **Images.** PNG, JPG, WebP, BMP and TIFF. Besides files, an image can come
+  from the web: paste its link (URL) into the bar at the top of the figure list
+  and press Enter; you can also drag a picture from a browser onto
+  the window, or copy it (or its link) and press Ctrl+V. A link is downloaded
+  once into `~/.cache/papermini/images/`; the project keeps the link itself, so
+  it still works on another computer. A link must point at the image, not at
+  the web page that shows it: right-click the picture and copy its address.
 - **Side panels.** Drag the dividers to resize the figure list and the settings,
   or drag them shut. The buttons in the bottom corners of the canvas hide and
   show them (filled = shown) and stay put while a panel is hidden.
@@ -78,7 +85,9 @@ command line.
 ### `papermini make IMAGE... [options]`
 
 Makes one SVG per image, saved next to the image or in `-o DIR` (or
-`-o name.svg` for a single image).
+`-o name.svg` for a single image). An image can also be a link (an `http://` or
+`https://` URL) to a PNG, JPG, WebP, BMP or TIFF on the web; it is downloaded
+once and cached, and its SVG is saved in the current folder.
 
 ```bash
 papermini make lotje.png --height-mm 42 --label Lotje
@@ -158,6 +167,10 @@ figures:
     fill_gaps: 7
     crop: [0.08, 0, 0.92, 0.62]
 ```
+
+An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
+It is downloaded once (later runs use the cached copy) and saved projects keep
+the link.
 
 [examples/sample/sample.yaml](../examples/sample/sample.yaml) builds the sample
 outputs in that folder: a default mini, a round coloured base, a double-sided
@@ -281,8 +294,9 @@ or 930 MB for BiRefNet) into
 `~/.cache/papermini/`; the desktop app asks before it downloads. You can change that folder with the `PAPERMINI_CACHE`
 environment variable. After that, everything works offline, and each image takes
 a few seconds on a CPU. AI model masks are cached on disk per image, crop and
-model, so re-running with a different `--threshold` or `--height-mm` skips the
-model entirely (`--no-cache` turns this off).
+model, so re-running with a different `--strength` or `--height-mm` skips the
+model entirely (`--no-cache` turns this off). Images from links are kept in
+`images/` in the same folder, so each link is downloaded only once.
 
 Within one run (and in the desktop app), every stage is also cached in memory:
 the decoded image, the raw mask (from the AI model, the alpha channel or a mask

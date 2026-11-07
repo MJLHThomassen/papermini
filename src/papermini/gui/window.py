@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import itertools
+import re
 import threading
 import traceback
 from dataclasses import asdict, dataclass, replace
@@ -17,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
                                QDialog, QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
-from .. import __version__, segment
+from .. import __version__, remote, segment
 from ..mini import Mini
 from ..segment import ModelError
 from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
@@ -31,8 +32,8 @@ from .views import (CropView, ZoomView, array_to_qimage, draw_mini_page, draw_sh
 from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, ZoomBar,
                       overlay_wrap)
 
-IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
-IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)"
+IMAGE_FILTER = remote.IMAGE_FILTER
+IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.I)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
 # settings that "apply to all" leaves alone
 PER_IMAGE = {"label", "crop", "mask", "copies"}
@@ -66,6 +67,7 @@ class Signals(QObject):
     failed = Signal(int, int, str, str)     # uid, gen, key, message
     status = Signal(str)
     ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
+    link_done = Signal(str, object, str, object)  # link, downloaded path or None, error, settings
 
 
 class BuildJob(QRunnable):
@@ -109,6 +111,8 @@ class MainWindow(QMainWindow):
         self.sig.failed.connect(self._on_failed)
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
+        self.sig.link_done.connect(self._on_link_done)
+        self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = set()  # models the user did not want to download (until they change model)
         segment.PROGRESS_HOOK = self._download_progress
         segment.CONFIRM_DOWNLOAD = self._confirm_download
@@ -366,6 +370,8 @@ class MainWindow(QMainWindow):
         self.a_open = act("Open…", self.open_dialog, QKeySequence.Open,
                           "Open a project (.yaml) or images")
         self.a_add = act("Add images…", self.add_images_dialog, "Ctrl+I")
+        self.a_paste = act("Paste images", self.paste, QKeySequence.Paste,
+                           "Add copied image files, or an image or its link copied in a browser")
         self.a_save = act("Save project", self.save, QKeySequence.Save)
         self.a_save_as = act("Save project as…", self.save_as, QKeySequence.SaveAs)
         self.a_svg = act("Export SVG…", self.export_current_svg, "Ctrl+E",
@@ -526,21 +532,88 @@ class MainWindow(QMainWindow):
         r = self.list.currentRow()
         return self.figures[r] if 0 <= r < len(self.figures) else None
 
+    def _base_settings(self, settings: Optional[FigureSettings]) -> Optional[FigureSettings]:
+        """New figures start from the selected figure's settings (or ``settings``)."""
+        return self.current().entry.settings if (settings is None and self.current()) else settings
+
+    @staticmethod
+    def _new_settings(base: Optional[FigureSettings]) -> FigureSettings:
+        return FigureSettings() if base is None else replace(base, label=None, crop=None, mask=None)
+
     def add_images(self, paths, settings: Optional[FigureSettings] = None):
-        base = self.current().entry.settings if (settings is None and self.current()) else settings
+        """Add image files; links among ``paths`` are downloaded first (in the background)."""
+        base = self._base_settings(settings)
+        links = [str(p).strip() for p in paths if remote.is_url(p)]
         added = 0
         for p in paths:
-            p = Path(p).resolve()
-            if p.suffix.lower() not in IMAGE_EXT:
+            if remote.is_url(p):
                 continue
-            s = FigureSettings() if base is None else replace(
-                base, label=None, crop=None, mask=None)
-            self._append(FigureEntry(p, s))
+            p = remote.local_path(p).resolve()
+            if not remote.is_image_file(p):
+                continue
+            self._append(FigureEntry(p, self._new_settings(base)))
             added += 1
         if added:
             self.list.setCurrentRow(len(self.figures) - 1)
             self._set_modified()
+        if links:
+            self.add_links(links, base)
         return added
+
+    def add_links(self, links, settings: Optional[FigureSettings] = None):
+        """Add images from links: downloaded once (in the background), then cached."""
+        base = self._base_settings(settings)
+        for url in links:
+            url = url.strip()
+            hit = remote.cached_image(url)
+            if hit is not None:
+                self._on_link_done(url, hit, "", base)
+                continue
+            self._status(f"Downloading {url} …")
+            threading.Thread(target=self._fetch_link, args=(url, base), daemon=True).start()
+
+    def _fetch_link(self, url: str, base):  # on a worker thread
+        try:
+            path, err = remote.fetch_image(url, cancel=self._closing), ""
+        except ValueError as e:
+            path, err = None, str(e)
+        if not self._closing.is_set():
+            self.sig.link_done.emit(url, path, err, base)
+
+    def _on_link_done(self, url: str, path, err: str, base):
+        if self._closing.is_set():
+            return
+        if path is None:
+            self._status("Could not add the image")
+            QMessageBox.warning(self, "papermini", f"Could not add the image.\n\n{err}")
+            return
+        self._append(FigureEntry(Path(path), self._new_settings(base), source=url))
+        self.list.setCurrentRow(len(self.figures) - 1)
+        self._set_modified()
+        self._status(f"Added {Path(path).name}")
+
+    @staticmethod
+    def _sources(mime):
+        """(local files, web links) in dropped or pasted data. A picture dragged or copied
+        from a browser carries its own address in the HTML; prefer that over the link
+        around it, which is often a web page rather than the image."""
+        files = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+        links = []
+        if mime.hasHtml():
+            links = [s for s in IMG_SRC.findall(mime.html()) if remote.is_url(s)][:1]
+        if not links:
+            links = [u.toString() for u in mime.urls() if remote.is_url(u.toString())]
+        if not links and not files and mime.hasText():
+            links = [t for t in mime.text().split() if remote.is_url(t)]
+        return files, links
+
+    def paste(self):
+        """Ctrl+V outside a text field: add copied image files or image links."""
+        files, links = self._sources(QApplication.clipboard().mimeData())
+        if files or links:
+            self.open_paths(files + links)
+        else:
+            self._status("Nothing to paste: copy image files, or an image or its link in a browser")
 
     def _append(self, entry: FigureEntry):
         fig = Figure(next(self._uids), entry)
@@ -550,7 +623,7 @@ class MainWindow(QMainWindow):
         if not img.isNull():
             item.setIcon(QIcon(QPixmap.fromImage(img.scaled(
                 112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))))
-        item.setToolTip(str(entry.image))
+        item.setToolTip(entry.source or str(entry.image))
         item.setData(Qt.UserRole, fig.uid)
         item.setData(SUBTITLE_ROLE, "Building…")
         item.setSizeHint(QSize(0, FigureDelegate.H))
@@ -944,20 +1017,25 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- project
     def open_paths(self, paths):
-        paths = [Path(p) for p in paths]
+        """Open a project and/or add images: files, ``file://`` URIs or web links."""
+        links = [str(p).strip() for p in paths if remote.is_url(p)]
+        paths = [remote.local_path(p) for p in paths if not remote.is_url(p)]
         projects = [p for p in paths if p.suffix.lower() in (".yaml", ".yml")]
         if projects:
             self.load(projects[0])
-        self.add_images([p for p in paths if p.suffix.lower() in IMAGE_EXT])
+        self.add_images([p for p in paths if remote.is_image_file(p)] + links)
 
     def load(self, path: Path):
         if not self._maybe_save():
             return
+        QApplication.setOverrideCursor(Qt.WaitCursor)  # images from links may download
         try:
             proj = load_project(path)
         except Exception as e:  # noqa: BLE001
+            QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "papermini", f"Could not open {path}:\n{e}")
             return
+        QApplication.restoreOverrideCursor()
         self._reset(proj)
         missing = [f.image.name for f in proj.figures if not f.image.exists()]
         if missing:
@@ -1049,14 +1127,17 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- events
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls():
+        files, links = self._sources(e.mimeData())
+        if files or links:
             e.acceptProposedAction()
 
     def dropEvent(self, e):
-        self.open_paths([u.toLocalFile() for u in e.mimeData().urls() if u.isLocalFile()])
+        files, links = self._sources(e.mimeData())
+        self.open_paths(files + links)
 
     def closeEvent(self, e):
         if self._maybe_save():
+            self._closing.set()             # link downloads stop and are not added
             self.pool.clear()               # drop queued builds
             segment.CANCEL.set()            # abort a model download in progress
             segment.PROGRESS_HOOK = segment.CONFIRM_DOWNLOAD = None

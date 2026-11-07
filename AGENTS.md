@@ -37,6 +37,7 @@ src/papermini/
   geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
   mini.py       the pipeline: image -> mask -> layout -> cut path (mm units)
   cache.py      in-memory LRU caches for the pipeline stages
+  remote.py     images from links (downloaded once into the cache), image types
   svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
                 prefs, models: download dialog and Models window)

@@ -160,8 +160,8 @@ class EmptyState(QFrame):
         title = QLabel("Start with a drawing")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignCenter)
-        text = QLabel("Drop images or a project (.yaml) anywhere in this window, "
-                      "or pick them from your computer.")
+        text = QLabel("Drop images, image links or a project (.yaml) anywhere in this "
+                      "window, or pick them from your computer.")
         text.setObjectName("Muted")
         text.setAlignment(Qt.AlignCenter)
         text.setWordWrap(True)

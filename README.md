@@ -17,6 +17,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 - **double-sided** minis with a mirrored, blank or text back,
 - an **SVG per figure** in millimetres and an **A4/Letter PDF sheet** to print
   at 100%,
+- works with PNG, JPG, **WebP**, BMP and TIFF files, or a **link** to an image on
+  the web,
 - a **desktop app** with live previews, and a command line for batches.
 
 # Usage

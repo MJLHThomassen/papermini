@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import __version__
+from . import __version__, remote
 from .segment import ModelError
 from .settings import (FIGURE_OPTIONS, FigureSettings, Project, build_mini, load_project,
                        safe_name)
@@ -93,9 +93,12 @@ def cmd_make(a: argparse.Namespace) -> int:
         raise SystemExit("-o NAME.svg only works with a single image; use -o DIR")
     s = FigureSettings.from_dict(
         {k: v for k, v in vars(a).items() if k in FIGURE_OPTIONS and v is not None})
-    for img in map(Path, images):
+    for src in images:
+        img = remote.fetch_image(src) if remote.is_url(src) else remote.local_path(src)
         out_svg = Path(a.output) if a.output and a.output.lower().endswith(".svg") else None
-        out_dir = out_svg.parent if out_svg else Path(a.output) if a.output else img.parent
+        # next to the image, or for a link (its copy lives in the cache) here
+        here = Path.cwd() if remote.is_url(src) else img.parent
+        out_dir = out_svg.parent if out_svg else Path(a.output) if a.output else here
         m = build_mini(img, s, use_cache=not a.no_cache,
                        debug_dir=out_dir / "debug" if a.debug else None)
         out = write_svg(m, out_svg or out_dir / (safe_name(m.name) + ".svg"))
@@ -158,15 +161,19 @@ def cmd_gui(a: argparse.Namespace) -> int:
 
 
 def _expand(patterns: List[str]) -> List[str]:
-    """Expand globs ourselves (Windows shells do not)."""
+    """Expand globs ourselves (Windows shells do not); links are passed through."""
     out: List[str] = []
     for p in patterns:
+        if remote.is_url(p):
+            out.append(p)
+            continue
+        p = str(remote.local_path(p))
         hits = sorted(glob.glob(p)) if any(ch in p for ch in "*?[") else [p]
         if not hits:
             raise SystemExit(f"no files match {p!r}")
         out += hits
     for p in out:
-        if not Path(p).exists():
+        if not remote.is_url(p) and not Path(p).exists():
             raise SystemExit(f"file not found: {p}")
     return out
 
@@ -178,8 +185,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     mk = sub.add_parser("make", help="image(s) -> one SVG per figure")
-    mk.add_argument("images", nargs="+")
-    mk.add_argument("-o", "--output", help="output .svg (single image) or directory (default: next to image)")
+    mk.add_argument("images", nargs="+", metavar="IMAGE",
+                    help=f"image files ({remote.READABLE}) or http(s) links to images")
+    mk.add_argument("-o", "--output", help="output .svg (single image) or directory "
+                                           "(default: next to the image; for a link, here)")
     add_figure_args(mk)
     mk.set_defaults(func=cmd_make)
 

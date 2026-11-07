@@ -841,3 +841,69 @@ def test_start_card_offers_images_and_a_project(app, monkeypatch):
         w.close()
 
 
+def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_path):
+    import io
+    import urllib.request
+
+    from pathlib import Path
+
+    from PySide6.QtCore import QMimeData, QUrl
+
+    from papermini import remote
+    from papermini.gui import window
+    from papermini.gui.window import MainWindow
+
+    buf = io.BytesIO()
+    Image.new("RGBA", (200, 300), (200, 40, 30, 255)).save(buf, "WEBP")
+    site = {"https://example.com/img/goblin.webp": buf.getvalue()}
+    asked = []
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.close()
+
+    def urlopen(req, timeout=None):
+        asked.append(req.full_url)
+        if req.full_url not in site:
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+        return Resp(site[req.full_url])
+
+    import urllib.error
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    warned = []
+    monkeypatch.setattr(window.QMessageBox, "warning", lambda *a: warned.append(a[2]))
+    w = MainWindow()
+    try:
+        url = "https://example.com/img/goblin.webp"
+        w.add_links([url])                       # downloads in the background
+        assert wait(app, lambda: len(w.figures) == 1)
+        fig = w.figures[0]
+        assert fig.entry.source == url and fig.entry.image == remote.cached_image(url)
+        assert w.list.item(0).toolTip() == url and w.list.item(0).text() == "goblin"
+
+        w.add_links(["https://example.com/gone.png"])
+        assert wait(app, lambda: warned)
+        assert "404" in warned[0] and len(w.figures) == 1
+
+        # a picture copied in a browser: the HTML has the image's own address, while the
+        # URL is often the page it links to; the image address wins
+        mime = QMimeData()
+        mime.setHtml(f'<a href="https://example.com/page"><img alt="g" src="{url}"></a>')
+        mime.setUrls([QUrl("https://example.com/page"), QUrl.fromLocalFile(str(tmp_path / "a.png"))])
+        files, links = MainWindow._sources(mime)
+        assert links == [url] and [Path(f) for f in files] == [tmp_path / "a.png"]
+
+        n = len(asked)
+        clip = QMimeData()
+        clip.setText(url)
+        QApplication.clipboard().setMimeData(clip)
+        w.paste()                                 # Ctrl+V outside a text field
+        assert len(w.figures) == 2 and len(asked) == n  # second time from the cache
+    finally:
+        w._modified = False
+        w.close()
+
+

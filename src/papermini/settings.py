@@ -8,6 +8,7 @@ A project file *is* a batch config::
     figures:
       - image: lotje.png
         label: Lotje
+      - image: https://example.com/goblin.webp   # a link: downloaded once, then cached
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import geometry as geo
+from . import remote
 from .mini import Mini, Style, make_mini
 
 CUTTER_STYLE = {"cut_color": "#ff0000", "cut_width_mm": 0.1}
@@ -153,9 +155,10 @@ class SheetSettings:
 
 @dataclass
 class FigureEntry:
-    image: Path                      # absolute
+    image: Path                      # absolute (for a link: the downloaded copy)
     settings: FigureSettings = field(default_factory=FigureSettings)
     name: Optional[str] = None       # output file name (default: label or image name)
+    source: Optional[str] = None     # the link the image came from; saved instead of the path
 
     def svg_name(self) -> str:
         return safe_name(self.name or self.settings.label or self.image.stem) + ".svg"
@@ -205,7 +208,9 @@ def load_project(path: Path) -> Project:
         o = {**defaults, **norm_keys(entry)}
         if "image" not in o:
             raise ValueError(f"{path.name}: every figure needs an 'image'")
-        image = (base / o.pop("image")).resolve()
+        src = o.pop("image")
+        source = str(src).strip() if remote.is_url(src) else None
+        image = remote.fetch_image(source) if source else (base / remote.local_path(src)).resolve()
         name = o.pop("name", None)
         o.setdefault("copies", sheet.copies)
         if o.get("mask"):
@@ -216,7 +221,7 @@ def load_project(path: Path) -> Project:
             s = FigureSettings.from_dict(o)
         except ValueError as e:
             raise ValueError(f"{path.name}: {image.name}: {e}") from None
-        figures.append(FigureEntry(image, s, name))
+        figures.append(FigureEntry(image, s, name, source))
     return Project(path, str(cfg.get("output", "minis")), sheet, figures, bool(cfg.get("debug", False)))
 
 
@@ -238,7 +243,7 @@ def save_project(p: Project, path: Path) -> Path:
     sheet = {k: v for k, v in asdict(p.sheet).items() if v != getattr(SheetSettings(), k)}
     figures = []
     for f in p.figures:
-        d: Dict[str, Any] = {"image": rel(f.image)}
+        d: Dict[str, Any] = {"image": f.source or rel(f.image)}
         if f.name:
             d["name"] = f.name
         o = f.settings.to_dict()
