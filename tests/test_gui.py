@@ -635,6 +635,40 @@ def test_licences_are_links(app, model_cache):
     card = dlg.cards["birefnet"]
     assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
     assert card.licence.openExternalLinks()
+
+
+def test_no_figure_hides_the_settings(app, tmp_path):
+    """Regression: with no figure selected the whole form stayed visible, greyed out,
+    under a small heading (the sections were looked up before they had a parent)."""
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
+    w = MainWindow()
+    try:
+        p = w.panel
+        shown = lambda x: x.isVisibleTo(p)  # noqa: E731
+        assert len(p.sections) > 3
+        assert shown(p.empty_box) and p.empty_title.text() == "No figure selected"
+        assert "Add images" in p.empty_text.text()
+        assert not any(shown(s) for s in p.sections + [p.apply_all, p.title, p.subtitle])
+        assert p.isEnabled()  # a disabled panel would grey out the message too
+
+        w.add_images([tmp_path / "a.png"])
+        assert not shown(p.empty_box) and all(shown(s) for s in p.sections)
+        assert shown(p.title) and shown(p.apply_all)
+
+        w.list.setCurrentRow(-1)  # figures, but none selected
+        assert shown(p.empty_box) and "Select a figure" in p.empty_text.text()
+        assert not any(shown(s) for s in p.sections)
+
+        w.list.setCurrentRow(0)
+        w.remove_current()
+        assert shown(p.empty_box) and "Add images" in p.empty_text.text()
+    finally:
+        w._modified = False
+        w.close()
+
+
 def test_closed_window_never_asks_to_download(app, monkeypatch):
     """Regression: a build waiting for the download question when the window closed
     left the question queued, and a later event loop opened a real dialog for it."""

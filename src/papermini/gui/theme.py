@@ -73,6 +73,9 @@ ICONS: Dict[str, str] = {
     "panel_right": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>',
     "panel_right_on": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>'
                       '<path d="M14.5 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4z" fill="currentColor"/>',
+    "sliders": '<path d="M5 7h9M18 7h1M5 12h3M12 12h7M5 17h6M15 17h4"/>'
+               '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>'
+               '<circle cx="13" cy="17" r="2"/>',
     "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
     "plus": '<path d="M12 5.5v13M5.5 12h13"/>',
     "chevron_down": '<path d="M7 10l5 5 5-5"/>',
@@ -251,6 +254,7 @@ QListWidget#Figures {{ background: transparent; border: none; outline: none; }}
 #ZoomBar QLabel {{ color: {t.muted}; padding: 0 4px; }}
 #EmptyCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
 #EmptyTitle {{ font-size: 12pt; font-weight: 600; }}
+#PanelEmpty #Muted {{ font-size: 10pt; }}
 #ErrorBanner {{ background: {t.surface}; border: 1px solid {t.danger}; border-radius: 10px; }}
 #ErrorBanner QLabel {{ color: {t.text}; }}
 #SheetBar {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}

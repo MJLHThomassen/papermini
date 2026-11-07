@@ -507,6 +507,7 @@ class MainWindow(QMainWindow):
                 w.setIcon(theme.icon(name, getattr(t, token), size))
         self.zoombar.refresh_icons()
         self.empty.refresh_icons()
+        self.panel.refresh_icons()
         self._sync_sides()
         for sec in self.panel.findChildren(Section):
             sec._toggle(sec.header.isChecked())
@@ -750,10 +751,9 @@ class MainWindow(QMainWindow):
         self.empty.setVisible(not self.figures)
         self.zoombar.setVisible(bool(self.figures))
         if not has:
-            self.panel.set_settings(FigureSettings(), "No figure selected")
-            self.panel.subtitle.setText("Add an image to see its settings here")
-            self.panel.setEnabled(False)
-            self.panel.set_empty(True)
+            self.panel.set_settings(FigureSettings())  # reset the hidden fields
+            self.panel.set_empty(True, "Select a figure in the list to see its settings here."
+                                 if self.figures else "Add images to see their settings here.")
             self.mini_view.scene().clear()
             self.overlay_view.scene().clear()
             self.crop_view.set_image(None)

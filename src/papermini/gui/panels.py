@@ -268,8 +268,33 @@ class FigurePanel(QScrollArea):
         lay.addWidget(self.subtitle)
         lay.addSpacing(8)
 
+        # shown instead of the settings when no figure is selected
+        self.empty_box = QWidget()
+        self.empty_box.setObjectName("PanelEmpty")
+        ev = QVBoxLayout(self.empty_box)
+        ev.setContentsMargins(12, 0, 12, 0)
+        ev.setSpacing(10)
+        self.empty_icon = QLabel()
+        self.empty_icon.setAlignment(Qt.AlignCenter)
+        self.empty_title = QLabel("No figure selected")
+        self.empty_title.setObjectName("EmptyTitle")
+        self.empty_title.setAlignment(Qt.AlignCenter)
+        self.empty_text = QLabel()
+        self.empty_text.setObjectName("Muted")
+        self.empty_text.setAlignment(Qt.AlignCenter)
+        self.empty_text.setWordWrap(True)
+        ev.addStretch(2)
+        for w in (self.empty_icon, self.empty_title, self.empty_text):
+            ev.addWidget(w)
+        ev.addStretch(3)  # a little above the middle looks centred
+        lay.addWidget(self.empty_box, 1)
+        self.refresh_icons()
+
+        sections = []
+
         for title, items in SECTIONS:
             box = Section(title)
+            sections.append(box)
             form = QFormLayout(box.body)
             form.setContentsMargins(2, 0, 0, 0)
             form.setHorizontalSpacing(12)
@@ -310,7 +335,7 @@ class FigurePanel(QScrollArea):
         widest = max((lab.sizeHint().width() for lab in labels), default=0)
         for lab in labels:
             lab.setMinimumWidth(widest)
-        self.sections = self.findChildren(Section)
+        self.sections = sections
         self.copies = self._w["copies"][1]
         lay.addSpacing(12)
         self.apply_all = QPushButton("Apply to all figures")
@@ -320,14 +345,17 @@ class FigurePanel(QScrollArea):
         lay.addWidget(self.apply_all)
         lay.addStretch()
         self.setWidget(body)
-        self.setEnabled(False)
         self.set_empty(True)
 
-    def set_empty(self, empty: bool):
-        """No figure selected: only the heading, not a wall of disabled fields."""
-        for sec in self.sections:
-            sec.setVisible(not empty)
-        self.apply_all.setVisible(not empty)
+    def set_empty(self, empty: bool, message: str = "Add images to see their settings here."):
+        """No figure selected: a clear message instead of a wall of disabled fields."""
+        for w in [self.title, self.subtitle, self.apply_all] + self.sections:
+            w.setVisible(not empty)
+        self.empty_box.setVisible(empty)
+        self.empty_text.setText(message)
+
+    def refresh_icons(self):
+        self.empty_icon.setPixmap(theme.pixmap("sliders", theme.current.muted, 40))
 
     # ----------------------------------------------------------------- widgets
     def _make(self, name: str, kind: str, extra):
@@ -455,7 +483,6 @@ class FigurePanel(QScrollArea):
                     self.no_label.setChecked(v == "")
                     w.setText(v or "")
             self._sync_visible()
-            self.setEnabled(True)
             self.set_empty(False)
             self._shown = self._read()
         finally:
