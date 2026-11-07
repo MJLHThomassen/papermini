@@ -822,3 +822,22 @@ def test_strength_and_gap_filling_sliders(app):
     assert not cl.auto.isChecked() and cl.spin.value() == 0 and p.settings().fill_gaps == 0
 
 
+def test_start_card_offers_images_and_a_project(app, monkeypatch):
+    from papermini.gui import window
+    from papermini.gui.window import MainWindow
+
+    asked = []
+    monkeypatch.setattr(window.QFileDialog, "getOpenFileNames",
+                        lambda parent, caption, folder, filters: (asked.append((caption, filters)), ([], ""))[1])
+    w = MainWindow()
+    try:
+        assert w.empty.button.text() == "Add images…"
+        assert w.empty.open_button.text() == "Open project…"
+        w.empty.button.click()
+        w.empty.open_button.click()
+        assert asked[0][0] == "Add images"
+        assert asked[1][1].startswith(window.PROJECT_FILTER)  # projects listed first
+    finally:
+        w.close()
+
+

@@ -318,6 +318,7 @@ class MainWindow(QMainWindow):
 
         self.empty = EmptyState()
         self.empty.addClicked.connect(self.add_images_dialog)
+        self.empty.openClicked.connect(self.open_dialog)
         grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
         self.banner = Banner()
         self.banner_box = overlay_wrap(self.banner)

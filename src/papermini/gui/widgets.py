@@ -147,12 +147,13 @@ class EmptyState(QFrame):
     """Shown on the canvas when there is nothing to preview yet."""
 
     addClicked = Signal()
+    openClicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("EmptyCard")
         v = QVBoxLayout(self)
-        v.setContentsMargins(40, 32, 40, 32)
+        v.setContentsMargins(28, 32, 28, 32)
         v.setSpacing(10)
         self.icon = QLabel()
         self.icon.setAlignment(Qt.AlignCenter)
@@ -169,11 +170,20 @@ class EmptyState(QFrame):
         self.button.setProperty("primary", True)
         self.button.setCursor(Qt.PointingHandCursor)
         self.button.clicked.connect(self.addClicked)
+        self.open_button = QPushButton("Open project…")
+        self.open_button.setCursor(Qt.PointingHandCursor)
+        self.open_button.clicked.connect(self.openClicked)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addStretch(1)
+        buttons.addWidget(self.button)
+        buttons.addWidget(self.open_button)
+        buttons.addStretch(1)
         v.addWidget(self.icon)
         v.addWidget(title)
         v.addWidget(text)
         v.addSpacing(6)
-        v.addWidget(self.button, 0, Qt.AlignCenter)
+        v.addLayout(buttons)
 
     def refresh_icons(self):
         self.icon.setPixmap(theme.logo_pixmap(104))
