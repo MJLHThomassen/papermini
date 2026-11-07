@@ -669,6 +669,31 @@ def test_no_figure_hides_the_settings(app, tmp_path):
         w.close()
 
 
+def test_decimal_fields_take_a_point_in_any_locale(app):
+    """Regression: on a system with a decimal comma (e.g. Dutch) the fields showed
+    "42,00 mm" and a typed "12.5" was not read as 12.5."""
+    from PySide6.QtCore import QLocale, Qt
+    from PySide6.QtTest import QTest
+
+    from papermini.gui.panels import DoubleSpinBox, FigurePanel
+
+    old = QLocale()
+    QLocale.setDefault(QLocale(QLocale.Dutch, QLocale.Netherlands))
+    try:
+        p = FigurePanel()
+        p.set_settings(FigureSettings(height_mm=42), "x", "x")
+        box = p._w["height_mm"][1]
+        assert isinstance(box, DoubleSpinBox) and box.text() == "42.00 mm"
+        for typed in ("12.5", "12,5"):
+            box.lineEdit().selectAll()
+            QTest.keyClicks(box.lineEdit(), typed)
+            QTest.keyClick(box.lineEdit(), Qt.Key_Return)
+            assert box.value() == 12.5 and box.text() == "12.50 mm", typed
+        assert p.settings().height_mm == 12.5
+    finally:
+        QLocale.setDefault(old)
+
+
 def test_closed_window_never_asks_to_download(app, monkeypatch):
     """Regression: a build waiting for the download question when the window closed
     left the question queued, and a later event loop opened a real dialog for it."""

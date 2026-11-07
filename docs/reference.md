@@ -36,7 +36,8 @@ the desktop app in depth, and how the pipeline works.
   only build the final value. The model only runs once per image and crop.
   Changing *Copies* only updates the sheet. Number fields step with the arrow
   keys, or the mouse wheel once you click into them, so scrolling the panel
-  never edits values. *Apply to all figures* copies everything except label,
+  never edits values. Decimals use a point (`1.6`) whatever your system's
+  language; a typed comma becomes a point. *Apply to all figures* copies everything except label,
   crop, mask and copies.
 - **Miniature** view. The piece as it will print, with a 10 mm scale bar. The
   zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
