@@ -34,6 +34,9 @@ papermini-gui = "papermini.gui:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"papermini.gui" = ["logo.svg"]
+
 [tool.setuptools_scm]
 # Semantic versioning from git tags: tag v1.2.3 builds version 1.2.3; commits after
 # a tag get a development version such as 1.2.4.dev3+g1a2b3c4.

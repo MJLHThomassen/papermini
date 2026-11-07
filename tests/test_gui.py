@@ -757,3 +757,34 @@ def test_closed_window_never_asks_to_download(app, monkeypatch):
     assert asked == []
 
 
+def test_logo_in_the_header_welcome_card_and_window_icon(app):
+    from PySide6.QtCore import QSize
+
+    from papermini.gui import theme
+    from papermini.gui.window import MainWindow
+
+    def colours(pm):
+        img = pm.toImage()
+        return {img.pixelColor(x, y).name() for x in range(img.width()) for y in range(img.height())
+                if img.pixelColor(x, y).alpha() == 255}
+
+    assert theme.LOGO.is_file()  # shipped as package data (pyproject.toml, papermini.spec)
+    pm = theme.logo_pixmap(64)
+    assert pm.width() == 128  # 2x for sharp rendering on high-DPI screens
+    assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colours(pm)  # full colour, not a line icon
+    assert pm.toImage().pixelColor(0, 0).alpha() == 0  # transparent around the sticker
+
+    sizes = theme.app_icon().availableSizes()
+    assert QSize(16, 16) in sizes and QSize(256, 256) in sizes
+
+    w = MainWindow()
+    try:
+        assert "#fd3c1b" in colours(w.logo.pixmap())
+        assert "#fd3c1b" in colours(w.empty.icon.pixmap())
+        w.set_theme("dark")  # re-theming must not swap the logo for a tinted line icon
+        assert "#fd3c1b" in colours(w.logo.pixmap())
+        assert "#fd3c1b" in colours(w.empty.icon.pixmap())
+    finally:
+        w.close()
+
+

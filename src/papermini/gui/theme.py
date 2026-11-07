@@ -1,4 +1,4 @@
-"""Look and feel: light/dark palettes, one style sheet, and line icons.
+"""Look and feel: light/dark palettes, one style sheet, line icons and the logo.
 
 ``apply(app, mode)`` sets everything up; mode is "system", "light" or "dark".
 Colours are design tokens (``Theme``) so widgets that paint themselves (the
@@ -51,9 +51,6 @@ current: Theme = LIGHT
 # --------------------------------------------------------------------------- icons
 # 24x24 line icons, drawn for papermini (stroke = currentColor)
 ICONS: Dict[str, str] = {
-    "logo": '<path d="M8 19.5V9.5a4 4 0 0 1 8 0v10l-2-1.4-2 1.4-2-1.4z"/>'
-            '<circle cx="10.5" cy="10" r=".6" fill="currentColor"/>'
-            '<circle cx="13.5" cy="10" r=".6" fill="currentColor"/><path d="M5 21.5h14"/>',
     "open": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
     "add": '<path d="M13.5 4.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-7.5"/>'
            '<path d="M4.5 15.5l4-4 3.5 3.5 2-2 5.5 5.5"/><path d="M18.5 2.5v6M15.5 5.5h6"/>',
@@ -111,6 +108,33 @@ def pixmap(name: str, color: Optional[str] = None, size: int = 18, ratio: float 
 def icon(name: str, color: Optional[str] = None, size: int = 18) -> QIcon:
     ic = QIcon(pixmap(name, color, size))
     ic.addPixmap(pixmap(name, current.muted, size), QIcon.Disabled)
+    return ic
+
+
+# --------------------------------------------------------------------------- logo
+LOGO = Path(__file__).with_name("logo.svg")  # the full-colour dragon
+
+
+def logo_pixmap(size: int, ratio: float = 2.0) -> QPixmap:
+    """The logo, centred in a size x size square."""
+    r = QSvgRenderer(str(LOGO))
+    px = QPixmap(int(size * ratio), int(size * ratio))
+    px.fill(Qt.transparent)
+    vb = r.viewBoxF()
+    k = px.width() / max(vb.width(), vb.height())
+    w, h = vb.width() * k, vb.height() * k
+    p = QPainter(px)
+    r.render(p, QRectF((px.width() - w) / 2, (px.height() - h) / 2, w, h))
+    p.end()
+    px.setDevicePixelRatio(ratio)
+    return px
+
+
+def app_icon() -> QIcon:
+    """The window and taskbar icon, rendered for each common size."""
+    ic = QIcon()
+    for s in (16, 20, 24, 32, 40, 48, 64, 128, 256):
+        ic.addPixmap(logo_pixmap(s, 1.0))
     return ic
 
 

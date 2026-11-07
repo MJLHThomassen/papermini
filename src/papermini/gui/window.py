@@ -198,7 +198,7 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(14, 8, 12, 8)
         h.setSpacing(4)
         self.logo = QLabel()
-        self._tinted.append((self.logo, "logo", "accent", 24))
+        self.logo.setPixmap(theme.logo_pixmap(30))
         name = QLabel("papermini")
         name.setObjectName("AppName")
         self.project_label = QLabel()

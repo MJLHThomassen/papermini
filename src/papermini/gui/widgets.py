@@ -176,7 +176,7 @@ class EmptyState(QFrame):
         v.addWidget(self.button, 0, Qt.AlignCenter)
 
     def refresh_icons(self):
-        self.icon.setPixmap(theme.pixmap("logo", theme.current.accent, 56))
+        self.icon.setPixmap(theme.logo_pixmap(104))
 
 
 class Banner(QFrame):
