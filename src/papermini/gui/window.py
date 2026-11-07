@@ -698,11 +698,14 @@ class MainWindow(QMainWindow):
         self.sig.ask_download.emit(model, answer, done)
         while not done.wait(0.1):
             if segment.CANCEL.is_set():  # the window is closing
+                answer["gone"] = True    # nobody waits for this question any more
                 return False
         return answer["ok"]
 
     def _ask_download(self, model: str, answer: dict, done: threading.Event):
         try:
+            if answer.get("gone"):  # the build stopped waiting (window closed): do not ask
+                return
             if segment.model_path(model).exists():  # downloaded meanwhile (Models window)
                 answer["ok"] = True
                 return

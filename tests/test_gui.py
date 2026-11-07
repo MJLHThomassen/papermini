@@ -635,3 +635,33 @@ def test_licences_are_links(app, model_cache):
     card = dlg.cards["birefnet"]
     assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
     assert card.licence.openExternalLinks()
+def test_closed_window_never_asks_to_download(app, monkeypatch):
+    """Regression: a build waiting for the download question when the window closed
+    left the question queued, and a later event loop opened a real dialog for it."""
+    from PySide6.QtCore import QRunnable
+
+    from papermini.gui.window import MainWindow
+
+    asked = []  # (an exception raised in a Qt slot would only be printed)
+
+    class Dialog:
+        def __init__(self, model, parent=None):
+            asked.append(model)
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr("papermini.gui.window.DownloadDialog", Dialog)
+    w = MainWindow()
+    got = []
+    w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
+    time.sleep(0.2)          # the question is queued; the window closes before it is shown
+    w._modified = False
+    w.close()
+    assert got == [False]
+    for _ in range(20):      # deliver the stale question: it must be dropped
+        app.processEvents()
+        time.sleep(0.01)
+    assert asked == []
+
+
