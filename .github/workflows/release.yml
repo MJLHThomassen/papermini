@@ -2,7 +2,8 @@
 #
 # - Push a version tag (vMAJOR.MINOR.PATCH, e.g. v1.2.0, or v1.2.0-rc.1 for a
 #   pre-release): tests run, binaries are built, and a GitHub release is created
-#   with the archives and their SHA-256 checksums.
+#   with the archives, their SHA-256 checksums, and notes listing every commit
+#   since the previous version tag (scripts/release_notes.py).
 # - Run it by hand (Actions > Release > Run workflow) to build the binaries as
 #   workflow artifacts without making a release.
 name: Release
@@ -143,6 +144,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the notes list every commit since the previous version tag
+
+      - name: Release notes
+        run: |
+          python3 scripts/release_notes.py "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            -o "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
       - uses: actions/download-artifact@v8
         with:
           path: out
@@ -162,6 +173,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" out/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "papermini ${GITHUB_REF_NAME#v}" \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --verify-tag \
             "${flags[@]}"

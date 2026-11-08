@@ -192,8 +192,10 @@ git push origin v1.2.0
 
 The [release workflow](.github/workflows/release.yml) then runs the tests,
 builds the Windows, macOS and Linux downloads and publishes them as a GitHub
-release with generated notes and SHA-256 checksums. A tag with a suffix, such
-as `v1.2.0-rc.1`, makes a pre-release. To try the builds without releasing, run
+release with SHA-256 checksums. The release notes list every commit since the
+previous version tag, grouped by Conventional Commit type, with the pull request
+each came in with (`python scripts/release_notes.py v1.2.0` shows them before
+you tag). A tag with a suffix, such as `v1.2.0-rc.1`, makes a pre-release. To try the builds without releasing, run
 the workflow by hand from the *Actions* tab; the downloads appear as workflow
 artifacts.
 
