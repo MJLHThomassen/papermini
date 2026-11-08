@@ -986,7 +986,8 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     k = 100 / 25.4
     y = round((12 + lay.header_mm - 4) * k)             # the scale bar's row
     dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
-    assert abs(dark[0] - 12 * k) <= 2 and abs(dark[-1] - 62 * k) <= 2   # 12 mm .. 62 mm
+    end = next(a for a, b in zip(dark, dark[1:] + [None]) if b != a + 1)  # the bar alone,
+    assert abs(dark[0] - 12 * k) <= 2 and abs(end - 62 * k) <= 2  # not the "50 mm" next to it
     assert QColor(pr.pixel(2, 2)).lightness() > 250       # white paper from the very corner
 
     pr = ImagePrinter(2, 2)                                # "pages 2 to 2" in the dialog
