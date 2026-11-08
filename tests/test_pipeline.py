@@ -175,7 +175,8 @@ def test_cutter_bleed(figure):
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
-    base = dict(mask=str(mask), margin_color="#204080", tab_color="#3b6e2a")
+    base = dict(mask=str(mask), margin_color="#204080", tab_color="#3b6e2a",
+                double_sided=False)  # (the points below assume one side)
     plain = build_mini(img, FigureSettings(cutter=True, bleed_mm=0, **base), log=lambda *_: None)
     bled = build_mini(img, FigureSettings(cutter=True, bleed_mm=1.5, **base), log=lambda *_: None)
     nocut = build_mini(img, FigureSettings(bleed_mm=1.5, **base), log=lambda *_: None)
@@ -228,3 +229,72 @@ def test_cut_line_in_source_pixels(tmp_path, size, double_sided):
         assert m.source_top == 0
     fold_y = [y for _, _, y in m.source_folds if y > cy]
     assert fold_y and cy + ay < fold_y[0] < p[:, 1].max()   # the tab fold, below the drawing
+
+
+def _dark_cols_mm(mini):
+    a = np.asarray(mini.art.convert("RGBA"))
+    dark = (a[..., 3] > 0) & (a[..., :3].max(-1) < 128)
+    cols = np.flatnonzero(dark.any(0))
+    return (cols.max() - cols.min() + 1) * mini.width_mm / a.shape[1]
+
+
+def test_size_by_width_or_stretched(figure):
+    """Height alone or width alone keep the proportions; both stretch the figure sideways."""
+    img, mask = figure
+    quiet = dict(mask_path=mask, log=lambda *_: None)
+    by_h = make_mini(img, geo.Params(height_mm=42.0), **quiet)
+    ratio = by_h.figure_width_mm / by_h.figure_height_mm
+    assert by_h.aspect == pytest.approx(301 / 720, rel=0.01) == pytest.approx(ratio, rel=0.01)
+    assert _dark_cols_mm(by_h) == pytest.approx(42.0 * 301 / 720, abs=0.5)
+
+    by_w = make_mini(img, geo.Params(height_mm=None, width_mm=20.0), **quiet)
+    assert _dark_cols_mm(by_w) == pytest.approx(20.0, abs=0.5)
+    assert _dark_rows_mm(by_w) == pytest.approx(20.0 * 720 / 301, abs=0.5)
+    assert by_w.figure_width_mm == pytest.approx(20.0)
+
+    both = make_mini(img, geo.Params(height_mm=42.0, width_mm=30.0), **quiet)
+    assert _dark_rows_mm(both) == pytest.approx(42.0, abs=0.5)
+    assert _dark_cols_mm(both) == pytest.approx(30.0, abs=0.5)
+    assert both.aspect == pytest.approx(by_h.aspect)  # the image's own proportions
+    # the cut line still lands on the original image: stretched back, it hugs the figure
+    x0, _, x1, _ = both.source_cut.extent()
+    assert 250 - 40 < x0 < 250 and 550 < x1 < 550 + 40
+
+
+def test_source_outline_is_the_detected_figure(figure):
+    """The outline is what background removal found, without margin or tab."""
+    img, mask = figure
+    m = make_mini(img, geo.Params(margin_mm=5.0), mask_path=mask, log=lambda *_: None)
+    pts = np.vstack(m.source_outline)
+    assert pts[:, 0].min() == pytest.approx(250, abs=2) and pts[:, 0].max() == pytest.approx(551, abs=2)
+    assert pts[:, 1].min() == pytest.approx(180, abs=2) and pts[:, 1].max() == pytest.approx(900, abs=2)
+
+
+def test_on_stage_reports_the_outline_before_the_layout(figure):
+    img, mask = figure
+    seen = []
+    make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None, use_cache=False,
+              on_stage=lambda name, data: seen.append(name))
+    assert seen == ["outline"]  # a mask file runs no model, so no "segment" stage
+
+
+def test_cli_makes_double_sided_minis_unless_told_not_to(figure, tmp_path):
+    """Double-sided is the default; --no-double-sided prints the front only."""
+    img, mask = figure
+    for name, extra in (("both", []), ("front", ["--no-double-sided"])):
+        assert main(["make", str(img), "--mask", str(mask), "-o",
+                     str(tmp_path / f"{name}.svg")] + extra) == 0
+    both, front = read_svg(tmp_path / "both.svg"), read_svg(tmp_path / "front.svg")
+    assert both.height_mm > 1.8 * front.height_mm       # front and back, one above the other
+
+
+def test_cli_width_alone_scales_by_width(figure, tmp_path):
+    img, mask = figure
+    out = tmp_path / "w.svg"
+    assert main(["make", str(img), "--mask", str(mask), "--width-mm", "25",
+                 "--no-double-sided", "-o", str(out)]) == 0
+    r = read_svg(out)
+    by_h = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
+    # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not the
+    # default 42 mm (margin and tab stay the same, so compare the difference)
+    assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 42, abs=0.5)

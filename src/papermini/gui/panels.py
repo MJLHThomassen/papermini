@@ -5,43 +5,69 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Dict
 
-from PySide6.QtCore import QLocale, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
-                               QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QScrollArea, QSlider, QSpinBox, QToolButton,
-                               QVBoxLayout, QWidget)
+                               QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+                               QLineEdit,
+                               QPushButton, QScrollArea, QSlider, QSpinBox, QStyle,
+                               QStyleOptionSlider, QToolButton, QVBoxLayout, QWidget)
 
 from .. import remote
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
+from .widgets import ElidedLabel
 
 # value -> what the (editable) model box shows, where they differ
 MODEL_NAMES = {"mask": "mask image file"}
 MODEL_VALUES = {v: k for k, v in MODEL_NAMES.items()}
 MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 
-# Groups follow the workflow: how big and how many, how the figure is found,
-# the outline/cut line around it, the stand tab, its label, and the back.
-# (field, label, kind, extra) - kind: f=float, i=int, b=bool, c=choice, s=str,
-# col=colour, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
-# heading=sub-heading inside a group (not a setting)
+# The steps of the workflow, one view each: the settings panel shows the active
+# step's groups. (step, group title, fields); fields are (field, label, kind, extra) -
+# kind: f=float, i=int, b=bool, c=choice, s=str, col=colour, size=height and width
+# with a link toggle, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
+# heading=sub-heading inside a group (not a setting), switch=a checkbox in the group's
+# header that turns the whole group on or off (extra "invert": the setting is the
+# opposite, e.g. no_tab), nolabel=the Label group's switch (off = label ""),
+# reset=a button that puts the listed fields back to their defaults (not a setting)
+STEPS = ["Source", "Miniature", "Print sheet"]
+SOURCE, MINIATURE, PRINT = range(3)
+STEP_HINTS = [
+    "Crop the picture first: background removal only looks inside the box.",
+    "The paper piece around the figure: back side, margin, cut line and stand tab.",
+    "How big this figure prints and how many go on the sheet.",
+]
 SECTIONS = [
-    ("Print", [
-        ("height_mm", "Figure height", "f", (5, 400, 1, 2, " mm")),
-        ("copies", "Copies on sheet", "i", (0, 999, 1, "")),
-        ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
+    (SOURCE, "Crop", [
+        ("crop", "Area", "crop", None),
     ]),
-    ("Background removal", [
+    (SOURCE, "Background removal", [
         ("model", "Model", "model", None),
         ("mask", "Mask image file", "file", None),
-        ("crop", "Crop", "crop", None),
         ("strength", "Strength", "slider", (0, 254, 254, "", False)),
         ("fill_gaps", "Gap filling", "slider", (0, 1000, 40, " px", True)),
         ("keep_all", "Keep detached parts", "b", None),
         ("min_area", "Min. part area", "i", (0, 10_000_000, 100, " px")),
     ]),
-    ("Outline and cut line", [
+    (SOURCE, "Image adjustments", [  # what is printed; the model never sees them
+        ("greyscale", "Greyscale (black and white)", "b", None),
+        ("brightness", "Brightness", "slider", (-100, 100, 100, "", False)),
+        ("contrast", "Contrast", "slider", (-100, 100, 100, "", False)),
+        ("saturation", "Saturation", "slider", (-100, 100, 100, "", False)),
+        ("hue", "Hue", "slider", (-180, 180, 180, "\u00b0", False)),
+        ("_reset_adjust", "Reset adjustments", "reset",
+         ("greyscale", "brightness", "contrast", "saturation", "hue")),
+    ]),
+    (MINIATURE, "Back side", [  # first: it decides what the rest of the piece is
+        ("double_sided", "Print a back side", "switch", None),
+        ("back", "Shows", "c", [("mirror", "Mirrored drawing"), ("blank", "Blank"),
+                                ("text", "Text")]),
+        ("back_color", "Colour", "col", None),
+        ("back_text", "Text", "s", None),
+        ("back_text_color", "Text colour", "col", None),
+    ]),
+    (MINIATURE, "Outline and cut line", [
         ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
         ("margin_fill", "Margin fill type", "c", [("color", "Colour"), ("image", "Original image")]),
         ("margin_color", "Margin fill colour", "col", None),
@@ -54,8 +80,8 @@ SECTIONS = [
         ("cut_color", "Colour", "col", None),
         ("cut_width_mm", "Width", "f", (0.01, 2, 0.05, 2, " mm")),
     ]),
-    ("Tab", [
-        ("no_tab", "No tab", "b", None),
+    (MINIATURE, "Tab", [
+        ("no_tab", "Print a tab", "switch", "invert"),
         ("tab_shape", "Shape", "c", [("square", "Square (stand)"),
                                      ("round", "Round (base)")]),
         ("tab_width_mm", "Width", "f", (2, 200, 1, 1, " mm")),
@@ -64,24 +90,45 @@ SECTIONS = [
         ("tab_overlap_mm", "Overlap into figure", "f", (0, 30, 0.5, 1, " mm")),
         ("fold_mm", "Fold above lowest point", "f", (0, 20, 0.1, 1, " mm")),
         ("tab_color", "Fill colour", "col", None),
-        ("_tab_label", "Label", "heading", None),
-        ("no_label", "No label", "nolabel", None),
+    ]),
+    (MINIATURE, "Label", [  # on the tab: a sub-group of Tab (SUBSECTIONS)
+        ("no_label", "Print a label", "nolabel", None),
         ("label", "Text", "label", None),
         ("label_size_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
         ("label_color", "Colour", "col", None),
     ]),
-    ("Double-sided", [
-        ("double_sided", "Print a back side (fold over the top)", "b", None),
-        ("back", "Back side", "c", [("mirror", "Mirrored drawing"), ("blank", "Blank"),
-                                    ("text", "Text")]),
-        ("back_color", "Back colour", "col", None),
-        ("back_text", "Back text", "s", None),
-        ("back_text_color", "Back text colour", "col", None),
+    (PRINT, "Size and copies", [
+        ("size", "Size", "size", None),
+        ("copies", "Copies on sheet", "i", (0, 999, 1, "")),
+        ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
     ]),
 ]
 
+# groups shown inside another group (indented, at its end): sub-group -> group
+SUBSECTIONS = {"Label": "Tab"}
+SUB_INDENT = 14
+
+# the settings each field sets ("size" sets two, "no_label" is the label "")
+FIELD_SETTINGS = {"size": ("height_mm", "width_mm"), "no_label": ("label",)}
+
+
+# kept per figure by "Apply to all"
+PER_IMAGE = {"label", "crop", "mask", "copies"}
+
+
+def step_settings(step: int) -> set:
+    """The FigureSettings fields edited in ``step``."""
+    return {k for st, _, items in SECTIONS if st == step
+            for name, _, kind, _ in items if kind not in ("heading", "reset")
+            for k in FIELD_SETTINGS.get(name, (name,))}
+
+
 TIPS = {
     "height_mm": "Height of the drawn figure on paper, without margin and tab.",
+    "width_mm": "Width of the drawn figure on paper, without margin.",
+    "size_link": "Linked: the figure keeps its proportions, so setting the height sets the\n"
+                 "width and the other way round.\n"
+                 "Unlinked: set height and width separately; the figure is stretched.",
     "copies": "How many of this figure go on the print sheet.",
     "dpi": "Resolution of the embedded artwork. 300 dpi suits most printers.",
     "model": "How the figure is separated from the background.\n"
@@ -95,8 +142,8 @@ TIPS = {
              "mask image file: your own black-and-white mask (white = figure).\n"
              "You can also type the path of your own .onnx model.",
     "mask": "Your own mask image: white = figure, black = background, same picture size.",
-    "crop": "Only this region is searched for the figure (x0,y0,x1,y1, fractions or px).\n"
-            "Drag a box on the Source / crop tab to set it.",
+    "crop": "Background removal only looks inside this box (x0,y0,x1,y1, fractions or px),\n"
+            "which helps a lot with busy backgrounds. Drag a box on the image to set it.",
     "strength": "How sure the model must be that a pixel belongs to the figure (0-254).\n"
                 "Lower keeps faint pencil lines; higher removes more background.",
     "fill_gaps": "Fills gaps and notches in the outline up to this size (0 = off).\n"
@@ -120,7 +167,8 @@ TIPS = {
                 "back colour) is extended.",
     "cut_color": "Colour of the cut line.",
     "cut_width_mm": "Width of the printed cut line.",
-    "no_tab": "No fold-over stand tab (e.g. for slotted or magnetic bases).",
+    "no_tab": "Print a tab: a fold-over stand tab under the feet.\n"
+              "Off for slotted or magnetic bases.",
     "tab_shape": "Square: a tab to slot into a (3D printed) stand.\n"
                  "Round: a half disc that folds out into a round base. On a double-sided\n"
                  "mini the two halves fold out to opposite sides and form a full circle.",
@@ -131,13 +179,25 @@ TIPS = {
                       "the figure's bottom is narrower than the tab (feet, a tail), to "
                       "strengthen the joint.",
     "fold_mm": "Where the tab folds, measured up from the figure's lowest point.",
-    "no_label": "A plain tab in the fill colour, without text.",
+    "no_label": "Print a label: text on the tab.\n"
+                "Off for a plain tab in its fill colour.",
     "label": "Text printed on the tab (empty = the file name). Also the default back text.",
     "label_size_mm": "Largest text size; long labels shrink to fit the tab.",
     "label_color": "Colour of the tab label.",
     "tab_color": "Colour of the tab (everything below the fold), behind the label.\n"
                  "Independent of the margin colour; e.g. grass green for a plain tab.",
-    "double_sided": "Print front and back joined at a fold above the head; glue them back to back.",
+    "greyscale": "Print the figure in black and white (saves colour ink).\n"
+                 "Colour adjustments change only what is printed: background removal\n"
+                 "always looks at the original picture, so they never run the model again.",
+    "brightness": "Lighter (towards white) or darker (towards black). White paper stays\n"
+                  "white when lightening, black lines stay black when darkening.",
+    "contrast": "More contrast makes lights lighter and darks darker; less makes it flatter.",
+    "saturation": "How colourful the picture is: -100 is grey, 100 twice as colourful.",
+    "hue": "Turns every colour around the colour wheel (red -> yellow -> green ...).",
+    "_reset_adjust": "Back to the original colours.\n"
+                     "(One slider: double-click it to put it back to 0.)",
+    "double_sided": "Print a back side: front and back joined at a fold above the head,\n"
+                    "glued back to back. Off for the front only.",
     "back": "mirror: the drawing seen from behind; blank: plain paper; "
             "text: plain paper with text (a name or stats).",
     "back_text": "Text for the back (empty = the tab label). It is sized to fit the body.",
@@ -168,10 +228,71 @@ class SpinBox(_WheelGuard, QSpinBox):
         self.lineEdit().setTextMargins(5, 0, 0, 0)  # line up with combo box text
 
 
+SNAP_PX = 6  # a dragged centred slider snaps to its centre within this many pixels
+
+
 class Slider(_WheelGuard, QSlider):
-    def __init__(self, parent=None):
+    """A horizontal slider. With a ``centre`` (a range from below to above it, like
+    -100..100 around 0) it fills from that centre instead of from the left, marks it with
+    a short vertical line, snaps to it while dragged close by, and goes back to it on a
+    double-click."""
+
+    def __init__(self, parent=None, centre=None):
         super().__init__(Qt.Horizontal, parent)
         self._init_guard()
+        self.centre = centre
+        if centre is not None:
+            self.setProperty("centred", True)  # the style sheet leaves the fill to paintEvent
+            self.actionTriggered.connect(self._snap)
+
+    def _snap(self, action: int) -> None:
+        if action != QSlider.SliderMove.value or not self.isSliderDown():  # (an int)
+            return  # keys, clicks on the track and typed values are taken as they are
+        span = max(1, self.width() - self._handle_rect(self.minimum()).width())
+        reach = SNAP_PX * (self.maximum() - self.minimum()) / span
+        if abs(self.sliderPosition() - self.centre) <= reach:
+            self.setSliderPosition(self.centre)
+
+    def mouseDoubleClickEvent(self, e):
+        if self.centre is not None and e.button() == Qt.LeftButton:
+            self.setValue(self.centre)
+            e.accept()
+        else:
+            super().mouseDoubleClickEvent(e)
+
+    def _option(self, position=None) -> QStyleOptionSlider:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        if position is not None:
+            opt.sliderPosition = opt.sliderValue = position
+        return opt
+
+    def _handle_rect(self, position):
+        return self.style().subControlRect(QStyle.CC_Slider, self._option(position),
+                                           QStyle.SC_SliderHandle, self)
+
+    def centre_x(self) -> float:
+        return self._handle_rect(self.centre).center().x() + 0.5
+
+    def paintEvent(self, e):
+        if self.centre is None:
+            return super().paintEvent(e)
+        st, p = self.style(), QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        opt = self._option()
+        opt.subControls = QStyle.SC_SliderGroove
+        st.drawComplexControl(QStyle.CC_Slider, opt, p, self)
+        t = theme.current
+        cy = self.rect().center().y() + 0.5
+        cx = self.centre_x()
+        vx = self._handle_rect(self.sliderPosition()).center().x() + 0.5
+        fill = QColor(t.accent if self.isEnabled() else t.muted)
+        p.fillRect(QRectF(min(cx, vx), cy - 2, abs(vx - cx), 4), fill)
+        p.setPen(QPen(QColor(t.muted), 1.5))
+        p.drawLine(QPointF(cx, cy - 6), QPointF(cx, cy + 6))  # the centre mark
+        opt.subControls = QStyle.SC_SliderHandle
+        st.drawComplexControl(QStyle.CC_Slider, opt, p, self)
+        p.end()
 
 
 class SliderField(QWidget):
@@ -192,7 +313,7 @@ class SliderField(QWidget):
         h.setSpacing(10)
         v.addLayout(h)
         self.auto = QCheckBox("Auto (scales with the image)") if auto else None
-        self.slider = Slider()
+        self.slider = Slider(centre=0 if lo < 0 < hi else None)
         self.slider.setRange(lo, min(hi, slider_hi))  # larger values: type them in the box
         self.slider.setPageStep(max(1, (slider_hi - lo) // 10))
         self.spin = SpinBox()
@@ -286,15 +407,18 @@ class ComboBox(_WheelGuard, QComboBox):
 
 class Section(QWidget):
     """A settings group with a clickable header that folds it open/closed
-    (remembered between sessions)."""
+    (remembered between sessions). A group with a switch that is off shows only its
+    header and cannot be opened. ``sub``: a group inside another one (indented)."""
 
-    def __init__(self, title: str, parent=None):
+    def __init__(self, title: str, parent=None, sub: bool = False):
         super().__init__(parent)
-        self.setObjectName("Section")
+        self.setObjectName("SubSection" if sub else "Section")
         self.setAttribute(Qt.WA_StyledBackground)
         self._key = f"sections/{title}"
+        self._active = True
+        self.parent_section = None  # the group a sub-group is inside
         v = QVBoxLayout(self)
-        v.setContentsMargins(0, 0, 0, 10)
+        v.setContentsMargins(SUB_INDENT if sub else 0, 0, 0, 0 if sub else 10)
         v.setSpacing(2)
         self.header = QPushButton(title)
         self.header.setObjectName("SectionHeader")
@@ -302,18 +426,42 @@ class Section(QWidget):
         self.header.setCursor(Qt.PointingHandCursor)
         self.header.setFocusPolicy(Qt.NoFocus)
         self.body = QWidget()
-        v.addWidget(self.header)
+        self.switch = None
+        self._head = QHBoxLayout()
+        self._head.setContentsMargins(0, 0, 4, 0)
+        self._head.addWidget(self.header, 1)
+        v.addLayout(self._head)
         v.addWidget(self.body)
         self.header.toggled.connect(self._toggle)
         open_ = prefs.store().value(self._key, True, type=bool)
         self.header.setChecked(open_)
         self._toggle(open_)
 
-    def _toggle(self, open_: bool):
-        self.body.setVisible(open_)
-        self.header.setIcon(theme.icon("chevron_down" if open_ else "chevron_right",
+    def set_switch(self, box: QCheckBox):
+        """A checkbox at the right of the header that turns the whole group on or off."""
+        self.switch = box
+        self._head.addWidget(box, 0, Qt.AlignVCenter)
+
+    def set_active(self, on: bool):
+        """Switched off: only the header, which cannot be opened (there is nothing in
+        it); switched on: open or folded as the user left it."""
+        if on == self._active:
+            return
+        self._active = on
+        self.header.setEnabled(on)
+        self.header.setCursor(Qt.PointingHandCursor if on else Qt.ArrowCursor)
+        self._toggle(self.header.isChecked(), remember=False)
+
+    def active(self) -> bool:
+        return self._active
+
+    def _toggle(self, open_: bool, remember: bool = True):
+        shown = open_ and self._active
+        self.body.setVisible(shown)
+        self.header.setIcon(theme.icon("chevron_down" if shown else "chevron_right",
                                        theme.current.muted, 14))
-        prefs.store().setValue(self._key, open_)
+        if remember:
+            prefs.store().setValue(self._key, open_)
 
 
 class ColorButton(QPushButton):
@@ -345,11 +493,122 @@ class ColorButton(QPushButton):
             self.colorChanged.emit(c.name())
 
 
+class SizeField(QWidget):
+    """Figure height and width with a link toggle beside them, like an image editor's
+    resize dialog. Linked, the figure keeps its proportions: the field you type in sets
+    the size and the other one follows (shown once the figure's proportions are known,
+    "—" before). Unlinked, both are set and the figure is stretched to them."""
+
+    valueChanged = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        g = QGridLayout(self)
+        g.setContentsMargins(0, 0, 0, 0)
+        g.setHorizontalSpacing(12)
+        g.setVerticalSpacing(8)
+        self.labels = [QLabel("Figure height"), QLabel("Figure width")]
+        self.h, self.w = DoubleSpinBox(), DoubleSpinBox()
+        for row, (lab, spin, tip) in enumerate(zip(self.labels, (self.h, self.w),
+                                                    (TIPS["height_mm"], TIPS["width_mm"]))):
+            lab.setObjectName("FormLabel")
+            lab.setToolTip(tip)
+            spin.setToolTip(tip)
+            spin.setRange(0, 1000)
+            spin.setDecimals(2)
+            spin.setSuffix(" mm")
+            spin.setSpecialValueText("—")  # 0: follows the other one, not known yet
+            g.addWidget(lab, row, 0)
+            g.addWidget(spin, row, 1)
+        self.link = QToolButton()
+        self.link.setObjectName("SizeLink")
+        self.link.setCheckable(True)
+        self.link.setChecked(True)
+        self.link.setToolTip(TIPS["size_link"])
+        self.link.setAccessibleName("Keep proportions")
+        self.link.setCursor(Qt.PointingHandCursor)
+        self.link.setIconSize(QSize(18, 18))
+        g.addWidget(self.link, 0, 2, 2, 1, Qt.AlignVCenter)
+        g.setColumnStretch(1, 1)
+        self._lead = "h"     # linked: the field that sets the size
+        self._aspect = None  # width / height of the drawing, once built
+        self.h.valueChanged.connect(lambda v: self._edited("h", v))
+        self.w.valueChanged.connect(lambda v: self._edited("w", v))
+        self.link.toggled.connect(self._link_toggled)
+        self.refresh_icons()
+
+    def refresh_icons(self):
+        on = self.link.isChecked()
+        self.link.setIcon(theme.icon("link" if on else "unlink",
+                                     theme.current.accent if on else theme.current.muted, 18))
+
+    def linked(self) -> bool:
+        return self.link.isChecked()
+
+    def value(self):
+        """(height_mm, width_mm) as in FigureSettings: one of them None when linked."""
+        if self.linked():
+            return (self.h.value(), None) if self._lead == "h" else (None, self.w.value())
+        return self.h.value(), self.w.value()
+
+    def set_value(self, height, width):
+        self._lead = "h" if height else "w"
+        self._quiet(lambda: (self.link.setChecked(not (height and width)),
+                             self.h.setValue(height or 0), self.w.setValue(width or 0)))
+        self.refresh_icons()
+        self._follow()
+
+    def set_aspect(self, aspect):
+        """The drawing's own width / height (from the last build)."""
+        self._aspect = aspect
+        self._follow()
+
+    def _quiet(self, fn):
+        for w in (self.h, self.w, self.link):
+            w.blockSignals(True)
+        try:
+            fn()
+        finally:
+            for w in (self.h, self.w, self.link):
+                w.blockSignals(False)
+
+    def _follow(self):
+        """Linked: show the size the other field follows to (or "—")."""
+        if not self.linked():
+            return
+        a = self._aspect
+        if self._lead == "h":
+            self._quiet(lambda: self.w.setValue(self.h.value() * a if a else 0))
+        else:
+            self._quiet(lambda: self.h.setValue(self.w.value() / a if a else 0))
+
+    def _edited(self, which: str, v: float):
+        if v <= 0:  # "—" is not a size: put back what it was
+            self._follow() if self.linked() else self._quiet(
+                lambda: (self.h if which == "h" else self.w).setValue(1))
+            return
+        if self.linked():
+            self._lead = which
+            self._follow()
+        self.valueChanged.emit()
+
+    def _link_toggled(self, on: bool):
+        self.refresh_icons()
+        if on:  # back to the drawing's own proportions, keeping the height
+            self._lead = "h" if self.h.value() > 0 else "w"
+            self._follow()
+        else:   # both fields set from what they show now
+            h, w = self.h.value(), self.w.value()
+            self._quiet(lambda: (self.h.setValue(h or w), self.w.setValue(w or h)))
+        self.valueChanged.emit()
+
+
 class FigurePanel(QScrollArea):
-    """Edits a FigureSettings; emits ``changed`` with a new copy on every edit."""
+    """Edits a FigureSettings; emits ``changed`` with a new copy on every edit.
+    Shows the groups of one workflow step at a time (``set_step``)."""
 
     changed = Signal(object)
-    applyToAll = Signal()
+    applyToAll = Signal(object)  # the settings to copy (those of the shown step)
     clearCrop = Signal()
 
     def __init__(self, parent=None):
@@ -360,17 +619,25 @@ class FigurePanel(QScrollArea):
         self._w: Dict[str, Any] = {}
         self._shown: Dict[str, Any] = {}  # widget values as last shown/emitted
         self._rows: Dict[str, Any] = {}   # name -> (form layout, row widget), to hide rows
+        self._switches: Dict[str, Any] = {}  # name -> Section whose header holds it
+        self._invert: set = set()          # switches whose setting is the opposite
+        self._resets: Dict[str, Any] = {}  # name -> (button, fields it resets)
         self._loading = False
         body = QWidget()
         lay = QVBoxLayout(body)
         lay.setContentsMargins(18, 16, 14, 16)
         lay.setSpacing(0)
-        self.title = QLabel("No figure selected")
+        self.title = ElidedLabel("No figure selected")  # a long name never widens the panel
         self.title.setObjectName("PanelTitle")
         lay.addWidget(self.title)
         self.subtitle = QLabel("Settings for the selected figure")
         self.subtitle.setObjectName("PanelSub")
         lay.addWidget(self.subtitle)
+        lay.addSpacing(10)
+        self.step_hint = QLabel()
+        self.step_hint.setObjectName("StepHint")
+        self.step_hint.setWordWrap(True)
+        lay.addWidget(self.step_hint)
         lay.addSpacing(8)
 
         # shown instead of the settings when no figure is selected
@@ -396,16 +663,22 @@ class FigurePanel(QScrollArea):
         self.refresh_icons()
 
         sections = []
+        self._section_steps = []
+        extra_labels = []  # labels inside compound fields, lined up with the form labels
 
-        for title, items in SECTIONS:
-            box = Section(title)
+        forms, boxes, sub_labels = {}, {}, []
+        for step, title, items in SECTIONS:
+            box = Section(title, sub=title in SUBSECTIONS)
+            boxes[title] = box
             sections.append(box)
+            self._section_steps.append(step)
             form = QFormLayout(box.body)
             form.setContentsMargins(2, 0, 0, 0)
             form.setHorizontalSpacing(12)
             form.setVerticalSpacing(8)
             form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            forms[title] = form
             for name, label, kind, extra in items:
                 if kind == "heading":
                     h = QLabel(label.upper())
@@ -413,11 +686,28 @@ class FigurePanel(QScrollArea):
                     form.addRow(h)
                     self._rows[name] = (form, h)
                     continue
+                if kind == "reset":
+                    b = QPushButton(label)
+                    b.setObjectName("ResetButton")
+                    b.setToolTip(TIPS.get(name, ""))
+                    b.clicked.connect(lambda _=False, names=extra: self._reset(names))
+                    form.addRow(b)
+                    self._rows[name] = (form, b)
+                    self._resets[name] = (b, extra)
+                    continue
                 w = self._make(name, kind, extra)
-                self._rows[name] = (form, w)
-                if kind == "nolabel":
+                if kind in ("switch", "nolabel"):  # in the header, for the whole group
+                    w.setObjectName("SectionSwitch")
+                    w.setAccessibleName(label)
                     w.setToolTip(TIPS[name])
+                    w.setCursor(Qt.PointingHandCursor)
+                    box.set_switch(w)
+                    self._switches[name] = box
+                    continue
+                self._rows[name] = (form, w)
+                if kind == "size":  # brings its own labels
                     form.addRow(w)
+                    extra_labels += w.labels
                     continue
                 if name in TIPS:
                     w.setToolTip(TIPS[name])
@@ -427,40 +717,99 @@ class FigurePanel(QScrollArea):
                     form.addRow(label, w)
                     form.labelForField(w).setToolTip(TIPS.get(name, ""))
                     form.labelForField(w).setObjectName("FormLabel")
+                    if title in SUBSECTIONS:
+                        sub_labels.append(form.labelForField(w))
                 if name == "tab_overlap_mm":
                     self.overlap_hint = QLabel()
                     self.overlap_hint.setWordWrap(True)
                     self.overlap_hint.setObjectName("Hint")
                     self.overlap_hint.setVisible(False)
                     form.addRow(self.overlap_hint)
-            lay.addWidget(box)
+            if title in SUBSECTIONS:  # at the end of its group, folded away with it
+                box.parent_section = boxes[SUBSECTIONS[title]]
+                forms[SUBSECTIONS[title]].addRow(box)
+            else:
+                lay.addWidget(box)
 
         labels = [lab for form, _ in self._rows.values()
-                  for lab in [form.labelForField(_)] if isinstance(lab, QLabel)]
+                  for lab in [form.labelForField(_)] if isinstance(lab, QLabel)] + extra_labels
         widest = max((lab.sizeHint().width() for lab in labels), default=0)
-        for lab in labels:
-            lab.setMinimumWidth(widest)
+        for lab in labels:  # one column of fields, also inside the indented sub-groups
+            lab.setMinimumWidth(widest - (SUB_INDENT if lab in sub_labels else 0))
         self.sections = sections
         self.copies = self._w["copies"][1]
+        self.size_field = self._w["size"][1]
         lay.addSpacing(12)
         self.apply_all = QPushButton("Apply to all figures")
-        self.apply_all.setToolTip("Copies these settings to every figure, except label, crop, "
-                                  "mask and copies")
-        self.apply_all.clicked.connect(self.applyToAll)
+        self.apply_all.clicked.connect(lambda: self.applyToAll.emit(self.step_settings()))
         lay.addWidget(self.apply_all)
         lay.addStretch()
         self.setWidget(body)
+        self._empty = True
+        self._min_width = self._widest_step()
+        self.set_step(SOURCE)
         self.set_empty(True)
+
+    def _widest_step(self) -> int:
+        """The width that shows every control of every step, measured with each step's
+        groups shown (hidden widgets do not count in a minimum size)."""
+        body = self.widget()
+        widths = []
+        self._empty = False
+        for box in self.sections:  # (a folded group still needs its room when opened)
+            box.body.setVisible(True)
+        for step in range(len(STEPS)):
+            self._step = step
+            self._sync_sections()
+            body.layout().activate()
+            widths.append(body.minimumSizeHint().width())
+        for box in self.sections:
+            box._toggle(box.header.isChecked(), remember=False)
+        frame = 2 * self.frameWidth() + self.verticalScrollBar().sizeHint().width()
+        return max(widths) + frame
+
+    def minimumSizeHint(self) -> QSize:
+        """Never narrower than its widest step, so no control is cut off at the right
+        (the header checkboxes are the first to go); the window keeps to this."""
+        return QSize(self._min_width, super().minimumSizeHint().height())
 
     def set_empty(self, empty: bool, message: str = "Add images to see their settings here."):
         """No figure selected: a clear message instead of a wall of disabled fields."""
-        for w in [self.title, self.subtitle, self.apply_all] + self.sections:
+        self._empty = empty
+        for w in (self.title, self.subtitle, self.step_hint, self.apply_all):
             w.setVisible(not empty)
         self.empty_box.setVisible(empty)
         self.empty_text.setText(message)
+        self._sync_sections()
+
+    def set_step(self, step: int):
+        """Show the settings of one workflow step (SOURCE, MINIATURE or PRINT)."""
+        self._step = step
+        self.step_hint.setText(STEP_HINTS[step])
+        self._sync_sections()
+        self.verticalScrollBar().setValue(0)
+
+    def step(self) -> int:
+        return self._step
+
+    def step_settings(self) -> set:
+        """The settings shown now, minus the per-image ones "Apply to all" never copies."""
+        return step_settings(self._step) - PER_IMAGE
+
+    def _sync_sections(self):
+        for box, step in zip(self.sections, self._section_steps):
+            box.setVisible(not self._empty and step == self._step)
+        names = {SOURCE: "source", MINIATURE: "miniature", PRINT: "size"}
+        self.apply_all.setText(f"Apply {names[self._step]} settings to all figures")
+        self.apply_all.setToolTip("Copies the settings shown here to every figure"
+                                  + {SOURCE: ", except the crop and mask file",
+                                     MINIATURE: ", except the label",
+                                     PRINT: ", except the copies"}[self._step])
 
     def refresh_icons(self):
         self.empty_icon.setPixmap(theme.pixmap("sliders", theme.current.muted, 40))
+        if hasattr(self, "size_field"):
+            self.size_field.refresh_icons()
 
     # ----------------------------------------------------------------- widgets
     def _make(self, name: str, kind: str, extra):
@@ -486,8 +835,16 @@ class FigurePanel(QScrollArea):
             w = SliderField(lo, hi, slider_hi, suffix, auto)
             w.valueChanged.connect(self._emit)
         elif kind == "b":
-            w = QCheckBox(dict((n, l) for _, its in SECTIONS for n, l, *_ in its)[name])
+            w = QCheckBox(dict((n, l) for _, _, its in SECTIONS for n, l, *_ in its)[name])
             w.toggled.connect(self._emit)
+        elif kind == "switch":
+            w = QCheckBox()  # ticked = the group is on, whatever the setting is called
+            w.toggled.connect(self._emit)
+            if extra == "invert":
+                self._invert.add(name)
+        elif kind == "size":
+            w = SizeField()
+            w.valueChanged.connect(self._emit)
         elif kind == "c":
             w = ComboBox()
             for item in extra:
@@ -525,7 +882,7 @@ class FigurePanel(QScrollArea):
             h = QHBoxLayout(w)
             h.setContentsMargins(0, 0, 0, 0)
             edit = QLineEdit()
-            edit.setPlaceholderText("none - drag on the Source tab")
+            edit.setPlaceholderText("whole image - drag a box on it")
             edit.editingFinished.connect(self._emit)
             b = QToolButton()
             b.setText("Clear")
@@ -537,10 +894,10 @@ class FigurePanel(QScrollArea):
             w = QLineEdit()
             w.editingFinished.connect(self._emit)
         elif kind == "nolabel":
-            # not a setting of its own: ticked means label "" (see _read)
-            w = QCheckBox("No label")
+            # not a setting of its own: unticked means label "" (see _read)
+            w = QCheckBox()
             w.toggled.connect(self._emit)
-            self.no_label = w
+            self.label_switch = w
             return w
         else:  # pragma: no cover
             raise ValueError(kind)
@@ -561,6 +918,9 @@ class FigurePanel(QScrollArea):
             self._s = s
             self.title.setText(title)
             for name, (kind, w) in self._w.items():
+                if kind == "size":
+                    w.set_value(s.height_mm, s.width_mm)
+                    continue
                 v = getattr(s, name)
                 if kind in ("f", "i"):
                     w.setValue(v)
@@ -568,6 +928,8 @@ class FigurePanel(QScrollArea):
                     w.setValue(v)
                 elif kind == "b":
                     w.setChecked(bool(v))
+                elif kind == "switch":
+                    w.setChecked(bool(v) != (name in self._invert))
                 elif kind == "c":
                     w.setCurrentIndex(max(0, w.findData(v)))
                 elif kind == "s":
@@ -582,7 +944,7 @@ class FigurePanel(QScrollArea):
                     w.edit.setText(_crop_text(v))
                 elif kind == "label":
                     w.setPlaceholderText(stem or "file name")
-                    self.no_label.setChecked(v == "")
+                    self.label_switch.setChecked(v != "")
                     w.setText(v or "")
             self._sync_visible()
             self.set_empty(False)
@@ -602,10 +964,14 @@ class FigurePanel(QScrollArea):
         for name, (kind, w) in self._w.items():
             if kind in ("f", "i"):
                 vals[name] = w.value()
+            elif kind == "size":
+                vals["height_mm"], vals["width_mm"] = w.value()
             elif kind == "slider":
                 vals[name] = w.value()
             elif kind == "b":
                 vals[name] = w.isChecked()
+            elif kind == "switch":
+                vals[name] = w.isChecked() != (name in self._invert)
             elif kind == "c":
                 vals[name] = w.currentData()
             elif kind == "s":
@@ -620,7 +986,7 @@ class FigurePanel(QScrollArea):
             elif kind == "crop":
                 vals[name] = _parse_crop_text(w.edit.text(), self._s.crop)
             elif kind == "label":
-                vals[name] = "" if self.no_label.isChecked() else (w.text().strip() or None)
+                vals[name] = "" if not self.label_switch.isChecked() else (w.text().strip() or None)
         return vals
 
     OVERLAP_HINTS = {
@@ -632,7 +998,7 @@ class FigurePanel(QScrollArea):
 
     def set_overlap_hint(self, kind=None, joint: float = 0.0):
         """Note under 'Overlap into figure': None, "unused" or "narrow" (with the joint width)."""
-        show = kind in self.OVERLAP_HINTS and not self._w["no_tab"][1].isChecked()
+        show = kind in self.OVERLAP_HINTS and self._w["no_tab"][1].isChecked()  # (tab on)
         if show:
             self.overlap_hint.setText(self.OVERLAP_HINTS[kind].format(joint=joint))
         self.overlap_hint.setVisible(show)
@@ -641,20 +1007,31 @@ class FigurePanel(QScrollArea):
         """The gap filling the last build picked automatically, shown while Auto is on."""
         self._w["fill_gaps"][1].set_auto_value(px)
 
+    def set_aspect(self, aspect):
+        """The selected figure's own width / height, for the linked size fields."""
+        self.size_field.set_aspect(aspect)
+
     def set_crop(self, crop):
-        """Crop set from the Source tab."""
+        """Crop set by dragging a box on the Source view."""
         self._w["crop"][1].edit.setText(_crop_text(crop))
         self._emit()
 
     def is_shown(self, name: str) -> bool:
+        """Whether a field is shown; for a group's switch, whether it can be used."""
+        if name in self._switches:  # usable unless the group it is inside is off
+            box = self._switches[name].parent_section
+            return box is None or box.active()
         form, w = self._rows[name]
         return form.isRowVisible(w)
 
     def _sync_visible(self):
-        """Only show the fields that do something in the current state."""
+        """Only show the fields that do something in the current state; a group that
+        is switched off shows only its header."""
         val = lambda n: self._w[n][1].currentData()  # noqa: E731
-        tab = not self._w["no_tab"][1].isChecked()
-        label = tab and not self.no_label.isChecked()
+        tab = self._w["no_tab"][1].isChecked()  # (the switch is "print a tab")
+        label = tab and self.label_switch.isChecked()
+        for box in set(self._switches.values()):  # off: only the header, not openable
+            box.set_active(box.switch.isChecked())
         square = val("tab_shape") == "square"
         double = self._w["double_sided"][1].isChecked()
         model = self._w["model"][1].currentText().strip()
@@ -672,8 +1049,6 @@ class FigurePanel(QScrollArea):
             "tab_overlap_mm": tab,
             "fold_mm": tab,
             "tab_color": tab,
-            "_tab_label": tab,
-            "no_label": tab,
             "label": label,
             "label_size_mm": label,
             "label_color": label,
@@ -682,11 +1057,31 @@ class FigurePanel(QScrollArea):
             "back_text": double and val("back") == "text",
             "back_text_color": double and val("back") == "text",
         }
+        grey = self._w["greyscale"][1].isChecked()
+        show["saturation"] = show["hue"] = not grey
         for name, visible in show.items():
             form, w = self._rows[name]
             form.setRowVisible(w, visible)
+        read, d = self._read(), FigureSettings()
+        for b, names in self._resets.values():  # only when there is something to reset
+            b.setEnabled(any(read[n] != getattr(d, n) for n in names))
         if not tab:
             self.overlap_hint.setVisible(False)
+
+    def _reset(self, names):
+        """Put ``names`` back to their defaults, as one change."""
+        d = FigureSettings()
+        self._loading = True
+        try:
+            for name in names:
+                kind, w = self._w[name]
+                if kind in ("b", "switch"):
+                    w.setChecked(bool(getattr(d, name)) != (name in self._invert))
+                else:
+                    w.setValue(getattr(d, name))
+        finally:
+            self._loading = False
+        self._emit()
 
     def _emit(self, *_):
         if self._loading:

@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional
 
 from . import geometry as geo
 from . import remote
+from .adjust import RANGES as ADJUST_RANGES
+from .adjust import Adjustments
 from .mini import Mini, Style, make_mini
 
 CUTTER_STYLE = {"cut_color": "#ff0000", "cut_width_mm": 0.1}
@@ -26,8 +28,9 @@ CUTTER_STYLE = {"cut_color": "#ff0000", "cut_width_mm": 0.1}
 
 @dataclass
 class FigureSettings:
-    # size and shape
-    height_mm: float = 42.0
+    # size and shape: height or width keeps the proportions, both stretch the figure
+    height_mm: Optional[float] = 42.0
+    width_mm: Optional[float] = None
     margin_mm: float = 1.6
     smooth_mm: float = 0.6
     tab_width_mm: float = 22.0       # square tab
@@ -38,7 +41,7 @@ class FigureSettings:
     no_tab: bool = False
     tab_shape: str = "square"        # "square" (for a stand) or "round" (folds out to a base)
     tab_color: str = "#ffffff"       # tab background, independent of the margin colour
-    double_sided: bool = False
+    double_sided: bool = True        # front and back, joined at a fold above the head
     back: str = "mirror"             # double-sided back: "mirror", "blank" or "text"
     back_text: Optional[str] = None  # back="text": None = the label (or file name)
     back_color: str = "#ffffff"      # colour of a blank/text back
@@ -53,6 +56,12 @@ class FigureSettings:
     min_area: int = 1000
     margin_fill: str = "color"       # "color" (margin_color) or "image"
     margin_color: str = "#ffffff"
+    # picture: colour adjustments of what is printed (never of what the model sees)
+    greyscale: bool = False
+    brightness: int = 0              # -100..100
+    contrast: int = 0                # -100..100
+    saturation: int = 0              # -100..100
+    hue: int = 0                     # -180..180 degrees
     # output
     label: Optional[str] = None      # None = file name, "" = no label
     dpi: int = 300
@@ -72,10 +81,24 @@ class FigureSettings:
         unknown = set(d) - FIGURE_OPTIONS
         if unknown:
             raise ValueError(f"unknown option(s) {', '.join(sorted(unknown))}")
+        if d.get("width_mm") is not None and "height_mm" not in d:
+            d["height_mm"] = None  # a width alone: scale by width, keep the proportions
+        for key in ("height_mm", "width_mm"):
+            v = d.get(key)
+            if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float))
+                                  or v <= 0):
+                raise ValueError(f"{key} must be a number above 0, not {v!r}")
+        if d.get("height_mm", 1) is None and d.get("width_mm") is None:
+            raise ValueError("give height_mm, width_mm or both")
         for key, allowed in (("back", geo.BACK_MODES), ("margin_fill", geo.MARGIN_FILLS),
                              ("tab_shape", geo.TAB_SHAPES)):
             if key in d and d[key] not in allowed:
                 raise ValueError(f"{key} must be one of {', '.join(allowed)}, not {d[key]!r}")
+        for key, (lo, hi) in ADJUST_RANGES.items():
+            v = d.get(key)
+            if v is not None and (isinstance(v, bool) or not isinstance(v, int)
+                                  or not lo <= v <= hi):
+                raise ValueError(f"{key} must be a whole number from {lo} to {hi}, not {v!r}")
         for key in ("margin_color", "tab_color", "back_color", "back_text_color", "cut_color",
                     "label_color"):
             if key in d:
@@ -85,11 +108,15 @@ class FigureSettings:
     def to_dict(self, base: Optional["FigureSettings"] = None) -> Dict[str, Any]:
         """Options that differ from ``base`` (default: the built-in defaults)."""
         ref = asdict(base or FigureSettings())
-        return {k: v for k, v in asdict(self).items() if v != ref[k]}
+        d = {k: v for k, v in asdict(self).items() if v != ref[k]}
+        if self.width_mm is not None:  # a width alone would mean "scale by width"
+            d.setdefault("height_mm", self.height_mm)
+        return d
 
     def params(self) -> geo.Params:
         return geo.Params(
-            height_mm=self.height_mm, margin_mm=self.margin_mm, smooth_mm=self.smooth_mm,
+            height_mm=self.height_mm, width_mm=self.width_mm,
+            margin_mm=self.margin_mm, smooth_mm=self.smooth_mm,
             tab=not self.no_tab, tab_width_mm=self.tab_width_mm,
             tab_radius_mm=self.tab_radius_mm,
             tab_height_mm=self.tab_height_mm, tab_overlap_mm=self.tab_overlap_mm,
@@ -98,6 +125,11 @@ class FigureSettings:
             margin_color=self.margin_color, tab_shape=self.tab_shape,
             tab_color=self.tab_color,
         )
+
+    def adjustments(self) -> Adjustments:
+        return Adjustments(brightness=self.brightness, contrast=self.contrast,
+                           saturation=self.saturation, hue=self.hue,
+                           greyscale=self.greyscale)
 
     def style(self) -> Style:
         st = Style(cut_color=self.cut_color, cut_width_mm=self.cut_width_mm,
@@ -118,7 +150,7 @@ def norm_keys(d: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
                debug_dir: Optional[Path] = None,
-               log=print) -> Mini:
+               log=print, on_stage=None) -> Mini:
     # model "mask" = your own mask image; "auto" also uses a mask image if one is given
     use_mask = s.model == "mask" or (s.model == "auto" and bool(s.mask))
     if s.model == "mask" and not s.mask:
@@ -129,9 +161,9 @@ def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
         crop=s.crop, model="auto" if s.model == "mask" else s.model,
         mask_path=Path(s.mask) if use_mask else None,
         dpi=s.dpi, simplify_mm=s.simplify_mm, smooth_path=not s.no_smooth,
-        bleed_mm=s.bleed_mm if s.cutter else 0.0,
+        bleed_mm=s.bleed_mm if s.cutter else 0.0, adjust=s.adjustments(),
         use_cache=use_cache, style=s.style(), debug_dir=debug_dir,
-        log=log,
+        log=log, on_stage=on_stage,
     )
 
 

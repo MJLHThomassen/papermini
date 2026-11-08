@@ -80,6 +80,9 @@ ICONS: Dict[str, str] = {
     "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
     "link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
             '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    "unlink": '<path d="M15.5 13.5l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3"/>'
+              '<path d="M8.5 10.5l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3"/>'
+              '<path d="M4.5 4.5l2 2M19.5 19.5l-2-2M9.5 3v2.2M14.5 21v-2.2"/>',
     "chevron_down": '<path d="M7 10l5 5 5-5"/>',
     "chevron_right": '<path d="M10 7l5 5-5 5"/>',
     "chevron_up": '<path d="M7 14l5-5 5 5"/>',
@@ -260,6 +263,7 @@ QSlider::handle:horizontal {{ width: 12px; height: 12px; margin: -6px 0; border-
 QSlider::handle:horizontal:hover {{ background: {t.accent_soft}; }}
 QSlider::sub-page:horizontal:disabled {{ background: {t.muted}; }}
 QSlider::handle:horizontal:disabled {{ border-color: {t.muted}; }}
+QSlider[centred="true"]::sub-page:horizontal {{ background: {t.border}; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox::down-arrow {{ image: url({down}); width: 12px; height: 12px; }}
 QComboBox QAbstractItemView {{ background: {t.surface}; border: 1px solid {t.border};
@@ -282,6 +286,11 @@ QCheckBox::indicator:checked {{ background: {t.accent}; border-color: {t.accent}
                   font-weight: 600; color: {t.text}; }}
 #SectionHeader:hover {{ color: {t.accent}; }}
 #Section {{ border-bottom: 1px solid {t.border}; }}
+#SectionSwitch {{ padding: 10px 0 6px 0; }}
+#SectionSwitch::indicator {{ width: 18px; height: 18px; }}
+#SectionHeader:disabled {{ color: {t.muted}; }}
+#SubSection {{ border-left: 2px solid {t.border}; }}
+#SubSection #SectionHeader {{ padding-top: 8px; }}
 #SubHeading {{ color: {t.muted}; font-size: 8.5pt; font-weight: 600; padding-top: 6px; }}
 #FormLabel {{ color: {t.muted}; }}
 QListWidget#Figures {{ background: transparent; border: none; outline: none; }}
@@ -289,6 +298,8 @@ QListWidget#Figures {{ background: transparent; border: none; outline: none; }}
 /* canvas overlays */
 #ZoomBar {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 9px; }}
 #ZoomBar QLabel {{ color: {t.muted}; padding: 0 4px; }}
+#Legend {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 9px; }}
+#Legend QLabel {{ color: {t.muted}; }}
 #EmptyCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
 QPushButton#LinkButton {{ background: transparent; border: none; color: {t.accent};
     padding: 2px 4px; min-height: 0; }}
@@ -296,6 +307,12 @@ QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #EmptyTitle {{ font-size: 12pt; font-weight: 600; }}
 #PanelEmpty #Muted {{ font-size: 10pt; }}
 #ErrorBanner {{ background: {t.surface}; border: 1px solid {t.danger}; border-radius: 10px; }}
+#WorkCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px; }}
+#WorkTitle {{ color: {t.text}; font-weight: 600; }}
+#StepHint {{ color: {t.muted}; font-size: 9pt; padding: 8px 10px; background: {t.surface2}; border-radius: 8px; }}
+#SizeLink {{ border: none; background: transparent; padding: 4px; border-radius: 6px; }}
+#SizeLink:hover {{ background: {t.surface2}; }}
+#StepArrow {{ padding: 0 1px; }}
 #ErrorBanner QLabel {{ color: {t.text}; }}
 #SheetBar {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
 #Busy {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px;

@@ -18,6 +18,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -82,9 +83,63 @@ CONFIRM_DOWNLOAD = None
 CANCEL = threading.Event()
 
 
+class Cancelled(ModelError):
+    """A build was stopped: the window closed, or the user cancelled a model run."""
+
+
+class _Job:
+    """A build that ``cancel_runs`` can stop, also while no model runs (e.g. while
+    the model is still loading, which can take longer than the run itself)."""
+
+    cancelled = False
+
+
+_LOCAL = threading.local()  # the _Job of the build on this thread
+
+
 def check_cancel() -> None:
-    if CANCEL.is_set():
-        raise ModelError("cancelled")
+    job = getattr(_LOCAL, "job", None)
+    if CANCEL.is_set() or (job is not None and job.cancelled):
+        raise Cancelled("cancelled")
+
+
+# RunOptions of the model runs in progress, and the cancellable builds, so another
+# thread can stop them
+_RUNS: set = set()
+_JOBS: set = set()
+_RUNS_LOCK = threading.Lock()
+
+
+@contextmanager
+def cancellable():
+    """Run a build on this thread that ``cancel_runs`` stops: a model run at once,
+    anything else (loading the model) at the next ``check_cancel``."""
+    job = _Job()
+    with _RUNS_LOCK:
+        _JOBS.add(job)
+    prev, _LOCAL.job = getattr(_LOCAL, "job", None), job
+    try:
+        yield job
+    finally:
+        _LOCAL.job = prev
+        with _RUNS_LOCK:
+            _JOBS.discard(job)
+
+
+def cancel_runs() -> int:
+    """Stop every model run and cancellable build in progress; each raises
+    ``Cancelled``. Returns how many there were."""
+    with _RUNS_LOCK:
+        for job in _JOBS:
+            job.cancelled = True
+        for ro in _RUNS:
+            ro.terminate = True
+        return len(_JOBS) + len(_RUNS)
+
+
+def is_loaded(model: str) -> bool:
+    """Whether ``model`` is loaded (its next run starts at once)."""
+    return model in _SEGMENTERS
 
 
 def cache_dir() -> Path:
@@ -199,7 +254,7 @@ class OnnxSegmenter:
         x = np.asarray(im.convert("RGB").resize(self.size, Image.BILINEAR), np.float32) / 255.0
         x = (x - self.mean) / self.std
         x = x.transpose(2, 0, 1)[None].astype(self.dtype)
-        out = self.sess.run(None, {self.input_name: x})[0]
+        out = self._run(x)
         out = np.squeeze(out).astype(np.float32)
         if out.ndim != 2:
             out = out.reshape(out.shape[-2:])
@@ -210,6 +265,24 @@ class OnnxSegmenter:
             out = (out - out.min()) / (out.max() - out.min() + 1e-8)
         m = Image.fromarray((np.clip(out, 0.0, 1.0) * 255).round().astype(np.uint8))
         return np.asarray(m.resize(im.size, Image.BILINEAR))
+
+    def _run(self, x: np.ndarray) -> np.ndarray:
+        """One model run that ``cancel_runs`` (or closing the window) can stop."""
+        import onnxruntime as ort
+
+        ro = ort.RunOptions()
+        with _RUNS_LOCK:
+            _RUNS.add(ro)
+        try:
+            check_cancel()
+            return self.sess.run(None, {self.input_name: x}, ro)[0]
+        except Exception:
+            if ro.terminate:
+                raise Cancelled("cancelled") from None
+            raise
+        finally:
+            with _RUNS_LOCK:
+                _RUNS.discard(ro)
 
 
 _MODEL_LOCKS = {name: threading.Lock() for name in ONNX_MODELS}
@@ -325,7 +398,9 @@ def compute_mask(
             except OSError:
                 pass  # damaged cache file: recompute and overwrite it
 
-    seg = get_cached_segmenter(model)
+    check_cancel()
+    seg = get_cached_segmenter(model)  # loading cannot be interrupted: stop right after
+    check_cancel()
     rgb = im.convert("RGB")
     if has_alpha(im):  # the model sees a cut-out on white, not its hidden pixel colours
         rgb = Image.alpha_composite(Image.new("RGBA", im.size, (255, 255, 255, 255)),

@@ -2,6 +2,8 @@
 for the ONNX file, and no network access happens."""
 
 import sys
+import threading
+import time
 import types
 from pathlib import Path
 
@@ -31,14 +33,26 @@ class FakeSession:
     def get_inputs(self):
         return [FakeInput(FakeSession.input_type)]
 
-    def run(self, _names, feeds):
+    def run(self, _names, feeds, run_options=None):
         FakeSession.seen = feeds["input"]
+        if FakeSession.block is not None:  # a long run: wait until it is terminated
+            FakeSession.block.set()
+            while not run_options.terminate:
+                time.sleep(0.01)
+            raise RuntimeError("Exiting due to terminate flag being set to true.")
         return [FakeSession.output]
+
+    block = None
+
+
+class FakeRunOptions:
+    terminate = False
 
 
 @pytest.fixture
 def fake_ort(monkeypatch):
-    mod = types.SimpleNamespace(InferenceSession=FakeSession)
+    mod = types.SimpleNamespace(InferenceSession=FakeSession, RunOptions=FakeRunOptions)
+    FakeSession.block = None
     monkeypatch.setitem(sys.modules, "onnxruntime", mod)
     FakeSession.input_type = "tensor(float)"
     return FakeSession
@@ -147,6 +161,63 @@ def test_refused_download_explains_and_downloads_nothing(monkeypatch, tmp_path, 
     segment.get_segmenter("rmbg-1.4")
     segment.get_segmenter("rmbg-1.4")
     assert asked == ["rmbg-1.4", "rmbg-1.4"] and got == ["rmbg-1.4.onnx"]
+
+
+def test_a_running_model_can_be_cancelled(fake_ort, tmp_path):
+    """cancel_runs() stops a model run in progress (the GUI's Cancel button)."""
+    seg = OnnxSegmenter(tmp_path / "m.onnx", 8)
+    fake_ort.output = np.zeros((1, 1, 8, 8), np.float32)
+    fake_ort.block = threading.Event()
+    result = {}
+
+    def run():
+        try:
+            seg(grey())
+        except Exception as e:  # noqa: BLE001
+            result["error"] = e
+
+    t = threading.Thread(target=run)
+    t.start()
+    assert fake_ort.block.wait(5)            # the model is running
+    assert segment.cancel_runs() == 1
+    t.join(5)
+    assert isinstance(result.get("error"), segment.Cancelled)
+    assert segment.cancel_runs() == 0        # nothing left running
+
+
+def test_a_build_can_be_cancelled_while_the_model_loads(monkeypatch):
+    """Loading a model can take longer than running it (BiRefNet-lite: ~10 s): Cancel
+    then stops the build as soon as the model is loaded, before it runs. The next
+    build is not affected."""
+    loading, loaded = threading.Event(), threading.Event()
+    runs = []
+
+    def slow_load(model):
+        loading.set()
+        assert loaded.wait(5)
+        return lambda im: runs.append(1) or np.zeros(im.size[::-1], np.uint8)
+
+    monkeypatch.setattr(segment, "get_cached_segmenter", slow_load)
+    result = {}
+
+    def build():
+        try:
+            with segment.cancellable():
+                segment.compute_mask(grey(), "rmbg-1.4", use_cache=False)
+        except Exception as e:  # noqa: BLE001
+            result["error"] = e
+
+    t = threading.Thread(target=build)
+    t.start()
+    assert loading.wait(5)                   # no model run yet, only the build
+    assert segment.cancel_runs() == 1
+    loaded.set()
+    t.join(5)
+    assert isinstance(result.get("error"), segment.Cancelled) and runs == []
+
+    with segment.cancellable():               # a new build runs normally
+        segment.compute_mask(grey(), "rmbg-1.4", use_cache=False)
+    assert runs == [1] and segment.cancel_runs() == 0
 
 
 def test_fetch_and_delete_model(monkeypatch, tmp_path, fake_ort):
