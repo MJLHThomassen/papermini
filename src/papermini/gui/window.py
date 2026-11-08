@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import itertools
+import re
 import threading
 import traceback
 from dataclasses import asdict, dataclass, replace
@@ -14,10 +15,11 @@ from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPoo
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
-                               QDialog, QMenu, QMessageBox, QProgressDialog, QPushButton, QSplitter,
-                               QTabWidget, QToolButton, QVBoxLayout, QWidget)
+                               QDialog, QLineEdit, QMenu, QMessageBox, QProgressDialog,
+                               QPushButton, QSplitter, QTabWidget, QToolButton, QVBoxLayout,
+                               QWidget)
 
-from .. import __version__, segment
+from .. import __version__, remote, segment
 from ..mini import Mini
 from ..segment import ModelError
 from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
@@ -26,13 +28,13 @@ from ..svg import write_svg
 from . import prefs, theme
 from .models import DownloadDialog, ModelsDialog
 from .panels import FigurePanel, Section, SheetPanel
-from .views import (CropView, ZoomView, array_to_qimage, draw_mini_page, draw_sheet, load_qimage,
+from .views import (CropView, ZoomView, draw_mini_page, draw_sheet, load_qimage, print_sheet,
                     pil_to_qimage)
 from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, ZoomBar,
                       overlay_wrap)
 
-IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
-IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)"
+IMAGE_FILTER = remote.IMAGE_FILTER
+IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.I)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
 # settings that "apply to all" leaves alone
 PER_IMAGE = {"label", "crop", "mask", "copies"}
@@ -47,7 +49,7 @@ class Figure:
     gen: int = 0
     error: Optional[str] = None
     pixmap: Optional[QPixmap] = None   # art of ``mini`` as a QPixmap (cached for the sheet)
-    queued: Optional[tuple] = None     # (key, overlay) of the job waiting in the pool
+    queued: Optional[str] = None       # key of the job waiting in the pool
 
     def key(self) -> str:
         d = asdict(self.entry.settings)
@@ -66,21 +68,22 @@ class Signals(QObject):
     failed = Signal(int, int, str, str)     # uid, gen, key, message
     status = Signal(str)
     ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
+    link_done = Signal(str, object, str, object)  # link, downloaded path or None, error, settings
 
 
 class BuildJob(QRunnable):
-    def __init__(self, sig: Signals, fig: Figure, overlay: bool, is_current):
+    def __init__(self, sig: Signals, fig: Figure, is_current):
         super().__init__()
         self.sig, self.uid, self.gen = sig, fig.uid, fig.gen
         self.image, self.settings, self.key = fig.entry.image, fig.entry.settings, fig.key()
-        self.overlay, self.is_current = overlay, is_current
+        self.is_current = is_current
 
     def run(self):
         if not self.is_current(self.uid, self.key):
             return  # settings changed while queued
         self.sig.status.emit(f"Building {self.image.name}…")
         try:
-            m = build_mini(self.image, self.settings, want_overlay=self.overlay, log=lambda *_: None)
+            m = build_mini(self.image, self.settings, log=lambda *_: None)
         except (Exception, SystemExit) as e:  # noqa: BLE001 - always report back, never die silently
             expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
             msg = str(e) if isinstance(e, expected) else \
@@ -109,6 +112,8 @@ class MainWindow(QMainWindow):
         self.sig.failed.connect(self._on_failed)
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
+        self.sig.link_done.connect(self._on_link_done)
+        self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = set()  # models the user did not want to download (until they change model)
         segment.PROGRESS_HOOK = self._download_progress
         segment.CONFIRM_DOWNLOAD = self._confirm_download
@@ -132,10 +137,11 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- ui
     VIEWS = [("Miniature", "The piece as it will print"),
-             ("Cut-away", "Red = cut away, light blue = white margin, black = cut line"),
-             ("Source", "The original image. Drag a box to limit what the model looks at; "
-                        "drag its handles to resize, inside to move, Delete to clear"),
+             ("Source", "The original image with the cut line: everything outside it is cut "
+                        "away. Drag a box to limit what the model looks at; drag its handles "
+                        "to resize, inside to move, Delete to clear"),
              ("Print sheet", "The PDF page layout")]
+    SHEET = 2  # index of the Print sheet view
 
     def _make_ui(self):
         self._tinted = []  # (widget, icon name, colour token, size): re-tinted on theme change
@@ -197,7 +203,7 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(14, 8, 12, 8)
         h.setSpacing(4)
         self.logo = QLabel()
-        self._tinted.append((self.logo, "logo", "accent", 24))
+        self.logo.setPixmap(theme.logo_pixmap(30))
         name = QLabel("papermini")
         name.setObjectName("AppName")
         self.project_label = QLabel()
@@ -209,7 +215,6 @@ class MainWindow(QMainWindow):
         h.addWidget(self.project_label)
         h.addSpacing(14)
         h.addWidget(self._tool("open", "Open a project or images  (Ctrl+O)", self.open_dialog))
-        h.addWidget(self._tool("add", "Add images  (Ctrl+I)", self.add_images_dialog))
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
         h.addStretch(1)
         self.views = Segmented(self.VIEWS)
@@ -270,10 +275,11 @@ class MainWindow(QMainWindow):
         head.addSpacing(4)
         head.addWidget(self.count_label)
         head.addStretch(1)
-        head.addWidget(self._tool("plus", "Add images  (Ctrl+I)", self.add_images_dialog, 16))
+        head.addWidget(self._tool("add", "Add images  (Ctrl+I)", self.add_images_dialog, 16))
         self.btn_remove = self._tool("trash", "Remove the selected figure  (Del)", self.remove_current, 16)
         head.addWidget(self.btn_remove)
         v.addLayout(head)
+        v.addLayout(self._make_link_bar())
         self.list = QListWidget()
         self.list.setObjectName("Figures")
         self.list.setItemDelegate(FigureDelegate(self.list))
@@ -283,12 +289,35 @@ class MainWindow(QMainWindow):
         self.list.currentRowChanged.connect(lambda _: self._show_current())
         self.list.model().rowsMoved.connect(self._rows_moved)
         v.addWidget(self.list, 1)
-        hint = QLabel("Drop images or a project file anywhere in the window. Drag to reorder.")
+        hint = QLabel("Drop images, image links or a project file anywhere in the window. "
+                      "Drag to reorder.")
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
         hint.setContentsMargins(8, 0, 8, 0)
         v.addWidget(hint)
         return left
+
+    def _make_link_bar(self) -> QHBoxLayout:
+        """A field to paste image links into: Enter (or Add) downloads and adds them."""
+        h = QHBoxLayout()
+        h.setSpacing(6)
+        self.link_edit = QLineEdit()
+        self.link_edit.setObjectName("LinkEdit")
+        self.link_edit.setPlaceholderText("Paste an image link")
+        self.link_edit.setToolTip("Paste the link of an image on the web and press Enter. "
+                                  "In a browser: right-click the picture, Copy image address.")
+        self.link_edit.setClearButtonEnabled(True)
+        self._link_icon = self.link_edit.addAction(QIcon(), QLineEdit.LeadingPosition)
+        self.link_edit.returnPressed.connect(self.add_from_link_bar)
+        self.link_add = QPushButton("Add")
+        self.link_add.setToolTip("Download the image and add it as a figure  (Enter)")
+        self.link_add.setCursor(Qt.PointingHandCursor)
+        self.link_add.setEnabled(False)
+        self.link_add.clicked.connect(self.add_from_link_bar)
+        self.link_edit.textChanged.connect(lambda t: self.link_add.setEnabled(bool(t.strip())))
+        h.addWidget(self.link_edit, 1)
+        h.addWidget(self.link_add)
+        return h
 
     def _make_canvas(self) -> QWidget:
         canvas = QWidget()
@@ -298,7 +327,6 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().hide()
         self.tabs.setDocumentMode(True)
         self.mini_view = ZoomView()
-        self.overlay_view = ZoomView()
         self.crop_view = CropView()
         self.crop_view.cropChanged.connect(self.panel.set_crop)
         sheet_page = QWidget()
@@ -307,10 +335,12 @@ class MainWindow(QMainWindow):
         sv.setSpacing(0)
         self.sheet_panel = SheetPanel()
         self.sheet_panel.changed.connect(self._sheet_changed)
+        self.sheet_panel.printClicked.connect(self.print_sheet)
+        self._tinted.append((self.sheet_panel.print_btn, "printer", "text", 16))
         self.sheet_view = ZoomView()
         sv.addWidget(self.sheet_panel)
         sv.addWidget(self.sheet_view)
-        for view, (label, tip) in zip((self.mini_view, self.overlay_view, self.crop_view, sheet_page),
+        for view, (label, tip) in zip((self.mini_view, self.crop_view, sheet_page),
                                       self.VIEWS):
             self.tabs.addTab(view, label)
         self.tabs.currentChanged.connect(self._tab_changed)
@@ -318,6 +348,8 @@ class MainWindow(QMainWindow):
 
         self.empty = EmptyState()
         self.empty.addClicked.connect(self.add_images_dialog)
+        self.empty.openClicked.connect(self.open_dialog)
+        self.empty.linkClicked.connect(self.focus_link_bar)
         grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
         self.banner = Banner()
         self.banner_box = overlay_wrap(self.banner)
@@ -346,7 +378,7 @@ class MainWindow(QMainWindow):
         zb.addWidget(self.zoombar, 0, Qt.AlignBottom)
         zb.addWidget(right_card, 0, Qt.AlignBottom)
         grid.addWidget(self.zoom_box, 0, 0, Qt.AlignBottom | Qt.AlignRight)
-        for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
+        for v in (self.mini_view, self.crop_view, self.sheet_view):
             v.zoomChanged.connect(lambda z, v=v: v is self._active_view() and self.zoombar.set_zoom(z))
         return canvas
 
@@ -365,12 +397,18 @@ class MainWindow(QMainWindow):
         self.a_open = act("Open…", self.open_dialog, QKeySequence.Open,
                           "Open a project (.yaml) or images")
         self.a_add = act("Add images…", self.add_images_dialog, "Ctrl+I")
+        self.a_add_link = act("Add image from a link…", self.focus_link_bar, "Ctrl+L",
+                              "Download an image from the web by its link (URL)")
+        self.a_paste = act("Paste images", self.paste, QKeySequence.Paste,
+                           "Add copied image files, or an image or its link copied in a browser")
         self.a_save = act("Save project", self.save, QKeySequence.Save)
         self.a_save_as = act("Save project as…", self.save_as, QKeySequence.SaveAs)
         self.a_svg = act("Export SVG…", self.export_current_svg, "Ctrl+E",
                          "Save the selected miniature as SVG")
         self.a_svgs = act("Export all SVGs…", self.export_all_svgs, "Ctrl+Shift+E")
         self.a_pdf = act("Export PDF sheet…", self.export_pdf, "Ctrl+P")
+        self.a_print = act("Print sheet…", self.print_sheet, "Ctrl+Shift+P",
+                           "Print the sheet at its real size")
         self.a_remove = act("Remove figure", self.remove_current, QKeySequence.Delete)
         self.a_remove.setShortcutContext(Qt.WidgetShortcut)
         self.list.addAction(self.a_remove)
@@ -389,8 +427,9 @@ class MainWindow(QMainWindow):
                             "See, download or delete the background-removal models")
 
         m = self.menu = QMenu(self)
-        for a in (self.a_new, self.a_open, self.a_add, None, self.a_save, self.a_save_as, None,
-                  self.a_svg, self.a_svgs, self.a_pdf, None):
+        for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None, self.a_save,
+                  self.a_save_as, None,
+                  self.a_svg, self.a_svgs, self.a_pdf, self.a_print, None):
             m.addSeparator() if a is None else m.addAction(a)
         vm = m.addMenu("View")
         for a in (self.a_left, self.a_right, None, self.a_fit, self.a_actual):
@@ -500,6 +539,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_theme(self):
         t = theme.current
+        self._link_icon.setIcon(theme.icon("link", theme.current.muted, 16))
         for w, name, token, size in self._tinted:
             if isinstance(w, QLabel):
                 w.setPixmap(theme.pixmap(name, getattr(t, token), size))
@@ -507,10 +547,12 @@ class MainWindow(QMainWindow):
                 w.setIcon(theme.icon(name, getattr(t, token), size))
         self.zoombar.refresh_icons()
         self.empty.refresh_icons()
+        self.panel.refresh_icons()
+        self.crop_view.refresh_theme()
         self._sync_sides()
         for sec in self.panel.findChildren(Section):
             sec._toggle(sec.header.isChecked())
-        for v in (self.mini_view, self.overlay_view, self.crop_view, self.sheet_view):
+        for v in (self.mini_view, self.crop_view, self.sheet_view):
             v.viewport().update()
         self.list.viewport().update()
         fig = self.current()
@@ -523,21 +565,112 @@ class MainWindow(QMainWindow):
         r = self.list.currentRow()
         return self.figures[r] if 0 <= r < len(self.figures) else None
 
+    def _base_settings(self, settings: Optional[FigureSettings]) -> Optional[FigureSettings]:
+        """New figures start from the selected figure's settings (or ``settings``)."""
+        return self.current().entry.settings if (settings is None and self.current()) else settings
+
+    @staticmethod
+    def _new_settings(base: Optional[FigureSettings]) -> FigureSettings:
+        return FigureSettings() if base is None else replace(base, label=None, crop=None, mask=None)
+
     def add_images(self, paths, settings: Optional[FigureSettings] = None):
-        base = self.current().entry.settings if (settings is None and self.current()) else settings
+        """Add image files; links among ``paths`` are downloaded first (in the background)."""
+        base = self._base_settings(settings)
+        links = [str(p).strip() for p in paths if remote.is_url(p)]
         added = 0
         for p in paths:
-            p = Path(p).resolve()
-            if p.suffix.lower() not in IMAGE_EXT:
+            if remote.is_url(p):
                 continue
-            s = FigureSettings() if base is None else replace(
-                base, label=None, crop=None, mask=None)
-            self._append(FigureEntry(p, s))
+            p = remote.local_path(p).resolve()
+            if not remote.is_image_file(p):
+                continue
+            self._append(FigureEntry(p, self._new_settings(base)))
             added += 1
         if added:
             self.list.setCurrentRow(len(self.figures) - 1)
             self._set_modified()
+        if links:
+            self.add_links(links, base)
         return added
+
+    def add_links(self, links, settings: Optional[FigureSettings] = None):
+        """Add images from links: downloaded once (in the background), then cached."""
+        base = self._base_settings(settings)
+        for url in links:
+            url = url.strip()
+            hit = remote.cached_image(url)
+            if hit is not None:
+                self._on_link_done(url, hit, "", base)
+                continue
+            self._status(f"Downloading {url} …")
+            threading.Thread(target=self._fetch_link, args=(url, base), daemon=True).start()
+
+    def _fetch_link(self, url: str, base):  # on a worker thread
+        try:
+            path, err = remote.fetch_image(url, cancel=self._closing), ""
+        except ValueError as e:
+            path, err = None, str(e)
+        if not self._closing.is_set():
+            self.sig.link_done.emit(url, path, err, base)
+
+    def _on_link_done(self, url: str, path, err: str, base):
+        if self._closing.is_set():
+            return
+        if path is None:
+            self._status("Could not add the image")
+            QMessageBox.warning(self, "papermini", f"Could not add the image.\n\n{err}")
+            return
+        self._append(FigureEntry(Path(path), self._new_settings(base), source=url))
+        self.list.setCurrentRow(len(self.figures) - 1)
+        self._set_modified()
+        self._status(f"Added {Path(path).name}")
+
+    def focus_link_bar(self):
+        """Show the figure list and put the cursor in its link field, with a copied
+        link already filled in."""
+        self.set_side_visible(0, True)
+        clip = QApplication.clipboard().text().strip()
+        if not self.link_edit.text().strip() and remote.is_url(clip):
+            self.link_edit.setText(clip)
+        self.link_edit.setFocus(Qt.ShortcutFocusReason)
+        self.link_edit.selectAll()
+
+    def add_from_link_bar(self):
+        """Add the link(s) typed or pasted into the link field."""
+        words = self.link_edit.text().split()
+        if not words:
+            return
+        links = [w for w in words if remote.is_url(w)]
+        if len(links) != len(words):
+            self._status("That is not a link: it should start with http:// or https://")
+            self.link_edit.setFocus()
+            self.link_edit.selectAll()
+            return
+        self.link_edit.clear()
+        self.add_links(links)
+
+    @staticmethod
+    def _sources(mime):
+        """(local files, web links) in dropped or pasted data. A picture dragged or copied
+        from a browser carries its own address in the HTML; prefer that over the link
+        around it, which is often a web page rather than the image."""
+        files = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+        links = []
+        if mime.hasHtml():
+            links = [s for s in IMG_SRC.findall(mime.html()) if remote.is_url(s)][:1]
+        if not links:
+            links = [u.toString() for u in mime.urls() if remote.is_url(u.toString())]
+        if not links and not files and mime.hasText():
+            links = [t for t in mime.text().split() if remote.is_url(t)]
+        return files, links
+
+    def paste(self):
+        """Ctrl+V outside a text field: add copied image files or image links."""
+        files, links = self._sources(QApplication.clipboard().mimeData())
+        if files or links:
+            self.open_paths(files + links)
+        else:
+            self._status("Nothing to paste: copy image files, or an image or its link in a browser")
 
     def _append(self, entry: FigureEntry):
         fig = Figure(next(self._uids), entry)
@@ -547,7 +680,7 @@ class MainWindow(QMainWindow):
         if not img.isNull():
             item.setIcon(QIcon(QPixmap.fromImage(img.scaled(
                 112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))))
-        item.setToolTip(str(entry.image))
+        item.setToolTip(entry.source or str(entry.image))
         item.setData(Qt.UserRole, fig.uid)
         item.setData(SUBTITLE_ROLE, "Building…")
         item.setSizeHint(QSize(0, FigureDelegate.H))
@@ -640,21 +773,21 @@ class MainWindow(QMainWindow):
         f = self._figure(uid)
         return f is not None and f.key() == key
 
-    def _queue(self, fig: Figure, overlay: bool):
-        job = (fig.key(), overlay)
-        if fig.queued == job or (fig.queued == (job[0], True) and not overlay):
-            return  # an equivalent (or better) build is already waiting
-        fig.queued = job
+    def _queue(self, fig: Figure):
+        key = fig.key()
+        if fig.queued == key:
+            return  # this build is already waiting
+        fig.queued = key
         # the selected figure jumps ahead of background (sheet) builds
         priority = 10 if fig is self.current() else 0
-        self.pool.start(BuildJob(self.sig, fig, overlay, self._is_current), priority)
+        self.pool.start(BuildJob(self.sig, fig, self._is_current), priority)
 
     def _build_current(self):
         fig = self.current()
         if fig is None:
             return
-        if not fig.up_to_date or fig.mini.overlay is None:
-            self._queue(fig, overlay=True)
+        if not fig.up_to_date:
+            self._queue(fig)
             self.info.setText("building…")
             self.busy_box.setVisible(fig.mini is None or not fig.up_to_date)
         else:
@@ -664,10 +797,8 @@ class MainWindow(QMainWindow):
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
             return  # settings changed meanwhile (a newer build is queued)
-        if fig.queued and fig.queued[0] == key and (mini.overlay is not None or not fig.queued[1]):
+        if fig.queued == key:
             fig.queued = None
-        if mini.overlay is None and fig.mini is not None and fig.built_key == key:
-            mini.overlay = fig.mini.overlay
         fig.mini, fig.built_key, fig.error = mini, key, None
         fig.pixmap = QPixmap.fromImage(pil_to_qimage(mini.art))
         self._refresh_card(fig)
@@ -675,7 +806,7 @@ class MainWindow(QMainWindow):
             self._show_mini(fig)
         self._status("Ready")
         self._check_export()
-        if self.tabs.currentIndex() == 3:
+        if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
     def _on_failed(self, uid, gen, key, msg):
@@ -698,11 +829,14 @@ class MainWindow(QMainWindow):
         self.sig.ask_download.emit(model, answer, done)
         while not done.wait(0.1):
             if segment.CANCEL.is_set():  # the window is closing
+                answer["gone"] = True    # nobody waits for this question any more
                 return False
         return answer["ok"]
 
     def _ask_download(self, model: str, answer: dict, done: threading.Event):
         try:
+            if answer.get("gone"):  # the build stopped waiting (window closed): do not ask
+                return
             if segment.model_path(model).exists():  # downloaded meanwhile (Models window)
                 answer["ok"] = True
                 return
@@ -727,7 +861,7 @@ class MainWindow(QMainWindow):
                 f.gen += 1
                 self._refresh_card(f)
         self._build_current()
-        if self.tabs.currentIndex() == 3:
+        if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
     def _download_progress(self, done, total, msg):
@@ -747,12 +881,10 @@ class MainWindow(QMainWindow):
         self.empty.setVisible(not self.figures)
         self.zoombar.setVisible(bool(self.figures))
         if not has:
-            self.panel.set_settings(FigureSettings(), "No figure selected")
-            self.panel.subtitle.setText("Add an image to see its settings here")
-            self.panel.setEnabled(False)
-            self.panel.set_empty(True)
+            self.panel.set_settings(FigureSettings())  # reset the hidden fields
+            self.panel.set_empty(True, "Select a figure in the list to see its settings here."
+                                 if self.figures else "Add images to see their settings here.")
             self.mini_view.scene().clear()
-            self.overlay_view.scene().clear()
             self.crop_view.set_image(None)
             self.banner_box.hide()
             self.busy_box.hide()
@@ -764,9 +896,8 @@ class MainWindow(QMainWindow):
         self.crop_view.set_image(load_qimage(e.image))
         self.crop_view.set_crop(e.settings.crop)
         self.mini_view.refit_on_next_show()
-        self.overlay_view.refit_on_next_show()
         self._show_mini(fig)
-        if not fig.up_to_date or fig.mini.overlay is None:
+        if not fig.up_to_date:
             QTimer.singleShot(0, self._build_current)  # (start(0) would kill the debounce)
 
     def _show_mini(self, fig: Figure):
@@ -774,11 +905,11 @@ class MainWindow(QMainWindow):
         self.panel.set_overlap_hint(None)
         if fig.error and not fig.up_to_date:
             sc.clear()
-            self.overlay_view.scene().clear()
+            self.crop_view.set_cut(None)
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
             hint = "" if "not downloaded" in fig.error else \
-                "<br><br>Try a lower threshold, a crop, or another model."
+                "<br><br>Try a lower strength, a crop, or another model."
             self.banner.show_message("This miniature could not be built", msg + hint)
             self.banner_box.show()
             self.info.setText("error")
@@ -788,20 +919,15 @@ class MainWindow(QMainWindow):
         self.busy_box.setVisible(m is None or not fig.up_to_date)
         if m is None:
             sc.clear()
+            self.crop_view.set_cut(None)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
         draw_mini_page(sc, m)
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.mini_view.fit()
-        if m.overlay is not None:
-            osc = self.overlay_view.scene()
-            osc.clear()
-            item = osc.addPixmap(QPixmap.fromImage(array_to_qimage(m.overlay)))
-            item.setTransformationMode(Qt.SmoothTransformation)
-            osc.setSceneRect(item.boundingRect())
-            if self.overlay_view._fit_pending:
-                self.overlay_view.fit()
+        self.crop_view.set_cut(m.source_cut, m.source_folds, m.source_top)
+        self.panel.set_auto_fill_gaps(m.close_px)
         if not m.tab_overlap_used:
             self.panel.set_overlap_hint("unused")
         elif m.tab_width_mm and m.tab_joint_mm < min(10.0, 0.6 * m.tab_width_mm):
@@ -811,21 +937,23 @@ class MainWindow(QMainWindow):
                           f"{m.height_mm:.1f} mm · {len(m.cut.points)} cut nodes{stale}")
 
     def _tab_changed(self, i):
-        if i == 3:
+        if i == self.SHEET:
             self._refresh_sheet()
         QTimer.singleShot(0, self._tab_zoom)
 
     def _refresh_sheet(self):
-        if self.tabs.currentIndex() != 3:
+        if self.tabs.currentIndex() != self.SHEET:
             return
         missing = [f for f in self.figures if not f.up_to_date and f.error is None]
         failed = [f for f in self.figures if not f.up_to_date and f.error is not None]
         for f in missing:
-            self._queue(f, overlay=False)
+            self._queue(f)
         # stale pieces stay visible while they rebuild, but not when their settings fail
         ready = [f for f in self.figures if f.mini is not None and f not in failed]
         sh = self.project.sheet
         sc = self.sheet_view.scene()
+        self.sheet_panel.print_btn.setEnabled(bool(self.figures))
+        self.a_print.setEnabled(bool(self.figures))
         if not ready:
             sc.clear()
             self.sheet_panel.info.setText("Building…" if missing else "No miniatures yet")
@@ -859,7 +987,7 @@ class MainWindow(QMainWindow):
         self._active_view().actual_size()
 
     def _active_view(self) -> ZoomView:
-        return [self.mini_view, self.overlay_view, self.crop_view, self.sheet_view][
+        return [self.mini_view, self.crop_view, self.sheet_view][
             self.tabs.currentIndex()]
 
     # ----------------------------------------------------------------- export
@@ -876,7 +1004,7 @@ class MainWindow(QMainWindow):
         self._export = (figs, then, dlg, len(todo))
         for f in todo:
             f.error = None  # retry figures that failed before
-            self._queue(f, overlay=f is self.current())
+            self._queue(f)
         self._check_export()
 
     def _check_export(self):
@@ -946,22 +1074,74 @@ class MainWindow(QMainWindow):
             return
         self._status(f"Saved {f} ({len(lay.placements)} pieces, {lay.pages} page(s))")
 
+    def print_sheet(self):
+        if self.figures:
+            self._when_built(list(self.figures), self._print)
+
+    def _print(self):
+        from PySide6.QtGui import QPageLayout, QPageSize
+        from PySide6.QtPrintSupport import QPrinter
+
+        sh = self.project.sheet
+        try:
+            lay = pack([(x.mini, x.entry.settings.copies) for x in self.figures], sh.paper,
+                       sh.margin_mm, sh.gap_mm)
+        except ValueError as e:
+            QMessageBox.warning(self, "papermini", str(e))
+            return
+        printer = QPrinter(QPrinter.HighResolution)
+        size = QPageSize.A4 if sh.paper == "a4" else QPageSize.Letter
+        printer.setPageSize(QPageSize(size))
+        printer.setPageOrientation(QPageLayout.Portrait)
+        printer.setFullPage(True)  # true size: no scaling to the printable area
+        printer.setDocName(self.project.path.stem if self.project.path else "papermini sheet")
+        printer.setFromTo(0, 0)
+        if not self._print_dialog(printer, lay.pages):
+            return
+        chosen = printer.pageLayout().pageSize().id()
+        if chosen != size and QMessageBox.question(
+                self, "papermini",
+                f"The sheet is laid out for {sh.paper.upper()} paper, but the printer is set to "
+                f"{printer.pageLayout().pageSize().name()}. The minis still print at their real "
+                "size, but parts of the sheet may be cut off.\n\nPrint anyway?") \
+                != QMessageBox.Yes:
+            return
+        n = print_sheet(printer, lay, sh.title, sh.margin_mm)
+        if n:
+            self._status(f"Sent {n} page(s) to {printer.printerName() or 'the printer'}")
+        else:
+            QMessageBox.warning(self, "papermini", "Could not print: the printer did not start.")
+
+    def _print_dialog(self, printer, pages: int) -> bool:
+        from PySide6.QtPrintSupport import QAbstractPrintDialog, QPrintDialog
+
+        dlg = QPrintDialog(printer, self)
+        dlg.setWindowTitle("Print sheet")
+        dlg.setMinMax(1, pages)
+        dlg.setOption(QAbstractPrintDialog.PrintPageRange, pages > 1)
+        return dlg.exec() == QDialog.Accepted
+
     # ----------------------------------------------------------------- project
     def open_paths(self, paths):
-        paths = [Path(p) for p in paths]
+        """Open a project and/or add images: files, ``file://`` URIs or web links."""
+        links = [str(p).strip() for p in paths if remote.is_url(p)]
+        paths = [remote.local_path(p) for p in paths if not remote.is_url(p)]
         projects = [p for p in paths if p.suffix.lower() in (".yaml", ".yml")]
         if projects:
             self.load(projects[0])
-        self.add_images([p for p in paths if p.suffix.lower() in IMAGE_EXT])
+        self.add_images([p for p in paths if remote.is_image_file(p)] + links)
 
     def load(self, path: Path):
         if not self._maybe_save():
             return
+        QApplication.setOverrideCursor(Qt.WaitCursor)  # images from links may download
         try:
             proj = load_project(path)
         except Exception as e:  # noqa: BLE001
+            QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "papermini", f"Could not open {path}:\n{e}")
             return
+        QApplication.restoreOverrideCursor()
         self._reset(proj)
         missing = [f.image.name for f in proj.figures if not f.image.exists()]
         if missing:
@@ -1053,14 +1233,17 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- events
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls():
+        files, links = self._sources(e.mimeData())
+        if files or links:
             e.acceptProposedAction()
 
     def dropEvent(self, e):
-        self.open_paths([u.toLocalFile() for u in e.mimeData().urls() if u.isLocalFile()])
+        files, links = self._sources(e.mimeData())
+        self.open_paths(files + links)
 
     def closeEvent(self, e):
         if self._maybe_save():
+            self._closing.set()             # link downloads stop and are not added
             self.pool.clear()               # drop queued builds
             segment.CANCEL.set()            # abort a model download in progress
             segment.PROGRESS_HOOK = segment.CONFIRM_DOWNLOAD = None

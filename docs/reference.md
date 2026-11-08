@@ -15,19 +15,28 @@ the desktop app in depth, and how the pipeline works.
 
 ## Desktop app
 
-- **Header.** Open, add images and save on the left; a switch between the four
+- **Header.** Open and save on the left; a switch between the three
   views in the middle; **Export SVG** and **Export PDF** on the right. The ☰ menu
   holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
   or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
-  open, Ctrl+I add images, Ctrl+S save, Ctrl+E export SVG, Ctrl+P export PDF,
+  open, Ctrl+I add images, Ctrl+L add an image from a link, Ctrl+V paste images, Ctrl+S save,
+  Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export PDF,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
+- **Images.** PNG, JPG, WebP, BMP and TIFF. Besides files, an image can come
+  from the web: paste its link (URL) into the bar at the top of the figure list
+  and press Enter; you can also drag a picture from a browser onto
+  the window, or copy it (or its link) and press Ctrl+V. A link is downloaded
+  once into `~/.cache/papermini/images/`; the project keeps the link itself, so
+  it still works on another computer. A link must point at the image, not at
+  the web page that shows it: right-click the picture and copy its address.
 - **Side panels.** Drag the dividers to resize the figure list and the settings,
   or drag them shut. The buttons in the bottom corners of the canvas hide and
   show them (filled = shown) and stay put while a panel is hidden.
 - **Figures** (left). Each figure is a card with a thumbnail of the finished
-  piece, its height and number of copies. Add images with **+**, or drop
-  files or a project anywhere in the window. Drag to reorder; **Delete**
+  piece, its height and number of copies. Add images with the add-image button
+  above the list, add one from the web by pasting its link into the link bar
+  under it, or drop files or a project anywhere in the window. Drag to reorder; **Delete**
   removes the selected one. A new figure starts with the settings of the one
   that is selected.
 - **Settings** (right). Every option from `papermini make`, in sections you can
@@ -36,15 +45,18 @@ the desktop app in depth, and how the pipeline works.
   only build the final value. The model only runs once per image and crop.
   Changing *Copies* only updates the sheet. Number fields step with the arrow
   keys, or the mouse wheel once you click into them, so scrolling the panel
-  never edits values. *Apply to all figures* copies everything except label,
+  never edits values. Decimals use a point (`1.6`) whatever your system's
+  language; a typed comma becomes a point. *Apply to all figures* copies everything except label,
   crop, mask and copies.
 - **Miniature** view. The piece as it will print, with a 10 mm scale bar. The
   zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
   real size (*1:1*, Ctrl+1), depending on the DPI your screen reports.
-- **Cut-away** view. Red is cut away, light blue is the white margin, black is
-  the cut line. Use it to spot problems.
-- **Source** view. The original image. Drag a box to set `--crop` for busy
-  backgrounds. Afterwards:
+- **Source** view. The original image with the cut line and fold lines of the
+  built piece on it. Everything outside the cut line is faded: that part of the
+  image is cut away, so you can spot a clipped sword tip or a detached part
+  that was dropped. (A tab or the back of a double-sided piece reaching past
+  the image is not drawn.) Drag a box to set `--crop` for busy backgrounds.
+  Afterwards:
   - drag its **handles** (corners and edge midpoints, or anywhere along an
     edge) to resize it;
   - drag **inside** it to move it;
@@ -53,7 +65,11 @@ the desktop app in depth, and how the pipeline works.
 
   The mouse wheel zooms and the middle mouse button pans.
 - **Print sheet** view. A live preview of the PDF layout, with paper, title,
-  margin and gap settings in the bar above it.
+  margin and gap settings in the bar above it. **Print…** there (or
+  Ctrl+Shift+P) prints the sheet straight away, without saving a PDF first.
+  It always prints at real size, from the corner of the paper, on the sheet's
+  paper (A4 or Letter); the app warns if the printer is set to another paper
+  size. With several pages you can pick which to print.
 - **Exporting.** Anything that still needs building is built in the background
   first; the window stays responsive and you can cancel.
 - **Model downloads.** The first time a figure needs a model that is not on
@@ -75,14 +91,16 @@ command line.
 ### `papermini make IMAGE... [options]`
 
 Makes one SVG per image, saved next to the image or in `-o DIR` (or
-`-o name.svg` for a single image).
+`-o name.svg` for a single image). An image can also be a link (an `http://` or
+`https://` URL) to a PNG, JPG, WebP, BMP or TIFF on the web; it is downloaded
+once and cached, and its SVG is saved in the current folder.
 
 ```bash
 papermini make lotje.png --height-mm 42 --label Lotje
 ```
 
 ```bash
-papermini make boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --threshold 60 --close 7
+papermini make boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --strength 60 --fill-gaps 7
 ```
 
 ```bash
@@ -92,7 +110,7 @@ papermini make *.png -o minis --debug
 | option | default | meaning |
 |---|---|---|
 | `--height-mm` | 42 | height of the drawn figure, without margin and tab |
-| `--margin-mm` | 1.6 | white border between the drawing and the cut line |
+| `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
 | `--smooth-mm` | 0.6 | how much the outline is rounded |
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
 | `--tab-width-mm` / `--tab-height-mm` | 22 / 12 | square tab size (height measured below the fold) |
@@ -107,8 +125,8 @@ papermini make *.png -o minis --debug
 | `--back-color` | #ffffff | colour of a `blank` or `text` back |
 | `--back-text-color` | #2f5597 | colour of the back text |
 | `--crop x0,y0,x1,y1` | | region the model looks at, as fractions (0–1) or pixels |
-| `--threshold` | 40 | mask threshold (0–255); go lower for faint pencil, higher for busy scenes |
-| `--close` | auto | closing radius in px (auto ≈ 9 px at a 1400 px image) |
+| `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
+| `--fill-gaps` | auto | fill gaps and notches in the outline up to this many px; 0 = off (auto ≈ 9 px at a 1400 px image) |
 | `--keep-all` / `--min-area` | / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
 | `--margin-color` | #ffffff | colour of the margin around the drawing |
@@ -143,7 +161,7 @@ See [examples/minis.yaml](../examples/minis.yaml):
 ```yaml
 output: minis
 sheet: {output: minis/sheet.pdf, paper: a4, copies: 1, preview: true}
-defaults: {height_mm: 42, threshold: 40, close: 9}
+defaults: {height_mm: 42, strength: 40, fill_gaps: 9}
 figures:
   - image: ghost-girl.jpg
     label: Lotje
@@ -151,10 +169,14 @@ figures:
   - image: boss-attic.jpg
     label: Acererak
     height_mm: 56
-    threshold: 60
-    close: 7
+    strength: 60
+    fill_gaps: 7
     crop: [0.08, 0, 0.92, 0.62]
 ```
+
+An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
+It is downloaded once (later runs use the cached copy) and saved projects keep
+the link.
 
 [examples/sample/sample.yaml](../examples/sample/sample.yaml) builds the sample
 outputs in that folder: a default mini, a round coloured base, a double-sided
@@ -234,14 +256,14 @@ halves line up. What shows on the back is up to you:
 - **Tune with `--debug`.** `debug/<name>_overlay.png` shows red for what will be
   cut away and light blue for the white margin. It also writes the masks from
   each step (`0_raw` → `5_cut`).
-- **Faint pencil.** Lower `--threshold` (for example 25–40) and raise `--close` if
+- **Faint pencil.** Lower `--strength` (for example 25–40) and raise `--fill-gaps` if
   the silhouette has gaps.
-- **Busy background.** Use `--crop` around the figure and try `--threshold 60`. A
+- **Busy background.** Use `--crop` around the figure and try `--strength 60`. A
   flat edge from the crop at the bottom is fine, because it sits on the tab.
 - **Props lost.** Floating props are dropped by default. `--keep-all` keeps them
   and adds a bridge.
-- **Printing.** Print at 100% / "actual size", never "fit to page". Measure the
-  50 mm bar to check.
+- **Printing.** Print a PDF at 100% / "actual size", never "fit to page"
+  (the app's **Print…** does this for you). Measure the 50 mm bar to check.
 - **Cutting machines.** Import the SVG and use `path#cut` as the cut layer.
   `--cutter` gives a red hairline that many tools treat as a cut line. It also
   adds a bleed (`--bleed-mm`, 1 mm by default): the background is printed a
@@ -254,7 +276,7 @@ halves line up. What shows on the back is up to you:
 1. **Segmentation.** The model (RMBG-1.4 or BiRefNet) runs at 1024×1024 and its
    mask is scaled back to the image size. With `--crop`, the model only sees the crop, and the result is
    pasted into an empty full-size mask.
-2. **Clean-up.** Threshold, then morphological closing, then **hole filling** (so
+2. **Clean-up.** Threshold (`strength`), then morphological closing (`fill_gaps`), then **hole filling** (so
    translucent ghosts become solid), then keep the largest part (or every part,
    with `--keep-all`).
 3. **Scale.** `px_per_mm = figure height in px / --height-mm`.
@@ -278,8 +300,9 @@ or 930 MB for BiRefNet) into
 `~/.cache/papermini/`; the desktop app asks before it downloads. You can change that folder with the `PAPERMINI_CACHE`
 environment variable. After that, everything works offline, and each image takes
 a few seconds on a CPU. AI model masks are cached on disk per image, crop and
-model, so re-running with a different `--threshold` or `--height-mm` skips the
-model entirely (`--no-cache` turns this off).
+model, so re-running with a different `--strength` or `--height-mm` skips the
+model entirely (`--no-cache` turns this off). Images from links are kept in
+`images/` in the same folder, so each link is downloaded only once.
 
 Within one run (and in the desktop app), every stage is also cached in memory:
 the decoded image, the raw mask (from the AI model, the alpha channel or a mask
@@ -288,7 +311,7 @@ stages it affects:
 
 - **Cosmetic** (label, colours, line width, resolution): a fraction of a second.
 - **Shape** (height, margin, smoothing, tab): about a second.
-- **Mask clean-up** (threshold, closing, keep-all): reruns the clean-up.
+- **Mask clean-up** (strength, gap filling, keep-all): reruns the clean-up.
 - **Model or crop**: reruns the AI model.
 
 Small figures from very large images are processed at a bounded resolution

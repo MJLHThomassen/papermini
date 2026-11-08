@@ -20,12 +20,13 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "src"))
 from papermini import __version__  # noqa: E402  (written by setuptools-scm on install)
 
-ICON = str(HERE / "icon.png")  # converted to .ico / .icns by PyInstaller (needs Pillow)
+ICON = str(HERE / "icon.png")  # from make_icon.py; PyInstaller converts it to .ico / .icns (needs Pillow)
 
 a = Analysis(  # noqa: F821
     [str(HERE / "gui_entry.py"), str(HERE / "cli_entry.py")],
     pathex=[str(ROOT / "src")],
-    datas=collect_data_files("reportlab"),  # fonts used for the PDF sheet
+    datas=collect_data_files("reportlab")  # fonts used for the PDF sheet
+    + [(str(ROOT / "src" / "papermini" / "gui" / "logo.svg"), "papermini/gui")],
     hiddenimports=["papermini._version"],
     excludes=["tkinter", "matplotlib", "IPython", "pytest"],
     noarchive=False,

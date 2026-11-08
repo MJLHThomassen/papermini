@@ -1,4 +1,4 @@
-"""Look and feel: light/dark palettes, one style sheet, and line icons.
+"""Look and feel: light/dark palettes, one style sheet, line icons and the logo.
 
 ``apply(app, mode)`` sets everything up; mode is "system", "light" or "dark".
 Colours are design tokens (``Theme``) so widgets that paint themselves (the
@@ -36,13 +36,15 @@ class Theme:
     shadow: str
 
 
+DRAGON_RED = "#fd3c1b"  # the logo's red: the accent in both themes
+
 LIGHT = Theme("light", bg="#f4f4f6", surface="#ffffff", surface2="#f7f7f9", canvas="#e9e9ee",
               dots="#d4d4dc", border="#e2e2e8", text="#1d1d22", muted="#6e6e7a",
-              accent="#5b5bd6", accent_text="#ffffff", accent_soft="#ececfb",
+              accent=DRAGON_RED, accent_text="#ffffff", accent_soft="#ffe9e4",
               danger="#d64545", shadow="#00000028")
 DARK = Theme("dark", bg="#161618", surface="#1e1e21", surface2="#26262a", canvas="#111113",
              dots="#26262b", border="#2f2f34", text="#ececf0", muted="#9a9aa6",
-             accent="#8b8bf0", accent_text="#14141a", accent_soft="#2b2b45",
+             accent=DRAGON_RED, accent_text="#ffffff", accent_soft="#45231f",
              danger="#f07070", shadow="#00000070")
 
 current: Theme = LIGHT
@@ -51,9 +53,6 @@ current: Theme = LIGHT
 # --------------------------------------------------------------------------- icons
 # 24x24 line icons, drawn for papermini (stroke = currentColor)
 ICONS: Dict[str, str] = {
-    "logo": '<path d="M8 19.5V9.5a4 4 0 0 1 8 0v10l-2-1.4-2 1.4-2-1.4z"/>'
-            '<circle cx="10.5" cy="10" r=".6" fill="currentColor"/>'
-            '<circle cx="13.5" cy="10" r=".6" fill="currentColor"/><path d="M5 21.5h14"/>',
     "open": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
     "add": '<path d="M13.5 4.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-7.5"/>'
            '<path d="M4.5 15.5l4-4 3.5 3.5 2-2 5.5 5.5"/><path d="M18.5 2.5v6M15.5 5.5h6"/>',
@@ -62,6 +61,8 @@ ICONS: Dict[str, str] = {
     "export": '<path d="M12 4v10.5M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14"/>',
     "pdf": '<path d="M6.5 3.5h7.5l4.5 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5z"/>'
            '<path d="M14 3.5V8h4.5M8.5 13h7M8.5 16.5h5"/>',
+    "printer": '<path d="M7 9V4.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/>'
+               '<path d="M7 13.5h10v6H7z"/><path d="M17 11.5h.01"/>',
     "fit": '<path d="M4.5 9V4.5H9M19.5 9V4.5H15M4.5 15v4.5H9M19.5 15v4.5H15"/>',
     "zoom_in": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M11 8v6M8 11h6"/>',
     "zoom_out": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8 11h6"/>',
@@ -73,8 +74,12 @@ ICONS: Dict[str, str] = {
     "panel_right": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>',
     "panel_right_on": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>'
                       '<path d="M14.5 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4z" fill="currentColor"/>',
+    "sliders": '<path d="M5 7h9M18 7h1M5 12h3M12 12h7M5 17h6M15 17h4"/>'
+               '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>'
+               '<circle cx="13" cy="17" r="2"/>',
     "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
-    "plus": '<path d="M12 5.5v13M5.5 12h13"/>',
+    "link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
+            '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     "chevron_down": '<path d="M7 10l5 5 5-5"/>',
     "chevron_right": '<path d="M10 7l5 5-5 5"/>',
     "chevron_up": '<path d="M7 14l5-5 5 5"/>',
@@ -108,6 +113,33 @@ def pixmap(name: str, color: Optional[str] = None, size: int = 18, ratio: float 
 def icon(name: str, color: Optional[str] = None, size: int = 18) -> QIcon:
     ic = QIcon(pixmap(name, color, size))
     ic.addPixmap(pixmap(name, current.muted, size), QIcon.Disabled)
+    return ic
+
+
+# --------------------------------------------------------------------------- logo
+LOGO = Path(__file__).with_name("logo.svg")  # the full-colour dragon
+
+
+def logo_pixmap(size: int, ratio: float = 2.0) -> QPixmap:
+    """The logo, centred in a size x size square."""
+    r = QSvgRenderer(str(LOGO))
+    px = QPixmap(int(size * ratio), int(size * ratio))
+    px.fill(Qt.transparent)
+    vb = r.viewBoxF()
+    k = px.width() / max(vb.width(), vb.height())
+    w, h = vb.width() * k, vb.height() * k
+    p = QPainter(px)
+    r.render(p, QRectF((px.width() - w) / 2, (px.height() - h) / 2, w, h))
+    p.end()
+    px.setDevicePixelRatio(ratio)
+    return px
+
+
+def app_icon() -> QIcon:
+    """The window and taskbar icon, rendered for each common size."""
+    ic = QIcon()
+    for s in (16, 20, 24, 32, 40, 48, 64, 128, 256):
+        ic.addPixmap(logo_pixmap(s, 1.0))
     return ic
 
 
@@ -220,6 +252,14 @@ QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSp
     width: 0px; border: none; }}
 QSpinBox::up-arrow, QSpinBox::down-arrow, QDoubleSpinBox::up-arrow, QDoubleSpinBox::down-arrow {{
     image: none; width: 0px; height: 0px; }}
+QSlider {{ min-height: 22px; }}
+QSlider::groove:horizontal {{ height: 4px; border-radius: 2px; background: {t.border}; }}
+QSlider::sub-page:horizontal {{ height: 4px; border-radius: 2px; background: {t.accent}; }}
+QSlider::handle:horizontal {{ width: 12px; height: 12px; margin: -6px 0; border-radius: 8px;
+    background: {t.surface}; border: 2px solid {t.accent}; }}
+QSlider::handle:horizontal:hover {{ background: {t.accent_soft}; }}
+QSlider::sub-page:horizontal:disabled {{ background: {t.muted}; }}
+QSlider::handle:horizontal:disabled {{ border-color: {t.muted}; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox::down-arrow {{ image: url({down}); width: 12px; height: 12px; }}
 QComboBox QAbstractItemView {{ background: {t.surface}; border: 1px solid {t.border};
@@ -250,7 +290,11 @@ QListWidget#Figures {{ background: transparent; border: none; outline: none; }}
 #ZoomBar {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 9px; }}
 #ZoomBar QLabel {{ color: {t.muted}; padding: 0 4px; }}
 #EmptyCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}
+QPushButton#LinkButton {{ background: transparent; border: none; color: {t.accent};
+    padding: 2px 4px; min-height: 0; }}
+QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #EmptyTitle {{ font-size: 12pt; font-weight: 600; }}
+#PanelEmpty #Muted {{ font-size: 10pt; }}
 #ErrorBanner {{ background: {t.surface}; border: 1px solid {t.danger}; border-radius: 10px; }}
 #ErrorBanner QLabel {{ color: {t.text}; }}
 #SheetBar {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}

@@ -14,6 +14,15 @@ Rules for anyone, human or coding agent, working in this repository.
   pytest` (`bin/python` on macOS and Linux).
 - **Do not commit, push or open pull requests unless asked.** Never commit
   venvs, caches, model weights, `debug/` output or other generated bulk.
+- **Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)**
+  for every commit message: `type(scope): description`, for example
+  `feat(gui): add a link bar to the figure list` or `fix(sheet): keep the
+  scale bar on the first page`. Types: `feat`, `fix`, `docs`, `style`,
+  `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. The scope is
+  optional (`gui`, `cli`, `sheet`, `segment`, ...). Mark a breaking change with
+  `!` after the type or scope (`feat(cli)!: ...`) or a `BREAKING CHANGE:`
+  footer. One logical change per commit; pull request titles follow the same
+  format.
 - **No backwards-compatibility code.** There are no released project files to
   support yet: rename or remove options and settings outright, without
   aliases, migrations or fallbacks, unless the maintainer asks for them.
@@ -37,6 +46,7 @@ src/papermini/
   geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
   mini.py       the pipeline: image -> mask -> layout -> cut path (mm units)
   cache.py      in-memory LRU caches for the pipeline stages
+  remote.py     images from links (downloaded once into the cache), image types
   svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
                 prefs, models: download dialog and Models window)

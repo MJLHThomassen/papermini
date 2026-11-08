@@ -8,6 +8,7 @@ A project file *is* a batch config::
     figures:
       - image: lotje.png
         label: Lotje
+      - image: https://example.com/goblin.webp   # a link: downloaded once, then cached
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from . import geometry as geo
+from . import remote
 from .mini import Mini, Style, make_mini
 
 CUTTER_STYLE = {"cut_color": "#ff0000", "cut_width_mm": 0.1}
@@ -45,8 +47,8 @@ class FigureSettings:
     model: str = "auto"
     mask: Optional[str] = None
     crop: Any = None                 # "x0,y0,x1,y1" or [x0, y0, x1, y1], fractions or px
-    threshold: int = 40
-    close: Optional[int] = None      # None = scales with the image
+    strength: int = 40               # mask threshold 0-254: higher removes more background
+    fill_gaps: Optional[int] = None  # closing radius in px; None = scales with the image
     keep_all: bool = False
     min_area: int = 1000
     margin_fill: str = "color"       # "color" (margin_color) or "image"
@@ -115,7 +117,7 @@ def norm_keys(d: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
-               debug_dir: Optional[Path] = None, want_overlay: bool = False,
+               debug_dir: Optional[Path] = None,
                log=print) -> Mini:
     # model "mask" = your own mask image; "auto" also uses a mask image if one is given
     use_mask = s.model == "mask" or (s.model == "auto" and bool(s.mask))
@@ -123,13 +125,13 @@ def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
         raise ValueError("model 'mask' needs a mask image file - choose one")
     return make_mini(
         Path(image), s.params(),
-        label=s.label, back_text=s.back_text, threshold=s.threshold, close_px=s.close, min_area=s.min_area,
+        label=s.label, back_text=s.back_text, threshold=s.strength, close_px=s.fill_gaps, min_area=s.min_area,
         crop=s.crop, model="auto" if s.model == "mask" else s.model,
         mask_path=Path(s.mask) if use_mask else None,
         dpi=s.dpi, simplify_mm=s.simplify_mm, smooth_path=not s.no_smooth,
         bleed_mm=s.bleed_mm if s.cutter else 0.0,
         use_cache=use_cache, style=s.style(), debug_dir=debug_dir,
-        want_overlay=want_overlay, log=log,
+        log=log,
     )
 
 
@@ -153,9 +155,10 @@ class SheetSettings:
 
 @dataclass
 class FigureEntry:
-    image: Path                      # absolute
+    image: Path                      # absolute (for a link: the downloaded copy)
     settings: FigureSettings = field(default_factory=FigureSettings)
     name: Optional[str] = None       # output file name (default: label or image name)
+    source: Optional[str] = None     # the link the image came from; saved instead of the path
 
     def svg_name(self) -> str:
         return safe_name(self.name or self.settings.label or self.image.stem) + ".svg"
@@ -205,7 +208,9 @@ def load_project(path: Path) -> Project:
         o = {**defaults, **norm_keys(entry)}
         if "image" not in o:
             raise ValueError(f"{path.name}: every figure needs an 'image'")
-        image = (base / o.pop("image")).resolve()
+        src = o.pop("image")
+        source = str(src).strip() if remote.is_url(src) else None
+        image = remote.fetch_image(source) if source else (base / remote.local_path(src)).resolve()
         name = o.pop("name", None)
         o.setdefault("copies", sheet.copies)
         if o.get("mask"):
@@ -216,7 +221,7 @@ def load_project(path: Path) -> Project:
             s = FigureSettings.from_dict(o)
         except ValueError as e:
             raise ValueError(f"{path.name}: {image.name}: {e}") from None
-        figures.append(FigureEntry(image, s, name))
+        figures.append(FigureEntry(image, s, name, source))
     return Project(path, str(cfg.get("output", "minis")), sheet, figures, bool(cfg.get("debug", False)))
 
 
@@ -238,7 +243,7 @@ def save_project(p: Project, path: Path) -> Path:
     sheet = {k: v for k, v in asdict(p.sheet).items() if v != getattr(SheetSettings(), k)}
     figures = []
     for f in p.figures:
-        d: Dict[str, Any] = {"image": rel(f.image)}
+        d: Dict[str, Any] = {"image": f.source or rel(f.image)}
         if f.name:
             d["name"] = f.name
         o = f.settings.to_dict()

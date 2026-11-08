@@ -17,6 +17,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 - **double-sided** minis with a mirrored, blank or text back,
 - an **SVG per figure** in millimetres and an **A4/Letter PDF sheet** to print
   at 100%,
+- works with PNG, JPG, **WebP**, BMP and TIFF files, or a **link** to an image on
+  the web,
 - a **desktop app** with live previews, and a command line for batches.
 
 # Usage
@@ -61,23 +63,26 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
 `~/.venvs/papermini/bin/papermini-gui` (macOS, Linux).
 </details>
 
-1. **Add images.** Drop images onto the window, or use **+**. Each one becomes
-   a figure in the list on the left.
+1. **Add images.** Drop images onto the window, or use the add-image button
+   above the figure list. You can also drag a picture from your browser, paste
+   one with Ctrl+V, or paste its link into the link bar. Each image becomes a
+   figure in the list on the left.
 2. **Adjust the settings** on the right: height, background removal, margin,
    tab shape and label, double-sided. The preview updates as you go.
-3. **Check the cut.** The *Cut-away* view shows what is cut away (red) and the
-   margin (blue). If the outline is wrong, try a lower threshold or drag a crop
-   box in the *Source* view.
+3. **Check the cut.** The *Source* view draws the cut line on your original
+   image and fades everything that is cut away. If the outline is wrong, try a
+   lower strength or drag a crop box there.
 4. **Print.** The *Print sheet* view lays all figures out on pages. Click
-   **Export PDF** and print it at 100% ("actual size"). Each page has a 50 mm
-   bar to check the scale.
+   **Print…** to print them straight away at real size, or **Export PDF** and
+   print that at 100% ("actual size"). Each page has a 50 mm bar to check the
+   scale.
 
 Save your work as a project (Ctrl+S). Projects are plain YAML files that the
 command line can rebuild too.
 
-| Cut-away view | Print sheet | Dark theme |
+| Source view | Print sheet | Dark theme |
 |---|---|---|
-| ![Cut-away view](docs/screenshots/app-cutaway.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
+| ![Source view with the cut line](docs/screenshots/app-source.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
 
 The first time it needs the background-removal model (about 176 MB), the app
 asks before downloading it. After that, papermini works offline. **Models…**

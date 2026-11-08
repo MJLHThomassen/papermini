@@ -48,7 +48,12 @@ class Mini:
     tab_overlap_used: bool = True            # False: the tab overlap changed nothing here
     tab_joint_mm: float = 0.0                # paper joining tab and figure (0: no tab)
     tab_width_mm: float = 0.0
-    overlay: Optional[np.ndarray] = None     # RGB cut-away preview (want_overlay=True)
+    close_px: int = 0                        # closing radius used (the automatic one if unset)
+    # the cut line and folds in pixels of the source image (front side), to show
+    # on the original artwork what is kept and what is cut away
+    source_cut: Optional[geo.CutPath] = None
+    source_folds: List[Tuple[float, float, float]] = field(default_factory=list)
+    source_top: float = 0.0  # above this row the piece is the double-sided back, not the image
 
     def png_bytes(self) -> bytes:
         buf = io.BytesIO()
@@ -150,7 +155,6 @@ def make_mini(
     use_cache: bool = True,
     style: Optional[Style] = None,
     debug_dir: Optional[Path] = None,
-    want_overlay: bool = False,
     log=print,
 ) -> Mini:
     image_path = Path(image_path)
@@ -252,6 +256,7 @@ def make_mini(
         tab_overlap_used=lay.tab_overlap_used or not prm.tab or prm.tab_overlap_mm == 0,
         tab_joint_mm=lay.tab_joint_px * s if prm.tab else 0.0,
         tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
+        close_px=geo.default_close_px(raw.shape[1], raw.shape[0]) if close_px is None else close_px,
     )
     if lay.back_box is not None:
         text = back_text if back_text else (label or image_path.stem)
@@ -269,8 +274,16 @@ def make_mini(
     log(f"  {image_path.name}: figure {lay.figure_height_px * s:.1f} mm high, "
         f"piece {w_mm:.1f} x {h_mm:.1f} mm, cut line {len(path_px.points)} nodes")
 
-    if want_overlay:
-        mini.overlay = overlay_image(lay, path_px)
+    # canvas -> working image (lay.src) -> source image (the working downscale)
+    sx, sy, dx, dy = lay.src
+    k = np.array([sx * W / rgb.shape[1], sy * H / rgb.shape[0]])
+    d = np.array([dx, dy])
+    mini.source_cut = geo.CutPath((path_px.points - d) * k, None if path_px.controls is None
+                                  else (path_px.controls - d) * k)
+    mini.source_folds = [((a - dx) * k[0], (b - dx) * k[0], (y - dy) * k[1])
+                         for a, b, y in lay.folds]
+    if prm.double_sided:
+        mini.source_top = max(0.0, (lay.front_top - dy) * k[1])
     if debug_dir is not None:
         write_debug(Path(debug_dir), image_path.stem, stages, lay, path_px)
     return mini

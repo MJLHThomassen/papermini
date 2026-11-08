@@ -80,7 +80,7 @@ def bbox(m: np.ndarray) -> Tuple[int, int, int, int]:
     ys, xs = np.nonzero(m)
     if len(ys) == 0:
         raise ValueError("empty mask: nothing was detected as foreground "
-                         "(try a lower --threshold, a --crop, or another --model)")
+                         "(try a lower --strength, a --crop, or another --model)")
     return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
 
@@ -99,7 +99,7 @@ def connect_components(m: np.ndarray, width_px: int) -> np.ndarray:
         return m
     if k > MAX_PARTS:
         raise ValueError(f"{k} separate parts is too many to bridge (max {MAX_PARTS}); "
-                         "raise the min. part area or the threshold, or turn off keep-all")
+                         "raise the min. part area or the strength, or turn off keep-all")
     pts = []
     for c in cs:  # outline points, thinned to bound the pairwise cost
         p = c[:, 0, :].astype(np.float32)
@@ -189,7 +189,7 @@ def clean_mask(
 @dataclass
 class Params:
     height_mm: float = 42.0       # figure height, excluding margin and tab
-    margin_mm: float = 1.6        # white border between drawing and cut line
+    margin_mm: float = 1.6        # distance between drawing and cut line
     smooth_mm: float = 0.6        # Gaussian sigma that rounds the outline
     tab: bool = True
     tab_width_mm: float = 22.0    # square tab
@@ -240,6 +240,10 @@ class Layout:
     label_max_h_px: float = 0.0
     paper: Tuple[int, int, int] = (255, 255, 255)  # margin colour, RGB
     tabfill: Optional[np.ndarray] = None  # HxW bool: tab area (painted in the tab colour)
+    # where this canvas lies in the image given to build_layout, for the front side:
+    # (sx, sy, dx, dy) with image pixel = ((x - dx) * sx, (y - dy) * sy)
+    src: Tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0)
+    front_top: float = 0.0        # canvas row where the front starts (double-sided: the fold)
 
 
 def _overlap_matters(cut: np.ndarray, sil: np.ndarray, tab, fillet_px: float) -> bool:
@@ -374,6 +378,7 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
 
     ``clean`` is the 0/255 figure mask and ``rgb`` the image of the same size.
     """
+    in_h, in_w = clean.shape
     clean, rgb = limit_resolution(clean, rgb, prm.height_mm, prm.max_px_per_mm)
     x0, y0, x1, y1 = bbox(clean)
     pxmm = (y1 - y0 + 1) / prm.height_mm
@@ -474,10 +479,13 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
         tabfill[fold_row:] = (cut[fold_row:] > 0) & (fig[fold_row:] == 0)
         art[tabfill] = hex_rgb(prm.tab_color)
 
+    # canvas pixel -> input pixel: undo the padded window, this crop and the downscale
+    src = (in_w / clean.shape[1], in_h / clean.shape[0],
+           -(x0 - side + ox), -(y0 - base + oy))
     lay = Layout(art, cut, fig, pxmm, folds, labels, tw, th, y1 - y0 + 1,
                  tab_overlap_used=overlap_used, tab_joint_px=joint, tab_circles=circles,
                  label_max_w_px=label_w, label_max_h_px=label_h,
-                 paper=paper, tabfill=tabfill)
+                 paper=paper, tabfill=tabfill, src=src)
     if prm.double_sided:
         lay = _mirror_at_top(lay, sy0, bw, bcx, prm.back, hex_rgb(prm.back_color))
     return lay
@@ -527,7 +535,9 @@ def _mirror_at_top(lay: Layout, y_top: int, bw: float, bcx: float,
                                for c in ((x, h + (y - y_top), r, d), (x, h - (y - y_top), r, -d))],
                   label_max_w_px=lay.label_max_w_px,
                   label_max_h_px=lay.label_max_h_px, paper=lay.paper,
-                  tabfill=None if lay.tabfill is None else stack(lay.tabfill))
+                  tabfill=None if lay.tabfill is None else stack(lay.tabfill),
+                  # the front moved down by h - y_top rows (the mirrored back is above it)
+                  src=(*lay.src[:3], lay.src[3] + h - y_top), front_top=float(h))
 
 
 def _text_box(fig: np.ndarray) -> Tuple[float, float, float, float]:

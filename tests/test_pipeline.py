@@ -196,3 +196,35 @@ def test_cutter_bleed(figure):
     bx = pts[np.argmax(pts[:, 1]), 0]
     r, g, b, al = a[int(by * px_mm), int(bx * px_mm)]
     assert al == 255 and abs(r - 0x3b) < 8 and abs(g - 0x6e) < 8 and abs(b - 0x2a) < 8
+
+
+@pytest.mark.parametrize("size", [(700, 900), (3000, 4000)])   # the big one is downscaled
+@pytest.mark.parametrize("double_sided", [False, True])
+def test_cut_line_in_source_pixels(tmp_path, size, double_sided):
+    """The cut line drawn on the Source view: in source-image pixels, around the drawing
+    by the margin, with the tab below it (and a double-sided back above the image)."""
+    from papermini.settings import FigureSettings, build_mini
+
+    W, H = size
+    im = np.full((H, W, 3), 255, np.uint8)
+    cx, cy, ax, ay = W // 2 + W // 10, H // 2, W // 5, H // 3
+    cv2.ellipse(im, (cx, cy), (ax, ay), 0, 0, 360, (60, 60, 60), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(tmp_path / "m.png")
+    m = build_mini(tmp_path / "a.png", FigureSettings(model="mask", mask=str(tmp_path / "m.png"),
+                                                      double_sided=double_sided), log=lambda *_: None)
+    p = m.source_cut.points
+    margin = 1.6 * (2 * ay + 1) / m.figure_height_mm    # default margin, in source pixels
+    tol = 0.25 * margin
+    assert p[:, 0].min() == pytest.approx(cx - ax - margin, abs=tol)
+    assert p[:, 0].max() == pytest.approx(cx + ax + margin, abs=tol)
+    assert p[:, 1].max() > cy + ay + margin                # the tab hangs below the drawing
+    if double_sided:
+        assert p[:, 1].min() < 0                           # the mirrored back, above the image
+        assert m.source_top == pytest.approx(cy - ay - margin, abs=tol)  # front starts at the fold
+        assert any(y == pytest.approx(cy - ay - margin, abs=tol) for _, _, y in m.source_folds)
+    else:
+        assert p[:, 1].min() == pytest.approx(cy - ay - margin, abs=tol)
+        assert m.source_top == 0
+    fold_y = [y for _, _, y in m.source_folds if y > cy]
+    assert fold_y and cy + ay < fold_y[0] < p[:, 1].max()   # the tab fold, below the drawing

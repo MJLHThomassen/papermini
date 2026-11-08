@@ -7,8 +7,8 @@ from papermini.settings import (FigureEntry, FigureSettings, Project, SheetSetti
 
 
 def test_from_dict_accepts_dashes_and_rejects_unknown():
-    s = FigureSettings.from_dict({"height-mm": 30, "threshold": 60})
-    assert s.height_mm == 30 and s.threshold == 60
+    s = FigureSettings.from_dict({"height-mm": 30, "strength": 60})
+    assert s.height_mm == 30 and s.strength == 60
     with pytest.raises(ValueError, match="unknown"):
         FigureSettings.from_dict({"heigth_mm": 30})
 

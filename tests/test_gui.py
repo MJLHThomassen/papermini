@@ -82,7 +82,7 @@ def test_build_edit_and_save(app, tmp_path):
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         assert fig.mini.figure_height_mm == pytest.approx(42, abs=0.05)
-        assert fig.mini.overlay is not None
+        assert fig.mini.source_cut is not None and w.crop_view._cut_items  # on the source
         # defaults (fold and overlap 0) on a wide joint: no note under the overlap field
         assert fig.mini.tab_overlap_used and fig.mini.tab_joint_mm > 10
         assert not w.panel.overlap_hint.isVisibleTo(w.panel)
@@ -98,7 +98,7 @@ def test_build_edit_and_save(app, tmp_path):
         assert fig.entry.settings.crop == [0.1, 0.1, 0.9, 0.9]
 
         # sheet tab builds a layout
-        w.tabs.setCurrentIndex(3)
+        w.tabs.setCurrentIndex(w.SHEET)
         assert wait(app, lambda: "piece" in w.sheet_panel.info.text())
 
         from pathlib import Path
@@ -223,12 +223,13 @@ def test_review_regressions(app, tmp_path):
         assert w._build_timer.interval() == 250
 
         # 2. a wheel tick over an unfocused spin box changes nothing
-        spin = w.panel._w["threshold"][1]
-        before = spin.value()
-        ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, 120),
-                         Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
-        app.sendEvent(spin, ev)
-        assert spin.value() == before
+        field = w.panel._w["strength"][1]
+        before = field.value()
+        for part in (field.slider, field.spin):  # nor over an unfocused slider
+            ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, 120),
+                             Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+            app.sendEvent(part, ev)
+        assert field.value() == before
 
         # 3. copies only change the sheet: same Mini object, no rebuild
         mini = fig.mini
@@ -585,7 +586,7 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         fig = w.current()
         assert wait(app, lambda: fig.error is not None, 30)
         assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
-        assert "Models" in w.banner.text.text() and "lower threshold" not in w.banner.text.text()
+        assert "Models" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
         assert model_cache == []
         assert w._confirm_download("birefnet-lite") is False   # declined: not asked again
         assert asked == ["birefnet-lite"]
@@ -635,3 +636,393 @@ def test_licences_are_links(app, model_cache):
     card = dlg.cards["birefnet"]
     assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
     assert card.licence.openExternalLinks()
+
+
+def test_no_figure_hides_the_settings(app, tmp_path):
+    """Regression: with no figure selected the whole form stayed visible, greyed out,
+    under a small heading (the sections were looked up before they had a parent)."""
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
+    w = MainWindow()
+    try:
+        p = w.panel
+        shown = lambda x: x.isVisibleTo(p)  # noqa: E731
+        assert len(p.sections) > 3
+        assert shown(p.empty_box) and p.empty_title.text() == "No figure selected"
+        assert "Add images" in p.empty_text.text()
+        assert not any(shown(s) for s in p.sections + [p.apply_all, p.title, p.subtitle])
+        assert p.isEnabled()  # a disabled panel would grey out the message too
+
+        w.add_images([tmp_path / "a.png"])
+        assert not shown(p.empty_box) and all(shown(s) for s in p.sections)
+        assert shown(p.title) and shown(p.apply_all)
+
+        w.list.setCurrentRow(-1)  # figures, but none selected
+        assert shown(p.empty_box) and "Select a figure" in p.empty_text.text()
+        assert not any(shown(s) for s in p.sections)
+
+        w.list.setCurrentRow(0)
+        w.remove_current()
+        assert shown(p.empty_box) and "Add images" in p.empty_text.text()
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_decimal_fields_take_a_point_in_any_locale(app):
+    """Regression: on a system with a decimal comma (e.g. Dutch) the fields showed
+    "42,00 mm" and a typed "12.5" was not read as 12.5."""
+    from PySide6.QtCore import QLocale, Qt
+    from PySide6.QtTest import QTest
+
+    from papermini.gui.panels import DoubleSpinBox, FigurePanel
+
+    old = QLocale()
+    QLocale.setDefault(QLocale(QLocale.Dutch, QLocale.Netherlands))
+    try:
+        p = FigurePanel()
+        p.set_settings(FigureSettings(height_mm=42), "x", "x")
+        box = p._w["height_mm"][1]
+        assert isinstance(box, DoubleSpinBox) and box.text() == "42.00 mm"
+        for typed in ("12.5", "12,5"):
+            box.lineEdit().selectAll()
+            QTest.keyClicks(box.lineEdit(), typed)
+            QTest.keyClick(box.lineEdit(), Qt.Key_Return)
+            assert box.value() == 12.5 and box.text() == "12.50 mm", typed
+        assert p.settings().height_mm == 12.5
+    finally:
+        QLocale.setDefault(old)
+
+
+def test_source_view_shows_the_cut_line(app, tmp_path):
+    """The Cut-away view is gone: the Source view draws the cut line on the original
+    image instead, and forgets it when another image is shown."""
+    from papermini.gui.views import load_qimage
+    from papermini.gui.window import MainWindow
+
+    im = np.full((900, 700, 3), 255, np.uint8)
+    cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "b.png")
+    w = MainWindow()
+    try:
+        assert [w.tabs.tabText(i) for i in range(w.tabs.count())] ==             ["Miniature", "Source", "Print sheet"]
+        assert w.tabs.tabText(w.SHEET) == "Print sheet"
+        w.add_images([tmp_path / "a.png"])
+        fig = w.current()
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        cv = w.crop_view
+        shade, clip, folds = cv._cut_items
+        assert shade.scene() is cv.scene() and len(clip.childItems()) == 1   # the cut line
+        assert folds.path().elementCount() == 2                               # the tab fold
+        r = clip.childItems()[0].path().boundingRect()
+        assert 120 < r.left() < 150 and 120 < r.top() < 150                 # 150 - margin
+
+        cv.refresh_theme()                                 # redrawn, not duplicated
+        assert len(cv._cut_items) == 3
+        cv.set_image(load_qimage(tmp_path / "b.png"))    # another image: no stale cut line
+        assert cv._cut is None and cv._cut_items == []
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_closed_window_never_asks_to_download(app, monkeypatch):
+    """Regression: a build waiting for the download question when the window closed
+    left the question queued, and a later event loop opened a real dialog for it."""
+    from PySide6.QtCore import QRunnable
+
+    from papermini.gui.window import MainWindow
+
+    asked = []  # (an exception raised in a Qt slot would only be printed)
+
+    class Dialog:
+        def __init__(self, model, parent=None):
+            asked.append(model)
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr("papermini.gui.window.DownloadDialog", Dialog)
+    w = MainWindow()
+    got = []
+    w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
+    time.sleep(0.2)          # the question is queued; the window closes before it is shown
+    w._modified = False
+    w.close()
+    assert got == [False]
+    for _ in range(20):      # deliver the stale question: it must be dropped
+        app.processEvents()
+        time.sleep(0.01)
+    assert asked == []
+
+
+def test_logo_in_the_header_welcome_card_and_window_icon(app):
+    from PySide6.QtCore import QSize
+
+    from papermini.gui import theme
+    from papermini.gui.window import MainWindow
+
+    def colours(pm):
+        img = pm.toImage()
+        return {img.pixelColor(x, y).name() for x in range(img.width()) for y in range(img.height())
+                if img.pixelColor(x, y).alpha() == 255}
+
+    assert theme.LOGO.is_file()  # shipped as package data (pyproject.toml, papermini.spec)
+    pm = theme.logo_pixmap(64)
+    assert pm.width() == 128  # 2x for sharp rendering on high-DPI screens
+    assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colours(pm)  # full colour, not a line icon
+    assert pm.toImage().pixelColor(0, 0).alpha() == 0  # transparent around the sticker
+
+    sizes = theme.app_icon().availableSizes()
+    assert QSize(16, 16) in sizes and QSize(256, 256) in sizes
+
+    w = MainWindow()
+    try:
+        assert "#fd3c1b" in colours(w.logo.pixmap())
+        assert "#fd3c1b" in colours(w.empty.icon.pixmap())
+        w.set_theme("dark")  # re-theming must not swap the logo for a tinted line icon
+        assert "#fd3c1b" in colours(w.logo.pixmap())
+        assert "#fd3c1b" in colours(w.empty.icon.pixmap())
+    finally:
+        w.close()
+
+
+def test_strength_and_gap_filling_sliders(app):
+    """Strength and gap filling are sliders with a number box; gap filling has an
+    Auto checkbox (it used to be a spin box where 0 meant auto, so 0 = off was impossible)."""
+    from papermini.gui.panels import FigurePanel
+
+    p = FigurePanel()
+    p.set_settings(FigureSettings(strength=60, fill_gaps=None), "x", "x")
+    th, cl = p._w["strength"][1], p._w["fill_gaps"][1]
+    assert th.slider.value() == th.spin.value() == 60 and th.auto is None
+    assert cl.auto.isChecked() and not cl.slider.isEnabled() and not cl.spin.isEnabled()
+    got = []
+    p.changed.connect(got.append)
+
+    th.slider.setValue(80)                       # slider and box stay in step
+    assert th.spin.value() == 80 and got[-1].strength == 80
+    th.spin.setValue(25)
+    assert th.slider.value() == 25 and got[-1].strength == 25
+
+    p.set_auto_fill_gaps(14)                         # what the last build picked
+    assert cl.spin.value() == 14 and p.settings().fill_gaps is None
+    cl.auto.setChecked(False)                    # carry on from the automatic value
+    assert cl.slider.isEnabled() and got[-1].fill_gaps == 14
+    cl.slider.setValue(0)                        # 0 = no gap filling, now possible
+    assert got[-1].fill_gaps == 0
+    cl.spin.setValue(300)                        # past the slider's end: typed in the box
+    assert got[-1].fill_gaps == 300 and cl.slider.value() == cl.slider.maximum()
+    cl.auto.setChecked(True)
+    assert got[-1].fill_gaps is None and cl.spin.value() == 14
+
+    p.set_settings(FigureSettings(fill_gaps=0), "x", "x")
+    assert not cl.auto.isChecked() and cl.spin.value() == 0 and p.settings().fill_gaps == 0
+
+
+def test_start_card_offers_images_and_a_project(app, monkeypatch):
+    from papermini.gui import window
+    from papermini.gui.window import MainWindow
+
+    asked = []
+    monkeypatch.setattr(window.QFileDialog, "getOpenFileNames",
+                        lambda parent, caption, folder, filters: (asked.append((caption, filters)), ([], ""))[1])
+    w = MainWindow()
+    try:
+        assert w.empty.button.text() == "Add images…"
+        assert w.empty.open_button.text() == "Open project…"
+        w.empty.button.click()
+        w.empty.open_button.click()
+        assert asked[0][0] == "Add images"
+        assert asked[1][1].startswith(window.PROJECT_FILTER)  # projects listed first
+    finally:
+        w.close()
+
+
+def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_path):
+    import io
+    import urllib.request
+
+    from pathlib import Path
+
+    from PySide6.QtCore import QMimeData, QUrl
+
+    from papermini import remote
+    from papermini.gui import window
+    from papermini.gui.window import MainWindow
+
+    buf = io.BytesIO()
+    Image.new("RGBA", (200, 300), (200, 40, 30, 255)).save(buf, "WEBP")
+    site = {"https://example.com/img/goblin.webp": buf.getvalue()}
+    asked = []
+
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.close()
+
+    def urlopen(req, timeout=None):
+        asked.append(req.full_url)
+        if req.full_url not in site:
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+        return Resp(site[req.full_url])
+
+    import urllib.error
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    warned = []
+    monkeypatch.setattr(window.QMessageBox, "warning", lambda *a: warned.append(a[2]))
+    w = MainWindow()
+    try:
+        url = "https://example.com/img/goblin.webp"
+        w.add_links([url])                       # downloads in the background
+        assert wait(app, lambda: len(w.figures) == 1)
+        fig = w.figures[0]
+        assert fig.entry.source == url and fig.entry.image == remote.cached_image(url)
+        assert w.list.item(0).toolTip() == url and w.list.item(0).text() == "goblin"
+
+        w.add_links(["https://example.com/gone.png"])
+        assert wait(app, lambda: warned)
+        assert "404" in warned[0] and len(w.figures) == 1
+
+        # a picture copied in a browser: the HTML has the image's own address, while the
+        # URL is often the page it links to; the image address wins
+        mime = QMimeData()
+        mime.setHtml(f'<a href="https://example.com/page"><img alt="g" src="{url}"></a>')
+        mime.setUrls([QUrl("https://example.com/page"), QUrl.fromLocalFile(str(tmp_path / "a.png"))])
+        files, links = MainWindow._sources(mime)
+        assert links == [url] and [Path(f) for f in files] == [tmp_path / "a.png"]
+
+        n = len(asked)
+        QApplication.clipboard().setText(url)
+        w.paste()                                 # Ctrl+V outside a text field
+        assert len(w.figures) == 2 and len(asked) == n  # second time from the cache
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
+    """Paste a link in the bar above the figures and press Enter (or Add) to add it.
+    The add-images button sits in the figure list, not in the header."""
+    from PySide6.QtWidgets import QFrame, QToolButton
+
+    from papermini.gui.window import MainWindow
+
+    w = MainWindow()
+    try:
+        header_tips = [b.toolTip() for b in w.findChild(QFrame, "Header").findChildren(QToolButton)]
+        assert not any("Add images" in t for t in header_tips)
+        left = w.splitter.widget(0)
+        assert any("Add images" in b.toolTip() for b in left.findChildren(QToolButton))
+        assert w.link_edit.parent() is left and not w.link_add.isEnabled()
+        lay = left.layout()
+        row = [i for i in range(lay.count()) if lay.itemAt(i).layout()
+               and lay.itemAt(i).layout().indexOf(w.link_edit) >= 0]
+        assert row and row[0] < lay.indexOf(w.list)          # right above the list
+
+        added = []
+        monkeypatch.setattr(w, "add_links", lambda links, *a: added.append(links))
+        url = "https://example.com/art/goblin.webp"
+        w.link_edit.setText(f"  {url} ")
+        assert w.link_add.isEnabled()
+        w.link_edit.returnPressed.emit()
+        assert added == [[url]] and w.link_edit.text() == ""
+
+        w.link_edit.setText("goblin.webp")              # not a link: kept, nothing added
+        w.link_add.click()
+        assert added == [[url]] and w.link_edit.text() == "goblin.webp"
+        assert "not a link" in w.statusBar().currentMessage()
+
+        w.link_edit.clear()
+        QApplication.clipboard().setText(url)
+        w.set_side_visible(0, False)
+        w.a_add_link.trigger()                          # Ctrl+L: shows the list, fills in the link
+        assert w.side_visible(0) and w.link_edit.text() == url
+        w.empty.link_button.click()                     # the start card's link does the same
+        assert w.link_edit.text() == url
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_print_is_true_to_size_and_follows_the_page_range(app):
+    """The printed sheet must be exactly to scale: its 50 mm bar is 50 mm on paper."""
+    from PySide6.QtGui import QColor, QImage
+
+    from papermini.gui.views import print_sheet
+    from papermini.mini import Mini
+    from papermini.geometry import CutPath
+    from papermini.sheet import pack
+
+    class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
+        def __init__(self, first=0, last=0):
+            super().__init__(round(210 / 25.4 * 100), round(297 / 25.4 * 100), QImage.Format_RGB32)
+            self.fill(0xFF808080)
+            self.range, self.pages = (first, last), 1
+
+        def fromPage(self):
+            return self.range[0]
+
+        def toPage(self):
+            return self.range[1]
+
+        def resolution(self):
+            return 100
+
+        def newPage(self):
+            self.pages += 1
+            return True
+
+    sq = CutPath(np.array([[0, 0], [30, 0], [30, 40], [0, 40]], float))
+    m = Mini("m", 30, 40, Image.new("RGBA", (300, 400), (200, 40, 30, 255)), sq)
+    lay = pack([(m, 30)], "a4", 12, 7)
+    assert lay.pages > 1
+    pr = ImagePrinter()
+    assert print_sheet(pr, lay, "test", 12) == lay.pages == pr.pages
+    k = 100 / 25.4
+    y = round((12 + lay.header_mm - 4) * k)             # the scale bar's row
+    dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
+    end = next(a for a, b in zip(dark, dark[1:] + [None]) if b != a + 1)  # the bar alone,
+    assert abs(dark[0] - 12 * k) <= 2 and abs(end - 62 * k) <= 2  # not the "50 mm" next to it
+    assert QColor(pr.pixel(2, 2)).lightness() > 250       # white paper from the very corner
+
+    pr = ImagePrinter(2, 2)                                # "pages 2 to 2" in the dialog
+    assert print_sheet(pr, lay, "test", 12) == 1 and pr.pages == 1
+
+
+def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
+    from PySide6.QtPrintSupport import QPrinter
+
+    from papermini.gui.window import MainWindow
+
+    im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
+    from PIL import ImageDraw
+    ImageDraw.Draw(im).ellipse((30, 30, 270, 420), fill=(200, 40, 30, 255))
+    im.save(tmp_path / "hero.png")
+    out = tmp_path / "printed.pdf"
+    seen = []
+
+    def fake_dialog(self, printer, pages):  # instead of the system print dialog
+        seen.append((printer.fullPage(), printer.pageLayout().pageSize().id(), pages))
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(str(out))
+        return True
+
+    monkeypatch.setattr(MainWindow, "_print_dialog", fake_dialog)
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "hero.png"])
+        w.tabs.setCurrentIndex(w.SHEET)
+        assert w.sheet_panel.print_btn.isVisibleTo(w.sheet_panel)
+        w.sheet_panel.print_btn.click()                   # builds first if needed, then prints
+        assert wait(app, lambda: out.exists() and out.stat().st_size > 1000)
+        from PySide6.QtGui import QPageSize
+        assert seen == [(True, QPageSize.A4, 1)]          # true size on the sheet's paper
+        assert out.read_bytes().startswith(b"%PDF")
+    finally:
+        w._modified = False
+        w.close()

@@ -5,13 +5,14 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Dict
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QScrollArea, QSpinBox, QToolButton, QVBoxLayout,
-                               QWidget)
+                               QPushButton, QScrollArea, QSlider, QSpinBox, QToolButton,
+                               QVBoxLayout, QWidget)
 
+from .. import remote
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
 
@@ -23,7 +24,8 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 # Groups follow the workflow: how big and how many, how the figure is found,
 # the outline/cut line around it, the stand tab, its label, and the back.
 # (field, label, kind, extra) - kind: f=float, i=int, b=bool, c=choice, s=str,
-# col=colour, heading=sub-heading inside a group (not a setting)
+# col=colour, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
+# heading=sub-heading inside a group (not a setting)
 SECTIONS = [
     ("Print", [
         ("height_mm", "Figure height", "f", (5, 400, 1, 2, " mm")),
@@ -34,15 +36,15 @@ SECTIONS = [
         ("model", "Model", "model", None),
         ("mask", "Mask image file", "file", None),
         ("crop", "Crop", "crop", None),
-        ("threshold", "Threshold", "i", (0, 254, 1, " /255")),
-        ("close", "Closing radius", "close", None),
+        ("strength", "Strength", "slider", (0, 254, 254, "", False)),
+        ("fill_gaps", "Gap filling", "slider", (0, 1000, 40, " px", True)),
         ("keep_all", "Keep detached parts", "b", None),
         ("min_area", "Min. part area", "i", (0, 10_000_000, 100, " px")),
     ]),
     ("Outline and cut line", [
         ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
-        ("margin_fill", "Margin fill", "c", [("color", "Colour"), ("image", "Original image")]),
-        ("margin_color", "Margin colour", "col", None),
+        ("margin_fill", "Margin fill type", "c", [("color", "Colour"), ("image", "Original image")]),
+        ("margin_color", "Margin fill colour", "col", None),
         ("smooth_mm", "Outline smoothing", "f", (0, 5, 0.1, 2, " mm")),
         ("_cut_line", "Cut line", "heading", None),
         ("no_smooth", "Straight segments only (no curves)", "b", None),
@@ -95,16 +97,20 @@ TIPS = {
     "mask": "Your own mask image: white = figure, black = background, same picture size.",
     "crop": "Only this region is searched for the figure (x0,y0,x1,y1, fractions or px).\n"
             "Drag a box on the Source / crop tab to set it.",
-    "threshold": "How sure the model must be that a pixel is figure (0-255).\n"
-                 "Lower keeps faint pencil lines; higher drops more background.",
-    "close": "Closes small gaps in the silhouette. auto scales with the image (9 px at 1400 px).",
+    "strength": "How sure the model must be that a pixel belongs to the figure (0-254).\n"
+                "Lower keeps faint pencil lines; higher removes more background.",
+    "fill_gaps": "Fills gaps and notches in the outline up to this size (0 = off).\n"
+                 "Auto scales with the image: 9 px at 1400 px.",
     "keep_all": "Keep separate parts (a floating prop) and join them with bridges,\n"
                 "instead of keeping only the largest part.",
     "min_area": "With 'keep detached parts': smaller parts than this are dropped as specks.",
-    "margin_mm": "White border between the drawing and the cut line.",
-    "margin_fill": "Colour: the margin colour below; Original image: the picture around the\n"
-                   "figure shows in the margin.",
-    "margin_color": "Colour of the margin around the drawing.",
+    "margin_mm": "Distance between the drawing and the cut line. The margin is filled\n"
+                 "with a colour or the original image (see Margin fill type).",
+    "margin_fill": "What fills the margin, the strip between the cut-out drawing and its\n"
+                   "cut line:\n"
+                   "Colour: one solid colour (Margin fill colour).\n"
+                   "Original image: the picture around the figure, as it is in the image.",
+    "margin_color": "The colour of the margin between the drawing and the cut line.",
     "smooth_mm": "Rounds the outline; higher values give a calmer cut line.",
     "no_smooth": "Cut line made of straight segments instead of smooth curves.",
     "simplify_mm": "How far the cut line may deviate to use fewer points.",
@@ -162,12 +168,111 @@ class SpinBox(_WheelGuard, QSpinBox):
         self.lineEdit().setTextMargins(5, 0, 0, 0)  # line up with combo box text
 
 
+class Slider(_WheelGuard, QSlider):
+    def __init__(self, parent=None):
+        super().__init__(Qt.Horizontal, parent)
+        self._init_guard()
+
+
+class SliderField(QWidget):
+    """A slider with a number box beside it for exact values. With ``auto`` an "Auto"
+    checkbox goes underneath (so all sliders line up): while it is ticked the slider shows
+    the automatic value greyed out and ``value()`` is None."""
+
+    valueChanged = Signal()
+
+    def __init__(self, lo: int, hi: int, slider_hi: int, suffix: str = "", auto: bool = False,
+                 auto_value: int = 9, parent=None):
+        super().__init__(parent)
+        self._auto_value = auto_value
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(6)
+        h = QHBoxLayout()
+        h.setSpacing(10)
+        v.addLayout(h)
+        self.auto = QCheckBox("Auto (scales with the image)") if auto else None
+        self.slider = Slider()
+        self.slider.setRange(lo, min(hi, slider_hi))  # larger values: type them in the box
+        self.slider.setPageStep(max(1, (slider_hi - lo) // 10))
+        self.spin = SpinBox()
+        self.spin.setRange(lo, hi)
+        self.spin.setSuffix(suffix)
+        self.spin.setFixedWidth(64)
+        h.addWidget(self.slider, 1)
+        h.addWidget(self.spin)
+        if self.auto is not None:
+            self.auto.toggled.connect(self._auto_toggled)
+            v.addWidget(self.auto)
+        self.slider.valueChanged.connect(self._changed)
+        self.spin.valueChanged.connect(self._changed)
+
+    def is_auto(self) -> bool:
+        return self.auto is not None and self.auto.isChecked()
+
+    def value(self):
+        return None if self.is_auto() else self.spin.value()
+
+    def setValue(self, v) -> None:
+        if self.auto is not None:
+            self.auto.blockSignals(True)
+            self.auto.setChecked(v is None)
+            self.auto.blockSignals(False)
+        self._show(self._auto_value if v is None else v)
+        self._sync_enabled()
+
+    def set_auto_value(self, v: int) -> None:
+        self._auto_value = v
+        if self.is_auto():
+            self._show(v)
+
+    def _show(self, v: int) -> None:
+        for w in (self.slider, self.spin):
+            w.blockSignals(True)
+            w.setValue(v)  # the slider stops at its end for larger typed values
+            w.blockSignals(False)
+
+    def _sync_enabled(self) -> None:
+        for w in (self.slider, self.spin):
+            w.setEnabled(not self.is_auto())
+
+    def _changed(self, v: int) -> None:
+        self._show(v)
+        self.valueChanged.emit()
+
+    def _auto_toggled(self, on: bool) -> None:
+        if on:
+            self._show(self._auto_value)
+        self._sync_enabled()  # unticked: carry on from the automatic value
+        self.valueChanged.emit()
+
+
+def _point_locale() -> QLocale:
+    """Numbers with a "." decimal point and no thousands separators, whatever the
+    system locale: the same as the command line, project files and crop field."""
+    loc = QLocale.c()
+    loc.setNumberOptions(QLocale.OmitGroupSeparator | QLocale.RejectGroupSeparator)
+    return loc
+
+
 class DoubleSpinBox(_WheelGuard, QDoubleSpinBox):
+    """Shows and accepts "." as the decimal point; a typed "," becomes "." too."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._init_guard()
+        self.setLocale(_point_locale())
         self.setKeyboardTracking(False)
         self.lineEdit().setTextMargins(5, 0, 0, 0)  # line up with combo box text
+
+    def validate(self, text, pos):
+        return super().validate(text.replace(",", "."), pos)
+
+    def fixup(self, text):
+        return super().fixup(text.replace(",", "."))
+
+    def valueFromText(self, text):
+        return super().valueFromText(text.replace(",", "."))
 
 
 class ComboBox(_WheelGuard, QComboBox):
@@ -268,8 +373,33 @@ class FigurePanel(QScrollArea):
         lay.addWidget(self.subtitle)
         lay.addSpacing(8)
 
+        # shown instead of the settings when no figure is selected
+        self.empty_box = QWidget()
+        self.empty_box.setObjectName("PanelEmpty")
+        ev = QVBoxLayout(self.empty_box)
+        ev.setContentsMargins(12, 0, 12, 0)
+        ev.setSpacing(10)
+        self.empty_icon = QLabel()
+        self.empty_icon.setAlignment(Qt.AlignCenter)
+        self.empty_title = QLabel("No figure selected")
+        self.empty_title.setObjectName("EmptyTitle")
+        self.empty_title.setAlignment(Qt.AlignCenter)
+        self.empty_text = QLabel()
+        self.empty_text.setObjectName("Muted")
+        self.empty_text.setAlignment(Qt.AlignCenter)
+        self.empty_text.setWordWrap(True)
+        ev.addStretch(2)
+        for w in (self.empty_icon, self.empty_title, self.empty_text):
+            ev.addWidget(w)
+        ev.addStretch(3)  # a little above the middle looks centred
+        lay.addWidget(self.empty_box, 1)
+        self.refresh_icons()
+
+        sections = []
+
         for title, items in SECTIONS:
             box = Section(title)
+            sections.append(box)
             form = QFormLayout(box.body)
             form.setContentsMargins(2, 0, 0, 0)
             form.setHorizontalSpacing(12)
@@ -310,7 +440,7 @@ class FigurePanel(QScrollArea):
         widest = max((lab.sizeHint().width() for lab in labels), default=0)
         for lab in labels:
             lab.setMinimumWidth(widest)
-        self.sections = self.findChildren(Section)
+        self.sections = sections
         self.copies = self._w["copies"][1]
         lay.addSpacing(12)
         self.apply_all = QPushButton("Apply to all figures")
@@ -320,14 +450,17 @@ class FigurePanel(QScrollArea):
         lay.addWidget(self.apply_all)
         lay.addStretch()
         self.setWidget(body)
-        self.setEnabled(False)
         self.set_empty(True)
 
-    def set_empty(self, empty: bool):
-        """No figure selected: only the heading, not a wall of disabled fields."""
-        for sec in self.sections:
-            sec.setVisible(not empty)
-        self.apply_all.setVisible(not empty)
+    def set_empty(self, empty: bool, message: str = "Add images to see their settings here."):
+        """No figure selected: a clear message instead of a wall of disabled fields."""
+        for w in [self.title, self.subtitle, self.apply_all] + self.sections:
+            w.setVisible(not empty)
+        self.empty_box.setVisible(empty)
+        self.empty_text.setText(message)
+
+    def refresh_icons(self):
+        self.empty_icon.setPixmap(theme.pixmap("sliders", theme.current.muted, 40))
 
     # ----------------------------------------------------------------- widgets
     def _make(self, name: str, kind: str, extra):
@@ -348,12 +481,9 @@ class FigurePanel(QScrollArea):
             w.setSuffix(suffix)
             w.setKeyboardTracking(False)
             w.valueChanged.connect(self._emit)
-        elif kind == "close":
-            w = SpinBox()
-            w.setRange(0, 1000)
-            w.setSuffix(" px")
-            w.setSpecialValueText("auto")
-            w.setKeyboardTracking(False)
+        elif kind == "slider":
+            lo, hi, slider_hi, suffix, auto = extra
+            w = SliderField(lo, hi, slider_hi, suffix, auto)
             w.valueChanged.connect(self._emit)
         elif kind == "b":
             w = QCheckBox(dict((n, l) for _, its in SECTIONS for n, l, *_ in its)[name])
@@ -419,7 +549,7 @@ class FigurePanel(QScrollArea):
 
     def _browse_mask(self, edit: QLineEdit):
         f, _ = QFileDialog.getOpenFileName(self, "Mask image (white = figure)", "",
-                                           "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)")
+                                           remote.IMAGE_FILTER)
         if f:
             edit.setText(f)
             self._emit()
@@ -434,8 +564,8 @@ class FigurePanel(QScrollArea):
                 v = getattr(s, name)
                 if kind in ("f", "i"):
                     w.setValue(v)
-                elif kind == "close":
-                    w.setValue(v or 0)
+                elif kind == "slider":
+                    w.setValue(v)
                 elif kind == "b":
                     w.setChecked(bool(v))
                 elif kind == "c":
@@ -455,7 +585,6 @@ class FigurePanel(QScrollArea):
                     self.no_label.setChecked(v == "")
                     w.setText(v or "")
             self._sync_visible()
-            self.setEnabled(True)
             self.set_empty(False)
             self._shown = self._read()
         finally:
@@ -473,8 +602,8 @@ class FigurePanel(QScrollArea):
         for name, (kind, w) in self._w.items():
             if kind in ("f", "i"):
                 vals[name] = w.value()
-            elif kind == "close":
-                vals[name] = w.value() or None
+            elif kind == "slider":
+                vals[name] = w.value()
             elif kind == "b":
                 vals[name] = w.isChecked()
             elif kind == "c":
@@ -507,6 +636,10 @@ class FigurePanel(QScrollArea):
         if show:
             self.overlap_hint.setText(self.OVERLAP_HINTS[kind].format(joint=joint))
         self.overlap_hint.setVisible(show)
+
+    def set_auto_fill_gaps(self, px: int):
+        """The gap filling the last build picked automatically, shown while Auto is on."""
+        self._w["fill_gaps"][1].set_auto_value(px)
 
     def set_crop(self, crop):
         """Crop set from the Source tab."""
@@ -586,9 +719,10 @@ def _parse_crop_text(text: str, old):
 
 
 class SheetPanel(QWidget):
-    """Paper, title, margins - edits a SheetSettings."""
+    """Paper, title, margins - edits a SheetSettings - and a Print button."""
 
     changed = Signal(object)
+    printClicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -624,6 +758,11 @@ class SheetPanel(QWidget):
         self.info = QLabel()
         self.info.setObjectName("Muted")
         h.addWidget(self.info)
+        self.print_btn = QPushButton("Print…")
+        self.print_btn.setToolTip("Print the sheet at its real size  (Ctrl+Shift+P)")
+        self.print_btn.setCursor(Qt.PointingHandCursor)
+        self.print_btn.clicked.connect(self.printClicked)
+        h.addWidget(self.print_btn)
         self.paper.currentTextChanged.connect(self._emit)
         self.title.editingFinished.connect(self._emit)
         self.margin.valueChanged.connect(self._emit)

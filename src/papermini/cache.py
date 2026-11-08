@@ -4,7 +4,7 @@ Stages and what invalidates them:
 
 * image     - the file (path, size, mtime)
 * raw mask  - image + model (auto/alpha/AI model/mask file) + crop
-* clean     - raw mask + threshold, closing, keep-all, min-area
+* clean     - raw mask + strength, gap filling, keep-all, min-area
 * working   - clean + figure height (bounded working resolution)
 * layout    - working + shape settings (margin, tab, ...) -> cut shape and path
 

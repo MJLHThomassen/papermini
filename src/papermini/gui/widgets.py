@@ -147,20 +147,22 @@ class EmptyState(QFrame):
     """Shown on the canvas when there is nothing to preview yet."""
 
     addClicked = Signal()
+    openClicked = Signal()
+    linkClicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("EmptyCard")
         v = QVBoxLayout(self)
-        v.setContentsMargins(40, 32, 40, 32)
+        v.setContentsMargins(28, 32, 28, 32)
         v.setSpacing(10)
         self.icon = QLabel()
         self.icon.setAlignment(Qt.AlignCenter)
         title = QLabel("Start with a drawing")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignCenter)
-        text = QLabel("Drop images or a project (.yaml) anywhere in this window, "
-                      "or pick them from your computer.")
+        text = QLabel("Drop images, image links or a project (.yaml) anywhere in this "
+                      "window, or pick them from your computer.")
         text.setObjectName("Muted")
         text.setAlignment(Qt.AlignCenter)
         text.setWordWrap(True)
@@ -169,14 +171,28 @@ class EmptyState(QFrame):
         self.button.setProperty("primary", True)
         self.button.setCursor(Qt.PointingHandCursor)
         self.button.clicked.connect(self.addClicked)
+        self.open_button = QPushButton("Open project…")
+        self.open_button.setCursor(Qt.PointingHandCursor)
+        self.open_button.clicked.connect(self.openClicked)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addStretch(1)
+        buttons.addWidget(self.button)
+        buttons.addWidget(self.open_button)
+        buttons.addStretch(1)
+        self.link_button = QPushButton("or add from a link…")
+        self.link_button.setObjectName("LinkButton")
+        self.link_button.setCursor(Qt.PointingHandCursor)
+        self.link_button.clicked.connect(self.linkClicked)
         v.addWidget(self.icon)
         v.addWidget(title)
         v.addWidget(text)
         v.addSpacing(6)
-        v.addWidget(self.button, 0, Qt.AlignCenter)
+        v.addLayout(buttons)
+        v.addWidget(self.link_button, 0, Qt.AlignCenter)
 
     def refresh_icons(self):
-        self.icon.setPixmap(theme.pixmap("logo", theme.current.accent, 56))
+        self.icon.setPixmap(theme.logo_pixmap(104))
 
 
 class Banner(QFrame):
