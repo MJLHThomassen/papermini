@@ -897,9 +897,7 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
         assert links == [url] and [Path(f) for f in files] == [tmp_path / "a.png"]
 
         n = len(asked)
-        clip = QMimeData()
-        clip.setText(url)
-        QApplication.clipboard().setMimeData(clip)
+        QApplication.clipboard().setText(url)
         w.paste()                                 # Ctrl+V outside a text field
         assert len(w.figures) == 2 and len(asked) == n  # second time from the cache
     finally:
@@ -910,7 +908,6 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
 def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
     """Paste a link in the bar above the figures and press Enter (or Add) to add it.
     The add-images button sits in the figure list, not in the header."""
-    from PySide6.QtCore import QMimeData
     from PySide6.QtWidgets import QFrame, QToolButton
 
     from papermini.gui.window import MainWindow
@@ -941,9 +938,7 @@ def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
         assert "not a link" in w.statusBar().currentMessage()
 
         w.link_edit.clear()
-        clip = QMimeData()
-        clip.setText(url)
-        QApplication.clipboard().setMimeData(clip)
+        QApplication.clipboard().setText(url)
         w.set_side_visible(0, False)
         w.a_add_link.trigger()                          # Ctrl+L: shows the list, fills in the link
         assert w.side_visible(0) and w.link_edit.text() == url
