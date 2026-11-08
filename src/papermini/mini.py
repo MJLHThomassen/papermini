@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -13,6 +13,7 @@ from PIL import Image, ImageOps
 
 from . import cache
 from . import geometry as geo
+from . import adjust as adj_mod
 from .segment import DEFAULT_MODEL, check_cancel, compute_mask, has_alpha, parse_crop
 
 
@@ -45,6 +46,8 @@ class Mini:
     # extra text lines: (text, cx, cy, rotation, size_mm) - e.g. the back of a double-sided mini
     texts: List[Tuple[str, float, float, float, float]] = field(default_factory=list)
     figure_height_mm: float = 0.0            # measured height of the drawing (one side)
+    figure_width_mm: float = 0.0             # measured width of the drawing
+    aspect: float = 1.0                      # width / height of the drawing in the image
     tab_overlap_used: bool = True            # False: the tab overlap changed nothing here
     tab_joint_mm: float = 0.0                # paper joining tab and figure (0: no tab)
     tab_width_mm: float = 0.0
@@ -54,6 +57,8 @@ class Mini:
     source_cut: Optional[geo.CutPath] = None
     source_folds: List[Tuple[float, float, float]] = field(default_factory=list)
     source_top: float = 0.0  # above this row the piece is the double-sided back, not the image
+    # what background removal found (outer edges and holes), in source image pixels
+    source_outline: List[np.ndarray] = field(default_factory=list)
 
     def png_bytes(self) -> bytes:
         buf = io.BytesIO()
@@ -152,12 +157,18 @@ def make_mini(
     simplify_mm: float = 0.15,
     smooth_path: bool = True,
     bleed_mm: float = 0.0,
+    adjust: Optional[adj_mod.Adjustments] = None,
     use_cache: bool = True,
     style: Optional[Style] = None,
     debug_dir: Optional[Path] = None,
     log=print,
+    on_stage=None,
 ) -> Mini:
+    """Build one miniature. ``on_stage(name, data)``, if given, hears about progress:
+    ``("segment", model)`` just before a model runs (it may take a while) and
+    ``("outline", (contours, close_px))`` once the figure is found, before the layout."""
     image_path = Path(image_path)
+    stage = on_stage or (lambda *_: None)
     style = style or Style()
     fkey = cache.file_key(image_path)
     im, data, rgb, transparent = cache.images.get_or_make(fkey, lambda: _load_for_pipeline(image_path))
@@ -186,6 +197,8 @@ def make_mini(
                 keep[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
                 raw = keep
         else:
+            if model != "alpha":
+                stage("segment", model)
             raw = compute_mask(im, model, box, use_cache=use_cache, image_bytes=data)
         raw = cache.raw_masks.put(raw_key, _frozen(raw))
 
@@ -201,10 +214,30 @@ def make_mini(
         clean = cache.clean_masks.get_or_make(clean_key, lambda: _frozen(
             geo.clean_mask(raw, threshold, close_px, prm.keep_all, min_area)))
 
-    # 2b. bounded working resolution for this figure height
-    work_key = (clean_key, prm.height_mm, prm.max_px_per_mm)
-    clean, rgb = cache.working.get_or_make(work_key, lambda: tuple(
-        _frozen(a) for a in geo.limit_resolution(clean, rgb, prm.height_mm, prm.max_px_per_mm)))
+    close_used = geo.default_close_px(raw.shape[1], raw.shape[0]) if close_px is None else close_px
+    contours = geo.outline(clean)
+    stage("outline", (contours, close_used))
+
+    # 2b. size (by height, by width, or both: stretched sideways), then a bounded
+    # working resolution for that size
+    bx0, by0, bx1, by1 = geo.bbox(clean)
+    bw, bh = bx1 - bx0 + 1, by1 - by0 + 1
+    height_mm, stretch = geo.figure_size(bw, bh, prm.height_mm, prm.width_mm)
+    prm = replace(prm, height_mm=height_mm, width_mm=None)
+
+    def _work():
+        c, r = (clean, rgb) if stretch == 1 else geo.stretch_x(clean, rgb, stretch)
+        return tuple(_frozen(a) for a in geo.limit_resolution(c, r, height_mm, prm.max_px_per_mm))
+
+    work_key = (clean_key, height_mm, stretch, prm.max_px_per_mm)
+    clean, rgb = _work() if debug_dir else cache.working.get_or_make(work_key, _work)
+
+    # 2c. colour adjustments of the picture, at the working size (cheap there); the mask
+    # and outline above never see them, so a slider never runs the model again
+    adj = adjust or adj_mod.Adjustments()
+    if not adj.is_identity():
+        rgb = (_frozen(adj_mod.apply(rgb, adj)) if debug_dir else cache.adjusted.get_or_make(
+            (work_key, adj), lambda: _frozen(adj_mod.apply(rgb, adj))))
 
     # 3+4. margin, tab and vector cut line - cached, so cosmetic changes (label,
     # colours, line width, dpi) only redo the cheap finishing below
@@ -213,7 +246,7 @@ def make_mini(
         return lay, geo.trace_cut(lay.cut, lay.px_per_mm, simplify_mm, smooth_path,
                                   lay.tab_circles)
 
-    layout_key = (work_key, tuple(sorted(asdict(prm).items())), simplify_mm, smooth_path)
+    layout_key = (work_key, adj, tuple(sorted(asdict(prm).items())), simplify_mm, smooth_path)
     lay, path_px = _layout() if debug_dir else cache.layouts.get_or_make(layout_key, _layout)
     pxmm = lay.px_per_mm
     check_cancel()
@@ -253,10 +286,13 @@ def make_mini(
                                                         lay.label_max_h_px * s or style.label_size_mm)),
         style=style,
         figure_height_mm=lay.figure_height_px * s,
+        figure_width_mm=height_mm * bw * stretch / bh,
+        aspect=bw / bh,
+        source_outline=contours,
         tab_overlap_used=lay.tab_overlap_used or not prm.tab or prm.tab_overlap_mm == 0,
         tab_joint_mm=lay.tab_joint_px * s if prm.tab else 0.0,
         tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
-        close_px=geo.default_close_px(raw.shape[1], raw.shape[0]) if close_px is None else close_px,
+        close_px=close_used,
     )
     if lay.back_box is not None:
         text = back_text if back_text else (label or image_path.stem)

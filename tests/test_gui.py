@@ -2,6 +2,7 @@
 
 import os
 import time
+from dataclasses import replace
 
 import cv2
 import numpy as np
@@ -711,6 +712,8 @@ def test_source_view_shows_the_cut_line(app, tmp_path):
         assert w.tabs.tabText(w.SHEET) == "Print sheet"
         w.add_images([tmp_path / "a.png"])
         fig = w.current()
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        w._settings_changed(replace(fig.entry.settings, double_sided=False))  # one side
         assert wait(app, lambda: fig.up_to_date), fig.error
         cv = w.crop_view
         shade, clip, folds = cv._cut_items

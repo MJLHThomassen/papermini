@@ -55,6 +55,12 @@ def test_sheet_copies_are_the_default_for_figures(tmp_path):
     assert [f.settings.copies for f in q.figures] == [3, 1]
 
 
+def test_minis_are_double_sided_by_default():
+    assert FigureSettings().double_sided and FigureSettings().params().double_sided
+    s = FigureSettings.from_dict({"double_sided": False})
+    assert not s.params().double_sided and s.to_dict() == {"double_sided": False}
+
+
 def test_back_option_validated():
     assert FigureSettings.from_dict({"double_sided": True, "back": "blank"}).params().back == "blank"
     with pytest.raises(ValueError, match="back must be"):
@@ -70,3 +76,22 @@ def test_tab_and_margin_options():
                 {"tab_color": "green-ish"}):
         with pytest.raises(ValueError):
             FigureSettings.from_dict(bad)
+
+
+def test_size_by_height_width_or_both(tmp_path):
+    """A width alone scales by width; both stretch; the choice survives a save."""
+    assert FigureSettings.from_dict({"width_mm": 30}).height_mm is None
+    both = FigureSettings.from_dict({"width_mm": 30, "height_mm": 50})
+    assert (both.height_mm, both.width_mm) == (50, 30)
+    for bad in ({"height_mm": None}, {"height_mm": 0}, {"width_mm": -3}, {"width_mm": "wide"}):
+        with pytest.raises(ValueError):
+            FigureSettings.from_dict(bad)
+    # stretched to the default height: the height is saved too, or reloading the
+    # file would read "width alone"
+    stretched = FigureSettings(width_mm=30)
+    assert stretched.to_dict() == {"width_mm": 30, "height_mm": 42.0}
+    by_width = FigureSettings(height_mm=None, width_mm=30)
+    p = Project(figures=[FigureEntry(tmp_path / "a.png", stretched),
+                         FigureEntry(tmp_path / "b.png", by_width)])
+    loaded = load_project(save_project(p, tmp_path / "p.yaml"))
+    assert [f.settings for f in loaded.figures] == [stretched, by_width]

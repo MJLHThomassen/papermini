@@ -85,6 +85,7 @@ images = LRU(400 * MB)
 raw_masks = LRU(200 * MB)
 clean_masks = LRU(200 * MB)
 working = LRU(300 * MB)
+adjusted = LRU(200 * MB)  # the working picture with colour adjustments
 layouts = LRU(300 * MB)
 
 
@@ -96,5 +97,5 @@ def file_key(path) -> Tuple[str, int, int]:
 
 
 def clear_all() -> None:
-    for c in (images, raw_masks, clean_masks, working, layouts):
+    for c in (images, raw_masks, clean_masks, working, adjusted, layouts):
         c.clear()

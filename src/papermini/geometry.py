@@ -188,7 +188,8 @@ def clean_mask(
 
 @dataclass
 class Params:
-    height_mm: float = 42.0       # figure height, excluding margin and tab
+    height_mm: Optional[float] = 42.0  # figure height, excluding margin and tab
+    width_mm: Optional[float] = None   # figure width; see figure_size()
     margin_mm: float = 1.6        # distance between drawing and cut line
     smooth_mm: float = 0.6        # Gaussian sigma that rounds the outline
     tab: bool = True
@@ -303,6 +304,37 @@ def draw_tab(m: np.ndarray, shape: str, cx: float, fold: float, top: float, tw: 
 def _band_centre(m: np.ndarray, y0: int, y1: int) -> int:
     cols = np.flatnonzero(m[max(0, y0):y1 + 1].any(axis=0))
     return int(round((cols.min() + cols.max()) / 2))
+
+
+def figure_size(w_px: int, h_px: int, height_mm: Optional[float],
+                width_mm: Optional[float]) -> Tuple[float, float]:
+    """(height in mm, horizontal stretch) for a ``w_px`` x ``h_px`` drawing.
+
+    Height only or width only keep the drawing's proportions; both stretch it
+    sideways to that width (the height sets the scale).
+    """
+    if not height_mm and not width_mm:
+        raise ValueError("give a figure height, a width or both")
+    if not width_mm:
+        return float(height_mm), 1.0
+    if not height_mm:
+        return width_mm * h_px / w_px, 1.0
+    return float(height_mm), (width_mm / height_mm) / (w_px / h_px)
+
+
+def stretch_x(clean: np.ndarray, rgb: np.ndarray, f: float) -> Tuple[np.ndarray, np.ndarray]:
+    """Mask and image ``f`` times as wide (``figure_size`` with both width and height)."""
+    size = (max(1, round(clean.shape[1] * f)), clean.shape[0])
+    interp = cv2.INTER_AREA if f < 1 else cv2.INTER_LINEAR
+    mask = ((cv2.resize(clean, size, interpolation=interp) > 127) * 255).astype(np.uint8)
+    return mask, cv2.resize(rgb, size, interpolation=interp)
+
+
+def outline(clean: np.ndarray) -> List[np.ndarray]:
+    """The detected figure's outline (outer edges and holes) as point arrays, in
+    pixels of ``clean``: what background removal found, before any margin."""
+    cs, _ = cv2.findContours(clean, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
+    return [c.reshape(-1, 2).astype(np.float64) + 0.5 for c in cs if len(c) >= 3]
 
 
 def limit_resolution(clean: np.ndarray, rgb: np.ndarray, height_mm: float,

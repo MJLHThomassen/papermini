@@ -18,7 +18,11 @@ D = FigureSettings()  # defaults shown in --help
 
 def add_figure_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("size and shape")
-    g.add_argument("--height-mm", type=float, default=D.height_mm, help="figure height without tab (42)")
+    g.add_argument("--height-mm", type=float,
+                   help="height of the drawn figure, without margin and tab (42)")
+    g.add_argument("--width-mm", type=float,
+                   help="width of the drawn figure; alone it scales by width, with "
+                        "--height-mm the figure is stretched to both")
     g.add_argument("--margin-mm", type=float, default=D.margin_mm, help="distance between the drawing and the cut line (1.6)")
     g.add_argument("--smooth-mm", type=float, default=D.smooth_mm, help="outline rounding, Gaussian sigma (0.6)")
     g.add_argument("--margin-fill", choices=["color", "image"], default=D.margin_fill,
@@ -41,8 +45,9 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--tab-overlap-mm", type=float, default=D.tab_overlap_mm, help="tab reach above the fold, adds paper beside narrow feet (0)")
     g.add_argument("--fold-mm", type=float, default=D.fold_mm, help="fold line above the lowest point of the outline (0)")
     g.add_argument("--no-tab", action="store_true", help="no fold tab")
-    g.add_argument("--double-sided", action="store_true",
-                   help="front + back joined at a top fold, tabs at both ends")
+    g.add_argument("--double-sided", action=argparse.BooleanOptionalAction, default=None,
+                   help="front + back joined at a top fold, tabs at both ends; "
+                        "--no-double-sided prints the front only (on)")
     g.add_argument("--back", choices=["mirror", "blank", "text"], default=D.back,
                    help="double-sided back: mirrored image (default), blank, or text")
     g.add_argument("--back-text", help="text on the back with --back text (default: the label)")
@@ -50,6 +55,15 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                    help="colour of a blank or text back (#ffffff)")
     g.add_argument("--back-text-color", default=D.back_text_color,
                    help="colour of the back text (#2f5597)")
+    g = p.add_argument_group("picture (colours of what is printed; the mask is unaffected)")
+    g.add_argument("--greyscale", action="store_true", help="print in black and white")
+    g.add_argument("--brightness", type=int, default=D.brightness,
+                   help="-100 (black) to 100 (white); white paper stays white (0)")
+    g.add_argument("--contrast", type=int, default=D.contrast, help="-100 to 100 (0)")
+    g.add_argument("--saturation", type=int, default=D.saturation,
+                   help="-100 (grey) to 100 (twice as colourful) (0)")
+    g.add_argument("--hue", type=int, default=D.hue,
+                   help="turn the colours around the colour wheel, -180 to 180 degrees (0)")
     g = p.add_argument_group("mask")
     g.add_argument("--model", default=D.model,
                    help="rmbg-1.4, birefnet, birefnet-lite, alpha, mask (with --mask) or a .onnx file; "
