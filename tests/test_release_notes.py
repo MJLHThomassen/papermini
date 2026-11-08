@@ -63,6 +63,8 @@ def test_notes_list_every_commit_with_its_pull_request(repo):
 
 
 def test_notes_can_be_read_before_tagging(repo):
+    text = rn.notes("v0.3.0", "owner/name", cwd=str(repo))   # right on v0.2.0
+    assert text.startswith("No changes.") and "compare/v0.2.0...v0.3.0" in text
     _commit(repo, "fix: one more thing")
     text = rn.notes("v0.3.0", "owner/name", cwd=str(repo))   # (no such tag yet)
     assert text.startswith("## Bug fixes\n\n- one more thing (")

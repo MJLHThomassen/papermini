@@ -77,11 +77,12 @@ class Commit:
         return f"- {text} ({refs})"
 
 
-def previous_tag(tag: str, cwd: Optional[str] = None) -> Optional[str]:
-    """The newest version tag before ``tag`` in its history, or None for the first."""
+def previous_tag(rev: str, cwd: Optional[str] = None, inclusive: bool = False) -> Optional[str]:
+    """The newest version tag before ``rev`` in its history (or on it, ``inclusive``),
+    or None for the first."""
     try:
-        return git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", f"{tag}^",
-                   cwd=cwd).strip() or None
+        return git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*",
+                   rev if inclusive else f"{rev}^", cwd=cwd).strip() or None
     except subprocess.CalledProcessError:
         return None
 
@@ -120,7 +121,7 @@ def notes(tag: str, repo: Optional[str] = None, cwd: Optional[str] = None) -> st
     exists = subprocess.run(["git", "rev-parse", "--verify", "-q", f"{tag}^{{commit}}"],
                             cwd=cwd, capture_output=True).returncode == 0
     rev = tag if exists else "HEAD"
-    prev = previous_tag(rev, cwd)
+    prev = previous_tag(rev, cwd, inclusive=not exists)  # (HEAD may carry the last tag)
     found = commits(f"{prev}..{rev}" if prev else rev, cwd)
     parts: List[str] = []
     breaking = [c for c in found if c.breaking]
