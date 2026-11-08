@@ -6,6 +6,7 @@ import html
 import itertools
 import re
 import threading
+import time
 import traceback
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -21,23 +22,23 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
 
 from .. import __version__, remote, segment
 from ..mini import Mini
-from ..segment import ModelError
+from ..segment import Cancelled, ModelError
 from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
 from ..sheet import pack, write_pdf
 from ..svg import write_svg
 from . import prefs, theme
 from .models import DownloadDialog, ModelsDialog
-from .panels import FigurePanel, Section, SheetPanel
-from .views import (CropView, ZoomView, draw_mini_page, draw_sheet, load_qimage, print_sheet,
-                    pil_to_qimage)
-from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, ZoomBar,
+from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
+from .views import (CropView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
+                    draw_sheet, load_qimage, print_sheet, pil_to_qimage)
+from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, WorkCard,
+                      ZoomBar,
                       overlay_wrap)
 
 IMAGE_FILTER = remote.IMAGE_FILTER
 IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.I)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
 # settings that "apply to all" leaves alone
-PER_IMAGE = {"label", "crop", "mask", "copies"}
 
 
 @dataclass
@@ -50,15 +51,27 @@ class Figure:
     error: Optional[str] = None
     pixmap: Optional[QPixmap] = None   # art of ``mini`` as a QPixmap (cached for the sheet)
     queued: Optional[str] = None       # key of the job waiting in the pool
+    cancelled: Optional[str] = None    # mask_key whose background removal the user cancelled
 
     def key(self) -> str:
         d = asdict(self.entry.settings)
         d.pop("copies")  # only matters for the sheet, never a reason to rebuild
         return f"{self.entry.image}|{sorted(d.items())}"
 
+    def mask_key(self) -> str:
+        """What the background removal depends on: a cancelled run stays cancelled
+        until one of these changes (other settings do not start the model again)."""
+        s = self.entry.settings
+        return f"{self.entry.image}|{s.model}|{s.mask}|{s.crop}"
+
     @property
     def up_to_date(self) -> bool:
         return self.mini is not None and self.built_key == self.key()
+
+    @property
+    def stopped(self) -> bool:
+        """The user cancelled the background removal for the current image and crop."""
+        return self.cancelled is not None and self.cancelled == self.mask_key()
 
 
 # --------------------------------------------------------------------------- worker
@@ -66,6 +79,8 @@ class Figure:
 class Signals(QObject):
     done = Signal(int, int, str, object)   # uid, gen, key, Mini
     failed = Signal(int, int, str, str)     # uid, gen, key, message
+    cancelled = Signal(int, int, str)       # uid, gen, key: the user stopped the model
+    stage = Signal(int, str, str, str, object)  # uid, key, mask_key, stage name, data (see make_mini)
     status = Signal(str)
     ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
     link_done = Signal(str, object, str, object)  # link, downloaded path or None, error, settings
@@ -76,14 +91,20 @@ class BuildJob(QRunnable):
         super().__init__()
         self.sig, self.uid, self.gen = sig, fig.uid, fig.gen
         self.image, self.settings, self.key = fig.entry.image, fig.entry.settings, fig.key()
+        self.mask_key = fig.mask_key()
         self.is_current = is_current
 
     def run(self):
         if not self.is_current(self.uid, self.key):
-            return  # settings changed while queued
+            return  # settings changed while queued, or the user cancelled it
         self.sig.status.emit(f"Building {self.image.name}…")
         try:
-            m = build_mini(self.image, self.settings, log=lambda *_: None)
+            with segment.cancellable():  # Cancel also stops it while the model loads
+                m = build_mini(self.image, self.settings, log=lambda *_: None,
+                               on_stage=lambda name, data: self.sig.stage.emit(
+                                   self.uid, self.key, self.mask_key, name, data))
+        except Cancelled:
+            self.sig.cancelled.emit(self.uid, self.gen, self.key)
         except (Exception, SystemExit) as e:  # noqa: BLE001 - always report back, never die silently
             expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
             msg = str(e) if isinstance(e, expected) else \
@@ -110,17 +131,27 @@ class MainWindow(QMainWindow):
         self.sig = Signals()
         self.sig.done.connect(self._on_done)
         self.sig.failed.connect(self._on_failed)
+        self.sig.cancelled.connect(self._on_cancelled)
+        self.sig.stage.connect(self._on_stage)
+        self._segmenting = None  # (uid, mask_key, model, start time) while a model runs
+        self._work_timer = QTimer(self, interval=500, timeout=self._update_work)
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
         self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = set()  # models the user did not want to download (until they change model)
+        self._crop_undo = []    # (figure uid, crop before a change), newest last: Ctrl+Z
+        self._undoing = False
         segment.PROGRESS_HOOK = self._download_progress
         segment.CONFIRM_DOWNLOAD = self._confirm_download
         segment.CANCEL.clear()
 
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
         self._sheet_timer = QTimer(self, singleShot=True, interval=150, timeout=self._refresh_sheet)
+        # the Source view's picture follows the colour sliders, a moment after they move
+        self._picture_timer = QTimer(self, singleShot=True, interval=60,
+                                     timeout=self._refresh_picture)
+        self._original = (None, None)  # (image path, QImage): the shown image, loaded once
 
         self._theme_mode = prefs.store().value("theme", "system", type=str)
         self._make_ui()
@@ -136,12 +167,14 @@ class MainWindow(QMainWindow):
         self._show_current()
 
     # ----------------------------------------------------------------- ui
-    VIEWS = [("Miniature", "The piece as it will print"),
-             ("Source", "The original image with the cut line: everything outside it is cut "
-                        "away. Drag a box to limit what the model looks at; drag its handles "
-                        "to resize, inside to move, Delete to clear"),
-             ("Print sheet", "The PDF page layout")]
-    SHEET = 2  # index of the Print sheet view
+    # the workflow, one view per step; any step can be opened at any time
+    VIEWS = [("Source", "Step 1: crop the picture and remove the background. Drag a box on "
+                        "the image to limit what the model looks at; drag its handles to "
+                        "resize, inside to move, Delete to clear"),
+             ("Miniature", "Step 2: the paper piece as it will print: margin, cut line, "
+                           "tab and back"),
+             ("Print sheet", "Step 3: size and copies of each figure, and the PDF pages")]
+    SOURCE, MINI, SHEET = range(3)
 
     def _make_ui(self):
         self._tinted = []  # (widget, icon name, colour token, size): re-tinted on theme change
@@ -167,9 +200,9 @@ class MainWindow(QMainWindow):
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
         rv.addWidget(self.panel)
-        # usable width or dragged shut - never a sliver with clipped fields
-        right.setMinimumWidth(self.panel.widget().minimumSizeHint().width()
-                              + self.panel.verticalScrollBar().sizeHint().width())
+        # usable width or dragged shut - never a sliver with clipped fields: as wide as
+        # the widest step needs (measured with every group shown), not just the empty state
+        right.setMinimumWidth(self.panel.minimumSizeHint().width())
         split.addWidget(right)
         split.setStretchFactor(1, 1)
         split.setSizes([260, 820, 380])
@@ -217,7 +250,7 @@ class MainWindow(QMainWindow):
         h.addWidget(self._tool("open", "Open a project or images  (Ctrl+O)", self.open_dialog))
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
         h.addStretch(1)
-        self.views = Segmented(self.VIEWS)
+        self.views = Segmented(self.VIEWS, steps=True)
         self.views.changed.connect(self.tabs.setCurrentIndex)
         h.addWidget(self.views)
         h.addStretch(1)
@@ -340,7 +373,7 @@ class MainWindow(QMainWindow):
         self.sheet_view = ZoomView()
         sv.addWidget(self.sheet_panel)
         sv.addWidget(self.sheet_view)
-        for view, (label, tip) in zip((self.mini_view, self.crop_view, sheet_page),
+        for view, (label, tip) in zip((self.crop_view, self.mini_view, sheet_page),
                                       self.VIEWS):
             self.tabs.addTab(view, label)
         self.tabs.currentChanged.connect(self._tab_changed)
@@ -360,6 +393,12 @@ class MainWindow(QMainWindow):
         self.busy_box = overlay_wrap(self.busy)
         self.busy_box.hide()
         grid.addWidget(self.busy_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
+        # slow work (a model run) in the middle of the canvas, with Cancel
+        self.work = WorkCard()
+        self.work.clicked.connect(self._work_clicked)
+        self.work_box = overlay_wrap(self.work)
+        self.work_box.hide()
+        grid.addWidget(self.work_box, 0, 0, Qt.AlignCenter)
         self.zoombar = ZoomBar()
         self.zoombar.zoomIn.connect(lambda: self._active_view().zoom_by(1.25))
         self.zoombar.zoomOut.connect(lambda: self._active_view().zoom_by(0.8))
@@ -369,16 +408,40 @@ class MainWindow(QMainWindow):
         # (always shown, so a collapsed panel can be brought back)
         self.btn_left, left_card = self._side_button(0)
         grid.addWidget(overlay_wrap(left_card), 0, 0, Qt.AlignBottom | Qt.AlignLeft)
+        # what the marks on the Source view mean (only there, with an image): above the
+        # figure list toggle, clear of the banner at the top and the zoom bar. It lets
+        # the mouse through, so a crop handle under it can still be dragged.
+        self.legend = SourceLegend()
+        self.legend_box = overlay_wrap(
+            self.legend, (16, 16, 16, 16 + left_card.sizeHint().height() + 8))
+        for w in (self.legend, self.legend_box):
+            w.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.legend_box.hide()
+        grid.addWidget(self.legend_box, 0, 0, Qt.AlignBottom | Qt.AlignLeft)
         self.btn_right, right_card = self._side_button(2)
         self.zoom_box = QWidget()
         self.zoom_box.setAttribute(Qt.WA_TranslucentBackground)
         zb = QHBoxLayout(self.zoom_box)
         zb.setContentsMargins(16, 16, 16, 16)
         zb.setSpacing(8)
+        # with a crop box on the Source view: take it away again in one click
+        self.clear_crop_card = QFrame()
+        self.clear_crop_card.setObjectName("ZoomBar")  # the same floating card
+        cl = QHBoxLayout(self.clear_crop_card)
+        cl.setContentsMargins(4, 3, 4, 3)
+        self.btn_clear_crop = QToolButton()
+        self.btn_clear_crop.setText("Clear crop")
+        self.btn_clear_crop.setToolTip("Remove the crop box, so background removal looks at "
+                                       "the whole image (Delete). Ctrl+Z undoes a crop change.")
+        self.btn_clear_crop.setCursor(Qt.PointingHandCursor)
+        self.btn_clear_crop.clicked.connect(lambda: self.panel.set_crop(None))
+        cl.addWidget(self.btn_clear_crop)
+        self.clear_crop_card.hide()
+        zb.addWidget(self.clear_crop_card, 0, Qt.AlignBottom)
         zb.addWidget(self.zoombar, 0, Qt.AlignBottom)
         zb.addWidget(right_card, 0, Qt.AlignBottom)
         grid.addWidget(self.zoom_box, 0, 0, Qt.AlignBottom | Qt.AlignRight)
-        for v in (self.mini_view, self.crop_view, self.sheet_view):
+        for v in (self.crop_view, self.mini_view, self.sheet_view):
             v.zoomChanged.connect(lambda z, v=v: v is self._active_view() and self.zoombar.set_zoom(z))
         return canvas
 
@@ -409,6 +472,8 @@ class MainWindow(QMainWindow):
         self.a_pdf = act("Export PDF sheet…", self.export_pdf, "Ctrl+P")
         self.a_print = act("Print sheet…", self.print_sheet, "Ctrl+Shift+P",
                            "Print the sheet at its real size")
+        self.a_undo_crop = act("Undo crop change", self.undo_crop, QKeySequence.Undo,
+                               "Put the crop box back as it was before the last change")
         self.a_remove = act("Remove figure", self.remove_current, QKeySequence.Delete)
         self.a_remove.setShortcutContext(Qt.WidgetShortcut)
         self.list.addAction(self.a_remove)
@@ -427,7 +492,8 @@ class MainWindow(QMainWindow):
                             "See, download or delete the background-removal models")
 
         m = self.menu = QMenu(self)
-        for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None, self.a_save,
+        for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None,
+                  self.a_undo_crop, None, self.a_save,
                   self.a_save_as, None,
                   self.a_svg, self.a_svgs, self.a_pdf, self.a_print, None):
             m.addSeparator() if a is None else m.addAction(a)
@@ -546,6 +612,7 @@ class MainWindow(QMainWindow):
             else:
                 w.setIcon(theme.icon(name, getattr(t, token), size))
         self.zoombar.refresh_icons()
+        self.legend.refresh_theme()
         self.empty.refresh_icons()
         self.panel.refresh_icons()
         self.crop_view.refresh_theme()
@@ -697,6 +764,8 @@ class MainWindow(QMainWindow):
         copies = f"{n} cop{'y' if n == 1 else 'ies'}"
         if fig.error and not fig.up_to_date:
             item.setData(SUBTITLE_ROLE, "Needs attention · " + copies)
+        elif fig.stopped and not fig.up_to_date:
+            item.setData(SUBTITLE_ROLE, "Cancelled · " + copies)
         elif fig.mini is None:
             item.setData(SUBTITLE_ROLE, "Building…")
         else:
@@ -735,27 +804,42 @@ class MainWindow(QMainWindow):
         fig = self.current()
         if fig is None:
             return
-        if s.model != fig.entry.settings.model:
+        old = fig.entry.settings
+        if s.adjustments() != old.adjustments():
+            self._picture_timer.start()  # (the model is not involved: no rebuild of the mask)
+        if s.crop != old.crop and not self._undoing:  # a crop change can be undone
+            self._crop_undo.append((fig.uid, old.crop))
+            del self._crop_undo[:-50]
+        if s.model != old.model:
             self._declined.clear()  # a new model choice may ask again
+        seg = self._segmenting
+        old_mask = fig.mask_key()
         fig.entry.settings = s
+        if seg and seg[0] == fig.uid and seg[1] == old_mask != fig.mask_key():
+            segment.cancel_runs()  # its mask is no longer wanted: start the new one now
+        if not fig.stopped:
+            fig.cancelled = None  # a new image, crop or model: build it
         fig.gen += 1
         fig.error = fig.queued = None
         self._refresh_card(fig)
         self.crop_view.set_crop(s.crop)
+        self._sync_legend()
         self._set_modified()
         self._build_timer.start()
         self._sheet_timer.start()  # e.g. copies: no rebuild, but the sheet changes
 
-    def _apply_to_all(self):
+    def _apply_to_all(self, names=None):
+        """Copy the current figure's settings (``names``, default all but the per-image
+        ones) to every other figure."""
         cur = self.current()
         if cur is None:
             return
         src = asdict(cur.entry.settings)
+        names = set(src) - PER_IMAGE if names is None else set(names) - PER_IMAGE
         for f in self.figures:
             if f is cur:
                 continue
-            keep = {k: getattr(f.entry.settings, k) for k in PER_IMAGE}
-            f.entry.settings = FigureSettings(**{**src, **keep})
+            f.entry.settings = replace(f.entry.settings, **{k: src[k] for k in names})
             f.gen += 1
             f.error = f.queued = None
         self._set_modified()
@@ -769,14 +853,15 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- building
     def _is_current(self, uid, key) -> bool:
-        """A build is wanted iff it is for the figure's current settings."""
+        """A build is wanted iff it is for the figure's current settings, and the user
+        did not cancel its background removal."""
         f = self._figure(uid)
-        return f is not None and f.key() == key
+        return f is not None and f.key() == key and not f.stopped
 
     def _queue(self, fig: Figure):
         key = fig.key()
-        if fig.queued == key:
-            return  # this build is already waiting
+        if fig.queued == key or fig.stopped or self._closing.is_set():
+            return  # already waiting, stopped by the user (see _work_clicked), or closed
         fig.queued = key
         # the selected figure jumps ahead of background (sheet) builds
         priority = 10 if fig is self.current() else 0
@@ -786,10 +871,13 @@ class MainWindow(QMainWindow):
         fig = self.current()
         if fig is None:
             return
-        if not fig.up_to_date:
+        if fig.stopped and not fig.up_to_date:
+            self._update_work()  # stopped by the user: wait for Run again
+        elif not fig.up_to_date:
             self._queue(fig)
             self.info.setText("building…")
             self.busy_box.setVisible(fig.mini is None or not fig.up_to_date)
+            self._update_work()  # (hides it again behind a work card)
         else:
             self._show_mini(fig)  # settings went back to what is already built
 
@@ -800,6 +888,8 @@ class MainWindow(QMainWindow):
         if fig.queued == key:
             fig.queued = None
         fig.mini, fig.built_key, fig.error = mini, key, None
+        fig.cancelled = None  # (finished just before a Cancel could stop it)
+        self._end_segmenting(uid)
         fig.pixmap = QPixmap.fromImage(pil_to_qimage(mini.art))
         self._refresh_card(fig)
         if fig is self.current():
@@ -810,6 +900,7 @@ class MainWindow(QMainWindow):
             self._sheet_timer.start()
 
     def _on_failed(self, uid, gen, key, msg):
+        self._end_segmenting(uid)
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
             return
@@ -819,6 +910,102 @@ class MainWindow(QMainWindow):
             self._show_mini(fig)
         self._check_export()
         self._status(f"{fig.entry.image.name}: {msg.splitlines()[0]}")
+
+    def _on_cancelled(self, uid, gen, key):
+        """A build stopped: by Cancel (``_cancel_run`` already marked the figure), or
+        because a new crop or model made it useless (that one is built next)."""
+        self._end_segmenting(uid)
+        fig = self._figure(uid)
+        if fig is not None and fig.queued == key:
+            fig.queued = None
+
+    def _cancel_run(self):
+        """Cancel: stop the running model. Its figure is marked cancelled at once, even
+        when the build only notices later (a model still loading finishes that first)."""
+        seg = self._segmenting
+        segment.cancel_runs()
+        if seg is None:
+            return
+        self._end_segmenting(seg[0])
+        fig = self._figure(seg[0])
+        if fig is None or fig.mask_key() != seg[1]:
+            return
+        fig.cancelled, fig.queued = seg[1], None  # (a build still waiting is skipped)
+        self._refresh_card(fig)
+        self._check_export()
+        self._status(f"{fig.entry.image.name}: background removal cancelled")
+        if fig is self.current():
+            self.busy_box.hide()
+            self.info.setText("cancelled")
+        self._update_work()
+
+    def _on_stage(self, uid, key, mask_key, name, data):
+        """Progress of a build: a model starts ("segment"), or the figure was found
+        ("outline", before the miniature is laid out)."""
+        if name == "segment":
+            self._segmenting = (uid, mask_key, data, time.monotonic())
+            self._work_timer.start()
+            QTimer.singleShot(300, self._update_work)  # cached masks come back at once
+            return
+        if name == "outline":
+            self._end_segmenting(uid)
+            fig = self.current()
+            if fig is not None and fig.uid == uid and fig.key() == key:
+                contours, close_px = data
+                self.crop_view.set_outline(contours)
+                self.panel.set_auto_fill_gaps(close_px)
+
+    def _end_segmenting(self, uid):
+        if self._segmenting and self._segmenting[0] == uid:
+            self._segmenting = None
+            self._work_timer.stop()
+            self._update_work()
+
+    def _update_work(self):
+        """The work card and the dimmed Source image for the selected figure: a model
+        running for it (with Cancel), a model running for another figure that it waits
+        for (Cancel stops that one), or a cancelled one (Run again)."""
+        fig = self.current()
+        seg = self._segmenting
+        mode = None
+        if fig is not None and self.tabs.currentIndex() != self.SHEET:
+            running = seg is not None and time.monotonic() - seg[3] >= 0.25
+            if running and seg[0] == fig.uid and seg[1] == fig.mask_key():
+                mode = "working"
+            elif fig.stopped and not fig.up_to_date:
+                mode = "cancelled"
+            elif running and seg[0] != fig.uid and not fig.up_to_date and not fig.error:
+                mode = "waiting"
+        if mode in ("working", "waiting"):
+            secs = int(time.monotonic() - seg[3])
+            model = seg[2] if segment.is_loaded(seg[2]) else f"loading {seg[2]}"
+            detail = f"{model} · {secs} s" if secs else model
+            if mode == "working":
+                self.work.show_working("Removing the background…", detail)
+            else:
+                other = self._figure(seg[0])
+                name = other.entry.display_name if other else "another figure"
+                self.work.show_working(f"Waiting for {name}",
+                                       f"Removing its background: {detail}", "Cancel it")
+        elif mode == "cancelled":
+            self.work.show_stopped("Background removal cancelled",
+                                   "Change the crop or model, or run it again.", "Run again")
+        self.work_box.setVisible(mode is not None)
+        self.crop_view.set_busy(mode == "working")
+        if mode is not None:
+            self.busy_box.hide()
+
+    def _work_clicked(self):
+        fig = self.current()
+        if fig is None:
+            return
+        if fig.stopped and not fig.up_to_date:
+            fig.cancelled = fig.error = fig.queued = None  # Run again
+            self._refresh_card(fig)
+            self._update_work()
+            self._build_current()
+        else:
+            self._cancel_run()  # its own model run, or the one it waits for
 
     def _confirm_download(self, model: str) -> bool:
         """Build thread: ask (on the GUI thread) before a model is downloaded. The
@@ -880,6 +1067,7 @@ class MainWindow(QMainWindow):
         self.btn_pdf.setEnabled(bool(self.figures))
         self.empty.setVisible(not self.figures)
         self.zoombar.setVisible(bool(self.figures))
+        self._sync_legend()
         if not has:
             self.panel.set_settings(FigureSettings())  # reset the hidden fields
             self.panel.set_empty(True, "Select a figure in the list to see its settings here."
@@ -888,15 +1076,18 @@ class MainWindow(QMainWindow):
             self.crop_view.set_image(None)
             self.banner_box.hide()
             self.busy_box.hide()
+            self.work_box.hide()
             self.info.setText("")
             return
         e = fig.entry
         self.panel.set_settings(e.settings, e.display_name, e.image.stem)
         self.panel.subtitle.setText(e.image.name)
-        self.crop_view.set_image(load_qimage(e.image))
+        self.crop_view.set_image(*self._source_picture(fig))
         self.crop_view.set_crop(e.settings.crop)
+        self.panel.set_aspect(fig.mini.aspect if fig.mini else None)
         self.mini_view.refit_on_next_show()
         self._show_mini(fig)
+        self._update_work()
         if not fig.up_to_date:
             QTimer.singleShot(0, self._build_current)  # (start(0) would kill the debounce)
 
@@ -905,7 +1096,7 @@ class MainWindow(QMainWindow):
         self.panel.set_overlap_hint(None)
         if fig.error and not fig.up_to_date:
             sc.clear()
-            self.crop_view.set_cut(None)
+            self.crop_view.set_outline(None)
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
             hint = "" if "not downloaded" in fig.error else \
@@ -916,30 +1107,82 @@ class MainWindow(QMainWindow):
             return
         self.banner_box.hide()
         m = fig.mini
-        self.busy_box.setVisible(m is None or not fig.up_to_date)
+        # (the work card, when shown, already says what is going on)
+        self.busy_box.setVisible((m is None or not fig.up_to_date)
+                                 and not self.work_box.isVisibleTo(self))
         if m is None:
             sc.clear()
-            self.crop_view.set_cut(None)
+            self.crop_view.set_outline(None)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
         draw_mini_page(sc, m)
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.mini_view.fit()
-        self.crop_view.set_cut(m.source_cut, m.source_folds, m.source_top)
+        if fig.up_to_date:  # (a stale piece's outline would hide the new one)
+            self.crop_view.set_outline(m.source_outline)
+            self.panel.set_aspect(m.aspect)
         self.panel.set_auto_fill_gaps(m.close_px)
         if not m.tab_overlap_used:
             self.panel.set_overlap_hint("unused")
         elif m.tab_width_mm and m.tab_joint_mm < min(10.0, 0.6 * m.tab_width_mm):
             self.panel.set_overlap_hint("narrow", m.tab_joint_mm)
         stale = "" if fig.up_to_date else "  (updating…)"
-        self.info.setText(f"figure {m.figure_height_mm:.1f} mm · piece {m.width_mm:.1f} × "
+        self.info.setText(f"figure {m.figure_width_mm:.1f} × {m.figure_height_mm:.1f} mm · "
+                          f"piece {m.width_mm:.1f} × "
                           f"{m.height_mm:.1f} mm · {len(m.cut.points)} cut nodes{stale}")
 
     def _tab_changed(self, i):
+        self.panel.set_step(i)
+        self._update_work()
+        self._sync_legend()
         if i == self.SHEET:
             self._refresh_sheet()
         QTimer.singleShot(0, self._tab_zoom)
+
+    def _source_picture(self, fig: Figure):
+        """(picture, original size or None) for the Source view: the image itself, or
+        with colour adjustments a smaller adjusted preview of it."""
+        path = fig.entry.image
+        if self._original[0] != path:
+            self._original = (path, load_qimage(path))
+        img = self._original[1]
+        adj = fig.entry.settings.adjustments()
+        if adj.is_identity() or img.isNull():
+            return img, None
+        return adjusted_preview(img, adj), (img.width(), img.height())
+
+    def _refresh_picture(self):
+        fig = self.current()
+        if fig is not None:
+            self.crop_view.replace_picture(self._source_picture(fig)[0])
+
+    def _sync_legend(self):
+        """The Source legend, shown on the Source view while it shows an image, and the
+        Clear crop button, while that image has a crop box."""
+        fig = self.current()
+        self.legend_box.setVisible(fig is not None and self.tabs.currentIndex() == self.SOURCE)
+        cropped = fig is not None and bool(fig.entry.settings.crop)
+        self.clear_crop_card.setVisible(cropped and self.tabs.currentIndex() == self.SOURCE)
+
+    def undo_crop(self):
+        """Ctrl+Z: the crop box as it was before its last change (also of another
+        figure, which is then selected). Text fields keep their own Ctrl+Z."""
+        while self._crop_undo:
+            uid, crop = self._crop_undo.pop()
+            fig = self._figure(uid)
+            if fig is None:
+                continue  # removed since
+            if fig is not self.current():
+                self.list.setCurrentItem(self._list_item(fig))
+            self._undoing = True
+            try:
+                self.panel.set_crop(crop)
+            finally:
+                self._undoing = False
+            self._status("Crop change undone")
+            return
+        self._status("No crop change to undo")
 
     def _refresh_sheet(self):
         if self.tabs.currentIndex() != self.SHEET:
@@ -987,7 +1230,7 @@ class MainWindow(QMainWindow):
         self._active_view().actual_size()
 
     def _active_view(self) -> ZoomView:
-        return [self.mini_view, self.crop_view, self.sheet_view][
+        return [self.crop_view, self.mini_view, self.sheet_view][
             self.tabs.currentIndex()]
 
     # ----------------------------------------------------------------- export
@@ -1003,7 +1246,7 @@ class MainWindow(QMainWindow):
         dlg.canceled.connect(lambda: setattr(self, "_export", None))
         self._export = (figs, then, dlg, len(todo))
         for f in todo:
-            f.error = None  # retry figures that failed before
+            f.error = f.cancelled = None  # retry figures that failed or were stopped
             self._queue(f)
         self._check_export()
 
@@ -1244,8 +1487,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, e):
         if self._maybe_save():
             self._closing.set()             # link downloads stop and are not added
+            for t in (self._build_timer, self._sheet_timer, self._work_timer,
+                      self._picture_timer):
+                t.stop()                    # no build may start after closing
             self.pool.clear()               # drop queued builds
             segment.CANCEL.set()            # abort a model download in progress
+            segment.cancel_runs()           # and a model run
             segment.PROGRESS_HOOK = segment.CONFIRM_DOWNLOAD = None
             self.pool.waitForDone(15000)    # builds stop at the next checkpoint
             segment.CANCEL.clear()

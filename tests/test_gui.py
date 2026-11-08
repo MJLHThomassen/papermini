@@ -83,13 +83,13 @@ def test_build_edit_and_save(app, tmp_path):
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         assert fig.mini.figure_height_mm == pytest.approx(42, abs=0.05)
-        assert fig.mini.source_cut is not None and w.crop_view._cut_items  # on the source
+        assert fig.mini.source_outline and w.crop_view._outline_items  # on the source
         # defaults (fold and overlap 0) on a wide joint: no note under the overlap field
         assert fig.mini.tab_overlap_used and fig.mini.tab_joint_mm > 10
         assert not w.panel.overlap_hint.isVisibleTo(w.panel)
 
         # edit through the panel -> rebuild with the new height
-        w.panel._w["height_mm"][1].setValue(30)
+        w.panel.size_field.h.setValue(30)
         assert fig.entry.settings.height_mm == 30
         assert wait(app, lambda: fig.up_to_date and fig.mini.figure_height_mm < 31), fig.error
         assert fig.mini.figure_height_mm == pytest.approx(30, abs=0.05)
@@ -271,7 +271,7 @@ def test_panel_choices_round_trip(app):
     assert not p.is_shown("margin_color")                # the image fills the margin
     assert p.is_shown("tab_color") and not p.is_shown("label_size_mm")
     assert p.is_shown("back_text") and p.is_shown("back_color")
-    assert p.no_label.isChecked()                       # no label = a plain coloured tab
+    assert not p.label_switch.isChecked()               # no label = a plain coloured tab
     assert not p.is_shown("label") and p.is_shown("no_label")
     assert p.is_shown("tab_radius_mm") and not p.is_shown("tab_width_mm")
     got = []
@@ -285,11 +285,85 @@ def test_panel_choices_round_trip(app):
     # no back side at all: none of the back options
     p._w["double_sided"][1].setChecked(False)
     assert not any(p.is_shown(n) for n in ("back", "back_color", "back_text"))
-    # no tab: none of the tab options, including the label
-    p._w["no_tab"][1].setChecked(True)
+    # no tab: none of the tab options, and the label group cannot be turned on
+    p._w["no_tab"][1].setChecked(False)
+    assert p.settings().no_tab
     assert not any(p.is_shown(n) for n in ("tab_shape", "tab_width_mm", "tab_color",
-                                           "_tab_label", "no_label", "label", "label_color"))
+                                           "no_label", "label", "label_color"))
 
+
+def test_groups_are_switched_on_and_off_in_their_header(app):
+    """Back side, Tab and Label each have a checkbox at the right of their header:
+    ticked = the group is on (for the tab and label too, whose settings are "no_tab"
+    and an empty label); unticked, the group shows only its header."""
+    from papermini.gui.panels import FigurePanel
+
+    p = FigurePanel()
+    p.set_settings(FigureSettings(), "x", "x")
+    heads = {s.header.text(): s for s in p.sections}
+    for title, name in (("Back side", "double_sided"), ("Tab", "no_tab"),
+                        ("Label", "no_label")):
+        box = heads[title]
+        assert box.switch is not None and box.switch.isChecked()   # all on by default
+        assert box.switch.accessibleName().startswith("Print a ")
+        assert box.switch.parent() is box                          # in the header row
+        assert box.switch.toolTip().startswith("Print a ")
+    assert heads["Outline and cut line"].switch is None
+    tab, label = heads["Tab"].switch, heads["Label"].switch
+    label.setChecked(False)
+    assert p.settings().label == "" and not p.is_shown("label_size_mm")
+    label.setChecked(True)
+    assert p.settings().label is None and p.is_shown("label_size_mm")
+    # Label is a sub-group at the end of Tab: no tab, no label group either
+    assert heads["Label"].parent_section is heads["Tab"]
+    assert heads["Tab"].body.isAncestorOf(heads["Label"])
+    tab.setChecked(False)
+    assert p.settings().no_tab and not p.is_shown("no_label")
+    assert not p.is_shown("label") and not p.is_shown("tab_shape")
+    # a group that is off has nothing to show: its header cannot open it
+    t = heads["Tab"]
+    assert not t.body.isVisibleTo(t) and not t.header.isEnabled()
+    t.header.click()
+    assert not t.body.isVisibleTo(t)
+    tab.setChecked(True)                                   # on: open as it was
+    assert not p.settings().no_tab and t.body.isVisibleTo(t) and p.is_shown("label")
+    p.set_settings(FigureSettings(no_tab=True, double_sided=False, label=""), "x", "x")
+    assert not any(heads[t].switch.isChecked() for t in ("Back side", "Tab", "Label"))
+
+
+
+def test_settings_side_never_cuts_off_controls(app, tmp_path):
+    """The settings side cannot be made narrower than its widest step needs, so the
+    header checkboxes and fields stay visible; a long figure name does not widen it."""
+    from PySide6.QtCore import Qt
+
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
+    w = MainWindow()
+    w.setAttribute(Qt.WA_DontShowOnScreen)
+    try:
+        w.resize(1300, 900)
+        w.show()
+        w.add_images([tmp_path / "a.png"])
+        w.figures[0].entry.name = "a-very-long-figure-name-" * 4
+        w._show_current()
+        p = w.panel
+        for step in range(3):
+            w.tabs.setCurrentIndex(step)
+            sizes = w.splitter.sizes()
+            w.splitter.setSizes([sizes[0], sizes[1] + sizes[2] - 1, 1])  # narrowest
+            for _ in range(3):  # (the scroll bar may appear, then the body follows)
+                app.processEvents()
+            assert w.splitter.sizes()[2] >= p.minimumSizeHint().width()
+            assert p.widget().width() <= p.viewport().width(), step   # nothing clipped
+            for box in p.sections:
+                if box.switch is not None and box.switch.isVisibleTo(p):
+                    right = box.switch.mapTo(p.widget(), box.switch.rect().topRight()).x()
+                    assert right <= p.viewport().width(), box.header.text()
+    finally:
+        w._modified = False
+        w.close()
 
 
 def test_colour_dialog_does_not_inherit_button_colour(app):
@@ -317,10 +391,10 @@ def test_mask_file_is_a_model_choice(app):
     assert not p.is_shown("mask")                        # alpha uses the image itself
     combo.setCurrentText("mask image file"); combo.activated.emit(0)
     assert p.is_shown("mask") and p.settings().model == "mask"
-    # no label as its own checkbox
-    p.no_label.setChecked(True)
+    # no label: the Label group's switch
+    p.label_switch.setChecked(False)
     assert p.settings().label == "" and not p.is_shown("label")
-    p.no_label.setChecked(False)
+    p.label_switch.setChecked(True)
     assert p.settings().label is None and p.is_shown("label")
 
 
@@ -361,7 +435,7 @@ def test_side_panels_can_be_resized_freely(app):
     w = MainWindow()
     try:
         w.setAttribute(Qt.WA_DontShowOnScreen)
-        w.resize(1440, 900)
+        w.resize(1900, 900)  # (room for the settings side's minimum)
         w.show()
         app.processEvents()
         canvas = w.splitter.widget(1)
@@ -431,6 +505,27 @@ def test_paper_has_no_graphics_effect(app):
     assert item.boundingRect().contains(QRectF(-1, -1, 52, 72))  # room for the shadow
 
 
+def test_source_image_lies_on_paper_with_a_shadow(app):
+    """The Source view shows the image on the same shadowed paper as the Miniature
+    and Print sheet views (painted by the item, not a graphics effect)."""
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QImage
+
+    from papermini.gui.views import CropView, PaperItem
+
+    v = CropView()
+    img = QImage(400, 300, QImage.Format_RGB32)
+    img.fill(0x808080)
+    v.set_image(img)
+    paper = [it for it in v.scene().items() if isinstance(it, PaperItem)]
+    assert len(paper) == 1 and paper[0].rect() == QRectF(0, 0, 400, 300)
+    assert paper[0].zValue() < 0                                  # under the image
+    assert paper[0].boundingRect().contains(QRectF(-10, -10, 420, 320))
+    assert all(it.graphicsEffect() is None for it in v.scene().items())
+    v.set_image(None)
+    assert not v.scene().items()
+
+
 def test_drag_closed_panel_reopens_at_dragged_width(app):
     from PySide6.QtCore import Qt
 
@@ -439,7 +534,7 @@ def test_drag_closed_panel_reopens_at_dragged_width(app):
     w = MainWindow()
     try:
         w.setAttribute(Qt.WA_DontShowOnScreen)
-        w.resize(1440, 900)
+        w.resize(1900, 900)  # (room for the settings side's minimum)
         w.show()
         app.processEvents()
         s = w.splitter.sizes()
@@ -468,7 +563,7 @@ def test_panel_layout_is_remembered(app):
     def window():
         w = MainWindow()
         w.setAttribute(Qt.WA_DontShowOnScreen)
-        w.resize(1440, 900)
+        w.resize(1900, 900)  # (room for the settings side's minimum)
         w.show()
         app.processEvents()
         return w
@@ -656,7 +751,8 @@ def test_no_figure_hides_the_settings(app, tmp_path):
         assert p.isEnabled()  # a disabled panel would grey out the message too
 
         w.add_images([tmp_path / "a.png"])
-        assert not shown(p.empty_box) and all(shown(s) for s in p.sections)
+        assert not shown(p.empty_box) and any(shown(s) for s in p.sections)
+        assert all(shown(s) == (st == p.step()) for s, st in zip(p.sections, p._section_steps))
         assert shown(p.title) and shown(p.apply_all)
 
         w.list.setCurrentRow(-1)  # figures, but none selected
@@ -684,7 +780,7 @@ def test_decimal_fields_take_a_point_in_any_locale(app):
     try:
         p = FigurePanel()
         p.set_settings(FigureSettings(height_mm=42), "x", "x")
-        box = p._w["height_mm"][1]
+        box = p.size_field.h
         assert isinstance(box, DoubleSpinBox) and box.text() == "42.00 mm"
         for typed in ("12.5", "12,5"):
             box.lineEdit().selectAll()
@@ -696,9 +792,9 @@ def test_decimal_fields_take_a_point_in_any_locale(app):
         QLocale.setDefault(old)
 
 
-def test_source_view_shows_the_cut_line(app, tmp_path):
-    """The Cut-away view is gone: the Source view draws the cut line on the original
-    image instead, and forgets it when another image is shown."""
+def test_source_view_shows_the_detected_outline(app, tmp_path):
+    """Step 1 shows what background removal found, without the margin and tab of the
+    miniature, and forgets it when another image is shown."""
     from papermini.gui.views import load_qimage
     from papermini.gui.window import MainWindow
 
@@ -708,24 +804,598 @@ def test_source_view_shows_the_cut_line(app, tmp_path):
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "b.png")
     w = MainWindow()
     try:
-        assert [w.tabs.tabText(i) for i in range(w.tabs.count())] ==             ["Miniature", "Source", "Print sheet"]
-        assert w.tabs.tabText(w.SHEET) == "Print sheet"
+        assert [w.tabs.tabText(i) for i in range(w.tabs.count())] == \
+            ["Source", "Miniature", "Print sheet"]
+        assert w.tabs.currentIndex() == w.SOURCE  # the first step
+        assert [b.text() for b in w.views.group.buttons()] == \
+            ["1  Source", "2  Miniature", "3  Print sheet"]
+        w.add_images([tmp_path / "a.png"], FigureSettings(margin_mm=5))
+        fig = w.current()
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        cv = w.crop_view
+        shade, line = cv._outline_items
+        assert shade.scene() is cv.scene()
+        r = line.path().boundingRect()                    # the ellipse itself: no margin
+        assert abs(r.left() - 150) < 3 and abs(r.top() - 150) < 3
+        assert abs(r.right() - 551) < 3 and abs(r.bottom() - 751) < 3
+
+        cv.refresh_theme()                                 # redrawn, not duplicated
+        assert len(cv._outline_items) == 2
+        cv.set_busy(True)                                  # a model runs: dimmed, no outline
+        assert len(cv._outline_items) == 1
+        cv.set_busy(False)
+        cv.set_image(load_qimage(tmp_path / "b.png"))    # another image: no stale outline
+        assert cv._outline is None and cv._outline_items == []
+    finally:
+        w._modified = False
+        w.close()
+
+
+def _crop_view(app, size=(400, 300)):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QImage
+
+    from papermini.gui.views import CropView
+
+    v = CropView()
+    v.setAttribute(Qt.WA_DontShowOnScreen)
+    v.resize(500, 400)
+    v.show()
+    img = QImage(*size, QImage.Format_RGB32)
+    img.fill(0x808080)
+    v.set_image(img)
+    app.processEvents()
+    v.fit()
+    app.processEvents()
+    return v
+
+
+def _mouse(v, kind, scene_pt, button=None):
+    """Send a mouse press/move/release at a scene point to a CropView."""
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    pos = QPointF(v.mapFromScene(QPointF(*scene_pt)))
+    t = {"press": QEvent.MouseButtonPress, "move": QEvent.MouseMove,
+         "release": QEvent.MouseButtonRelease}[kind]
+    b = Qt.LeftButton if kind != "move" else Qt.NoButton
+    held = Qt.LeftButton if (kind == "move" and button) else Qt.NoButton
+    if kind == "press":
+        held = Qt.LeftButton
+    ev = QMouseEvent(t, pos, v.viewport().mapToGlobal(pos), b, held, Qt.NoModifier)
+    {"press": v.mousePressEvent, "move": v.mouseMoveEvent,
+     "release": v.mouseReleaseEvent}[kind](ev)
+
+
+def test_crop_view_guides_the_user(app):
+    """Without a crop box a hint says to drag one; over the image, guide lines show
+    where a new box would start; over the box, the part a drag grabs is shown."""
+    v = _crop_view(app)
+    assert v.show_hint()                                   # no box yet: say how...
+    img = v._image_view_rect()
+    pill = v.hint_rect()                                   # ...beside the image, not on it
+    assert not pill.intersects(img) and v.viewport().rect().contains(pill.toRect())
+    _mouse(v, "move", (200, 150))
+    assert v._hover is not None and v._hover_part == "new"  # guide lines through the mouse
+    v.grab()                                               # (paints without errors)
+    v.set_crop([0.25, 0.25, 0.75, 0.75])
+    assert not v.show_hint()                               # a box: no hint
+    _mouse(v, "move", (200, 150))
+    assert v._hover_part == "move"                         # inside: move the whole box
+    _mouse(v, "move", (100, 150))
+    assert v._hover_part == "l"                            # on the left edge
+    _mouse(v, "move", (100, 75))
+    assert v._hover_part == "tl"                           # on a corner handle
+    v.grab()
+    v.leaveEvent(None)
+    assert v._hover is None and v._hover_part is None
+
+
+def test_a_click_on_the_crop_view_changes_nothing(app):
+    """A click (or a press that barely moves) never draws, moves or clears a box, so it
+    never starts a model run by accident; a real drag does."""
+    v = _crop_view(app)
+    got = []
+    v.cropChanged.connect(got.append)
+    _mouse(v, "press", (200, 150))
+    _mouse(v, "release", (200, 150))
+    assert got == [] and v.crop_box() is None              # a click: no box
+    v.set_crop([0.25, 0.25, 0.75, 0.75])
+    box = v.crop_box()
+    s = 1 / v.transform().m11()                            # scene units per screen px
+    _mouse(v, "press", (200, 150))                         # inside: would move it...
+    _mouse(v, "move", (200 + 2 * s, 150), button=True)     # ...but 2 px is a jitter
+    _mouse(v, "release", (200 + 2 * s, 150))
+    assert got == [] and v.crop_box() == box
+    _mouse(v, "press", (200, 150))
+    _mouse(v, "move", (230, 150), button=True)             # a real drag moves it
+    _mouse(v, "release", (230, 150))
+    moved = v.crop_box()                                   # (to a whole screen pixel)
+    assert len(got) == 1 and abs(moved.left() - box.left() - 30) < 2 * s
+    assert moved.size() == box.size() and moved.top() == box.top()
+
+
+def test_crop_changes_can_be_undone_and_cleared(app, tmp_path):
+    """Ctrl+Z puts the crop back as it was (also for another figure); the Clear crop
+    button on the canvas removes it, and shows only on the Source view with a crop."""
+    from papermini.gui.window import MainWindow
+
+    for n in "ab":
+        Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / f"{n}.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "a.png", tmp_path / "b.png"])
+        a, b = w.figures
+        w.list.setCurrentRow(0)
+        assert not w.clear_crop_card.isVisibleTo(w)
+        w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])
+        w.crop_view.cropChanged.emit([0.2, 0.2, 0.8, 0.8])
+        assert a.entry.settings.crop == [0.2, 0.2, 0.8, 0.8]
+        assert w.clear_crop_card.isVisibleTo(w)
+        w.tabs.setCurrentIndex(w.MINI)                     # only on the Source view
+        assert not w.clear_crop_card.isVisibleTo(w)
+        w.tabs.setCurrentIndex(w.SOURCE)
+        w.list.setCurrentRow(1)
+        w.btn_clear_crop.click()                           # nothing to clear on b...
+        assert b.entry.settings.crop is None
+        w.list.setCurrentRow(0)
+        w.btn_clear_crop.click()                           # ...on a it clears the box
+        assert a.entry.settings.crop is None and not w.clear_crop_card.isVisibleTo(w)
+        w.list.setCurrentRow(1)
+        w.a_undo_crop.trigger()                            # back on a, as it was
+        assert w.current() is a and a.entry.settings.crop == [0.2, 0.2, 0.8, 0.8]
+        assert w.crop_view.crop_box() is not None
+        w.a_undo_crop.trigger()
+        assert a.entry.settings.crop == [0.1, 0.1, 0.9, 0.9]
+        w.a_undo_crop.trigger()
+        assert a.entry.settings.crop is None
+        w.a_undo_crop.trigger()                            # nothing left: no change
+        assert a.entry.settings.crop is None
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_colour_sliders_snap_to_their_centre(app):
+    """A slider around 0 (the colour adjustments) fills from the middle, marks 0 with a
+    short line, snaps to 0 when dragged close by (typed values are kept), and goes back to
+    0 on a double-click. Sliders that start at 0 (strength) stay as they were."""
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QColor, QMouseEvent
+
+    from papermini.gui import theme
+    from papermini.gui.panels import SNAP_PX, SliderField
+
+    theme.apply(app, "light")                                # (as the window does)
+    assert SliderField(0, 254, 254).slider.centre is None
+    f = SliderField(-100, 100, 100)
+    f.setAttribute(Qt.WA_DontShowOnScreen)
+    f.resize(300, 40)
+    f.show()
+    app.processEvents()
+    sl = f.slider
+    assert sl.centre == 0
+    got = []
+    f.valueChanged.connect(lambda: got.append(f.value()))
+
+    def x_of(v):
+        return sl._handle_rect(v).center().x()
+
+    def send(kind, x, held=Qt.LeftButton):
+        t = {"press": QEvent.MouseButtonPress, "move": QEvent.MouseMove,
+             "release": QEvent.MouseButtonRelease, "double": QEvent.MouseButtonDblClick}[kind]
+        pos = QPointF(x, sl.height() / 2)
+        b = Qt.NoButton if kind == "move" else Qt.LeftButton
+        app.sendEvent(sl, QMouseEvent(t, pos, sl.mapToGlobal(pos), b,
+                                      Qt.NoButton if kind == "release" else held,
+                                      Qt.NoModifier))
+
+    def drag(to_x):
+        send("press", x_of(sl.value()))
+        send("move", to_x)
+        send("release", to_x)
+        return f.value()
+
+    assert drag(x_of(50)) == 50                              # far away: where it is put
+    assert drag(x_of(0) + SNAP_PX - 2) == 0                  # close by: snapped to 0
+    assert drag(x_of(-60)) == -60
+    assert drag(x_of(0) - SNAP_PX + 2) == 0
+    assert drag(x_of(0) + 3 * SNAP_PX) > 0                   # past the snap: free again
+    f.spin.setValue(2)
+    assert f.value() == 2                                    # typed values are kept
+    send("press", x_of(2))
+    send("release", x_of(2))
+    send("double", x_of(2))
+    send("release", x_of(2))
+    assert f.value() == 0 and got[-1] == 0                   # double-click: back to 0
+
+    t = theme.current
+    f.setValue(60)
+    img = f.grab().toImage()
+    cy = sl.mapTo(f, sl.rect().center()).y()
+    off = sl.mapTo(f, sl.rect().topLeft()).x()
+    accent, border = QColor(t.accent), QColor(t.border)
+
+    def near(c, ref):
+        return max(abs(c.red() - ref.red()), abs(c.green() - ref.green()),
+                   abs(c.blue() - ref.blue())) < 40
+
+    cx, vx = off + int(sl.centre_x()), off + x_of(60)
+    assert near(img.pixelColor((cx + vx) // 2, cy), accent)      # filled from 0 to 60
+    assert near(img.pixelColor(off + x_of(-50), cy), border)     # not left of 0
+    mark = QColor(t.muted)
+    assert any(near(img.pixelColor(cx + dx, cy - 5), mark) for dx in (-1, 0, 1))  # the 0 mark
+    f.close()
+
+
+def test_image_adjustments_panel(app):
+    """Step 1 has colour sliders; greyscale hides saturation and hue (nothing to turn);
+    Reset puts all of them back in one change, and is off while there is nothing to reset."""
+    from papermini.gui.panels import SOURCE, FigurePanel
+
+    p = FigurePanel()
+    p.set_settings(FigureSettings(), "x", "x")
+    p.set_step(SOURCE)
+    box = [b for b in p.sections if b.header.text() == "Image adjustments"][0]
+    assert box.isVisibleTo(p)
+    reset = p._resets["_reset_adjust"][0]
+    assert not reset.isEnabled()                         # nothing to reset yet
+    got = []
+    p.changed.connect(got.append)
+    p._w["brightness"][1].spin.setValue(30)
+    p._w["hue"][1].slider.setValue(-90)
+    assert (got[-1].brightness, got[-1].hue) == (30, -90) and reset.isEnabled()
+    p._w["greyscale"][1].setChecked(True)
+    assert got[-1].greyscale and not p.is_shown("saturation") and not p.is_shown("hue")
+    assert p.is_shown("brightness") and p.is_shown("contrast")
+    n = len(got)
+    reset.click()
+    assert len(got) == n + 1                             # one change, not five
+    assert got[-1].adjustments().is_identity() and not reset.isEnabled()
+    assert p.is_shown("saturation")
+    assert "_reset_adjust" not in p.step_settings()      # (a button, not a setting)
+    assert {"greyscale", "brightness", "hue"} <= p.step_settings()
+
+
+def test_source_view_shows_the_adjusted_picture_without_running_the_model(app, tmp_path):
+    """The Source view follows the colour sliders (a preview at the original's size),
+    and a colour change rebuilds the miniature from the cached mask: the model does not
+    run again and the outline stays."""
+    from papermini import segment
+    from papermini.gui.views import PREVIEW_PX
+    from papermini.gui.window import MainWindow
+
+    im = np.full((2400, 1800, 3), 255, np.uint8)                # larger than a preview
+    cv2.circle(im, (900, 1200), 500, (200, 40, 40), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    runs = []
+    real = segment.OnnxSegmenter.__call__
+    segment.OnnxSegmenter.__call__ = lambda self, x: runs.append(1) or real(self, x)
+    w = MainWindow()
+    try:
         w.add_images([tmp_path / "a.png"])
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
-        w._settings_changed(replace(fig.entry.settings, double_sided=False))  # one side
-        assert wait(app, lambda: fig.up_to_date), fig.error
-        cv = w.crop_view
-        shade, clip, folds = cv._cut_items
-        assert shade.scene() is cv.scene() and len(clip.childItems()) == 1   # the cut line
-        assert folds.path().elementCount() == 2                               # the tab fold
-        r = clip.childItems()[0].path().boundingRect()
-        assert 120 < r.left() < 150 and 120 < r.top() < 150                 # 150 - margin
+        assert len(runs) == 1 and w.crop_view.picture_size() == (1800, 2400)
+        outline = fig.mini.source_outline
+        w._settings_changed(replace(fig.entry.settings, greyscale=True))
+        assert wait(app, lambda: fig.up_to_date and w.crop_view.picture_size() != (1800, 2400))
+        assert max(w.crop_view.picture_size()) == PREVIEW_PX     # a smaller preview...
+        assert w.crop_view._img_size == (1800, 2400)              # ...in the original's pixels
+        pm = w.crop_view._pix_item.pixmap().toImage()
+        c = pm.pixelColor(pm.width() // 2, pm.height() // 2)
+        assert c.red() == c.green() == c.blue()                  # shown in grey
+        assert len(runs) == 1                                    # the model did not run again
+        assert len(fig.mini.source_outline) == len(outline)
+        art = np.asarray(fig.mini.art.convert("RGB")).astype(int)
+        mid = art[art.shape[0] // 2, art.shape[1] // 2]
+        assert abs(mid[0] - mid[1]) <= 2                         # and printed grey
+        w._settings_changed(replace(fig.entry.settings, greyscale=False))
+        assert wait(app, lambda: w.crop_view.picture_size() == (1800, 2400))  # the original
+    finally:
+        segment.OnnxSegmenter.__call__ = real
+        w._modified = False
+        w.close()
 
-        cv.refresh_theme()                                 # redrawn, not duplicated
-        assert len(cv._cut_items) == 3
-        cv.set_image(load_qimage(tmp_path / "b.png"))    # another image: no stale cut line
-        assert cv._cut is None and cv._cut_items == []
+
+def test_source_view_has_a_legend(app, tmp_path):
+    """The Source view explains its marks (outline, faded background, crop box) in a
+    legend, only there and only with an image. Its texts never change, crop box or
+    not. It lets the mouse through to the crop handles under it."""
+    from PySide6.QtCore import Qt
+
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
+    w = MainWindow()
+    try:
+        legend = w.legend
+        assert not w.legend_box.isVisibleTo(w)                 # no image yet
+        w.add_images([tmp_path / "a.png"])
+        assert w.legend_box.isVisibleTo(w)
+        texts = ["Detected outline", "Removed background", "Crop area"]
+        assert [t.text() for t in legend.texts] == texts
+        assert all(not sw.pixmap().isNull() for sw in legend.swatches)
+        assert legend.testAttribute(Qt.WA_TransparentForMouseEvents)
+        assert w.legend_box.testAttribute(Qt.WA_TransparentForMouseEvents)
+        w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])     # a crop box drawn
+        assert [t.text() for t in legend.texts] == texts       # the same words
+        w.tabs.setCurrentIndex(w.MINI)                          # only on the Source view
+        assert not w.legend_box.isVisibleTo(w)
+        w.tabs.setCurrentIndex(w.SOURCE)
+        assert w.legend_box.isVisibleTo(w)
+        w._settings_changed(replace(w.current().entry.settings, crop=None))
+        assert [t.text() for t in legend.texts] == texts
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_settings_panel_follows_the_step(app, tmp_path):
+    """Each step shows its own settings; "Apply to all" copies only those."""
+    from papermini.gui.panels import PRINT, SOURCE
+    from papermini.gui.window import MainWindow
+
+    for n in "ab":
+        Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / f"{n}.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "a.png", tmp_path / "b.png"])
+        p = w.panel
+        titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]  # noqa: E731
+        expected = [["Crop", "Background removal", "Image adjustments"],
+                    ["Back side", "Outline and cut line", "Tab", "Label"],
+                    ["Size and copies"]]
+        for i, want in enumerate(expected):
+            w.views.group.button(i).click()               # the step buttons in the header
+            assert w.tabs.currentIndex() == i and p.step() == i and titles() == want
+        w.tabs.setCurrentIndex(w.SOURCE)
+        assert "Crop" in p.step_hint.text() and p.step() == SOURCE
+
+        a, b = w.figures
+        w.list.setCurrentRow(0)
+        w._settings_changed(replace(a.entry.settings, height_mm=30, margin_mm=3, copies=4))
+        w.tabs.setCurrentIndex(w.SHEET)
+        assert p.step() == PRINT and "size" in p.apply_all.text()
+        p.apply_all.click()
+        assert b.entry.settings.height_mm == 30            # the size step's settings...
+        assert b.entry.settings.margin_mm == FigureSettings().margin_mm  # ...not the others
+        assert b.entry.settings.copies == 1                # copies stay per figure
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_size_fields_keep_proportions_until_unlinked(app):
+    """Linked, the field typed in sets the size and the other follows the figure's
+    proportions; unlinked, both are set (the figure is stretched)."""
+    from papermini.gui.panels import FigurePanel
+
+    p = FigurePanel()
+    p.set_settings(FigureSettings(height_mm=40), "x", "x")
+    f = p.size_field
+    assert f.linked() and f.w.text() == "—"                # proportions not known yet
+    p.set_aspect(0.5)
+    assert f.w.value() == 20
+    f.w.setValue(30)                                       # typing the width
+    s = p.settings()
+    assert (s.height_mm, s.width_mm) == (None, 30) and f.h.value() == 60
+    f.link.click()                                         # unlink: both as shown
+    s = p.settings()
+    assert (s.height_mm, s.width_mm) == (60, 30) and not f.linked()
+    f.h.setValue(50)                                       # the width stays
+    assert (p.settings().height_mm, p.settings().width_mm) == (50, 30)
+    f.link.click()                                         # linked again: by height
+    s = p.settings()
+    assert (s.height_mm, s.width_mm) == (50, None) and f.w.value() == 25
+    p.set_settings(FigureSettings(height_mm=42, width_mm=10), "x", "x")
+    assert not f.linked() and (f.h.value(), f.w.value()) == (42, 10)
+
+
+class SlowSegmenter(DarkSegmenter):
+    """A model that runs until it is cancelled (or, with ``block`` off, at once)."""
+
+    block = True
+    calls = 0
+    started = None  # threading.Event, set when a run starts
+
+    class _Run:
+        terminate = False
+
+    def __call__(self, im):
+        from papermini import segment
+
+        SlowSegmenter.calls += 1
+        if not SlowSegmenter.block:
+            return super().__call__(im)
+        ro = SlowSegmenter._Run()
+        with segment._RUNS_LOCK:
+            segment._RUNS.add(ro)
+        try:
+            SlowSegmenter.started.set()
+            while not ro.terminate:
+                time.sleep(0.01)
+            raise segment.Cancelled("cancelled")
+        finally:
+            with segment._RUNS_LOCK:
+                segment._RUNS.discard(ro)
+
+
+def test_background_removal_shows_progress_and_can_be_cancelled(app, tmp_path, monkeypatch):
+    """A running model shows a card with Cancel on the dimmed image; Cancel really stops
+    it and nothing restarts on its own; Run again does. A new crop stops the old run."""
+    import threading
+
+    from papermini import segment
+    from papermini.gui.window import MainWindow
+
+    monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
+    SlowSegmenter.block, SlowSegmenter.calls = True, 0
+    SlowSegmenter.started = threading.Event()
+    im = np.full((400, 300, 3), 255, np.uint8)
+    cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "a.png"])
+        fig = w.current()
+        assert wait(app, lambda: w.work_box.isVisibleTo(w) and w.crop_view._busy, 30)
+        assert w.work.button.text() == "Cancel" and "Removing the background" in w.work.title.text()
+        assert segment.DEFAULT_MODEL in w.work.detail.text()
+
+        # a new crop: the old run stops at once and the new one starts
+        SlowSegmenter.started.clear()
+        w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])
+        assert wait(app, lambda: SlowSegmenter.started.is_set() and SlowSegmenter.calls == 2, 30)
+        assert fig.cancelled is None
+
+        w.work.button.click()                             # Cancel
+        assert fig.stopped                                # at once
+        assert wait(app, lambda: not segment._RUNS, 30)  # and the run really stops
+        assert w.work.button.text() == "Run again" and "cancelled" in w.work.title.text()
+        assert not w.crop_view._busy and not fig.up_to_date
+        from papermini.gui.widgets import SUBTITLE_ROLE
+        assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
+        w._build_current()                                # nothing restarts on its own
+        for _ in range(20):
+            app.processEvents()
+            time.sleep(0.01)
+        assert SlowSegmenter.calls == 2
+
+        SlowSegmenter.block = False
+        w.work.button.click()                             # Run again
+        assert wait(app, lambda: fig.up_to_date, 30), fig.error
+        assert not w.work_box.isVisibleTo(w) and w.crop_view._outline_items
+    finally:
+        w._modified = False
+        w.close()
+
+
+class SlowLoadSegmenter(DarkSegmenter):
+    """A model that takes until ``loaded`` is set to load, then runs at once."""
+
+    loading = loaded = None  # threading.Event
+    calls = 0
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        SlowLoadSegmenter.loading.set()
+        assert SlowLoadSegmenter.loaded.wait(60)
+
+    def __call__(self, im):
+        SlowLoadSegmenter.calls += 1
+        return super().__call__(im)
+
+
+def test_cancel_works_while_the_model_loads(app, tmp_path, monkeypatch):
+    """Loading a model can take longer than running it (BiRefNet-lite: ~10 s). Cancel
+    then marks the figure cancelled at once and the model never runs; other settings
+    (a margin) do not start it again, Run again does."""
+    import threading
+
+    from papermini import segment
+    from papermini.gui.widgets import SUBTITLE_ROLE
+    from papermini.gui.window import MainWindow
+
+    monkeypatch.setattr(segment, "OnnxSegmenter", SlowLoadSegmenter)
+    SlowLoadSegmenter.loading, SlowLoadSegmenter.loaded = threading.Event(), threading.Event()
+    SlowLoadSegmenter.calls = 0
+    im = np.full((400, 300, 3), 255, np.uint8)
+    cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "a.png"])
+        fig = w.current()
+        assert wait(app, lambda: SlowLoadSegmenter.loading.is_set() and w.work_box.isVisibleTo(w), 30)
+        assert "loading" in w.work.detail.text()
+        w.work.button.click()                             # Cancel, while it loads
+        assert fig.stopped and w.work.button.text() == "Run again"
+        assert "Cancelled" in w._list_item(fig).data(SUBTITLE_ROLE)
+        SlowLoadSegmenter.loaded.set()
+        assert wait(app, lambda: w.pool.activeThreadCount() == 0, 30)
+        assert SlowLoadSegmenter.calls == 0 and not fig.up_to_date
+
+        w._settings_changed(replace(fig.entry.settings, margin_mm=4))  # not the mask
+        end = time.time() + 0.8                          # (past the build debounce)
+        while time.time() < end:
+            app.processEvents()
+            time.sleep(0.02)
+        assert w.pool.activeThreadCount() == 0 and SlowLoadSegmenter.calls == 0
+        assert fig.stopped and w.work.button.text() == "Run again"
+
+        w.work.button.click()                             # Run again
+        assert wait(app, lambda: fig.up_to_date, 30), fig.error
+        assert SlowLoadSegmenter.calls == 1 and not w.work_box.isVisibleTo(w)
+    finally:
+        SlowLoadSegmenter.loaded.set()
+        w._modified = False
+        w.close()
+
+
+def test_a_new_image_waits_for_a_running_model_with_cancel(app, tmp_path, monkeypatch):
+    """An image added while another figure's model runs waits for that run: the card
+    says so, and Cancel stops that run so the new image goes next."""
+    import threading
+
+    from papermini import segment
+    from papermini.gui.widgets import SUBTITLE_ROLE
+    from papermini.gui.window import MainWindow
+
+    monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
+    SlowSegmenter.block, SlowSegmenter.calls = True, 0
+    SlowSegmenter.started = threading.Event()
+    im = np.full((400, 300, 3), 255, np.uint8)
+    cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
+    for n in "ab":
+        Image.fromarray(im).save(tmp_path / f"{n}.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "a.png"])
+        a = w.current()
+        assert wait(app, lambda: SlowSegmenter.started.is_set() and w.work_box.isVisibleTo(w), 30)
+        SlowSegmenter.started.clear()
+        w.add_images([tmp_path / "b.png"])
+        b = w.current()
+        assert b is not a
+        assert wait(app, lambda: w.work_box.isVisibleTo(w)
+                    and w.work.title.text() == "Waiting for a", 30)
+        assert w.work.button.text() == "Cancel it" and not w.crop_view._busy
+        assert not w.busy_box.isVisibleTo(w)              # the card says it all
+
+        w.work.button.click()                             # stops a's run
+        assert a.stopped and not b.stopped
+        assert wait(app, lambda: SlowSegmenter.started.is_set(), 30)  # b goes next
+        assert wait(app, lambda: "Removing the background" in w.work.title.text(), 30)
+        assert w.work.button.text() == "Cancel" and SlowSegmenter.calls == 2
+        w.work.button.click()                             # and b's own run
+        assert b.stopped and wait(app, lambda: not segment._RUNS, 30)
+        assert "Cancelled" in w._list_item(a).data(SUBTITLE_ROLE)
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_stretched_figure_gets_both_sizes(app, tmp_path):
+    from papermini.gui.window import MainWindow
+
+    im = np.full((900, 700, 3), 255, np.uint8)
+    cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
+    Image.fromarray(im).save(tmp_path / "a.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "a.png"])
+        fig = w.current()
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        f = w.panel.size_field
+        assert f.w.value() == pytest.approx(42 * 401 / 601, abs=0.1)  # follows the figure
+        f.link.click()
+        f.w.setValue(40)
+        assert (fig.entry.settings.height_mm, fig.entry.settings.width_mm) == (42, 40)
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        assert fig.mini.figure_width_mm == pytest.approx(40, abs=0.05)
+        assert fig.mini.figure_height_mm == pytest.approx(42, abs=0.05)
+        assert "figure 40.0 × 42.0 mm" in w.info.text()
     finally:
         w._modified = False
         w.close()

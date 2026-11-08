@@ -72,12 +72,12 @@ def main() -> None:
         w._modified = False
         w.close()
 
-    # (theme, file name, figure row in the sample project, view: 0 miniature,
-    #  1 source, 2 print sheet)
-    shot("light", "app-miniature", 1, 0)
-    shot("light", "app-source", 0, 1)
+    # (theme, file name, figure row in the sample project, view: the workflow step,
+    #  0 source, 1 miniature, 2 print sheet)
+    shot("light", "app-source", 0, 0)
+    shot("light", "app-miniature", 1, 1)
     shot("light", "app-sheet", 0, 2)
-    shot("dark", "app-dark", 2, 0)
+    shot("dark", "app-dark", 2, 1)
 
 
 if __name__ == "__main__":

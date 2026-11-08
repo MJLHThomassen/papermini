@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QLayout, QPushButton,
                                QSizePolicy, QStyle, QStyledItemDelegate, QToolButton, QVBoxLayout,
@@ -65,11 +65,13 @@ class FigureDelegate(QStyledItemDelegate):
 
 
 class Segmented(QFrame):
-    """A row of mutually exclusive buttons (a segmented control)."""
+    """A row of mutually exclusive buttons (a segmented control). With ``steps`` the
+    buttons are numbered workflow steps with a chevron between them; any step can
+    still be picked at any time."""
 
     changed = Signal(int)
 
-    def __init__(self, labels, parent=None):
+    def __init__(self, labels, parent=None, steps: bool = False):
         super().__init__(parent)
         self.setObjectName("Segmented")
         h = QHBoxLayout(self)
@@ -77,8 +79,14 @@ class Segmented(QFrame):
         h.setSpacing(2)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
+        self._chevrons = []
         for i, (text, tip) in enumerate(labels):
-            b = QPushButton(text)
+            if steps and i:
+                arrow = QLabel()
+                arrow.setObjectName("StepArrow")
+                self._chevrons.append(arrow)
+                h.addWidget(arrow)
+            b = QPushButton(f"{i + 1}  {text}" if steps else text)
             b.setCheckable(True)
             b.setToolTip(tip)
             b.setCursor(Qt.PointingHandCursor)
@@ -87,9 +95,112 @@ class Segmented(QFrame):
             h.addWidget(b)
         self.group.idClicked.connect(self.changed)
         self.group.button(0).setChecked(True)
+        self.refresh_icons()
+
+    def refresh_icons(self):
+        for arrow in self._chevrons:
+            arrow.setPixmap(theme.pixmap("chevron_right", theme.current.muted, 14))
 
     def set_index(self, i: int):
         self.group.button(i).setChecked(True)
+
+
+class Spinner(QWidget):
+    """A small turning arc: something is being worked on. Turns only while shown."""
+
+    def __init__(self, size: int = 22, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self._angle = 0
+        self._timer = QTimer(self, interval=50, timeout=self._turn)
+
+    def _turn(self):
+        self._angle = (self._angle + 30) % 360
+        self.update()
+
+    def showEvent(self, e):
+        self._timer.start()
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        self._timer.stop()
+        super().hideEvent(e)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(2.5, 2.5, -2.5, -2.5)
+        track = QColor(theme.current.border)
+        p.setPen(QPen(track, 3))
+        p.drawEllipse(r)
+        pen = QPen(QColor(theme.current.accent), 3)
+        pen.setCapStyle(Qt.RoundCap)
+        p.setPen(pen)
+        p.drawArc(r, -self._angle * 16, 100 * 16)
+
+
+class ElidedLabel(QLabel):
+    """A one-line label that ends in "…" when it gets less room than its text needs
+    (a long figure name), instead of clipping it or growing its parent."""
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(40, super().minimumSizeHint().height())
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setPen(self.palette().color(self.foregroundRole()))
+        r = self.contentsRect()
+        text = self.fontMetrics().elidedText(self.text(), Qt.ElideRight, r.width())
+        p.drawText(r, int(Qt.AlignLeft | Qt.AlignVCenter), text)
+
+
+class WorkCard(QFrame):
+    """A card in the middle of the canvas for slow work: what is happening, how long
+    it has taken, and a button (Cancel while working, Run again once cancelled)."""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("WorkCard")
+        self.setMinimumWidth(440)  # room for a figure name before it ends in "…"
+        self.setMaximumWidth(520)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(16, 14, 14, 14)
+        h.setSpacing(14)
+        self.spinner = Spinner()
+        self.icon = QLabel()
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        self.title = ElidedLabel()  # (a long figure name ends in "…")
+        self.title.setObjectName("WorkTitle")
+        self.detail = ElidedLabel()
+        self.detail.setObjectName("Muted")
+        text.addWidget(self.title)
+        text.addWidget(self.detail)
+        self.button = QPushButton()
+        self.button.setCursor(Qt.PointingHandCursor)
+        self.button.clicked.connect(self.clicked)
+        h.addWidget(self.spinner, 0, Qt.AlignVCenter)
+        h.addWidget(self.icon, 0, Qt.AlignVCenter)
+        h.addLayout(text, 1)
+        h.addWidget(self.button, 0, Qt.AlignVCenter)
+
+    def show_working(self, title: str, detail: str, button: str = "Cancel"):
+        self.spinner.show()
+        self.icon.hide()
+        self._set(title, detail, button)
+
+    def show_stopped(self, title: str, detail: str, button: str):
+        self.spinner.hide()
+        self.icon.setPixmap(theme.pixmap("warning", theme.current.muted, 20))
+        self.icon.show()
+        self._set(title, detail, button)
+
+    def _set(self, title: str, detail: str, button: str):
+        self.title.setText(title)
+        self.detail.setText(detail)
+        self.button.setText(button)
 
 
 class ZoomBar(QFrame):
