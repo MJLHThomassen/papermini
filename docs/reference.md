@@ -8,6 +8,7 @@ the desktop app in depth, and how the pipeline works.
 - [Background removal models](#model-licence)
 - [Stands and bases](#stands-and-bases)
 - [Double-sided minis](#double-sided-minis)
+- [Colour adjustments](#colour-adjustments)
 - [Tips](#tips)
 - [How it works](#how-it-works)
 - [Caching and speed](#caching-and-speed)
@@ -15,8 +16,10 @@ the desktop app in depth, and how the pipeline works.
 
 ## Desktop app
 
-- **Header.** Open and save on the left; a switch between the three
-  views in the middle; **Export SVG** and **Export PDF** on the right. The ☰ menu
+- **Header.** Open and save on the left; the three steps of the workflow in
+  the middle (**1 Source**, **2 Miniature**, **3 Print sheet**); **Export SVG**
+  and **Export PDF** on the right. The steps are in the order you usually work,
+  but you can open any of them at any time. The ☰ menu
   holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
   or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
@@ -39,33 +42,77 @@ the desktop app in depth, and how the pipeline works.
   under it, or drop files or a project anywhere in the window. Drag to reorder; **Delete**
   removes the selected one. A new figure starts with the settings of the one
   that is selected.
-- **Settings** (right). Every option from `papermini make`, in sections you can
-  fold open and closed (the app remembers which). The preview updates about a
-  second after each change, and fast series of changes (holding an arrow key)
-  only build the final value. The model only runs once per image and crop.
-  Changing *Copies* only updates the sheet. Number fields step with the arrow
-  keys, or the mouse wheel once you click into them, so scrolling the panel
-  never edits values. Decimals use a point (`1.6`) whatever your system's
-  language; a typed comma becomes a point. *Apply to all figures* copies everything except label,
-  crop, mask and copies.
-- **Miniature** view. The piece as it will print, with a 10 mm scale bar. The
-  zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
-  real size (*1:1*, Ctrl+1), depending on the DPI your screen reports.
-- **Source** view. The original image with the cut line and fold lines of the
-  built piece on it. Everything outside the cut line is faded: that part of the
-  image is cut away, so you can spot a clipped sword tip or a detached part
-  that was dropped. (A tab or the back of a double-sided piece reaching past
-  the image is not drawn.) Drag a box to set `--crop` for busy backgrounds.
+- **Settings** (right). The options of the step you are on, in sections you
+  can fold open and closed (the app remembers which):
+  - **Source:** *Crop*, then *Background removal* (model, strength, gap
+    filling, detached parts), then *Image adjustments* (greyscale,
+    brightness, contrast, saturation, hue, and *Reset adjustments*; see
+    [Colour adjustments](#colour-adjustments)).
+  - **Miniature:** *Back side*, *Outline and cut line* and *Tab*, with
+    *Label* as an indented sub-group at the end of *Tab* (the label is
+    printed on the tab). *Back side*, *Tab* and *Label* each have a checkbox
+    at the right of their header that turns the whole group on or off
+    (*Print a back side*, *Print a tab*, *Print a label*); all three are on
+    by default. A group that is off shows only its header and cannot be
+    opened; turning the tab off also hides *Label*.
+
+  The settings side cannot be made narrower than its widest step needs, so
+  no field or checkbox is ever cut off; drag it shut to hide it instead.
+  - **Print sheet:** *Size and copies* (figure height and width, copies on
+    the sheet, image resolution).
+
+  The preview updates about a second after each change, and fast series of
+  changes (holding an arrow key) only build the final value. The model only
+  runs once per image and crop. Changing *Copies* only updates the sheet.
+  Number fields step with the arrow keys, or the mouse wheel once you click
+  into them, so scrolling the panel never edits values. Decimals use a point
+  (`1.6`) whatever your system's language; a typed comma becomes a point.
+  The *Apply … to all figures* button copies the settings of the step you are
+  on to every other figure, except the crop, mask file, label and copies.
+- **1 Source.** The original image with the outline that background removal
+  found, before any margin or tab (those belong to the miniature). Everything
+  outside the outline is faded, so you can spot a clipped sword tip or a
+  detached part that was dropped. A legend in the bottom-left corner explains
+  the outline, the faded background and the crop box. Crop first: drag a box on the image and the
+  model only looks inside it, which helps a lot with busy backgrounds.
   Afterwards:
   - drag its **handles** (corners and edge midpoints, or anywhere along an
     edge) to resize it;
   - drag **inside** it to move it;
   - drag **outside** it to draw a new box;
-  - press **Delete** to clear it, or **Esc** to cancel a drag.
+  - press **Delete** or **Clear crop** (next to the zoom controls) to clear it,
+    or **Esc** to cancel a drag;
+  - press **Ctrl+Z** to undo a crop change (one at a time, also for another
+    figure, which is then selected).
+
+  Until there is a crop box, a hint above the image says to drag one, and dashed
+  guide lines through the mouse show where it would start. Over a box, the part
+  a drag would grab lights up: a handle, an edge, or the whole box. A click, or
+  a press that barely moves, changes nothing, so it never starts the model by
+  accident.
 
   The mouse wheel zooms and the middle mouse button pans.
-- **Print sheet** view. A live preview of the PDF layout, with paper, title,
-  margin and gap settings in the bar above it. **Print…** there (or
+
+  While a model runs, the image is dimmed and a card shows the model and how
+  long it has been running, with **Cancel**. Cancel stops the model right
+  away, also while it is still loading (the first run of a model loads it,
+  which can take longer than the run itself). The figure then waits until you
+  press **Run again** or change the image, crop or model; other settings, such
+  as the margin, do not start the model again. A new crop or model also stops
+  a run that is no longer needed, so a misclick on a slow model (BiRefNet)
+  costs nothing. The app runs one model at a time: a figure that waits for
+  another figure's model (an image you just added, say) shows a card with that
+  figure's name, and its Cancel stops that run so the selected figure goes
+  next. New images take the settings of the selected figure, model included.
+- **2 Miniature.** The piece as it will print, with a 10 mm scale bar. The
+  zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
+  real size (*1:1*, Ctrl+1), depending on the DPI your screen reports.
+- **3 Print sheet.** A live preview of the PDF layout, with paper, title,
+  margin and gap settings in the bar above it. The settings panel sets each
+  figure's size: *Figure height* and *Figure width*, with a link button beside
+  them. Linked (the default), the figure keeps its proportions: type a height
+  and the width follows, or the other way round. Unlinked, height and width
+  are set separately and the figure is stretched to them. **Print…** (or
   Ctrl+Shift+P) prints the sheet straight away, without saving a PDF first.
   It always prints at real size, from the corner of the paper, on the sheet's
   paper (A4 or Letter); the app warns if the printer is set to another paper
@@ -110,6 +157,7 @@ papermini make *.png -o minis --debug
 | option | default | meaning |
 |---|---|---|
 | `--height-mm` | 42 | height of the drawn figure, without margin and tab |
+| `--width-mm` | | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
 | `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
 | `--smooth-mm` | 0.6 | how much the outline is rounded |
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
@@ -119,7 +167,7 @@ papermini make *.png -o minis --debug
 | `--tab-overlap-mm` | 0 | how far the tab reaches up past the fold. It only adds paper where the figure's bottom is narrower than the tab (feet, a tail), to strengthen the joint; on a wide bottom it has no effect, and the app says so |
 | `--fold-mm` | 0 | fold line distance above the silhouette's lowest point |
 | `--no-tab` | | no tab |
-| `--double-sided` | | front plus back, joined at a top fold, with a tab at both ends |
+| `--double-sided` / `--no-double-sided` | on | front plus back, joined at a top fold, with a tab at both ends; `--no-double-sided` prints the front only |
 | `--back` | mirror | double-sided back: `mirror` (the drawing seen from behind), `blank` (white paper) or `text` |
 | `--back-text` | label | text for `--back text`; auto-sized and wrapped to fit the figure |
 | `--back-color` | #ffffff | colour of a `blank` or `text` back |
@@ -130,6 +178,11 @@ papermini make *.png -o minis --debug
 | `--keep-all` / `--min-area` | / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
 | `--margin-color` | #ffffff | colour of the margin around the drawing |
+| `--greyscale` | | print in black and white |
+| `--brightness` | 0 | −100 (towards black) to 100 (towards white); white paper stays white, black lines stay black |
+| `--contrast` | 0 | −100 (flat grey) to 100 (hard) |
+| `--saturation` | 0 | −100 (grey) to 100 (twice as colourful) |
+| `--hue` | 0 | turn every colour around the colour wheel, −180 to 180 degrees (red → yellow → green for positive values) |
 | `--label` | file name | text on the tab; `--label ""` for none |
 | `--dpi` | 300 | resolution of the embedded artwork |
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
@@ -178,9 +231,14 @@ An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
 It is downloaded once (later runs use the cached copy) and saved projects keep
 the link.
 
+The size is `height_mm`, `width_mm` or both. One of them keeps the figure's
+proportions; both stretch it to that height and width. A figure that gives only
+`width_mm` is sized by width, but `defaults` count too: with `height_mm` in
+`defaults`, write `height_mm: null` in a figure to size it by width only.
+
 [examples/sample/sample.yaml](../examples/sample/sample.yaml) builds the sample
-outputs in that folder: a default mini, a round coloured base, a double-sided
-mini with back text, and a print-and-cut mini with bleed. Their sheet is
+outputs in that folder: a default (double-sided) mini, a single-sided mini on a
+round coloured base, a mini with back text, and a print-and-cut mini with bleed. Their sheet is
 [examples/sample/sample-sheet.pdf](../examples/sample/sample-sheet.pdf).
 
 ```bash
@@ -233,10 +291,12 @@ instead of white, or show the original image (`--margin-fill image`).
 
 ## Double-sided minis
 
-`--double-sided` (or the checkbox in the app) prints the piece twice, joined at
-a fold above the head. Fold it over and glue the halves back to back, so the
-figure looks right from both sides. The cut line is always mirrored, so the
-halves line up. What shows on the back is up to you:
+Minis are double-sided by default: the piece is printed twice, joined at a fold
+above the head. Fold it over and glue the halves back to back, so the figure
+looks right from both sides. The cut line is always mirrored, so the halves line
+up. `--no-double-sided` (or unticking the checkbox in the *Back side* header,
+at the top of the app's Miniature step) prints only the front. What shows on
+the back is up to you:
 
 - `--back mirror` (default) shows the drawing seen from behind.
 - `--back blank` leaves the back plain, in `--back-color` (white by default),
@@ -245,11 +305,33 @@ halves line up. What shows on the back is up to you:
   large as fits:
 
   ```bash
-  papermini make lotje.png --double-sided --back text --back-text "Lotje the Lost Ghost"
+  papermini make lotje.png --back text --back-text "Lotje the Lost Ghost"
   ```
 
   Without `--back-text`, it uses the label. On the sheet the back text is upside
   down; it reads the right way up once the piece is folded.
+
+## Colour adjustments
+
+Greyscale, brightness, contrast, saturation and hue change the colours of what
+is printed: the drawing, a margin filled with the image (`--margin-fill image`)
+and the mirrored back. They never change what background removal sees, so the
+outline stays where it is and moving a slider never runs the model again; even
+with BiRefNet the preview follows at once. In the app they are in *Image
+adjustments* in step 1, and the Source view shows the adjusted picture (a
+smaller preview on large photos; the print always uses the full image). Their
+sliders have 0 in the middle, marked with a short line: the coloured fill runs
+from there to the handle, a drag that comes close to 0 snaps to it (typed values
+are kept as they are), and a double-click puts a slider back to 0.
+
+```bash
+papermini make goblin.png --greyscale --contrast 15   # black and white, a bit punchier
+papermini make goblin.png --hue 120 --saturation 20   # a green goblin from a red one
+```
+
+In a project file they are `greyscale`, `brightness`, `contrast`, `saturation`
+and `hue`; *Apply source settings to all figures* in the app copies them along
+with the background removal settings.
 
 ## Tips
 

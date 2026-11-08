@@ -15,6 +15,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 - a **fold-over tab** so the figure stands up: square for a stand, or round to
   fold out into a base,
 - **double-sided** minis with a mirrored, blank or text back,
+- **colour adjustments** for the print: greyscale, brightness, contrast,
+  saturation and hue,
 - an **SVG per figure** in millimetres and an **A4/Letter PDF sheet** to print
   at 100%,
 - works with PNG, JPG, **WebP**, BMP and TIFF files, or a **link** to an image on
@@ -67,22 +69,29 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
    above the figure list. You can also drag a picture from your browser, paste
    one with Ctrl+V, or paste its link into the link bar. Each image becomes a
    figure in the list on the left.
-2. **Adjust the settings** on the right: height, background removal, margin,
-   tab shape and label, double-sided. The preview updates as you go.
-3. **Check the cut.** The *Source* view draws the cut line on your original
-   image and fades everything that is cut away. If the outline is wrong, try a
-   lower strength or drag a crop box there.
-4. **Print.** The *Print sheet* view lays all figures out on pages. Click
-   **Print…** to print them straight away at real size, or **Export PDF** and
-   print that at 100% ("actual size"). Each page has a 50 mm bar to check the
-   scale.
+2. **Step 1, Source.** Drag a box around the figure to crop it, and pick the
+   background removal model. The outline that was found is drawn on your
+   image, and everything outside it is faded. If the outline is wrong, try a
+   lower strength, a tighter crop or another model. A slow model can be
+   cancelled.
+3. **Step 2, Miniature.** Set the back side, margin, cut line, tab and label.
+   The back side, tab and label each have a checkbox in their header to turn
+   them on or off; all three are on by default, so a mini has a front and a
+   back, folded over the head. The preview updates as you go.
+4. **Step 3, Print sheet.** Set each figure's size (height, width, or both)
+   and copies, and see all figures laid out on pages. Click **Print…** to
+   print them straight away at real size, or **Export PDF** and print that at
+   100% ("actual size"). Each page has a 50 mm bar to check the scale.
+
+The settings panel on the right shows the settings of the step you are on.
+You can switch steps at any time.
 
 Save your work as a project (Ctrl+S). Projects are plain YAML files that the
 command line can rebuild too.
 
 | Source view | Print sheet | Dark theme |
 |---|---|---|
-| ![Source view with the cut line](docs/screenshots/app-source.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
+| ![Source view with the detected outline](docs/screenshots/app-source.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
 
 The first time it needs the background-removal model (about 176 MB), the app
 asks before downloading it. After that, papermini works offline. **Models…**
