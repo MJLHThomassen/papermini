@@ -108,6 +108,27 @@ def test_double_sided_is_mirror_symmetric():
     assert n == 2
 
 
+def test_top_fold_is_where_a_raised_wing_meets_the_fold():
+    # a body with a wing raised high on the left and the head lower on the right:
+    # the halves meet at the wing, so the bridge and the fold belong there, not in
+    # the gap between wing and head
+    m = np.zeros((1400, 1100), np.uint8)
+    cv2.rectangle(m, (300, 500), (800, 1300), 255, -1)                       # body
+    cv2.fillPoly(m, [np.array([(300, 700), (150, 100), (350, 100), (450, 600)])], 255)  # wing
+    cv2.circle(m, (750, 330), 100, 255, -1)                                  # head
+    clean = geo.clean_mask(m, close_px=9)
+    lay = geo.build_layout(clean, rgb_like(clean), geo.Params(double_sided=True))
+    h = int(lay.front_top)
+    top = [(a, b) for a, b, y in lay.folds if y == h]
+    paper = np.flatnonzero(lay.cut[h])
+    assert all(any(a <= x < b for a, b in top) for x in paper)  # the fold spans the joint
+    first = h + np.flatnonzero(lay.figure[h:].any(axis=1))[0]  # the figure's highest row
+    tip = np.flatnonzero(lay.figure[first])
+    wing_x = (tip.min() + tip.max()) / 2  # the wing tip
+    assert len(top) == 1 and top[0][0] < wing_x < top[0][1]
+    assert abs((top[0][0] + top[0][1]) / 2 - wing_x) < 2 * lay.px_per_mm  # centred on it
+
+
 def test_bezier_stays_close_to_polygon():
     clean = geo.clean_mask(ghost(), close_px=9)
     lay = geo.build_layout(clean, rgb_like(clean), geo.Params())

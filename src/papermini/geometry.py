@@ -306,6 +306,34 @@ def _band_centre(m: np.ndarray, y0: int, y1: int) -> int:
     return int(round((cols.min() + cols.max()) / 2))
 
 
+def _bridge_centre(sil: np.ndarray, y_top: int, depth: int, width: int) -> float:
+    """Column for the top bridge of a double-sided mini.
+
+    The bridge is a ``width`` x ``depth`` rectangle hanging from the fold row. It goes
+    where it overlaps the silhouette most, so it holds the halves together where the
+    figure really reaches the fold (a raised wing, not the gap beside it). Among
+    equally good places it takes the middle one, so it is centred on a head.
+    """
+    cover = np.count_nonzero(sil[y_top:y_top + max(1, depth)], axis=0).astype(np.float64)
+    w = int(np.clip(width, 1, len(cover)))
+    c = np.concatenate([[0.0], np.cumsum(cover)])
+    score = c[w:] - c[:-w]  # score[i]: overlap of a bridge over columns i .. i + w - 1
+    best = int(np.argmax(score))
+    good = score >= 0.99 * score[best]
+    lo, hi = best, best
+    while lo > 0 and good[lo - 1]:
+        lo -= 1
+    while hi < len(good) - 1 and good[hi + 1]:
+        hi += 1
+    return (lo + hi) / 2 + w / 2
+
+
+def _runs(row: np.ndarray) -> List[Tuple[int, int]]:
+    """(start, end) column pairs of the filled runs in a row, end exclusive."""
+    d = np.diff(np.concatenate([[0], (row > 0).astype(np.int8), [0]]))
+    return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
+
+
 def figure_size(w_px: int, h_px: int, height_mm: Optional[float],
                 width_mm: Optional[float]) -> Tuple[float, float]:
     """(height in mm, horizontal stretch) for a ``w_px`` x ``h_px`` drawing.
@@ -468,10 +496,10 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
 
     if prm.double_sided:
         bw = prm.top_bridge_width_mm * pxmm
-        bcx = _band_centre(sil, sy0, int(sy0 + prm.tab_band_mm * pxmm))
+        depth = int(round(prm.top_bridge_depth_mm * pxmm))
+        bcx = _bridge_centre(sil, sy0, depth, int(round(bw)))
         cv2.rectangle(cut, (int(round(bcx - bw / 2)), sy0),
-                      (int(round(bcx + bw / 2)), int(round(sy0 + prm.top_bridge_depth_mm * pxmm))),
-                      255, -1)
+                      (int(round(bcx + bw / 2)) - 1, sy0 + depth), 255, -1)
 
     if prm.fillet_mm > 0:
         cut = close(cut, prm.fillet_mm * pxmm)
@@ -494,8 +522,6 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
     labels = [(x - ox, y - oy, r) for x, y, r in labels]
     circles = [(x - ox, y - oy, r, d) for x, y, r, d in circles]
     sy0 -= oy
-    if prm.double_sided:
-        bcx -= ox
 
     # Artwork: the drawing where the figure is, the paper colour in margin and tab
     # (or the original image in the margin), and optionally a coloured tab.
@@ -519,17 +545,19 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
                  label_max_w_px=label_w, label_max_h_px=label_h,
                  paper=paper, tabfill=tabfill, src=src)
     if prm.double_sided:
-        lay = _mirror_at_top(lay, sy0, bw, bcx, prm.back, hex_rgb(prm.back_color))
+        lay = _mirror_at_top(lay, sy0, prm.back, hex_rgb(prm.back_color))
     return lay
 
 
 BACK_MODES = ("mirror", "blank", "text")
 
 
-def _mirror_at_top(lay: Layout, y_top: int, bw: float, bcx: float,
-                   back: str = "mirror", back_rgb: Tuple[int, int, int] = (255, 255, 255)) -> Layout:
+def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
+                   back_rgb: Tuple[int, int, int] = (255, 255, 255)) -> Layout:
     """Front + vertically mirrored back, joined at a fold through ``y_top``.
 
+    The fold line runs across all the paper that joins the halves there (the top
+    bridge, and a wing or head that reaches the fold beside it).
     The cut shape is always mirrored (so the halves line up when glued); with
     ``back`` "blank" or "text" the back half shows white paper instead of the
     mirrored drawing, and "text" also reports where text fits (``back_box``).
@@ -550,7 +578,7 @@ def _mirror_at_top(lay: Layout, y_top: int, bw: float, bcx: float,
         return np.concatenate([top, front], axis=0)
 
     h = lay.cut.shape[0] - y_top  # rows of each half; fold is at row h
-    folds = [(bcx - bw / 2, bcx + bw / 2, float(h))]
+    folds = [(float(a), float(b), float(h)) for a, b in _runs(lay.cut[y_top])]
     labels = []
     for fx0, fx1, fy in lay.folds:
         fy = fy - y_top
