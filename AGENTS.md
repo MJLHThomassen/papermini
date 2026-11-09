@@ -51,7 +51,7 @@ src/papermini/
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
                 prefs, models: download dialog and Models window)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
-scripts/        setup_venv.py, screenshots.py
+scripts/        setup_venv.py, screenshots.py, release_notes.py
 packaging/      PyInstaller spec, entry scripts and app icon (make_icon.py)
 .github/        CI (tests on push/PR) and release (binaries on version tags)
 examples/       batch YAML examples and generated sample outputs
