@@ -6,64 +6,65 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 
 ![The papermini desktop app](docs/screenshots/app-miniature.png)
 
+<p align="center"><b>⬇️ Printed, cut out and folded, this is the mini made above ⬇️</b></p>
+
+<p align="center">
+  <img src="examples/dragons/dragon-flying-photo.jpg" width="600"
+       alt="The flying dragon as a real paper mini, standing on its round base">
+</p>
+
+**Contents**
+
+- [Features](#features)
+- [Quick start](#quick-start)
+- [Usage via GUI](#usage-via-gui)
+- [Usage via CLI](#usage-via-cli)
+- [Development](#development)
+  - [Run from source](#run-from-source)
+  - [Set up your environment](#set-up-your-environment)
+  - [Versions and releases](#versions-and-releases)
+  - [Building the binaries locally](#building-the-binaries-locally)
+- [Settings guide](docs/reference.md#settings-guide): every setting, with
+  pictures (in the reference)
+
 # Features
 
-- cuts the figure out of its background with locally running AI segmentation (or uses the
-  image's own transparency),
-- a smooth **vector cut line** with a margin, ready for scissors, Cricut,
-  Silhouette or Inkscape,
-- a **fold-over tab** so the figure stands up: square for a stand, or round to
-  fold out into a base,
-- **double-sided** minis with a mirrored, blank or text back,
-- **colour adjustments** for the print: greyscale, brightness, contrast,
-  saturation and hue,
-- an **SVG per figure** in millimetres and an **A4/Letter PDF sheet** to print
-  at 100%,
-- works with PNG, JPG, **WebP**, BMP and TIFF files, or a **link** to an image on
-  the web,
-- a **desktop app** with live previews, and a command line for batches.
+- **[Background removal](docs/reference.md#background-removal)**: AI models that run on
+  your own computer, or the image's own transparency.
+- **[Cropping](docs/reference.md#crop)**: drag a box to keep only the figure.
+- **Cut line**: a smooth vector outline with a margin, for scissors or a
+  cutting machine.
+- **[Stand tab](docs/reference.md#stands-and-bases)**: square to slot into a
+  stand, or round to fold out into a base.
+- **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank
+  or text back, folded over the head.
+- **[Colour adjustments](docs/reference.md#colour-adjustments)**: greyscale,
+  brightness, contrast, saturation and hue.
+- **Print sheets**: A4 or Letter PDF pages at real size, or an SVG per figure.
+- **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web.
+- **[App](#usage-via-gui) and [command line](#usage-via-cli)**: live previews
+  in the app, batches from the command line.
 
-# Usage
+### [All features / settings →](docs/reference.md#settings-guide)
 
-Download the archive for your system from the
-[latest release](https://github.com/MJLHThomassen/papermini/releases/latest),
-unpack it and start papermini. No Python needed.
 
-| System | Download | Start |
-|---|---|---|
-| Windows (64-bit) | `papermini-<version>-windows-x64.zip` | `papermini-gui.exe` |
-| macOS (Apple silicon) | `papermini-<version>-macos-arm64.zip` | `papermini.app` |
-| macOS (Intel) | `papermini-<version>-macos-x64.zip` | `papermini.app` |
-| Linux (64-bit) | `papermini-<version>-linux-x64.tar.gz` | `papermini-gui` |
+# Quick start
 
-The builds are not code-signed, so the first start needs one extra step:
+1. Download papermini from the
+   [latest release](https://github.com/MJLHThomassen/papermini/releases/latest),
+   unpack it and start it.
+2. Make your first mini:
+   1. Drop an image onto the window, for example
+      [dragon.webp](examples/dragons/dragon.webp).
+   2. In **1 Source**, drag a box around the figure. Its outline is drawn on
+      the image.
+   3. In **2 Miniature**, type the label for the tab, such as `Red dragon`.
+   4. In **3 Print sheet**, set the figure height, such as 42 mm, and the
+      number of copies.
+   5. Click **Print…** and print at 100%. Cut along the solid line, fold
+      along the dashed lines and glue the two halves back to back.
 
-- **Windows:** if SmartScreen warns, click *More info*, then *Run anyway*.
-- **macOS:** right-click `papermini.app` and choose *Open*. If macOS says the
-  app is damaged, run `xattr -dr com.apple.quarantine papermini.app` once.
-- **Linux:** Qt needs a few X11 libraries; on Debian and Ubuntu,
-  `sudo apt install libxcb-cursor0`.
-
-<details><summary>Run from source instead</summary>
-
-You need Python 3.10 or newer. The setup script creates a virtual environment
-in `~/.venvs/papermini` and installs papermini with the desktop app:
-
-```bash
-git clone https://github.com/MJLHThomassen/papermini.git
-```
-
-```bash
-cd papermini
-```
-
-```bash
-python scripts/setup_venv.py
-```
-
-Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
-`~/.venvs/papermini/bin/papermini-gui` (macOS, Linux).
-</details>
+# Usage via GUI
 
 1. **Add images.** Drop images onto the window, or use the add-image button
    above the figure list. You can also drag a picture from your browser, paste
@@ -73,29 +74,30 @@ Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
    background removal model. The outline that was found is drawn on your
    image, and everything outside it is faded. If the outline is wrong, try a
    lower strength, a tighter crop or another model. A slow model can be
-   cancelled.
+   cancelled. [All Source settings](docs/reference.md#step-1-source).
 3. **Step 2, Miniature.** Set the back side, margin, cut line, tab and label.
    The back side, tab and label each have a checkbox in their header to turn
    them on or off; all three are on by default, so a mini has a front and a
    back, folded over the head. The preview updates as you go.
+   [All Miniature settings](docs/reference.md#step-2-miniature), including
+   the tab's [overlap](docs/reference.md#tab) and fold.
 4. **Step 3, Print sheet.** Set each figure's size (height, width, or both)
    and copies, and see all figures laid out on pages. Click **Print…** to
    print them straight away at real size, or **Export PDF** and print that at
    100% ("actual size"). Each page has a 50 mm bar to check the scale.
+   [All Print sheet settings](docs/reference.md#step-3-print-sheet).
+
+| Step 1, Source | Step 2, Miniature (dark theme) | Step 3, Print sheet |
+|---|---|---|
+| ![Step 1, Source: the outline that was found, drawn on the image](docs/screenshots/app-source.png) | ![Step 2, Miniature: the paper piece with its back side and tab, in the dark theme](docs/screenshots/app-dark.png) | ![Step 3, Print sheet: all figures laid out on a page](docs/screenshots/app-sheet.png) |
 
 The settings panel on the right shows the settings of the step you are on.
-You can switch steps at any time.
+You can switch steps at any time. The
+[settings guide](docs/reference.md#settings-guide) explains every setting,
+with pictures of different values.
 
 Save your work as a project (Ctrl+S). Projects are plain YAML files that the
 command line can rebuild too.
-
-| Source view | Print sheet | Dark theme |
-|---|---|---|
-| ![Source view with the detected outline](docs/screenshots/app-source.png) | ![Print sheet view](docs/screenshots/app-sheet.png) | ![Dark theme](docs/screenshots/app-dark.png) |
-
-The first time it needs the background-removal model (about 176 MB), the app
-asks before downloading it. After that, papermini works offline. **Models…**
-in the ☰ menu shows which models are downloaded, and where.
 
 > [!IMPORTANT]
 > The default background-removal model,
@@ -116,7 +118,7 @@ macOS. When running from source, it is in the venv (`Scripts/` on Windows,
 Make one SVG per image:
 
 ```bash
-papermini make lotje.png --height-mm 42 --label Lotje
+papermini make dragon.png --height-mm 42 --label "Red dragon"
 ```
 
 Lay SVGs out on a printable PDF sheet:
@@ -129,7 +131,7 @@ Build a whole project (images, per-figure settings and the sheet) from a YAML
 file, such as one saved by the app:
 
 ```bash
-papermini batch examples/sample/sample.yaml
+papermini batch examples/dragons/dragons.yaml
 ```
 
 Run `papermini make --help` for all options. The
@@ -138,9 +140,31 @@ stands and bases, double-sided minis and tips for tricky drawings.
 
 # Development
 
+## Run from source
+
+You need Python 3.10 or newer. Clone the repository:
+
+```bash
+git clone https://github.com/MJLHThomassen/papermini.git
+```
+
+```bash
+cd papermini
+```
+
+The setup script creates a virtual environment in `~/.venvs/papermini` and
+installs papermini with the desktop app:
+
+```bash
+python scripts/setup_venv.py
+```
+
+Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
+`~/.venvs/papermini/bin/papermini-gui` (macOS, Linux).
+
 ## Set up your environment
 
-Install papermini in editable mode with the test dependencies:
+To work on papermini, install it in editable mode with the test dependencies:
 
 ```bash
 python scripts/setup_venv.py --dev
@@ -165,7 +189,9 @@ Run the tests. They need no model download; the GUI tests run off-screen:
 On macOS and Linux, use `~/.venvs/papermini/bin/python`.
 
 After changing the look of the app, regenerate the screenshots in
-[docs/screenshots](docs/screenshots):
+[docs/screenshots](docs/screenshots). They show the dragons in
+[examples/dragons](examples/dragons) and need the rmbg-1.4, birefnet-lite and
+birefnet models:
 
 ```bash
 ~/.venvs/papermini/Scripts/python scripts/screenshots.py

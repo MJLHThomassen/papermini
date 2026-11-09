@@ -4,6 +4,7 @@ The full details behind the [README](../README.md): every command-line option,
 the desktop app in depth, and how the pipeline works.
 
 - [Desktop app](#desktop-app)
+- [Settings guide](#settings-guide)
 - [Commands](#commands)
 - [Background removal models](#model-licence)
 - [Stands and bases](#stands-and-bases)
@@ -43,7 +44,8 @@ the desktop app in depth, and how the pipeline works.
   removes the selected one. A new figure starts with the settings of the one
   that is selected.
 - **Settings** (right). The options of the step you are on, in sections you
-  can fold open and closed (the app remembers which):
+  can fold open and closed (the app remembers which). The
+  [settings guide](#settings-guide) explains each of them:
   - **Source:** *Crop*, then *Background removal* (model, strength, gap
     filling, detached parts), then *Image adjustments* (greyscale,
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
@@ -133,6 +135,196 @@ Projects are saved as **batch YAML** files, the same format as
 `papermini batch`, so anything set up in the app can be rebuilt from the
 command line.
 
+## Settings guide
+
+Every setting in the app, in the order of the settings panel, with its
+default in brackets. The pictures show the same dragon with different values.
+The command-line names of the settings are in the
+[options table](#papermini-make-image-options).
+
+### Step 1, Source
+
+#### Crop
+
+- **Area** (whole image). Drag a box on the image: background removal then
+  only looks inside it, and anything outside the box is left out. That helps
+  a lot with a busy background, or with a figure that shares its picture with
+  something else. *Clear* goes back to the whole image. On this stat block, a
+  box around the dragon leaves out the text and the corner ornament:
+
+![Cropping a stat block down to its dragon](screenshots/crop.png)
+
+#### Background removal
+
+- **Model** (auto). How the figure is cut out of its background. *Auto* uses
+  the image's own transparency when it has some, and rmbg-1.4 otherwise.
+  *Mask image file* uses a black-and-white mask you painted yourself (white =
+  figure), picked in **Mask image file**. The first time a model is needed,
+  the app asks before downloading it; after that, papermini works offline.
+  **Models…** in the ☰ menu shows which models are downloaded, and where.
+
+| Model | Download | Loading | Per image | Licence |
+|---|---|---|---|---|
+| rmbg-1.4 (default) | 176 MB | 1.1 s | 1.5 s | non-commercial use only |
+| birefnet-lite | 214 MB | 10.4 s | 10.6 s | MIT |
+| birefnet | 928 MB | 14.1 s | 21.0 s | MIT |
+
+![The three models on the same dragon](screenshots/models.png)
+
+On this dragon, rmbg-1.4 is quick but keeps the ground at its feet,
+birefnet-lite leaves a patch of background by the right wing, and birefnet
+gives a clean outline. The circles mark what a model kept that birefnet
+removed.
+
+The times are for this image (1312 × 1199 pixels) on an Intel Core i7-4770K
+from 2013, without the cache. A model loads once per session; the time per
+image is the median of five runs. Results are cached, so an image is never
+processed twice with the same crop and model. See
+[Model licence](#model-licence) for the licences and the other model choices.
+
+- **Strength** (40, from 0 to 254). How sure the model must be that a pixel
+  belongs to the figure. Go lower when faint pencil lines or a thin sword get
+  lost; go higher when bits of background stay.
+- **Gap filling** (auto). Fills gaps and notches in the outline up to this
+  many pixels, for example between a leg and a cloak. *Auto* scales with the
+  image (9 px for a 1400 px image); 0 turns it off.
+- **Keep detached parts** (off). Normally only the largest part is kept, so a
+  speck or some text next to the figure is dropped. Turn this on for a figure
+  with a separate part, such as a floating staff or a spell effect: every part
+  is kept and joined to the figure with a 2.5 mm bridge. **Min. part area**
+  (1000 px) drops smaller parts as specks.
+
+#### Image adjustments
+
+**Greyscale**, **Brightness**, **Contrast**, **Saturation** and **Hue** (all
+off or 0) change the colours that are printed, never the outline. **Reset
+adjustments** puts them all back. See [Colour adjustments](#colour-adjustments).
+
+![The red dragon as drawn, in greyscale, and with its hue turned 120 degrees](screenshots/settings/adjustments.png)
+
+### Step 2, Miniature
+
+#### Back side
+
+- **Print a back side** (on). The piece is printed twice, joined at a fold
+  above the head, and glued back to back. Off prints only the front. See
+  [Double-sided minis](#double-sided-minis).
+- **Shows** (mirrored drawing). *Mirrored drawing* is the figure seen from
+  behind. *Blank* is plain paper in **Colour** (white). *Text* is plain paper
+  with **Text** (the label if empty) in **Text colour**, sized as large as fits
+  inside the figure.
+
+![The three kinds of back: the mirrored drawing, a blank back and a back with text](screenshots/settings/back.png)
+
+#### Outline and cut line
+
+- **Margin** (1.6 mm). The distance between the drawing and the cut line. A
+  wider margin is easier to cut with scissors and keeps thin points, such as
+  claws and horn tips, stronger.
+
+  ![The red dragon with a margin of 0.8, 1.6 and 3.5 mm](screenshots/settings/margin.png)
+
+- **Margin fill type** (colour). What fills the margin: one **Margin fill
+  colour** (white), or the original image around the figure.
+
+  ![The flying dragon with a blue margin, and with the original picture in the margin](screenshots/settings/margin-fill.png)
+
+- **Outline smoothing** (0.6 mm). Rounds the outline. More smoothing gives a
+  calmer line with fewer bends to cut, but it also pulls the line closer to
+  thin tips, which then lose their margin.
+
+  ![The flying dragon's right wing with 0.6 and 2.5 mm smoothing](screenshots/settings/smoothing.png)
+
+Under **Cut line**:
+
+- **Straight segments only** (off). By default the cut line is made of smooth
+  curves; this uses straight lines instead.
+- **Simplify** (0.15 mm). How far the cut line may stray from the outline to
+  use fewer points. Higher values give fewer points and less detail.
+- **Cutting-machine style** (off). A red 0.1 mm hairline, which many cutting
+  machines take as the line to cut. **Bleed** (1 mm) then prints the margin,
+  tab or back colour this far beyond the cut line, so a cut that is slightly
+  off never shows a white edge.
+- **Colour** (black) and **Width** (0.3 mm) of the printed cut line, for
+  cutting by hand.
+
+![A wing tip with a normal cut line, a cutting-machine hairline, and a hairline with 1 mm bleed](screenshots/settings/cutter.png)
+
+#### Tab
+
+The tab is the strip under the figure that folds back, so the figure stands
+up. It folds at the dashed line. See [Stands and bases](#stands-and-bases).
+
+- **Print a tab** (on). Off for a figure that goes into a slotted or magnetic
+  base.
+- **Shape** (square). *Square* slots into a stand or is glued onto a base; its
+  **Width** (22 mm) and **Height** (12 mm, below the fold) set its size.
+  *Round* is a half disc that folds outwards, so the figure stands on it; its
+  **Radius** (12.5 mm) makes a 25 mm base. On a double-sided mini the two half
+  discs fold out to opposite sides and make a full circle.
+
+  ![A square tab with the label, and a green round tab](screenshots/settings/tab-shape.png)
+
+- **Overlap into figure** (0 mm). How far the tab reaches up past the fold,
+  into the figure. Without overlap, the tab is joined to the figure only where
+  the figure itself reaches the fold. That is fine for two feet planted wide,
+  but when only the tip of a tail or a single claw reaches down, that tiny
+  strip is all that holds the tab, and it tears when you fold it. An overlap
+  adds paper beside it, up to the figure, so the tab is held along its whole
+  width. The app warns when only a narrow strip holds the tab. Where the
+  figure's bottom is already wider than the tab, the overlap adds nothing, and
+  the app says so.
+
+  ![The flying dragon's tab with no overlap, joined only at the tail tip, and with 4 mm overlap, joined along its whole width](screenshots/settings/tab-overlap.png)
+
+- **Fold above lowest point** (0 mm). Where the fold line is, measured up from
+  the lowest point of the outline. At 0 the fold is at the bottom of the
+  margin, so the figure stands a margin's height above the table. Set it to
+  the margin (1.6 mm by default) to put the fold right under the feet, so the
+  figure stands on them. Everything below the fold folds back with the tab and
+  takes the tab's fill colour; set it higher and the feet fold back too. Leave
+  it at 0 for a flying figure that has nothing to stand on.
+
+  ![The red dragon's feet with the fold at 0, 1.6 and 4 mm, with a green tab](screenshots/settings/fold.png)
+
+- **Fill colour** (white). The colour of everything below the fold, behind the
+  label: for example grass green or stone grey for a plain base. It does not
+  depend on the margin colour.
+
+#### Label
+
+The label is text on the tab, in a sub-group at the end of *Tab*.
+
+- **Print a label** (on). Off for a plain tab in its fill colour.
+- **Text** (the file name). On a double-sided mini it is printed on both tabs.
+  It is also the back text when *Text* under *Back side* is empty.
+- **Size** (3.4 mm) is the largest size; a long label shrinks to fit the tab.
+  **Colour** (blue) is the colour of the text.
+
+### Step 3, Print sheet
+
+#### Size and copies
+
+- **Figure height** (42 mm) and **Figure width**. The size of the drawing
+  itself, without the margin and the tab. With the link button on (the
+  default), the figure keeps its proportions: set one and the other follows.
+  With it off, the figure is stretched to both.
+- **Copies on sheet** (1). How many of this figure are printed; 0 leaves it
+  off the sheet.
+- **Image resolution** (300 dpi). The resolution of the printed picture. 300
+  suits most printers; lower values make smaller files.
+- **Apply size settings to all figures** copies these settings to every other
+  figure, except the number of copies.
+
+#### Sheet
+
+The bar above the sheet holds the settings of the sheet itself:
+
+- **Paper** (A4) or Letter.
+- **Title** (Paper miniatures), printed at the top of each page, above the
+  instructions.
+- **Margin** (12 mm) around the page, and **Gap** (7 mm) between the pieces.
+
 ## Commands
 
 ### `papermini make IMAGE... [options]`
@@ -143,7 +335,7 @@ Makes one SVG per image, saved next to the image or in `-o DIR` (or
 once and cached, and its SVG is saved in the current folder.
 
 ```bash
-papermini make lotje.png --height-mm 42 --label Lotje
+papermini make dragon.png --height-mm 42 --label "Red dragon"
 ```
 
 ```bash
@@ -216,8 +408,8 @@ output: minis
 sheet: {output: minis/sheet.pdf, paper: a4, copies: 1, preview: true}
 defaults: {height_mm: 42, strength: 40, fill_gaps: 9}
 figures:
-  - image: ghost-girl.jpg
-    label: Lotje
+  - image: dragon.png
+    label: Red dragon
     copies: 2
   - image: boss-attic.jpg
     label: Acererak
@@ -236,13 +428,15 @@ proportions; both stretch it to that height and width. A figure that gives only
 `width_mm` is sized by width, but `defaults` count too: with `height_mm` in
 `defaults`, write `height_mm: null` in a figure to size it by width only.
 
-[examples/sample/sample.yaml](../examples/sample/sample.yaml) builds the sample
-outputs in that folder: a default (double-sided) mini, a single-sided mini on a
-round coloured base, a mini with back text, and a print-and-cut mini with bleed. Their sheet is
-[examples/sample/sample-sheet.pdf](../examples/sample/sample-sheet.pdf).
+[examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
+sample outputs in [examples/dragons/samples](../examples/dragons/samples), four
+ways to print the same dragon: a default (double-sided) mini, a single-sided
+mini on a round coloured base, a mini with back text, and a print-and-cut mini
+with bleed. Their sheet is
+[samples-sheet.pdf](../examples/dragons/samples/samples-sheet.pdf).
 
 ```bash
-papermini batch examples/sample/sample.yaml
+papermini batch examples/dragons/samples.yaml
 ```
 
 ## Model licence
@@ -283,7 +477,7 @@ label is printed on it; use `--label ""` for a plain tab, for example grass
 green or stone grey.
 
 ```bash
-papermini make lotje.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --label ""
+papermini make dragon.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --label ""
 ```
 
 The margin around the drawing can be any colour (`--margin-color "#f3e6c8"`)
@@ -305,7 +499,7 @@ the back is up to you:
   large as fits:
 
   ```bash
-  papermini make lotje.png --back text --back-text "Lotje the Lost Ghost"
+  papermini make dragon.png --back text --back-text "Red Dragon Whelp"
   ```
 
   Without `--back-text`, it uses the label. On the sheet the back text is upside
