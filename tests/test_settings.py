@@ -31,7 +31,7 @@ def test_project_roundtrip(tmp_path):
         output="out",
         sheet=SheetSettings(paper="letter", title="Crypt"),
         figures=[
-            FigureEntry(a, FigureSettings(label="Lotje", copies=2)),
+            FigureEntry(a, FigureSettings(label="Red dragon", copies=2)),
             FigureEntry(b, FigureSettings(height_mm=56, crop=[0.08, 0, 0.92, 0.62],
                                           double_sided=True), name="boss"),
         ],

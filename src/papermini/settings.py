@@ -6,8 +6,8 @@ A project file *is* a batch config::
     sheet: {output: minis/sheet.pdf, paper: a4, copies: 1}
     defaults: {height_mm: 42}
     figures:
-      - image: lotje.png
-        label: Lotje
+      - image: dragon.png
+        label: Red dragon
       - image: https://example.com/goblin.webp   # a link: downloaded once, then cached
 """
 

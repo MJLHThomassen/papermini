@@ -1,0 +1,46 @@
+# Rebuilds the sample outputs in samples/:
+#   papermini batch examples/dragons/samples.yaml
+# Four ways to print the same dragon. BiRefNet removes its background best (see
+# "Background removal models" in the README); it is downloaded on first use.
+
+output: samples
+
+sheet:
+  output: samples/samples-sheet.pdf
+  paper: a4
+  title: papermini samples
+
+defaults:
+  model: birefnet
+  dpi: 150  # (keeps these files small; 300, the default, prints sharper)
+
+figures:
+  # all defaults: double-sided (mirrored back), square tab with the file name as label
+  - image: dragon.webp
+
+  # single-sided: round fold-out base in a colour, cream margin, own label
+  - image: dragon.webp
+    name: dragon-round
+    double_sided: false
+    label: Red dragon
+    margin_color: "#f3e6c8"
+    tab_shape: round
+    tab_color: "#dde8f5"
+
+  # round green base on both halves, text on the back
+  - image: dragon.webp
+    name: dragon-text-back
+    label: ""
+    tab_shape: round
+    tab_color: "#3b6e2a"
+    back: text
+    back_text: Ember
+
+  # print-and-cut: red hairline, 1 mm bleed of the dark margin and tab colour
+  - image: dragon.webp
+    name: dragon-cutter
+    label: ""
+    cutter: true
+    bleed_mm: 1.0
+    margin_color: "#1d1d2b"
+    tab_color: "#3b6e2a"
