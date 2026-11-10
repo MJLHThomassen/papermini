@@ -115,6 +115,11 @@ jobs:
           esac
           "$cli" --version
           "$cli" make --help > /dev/null
+          if [[ "$RUNNER_OS" == macOS ]]; then  # a regular app: it shows in the Dock
+            plist=dist/papermini.app/Contents/Info.plist
+            bg=$(plutil -extract LSBackgroundOnly raw "$plist" 2>/dev/null || echo false)
+            [[ "$bg" == false ]] || { echo "::error::$plist: LSBackgroundOnly is $bg"; exit 1; }
+          fi
 
       - name: Package
         id: pkg

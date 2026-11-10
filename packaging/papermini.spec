@@ -69,6 +69,9 @@ if sys.platform == "darwin":
         version=__version__,
         info_plist={
             "CFBundleExecutable": "papermini-gui",  # the GUI starts when the app opens
+            # a regular app with a Dock icon and a menu bar: PyInstaller makes the bundle
+            # background-only when its last executable is a console one (the CLI here)
+            "LSBackgroundOnly": False,
             "CFBundleName": "papermini",
             "CFBundleDisplayName": "papermini",
             "NSHighResolutionCapable": True,
