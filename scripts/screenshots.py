@@ -11,7 +11,8 @@ Besides the app screenshots it writes ``crop.png`` (cropping a stat block down t
 dragon), ``models.png`` (the three models on one image, with what a model left
 behind circled: wherever it kept something that BiRefNet removed) and, for the
 settings guide in docs/reference.md, ``settings/*.png``: the same piece side by side
-with different values of a setting.
+with different values of a setting, and ``settings/machine.png``: a sheet cut by
+machine next to its cut file.
 
     python scripts/screenshots.py --only settings   # just those
 """
@@ -202,10 +203,11 @@ def main() -> None:
         pix.setDevicePixelRatio(ratio)
         return pix
 
-    def mini(image: str, **kw):
+    def mini(image: str, bleed_mm: float = 0.0, **kw):
         """A miniature of one of the dragons, with BiRefNet unless ``kw`` says otherwise."""
         kw.setdefault("model", "birefnet")
-        return build_mini(DRAGONS / image, FigureSettings(**kw), log=lambda *_: None)
+        return build_mini(DRAGONS / image, FigureSettings(**kw), bleed_mm=bleed_mm,
+                          log=lambda *_: None)
 
     def bottom(m, above: float = 14.0) -> QRectF:
         """The tab of a single-sided miniature and ``above`` mm of figure over its fold."""
@@ -276,6 +278,44 @@ def main() -> None:
     if want("settings"):
         settings_images(mini, piece, bottom, compare, QRectF)
 
+        # cut by machine: the PDF (no cut lines, marks) and its cut file, side by side
+        from PySide6.QtSvg import QSvgRenderer
+
+        from papermini.gui.views import draw_sheet
+        from papermini.settings import load_project
+        from papermini.sheet import cut_file_svg, pack
+
+        proj = load_project(args.project)
+        sh = replace(proj.sheet, cut="machine")
+        lay = pack([(build_mini(f.image, f.settings, bleed_mm=sh.figure_bleed,
+                                log=lambda *_: None), 1) for f in proj.figures],
+                   sh.paper, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+        k = 2.2 * ratio  # device pixels per mm
+        pw, ph = lay.paper
+
+        def page(render) -> QPixmap:
+            img = QImage(int(pw * k), int(ph * k), QImage.Format_ARGB32)
+            img.fill(QColor("white"))
+            p = QPainter(img)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            render(p, QRectF(img.rect()))
+            p.setPen(QPen(QColor("#c8c8cc"), 1))
+            p.drawRect(img.rect().adjusted(0, 0, -1, -1))  # the paper's edge
+            p.end()
+            pix = QPixmap.fromImage(img)
+            pix.setDevicePixelRatio(ratio)
+            return pix
+
+        sc = QGraphicsScene()
+        draw_sheet(sc, lay, sh.title)
+        svg = QSvgRenderer(bytearray(cut_file_svg(lay, 0, folds=True, title=sh.title), "utf-8"))
+        save(panels([(page(lambda p, r: sc.render(p, r, QRectF(0, 0, pw, ph))), "The PDF",
+                      "to print: no cut lines, with alignment marks"),
+                     (page(svg.render), "The cut file (SVG)",
+                      "cut lines (red), fold lines (blue) and the same marks")], "light"),
+             "settings/machine")
+
 
 def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     """One image per setting in the settings guide: the same piece with different values."""
@@ -310,14 +350,15 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
         (mini(fly, height_mm=36, smooth_mm=2.5, no_tab=True, **one), wing,
          "Smoothing 2.5 mm", "fewer bends, but thin tips lose their margin"),
     ], mm=7)
+
+    # step 3, Sheet: bleed (cut by machine); the red hairline shows where the machine cuts
     tip = QRectF(50, 2, 22, 14)
-    dark = dict(height_mm=36, margin_color="#1d1d2b", no_tab=True, **one)
-    compare("cutter", [
-        (mini(fly, **dark), tip, "Normal", "black 0.3 mm line, for scissors"),
-        (mini(fly, cutter=True, bleed_mm=0, **dark), tip, "Cutting machine",
-         "red hairline"),
-        (mini(fly, cutter=True, bleed_mm=1.0, **dark), tip, "With 1 mm bleed",
-         "no white edge if the cut is off"),
+    dark = dict(height_mm=36, margin_color="#1d1d2b", no_tab=True, cut_color="#ff0000",
+                cut_width_mm=0.1, **one)
+    compare("bleed", [
+        (mini(fly, **dark), tip, "No bleed", "a cut a little off leaves a white edge"),
+        (mini(fly, bleed_mm=1.0, **dark), tip, "Bleed 1 mm",
+         "the margin color goes on past the cut"),
     ], mm=11)
 
     # Tab

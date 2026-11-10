@@ -1,0 +1,35 @@
+# A sheet for a cutting machine, written to samples/:
+#   papermini batch examples/dragons/samples-machine.yaml
+# makes machine-sheet.pdf (to print: no cut lines, alignment marks in the corners, a
+# 1 mm bleed) and machine-sheet-cut.svg (to load in the cutting machine's software: the
+# cut lines, the fold lines and the same marks).
+
+output: samples
+
+sheet:
+  output: samples/machine-sheet.pdf
+  paper: a4
+  title: papermini samples, cut by machine
+  cut: machine
+  bleed_mm: 1.0
+  marks: corners
+  cut_folds: true
+
+defaults:
+  model: birefnet
+  dpi: 150  # (keeps these files small; 300, the default, prints sharper)
+
+figures:
+  # black margin and a round black base, like the printed dragon in the README
+  - image: dragon-flying.webp
+    name: machine-flying-dragon
+    label: ""
+    height_mm: 36
+    margin_color: "#000000"
+    tab_shape: round
+    tab_color: "#000000"
+    tab_overlap_mm: 4
+
+  - image: dragon.webp
+    name: machine-red-dragon
+    label: Red dragon

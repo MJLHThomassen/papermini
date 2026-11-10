@@ -1,6 +1,6 @@
 # Rebuilds the sample outputs in samples/:
 #   papermini batch examples/dragons/samples.yaml
-# Four ways to print the same dragon. BiRefNet removes its background best (see
+# Four ways to print the same dragon (samples-machine.yaml: a sheet for a cutting machine). BiRefNet removes its background best (see
 # "Background removal models" in the README); it is downloaded on first use.
 
 output: samples
@@ -36,11 +36,9 @@ figures:
     back: text
     back_text: Ember
 
-  # print-and-cut: red hairline, 1 mm bleed of the dark margin and tab color
+  # a dark margin and a green tab, without a label
   - image: dragon.webp
-    name: dragon-cutter
+    name: dragon-dark
     label: ""
-    cutter: true
-    bleed_mm: 1.0
     margin_color: "#1d1d2b"
     tab_color: "#3b6e2a"

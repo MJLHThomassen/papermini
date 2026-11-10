@@ -19,9 +19,17 @@ def test_to_dict_only_non_defaults():
         "label": "X", "crop": [0, 0, 1, 0.5]}
 
 
-def test_cutter_style():
-    st = FigureSettings(cutter=True).style()
-    assert st.cut_color == "#ff0000" and st.cut_width_mm == 0.1
+def test_sheet_settings_cut_by_machine():
+    from papermini.settings import SheetSettings
+
+    assert SheetSettings().figure_bleed == 0.0  # cut by hand: no bleed
+    s = SheetSettings.from_dict({"cut": "machine", "bleed-mm": 1.5, "marks": "silhouette"})
+    assert s.machine and s.figure_bleed == 1.5 and s.marks == "silhouette"
+    for bad, match in (({"cut": "laser"}, "cut must be"), ({"marks": "dots"}, "marks must be"),
+                       ({"bleed_mm": 9}, "bleed_mm"), ({"paper": "a3"}, "paper must be"),
+                       ({"cutter": True}, "unknown sheet option")):
+        with pytest.raises(ValueError, match=match):
+            SheetSettings.from_dict(bad)
 
 
 def test_project_roundtrip(tmp_path):

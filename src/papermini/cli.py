@@ -10,10 +10,12 @@ from typing import List, Optional
 
 from . import __version__, remote
 from .segment import ModelError
-from .settings import (FIGURE_OPTIONS, FigureSettings, Project, build_mini, load_project,
-                       safe_name)
+from .settings import (FIGURE_OPTIONS, FigureSettings, Project, SheetSettings, build_mini,
+                       load_project, safe_name)
+from .sheet import CUT_MODES, MARKS
 
 D = FigureSettings()  # defaults shown in --help
+DS = SheetSettings()
 
 
 def add_figure_args(p: argparse.ArgumentParser) -> None:
@@ -85,13 +87,10 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--dpi", type=int, default=D.dpi, help="embedded image resolution (300)")
     g.add_argument("--simplify-mm", type=float, default=D.simplify_mm, help="cut line simplification (0.15)")
     g.add_argument("--no-smooth", action="store_true", help="straight-segment cut line, no Béziers")
-    g.add_argument("--cut-color", default=D.cut_color, help="cut line color (#000000)")
-    g.add_argument("--cut-width-mm", type=float, default=D.cut_width_mm, help="cut line width (0.3)")
-    g.add_argument("--cutter", action="store_true",
-                   help="cutting-machine style: red 0.1 mm cut line, with a --bleed-mm bleed")
-    g.add_argument("--bleed-mm", type=float, default=D.bleed_mm,
-                   help="with --cutter: print the background this far beyond the cut line, "
-                        "so a slightly misaligned cut shows no white edge (1)")
+    g.add_argument("--cut-color", default=D.cut_color,
+                   help="cut line color, for cutting by hand (#000000)")
+    g.add_argument("--cut-width-mm", type=float, default=D.cut_width_mm,
+                   help="cut line width, for cutting by hand (0.3)")
     g.add_argument("--label-color", default=D.label_color)
     g.add_argument("--label-size-mm", type=float, default=D.label_size_mm)
     g.add_argument("--debug", action="store_true", help="write intermediate masks and a red overlay")
@@ -113,7 +112,7 @@ def cmd_make(a: argparse.Namespace) -> int:
         # next to the image, or for a link (its copy lives in the cache) here
         here = Path.cwd() if remote.is_url(src) else img.parent
         out_dir = out_svg.parent if out_svg else Path(a.output) if a.output else here
-        m = build_mini(img, s, use_cache=not a.no_cache,
+        m = build_mini(img, s, bleed_mm=a.bleed_mm, use_cache=not a.no_cache,
                        debug_dir=out_dir / "debug" if a.debug else None)
         out = write_svg(m, out_svg or out_dir / (safe_name(m.name) + ".svg"))
         print(f"  -> {out}")
@@ -124,20 +123,25 @@ def cmd_sheet(a: argparse.Namespace) -> int:
     from .svg import read_svg
 
     minis = [(read_svg(Path(p)), a.copies) for p in _expand(a.svgs)]
-    return write_sheet(minis, Path(a.output), a.paper, a.preview, a.title, a.margin_mm, a.gap_mm)
+    sh = SheetSettings(paper=a.paper, title=a.title, margin_mm=a.margin_mm, gap_mm=a.gap_mm,
+                       cut=a.cut, marks=a.marks, cut_folds=a.cut_folds)
+    return write_sheet(minis, Path(a.output), sh, a.preview)
 
 
-def write_sheet(minis, output: Path, paper: str, preview: bool, title: str,
-                margin_mm: float = 12.0, gap_mm: float = 7.0) -> int:
-    from .sheet import pack, write_pdf, write_previews
+def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -> int:
+    """The PDF sheet, its PNG previews, and cut by machine its cut files."""
+    from .sheet import default_cut_file, pack, write_cut_files, write_pdf, write_previews
 
-    lay = pack(minis, paper, margin_mm, gap_mm)
-    write_pdf(lay, output, margin_mm, title)
+    lay = pack(minis, sh.paper, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+    write_pdf(lay, output, sh.title)
     n = len(lay.placements)
     print(f"  -> {output} ({n} piece{'s' * (n != 1)}, {lay.pages} page{'s' * (lay.pages != 1)}, "
-          f"{paper.upper()})")
+          f"{sh.paper.upper()})")
+    if lay.machine:
+        for p in write_cut_files(lay, default_cut_file(output), sh.cut_folds, sh.title):
+            print(f"  -> {p} (cut file)")
     if preview:
-        for p in write_previews(lay, output.with_suffix(".png"), margin_mm=margin_mm, title=title):
+        for p in write_previews(lay, output.with_suffix(".png"), title=sh.title):
             print(f"  -> {p}")
     return 0
 
@@ -150,15 +154,14 @@ def run_project(proj: Project, debug: bool = False, preview: bool = False,
         raise SystemExit(f"{proj.path}: no 'figures' listed")
     out_dir = proj.output_dir
     minis = []
+    sh = proj.sheet
     for f in proj.figures:
-        m = build_mini(f.image, f.settings, use_cache=use_cache,
+        m = build_mini(f.image, f.settings, bleed_mm=sh.figure_bleed, use_cache=use_cache,
                        debug_dir=out_dir / "debug" if debug or proj.debug else None)
         print(f"  -> {write_svg(m, out_dir / f.svg_name())}")
         minis.append((m, f.settings.copies))
-    sh = proj.sheet
     if sh.enabled:
-        write_sheet(minis, proj.sheet_path, sh.paper, preview or sh.preview, sh.title,
-                    sh.margin_mm, sh.gap_mm)
+        write_sheet(minis, proj.sheet_path, sh, preview or sh.preview)
     return 0
 
 
@@ -203,6 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help=f"image files ({remote.READABLE}) or http(s) links to images")
     mk.add_argument("-o", "--output", help="output .svg (single image) or directory "
                                            "(default: next to the image; for a link, here)")
+    mk.add_argument("--bleed-mm", type=float, default=0.0,
+                    help="print the edge colors this far beyond the cut line, for a sheet cut "
+                         "by machine (papermini sheet --cut machine); 0 = none (0)")
     add_figure_args(mk)
     mk.set_defaults(func=cmd_make)
 
@@ -211,10 +217,19 @@ def build_parser() -> argparse.ArgumentParser:
     sh.add_argument("-o", "--output", default="minis.pdf")
     sh.add_argument("--copies", type=int, default=1, help="copies of each figure (1)")
     sh.add_argument("--paper", choices=["a4", "letter"], default="a4")
-    sh.add_argument("--margin-mm", type=float, default=12.0, help="page margin (12)")
+    sh.add_argument("--margin-mm", type=float, default=DS.margin_mm,
+                    help="page margin; --cut machine: where the alignment marks are (12)")
     sh.add_argument("--gap-mm", type=float, default=7.0, help="gap between pieces (7)")
-    sh.add_argument("--title", default="Paper miniatures")
+    sh.add_argument("--title", default=DS.title)
     sh.add_argument("--preview", action="store_true", help="also write a PNG preview per page")
+    sh.add_argument("--cut", choices=CUT_MODES, default=DS.cut,
+                    help="hand: cut lines on the sheet; machine: a sheet without cut lines but "
+                         "with alignment marks, plus a cut file (NAME-cut.svg) per page (hand)")
+    sh.add_argument("--marks", choices=MARKS, default=DS.marks,
+                    help="--cut machine: alignment marks: corners, Silhouette Studio's "
+                         "Type 1, or none (corners)")
+    sh.add_argument("--cut-folds", action="store_true",
+                    help="--cut machine: also put the fold lines in the cut file")
     sh.set_defaults(func=cmd_sheet)
 
     bt = sub.add_parser("batch", help="YAML config: images + per-image options -> SVGs + sheet")

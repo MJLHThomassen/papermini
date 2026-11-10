@@ -22,8 +22,7 @@ from . import remote
 from .adjust import RANGES as ADJUST_RANGES
 from .adjust import Adjustments
 from .mini import Mini, Style, make_mini
-
-CUTTER_STYLE = {"cut_color": "#ff0000", "cut_width_mm": 0.1}
+from .sheet import CUT_MODES, MARKS, PAPER
 
 
 @dataclass
@@ -67,10 +66,8 @@ class FigureSettings:
     dpi: int = 300
     simplify_mm: float = 0.15
     no_smooth: bool = False
-    cut_color: str = "#000000"
+    cut_color: str = "#000000"       # the cut line, for cutting by hand
     cut_width_mm: float = 0.3
-    cutter: bool = False
-    bleed_mm: float = 1.0            # with cutter: background printed beyond the cut line
     label_color: str = "#2f5597"
     label_size_mm: float = 3.4
     copies: int = 1
@@ -132,13 +129,9 @@ class FigureSettings:
                            greyscale=self.greyscale)
 
     def style(self) -> Style:
-        st = Style(cut_color=self.cut_color, cut_width_mm=self.cut_width_mm,
-                   label_color=self.label_color, label_size_mm=self.label_size_mm,
-                   back_text_color=self.back_text_color)
-        if self.cutter:
-            for k, v in CUTTER_STYLE.items():
-                setattr(st, k, v)
-        return st
+        return Style(cut_color=self.cut_color, cut_width_mm=self.cut_width_mm,
+                     label_color=self.label_color, label_size_mm=self.label_size_mm,
+                     back_text_color=self.back_text_color)
 
 
 FIGURE_OPTIONS = {f.name for f in fields(FigureSettings)}
@@ -148,9 +141,11 @@ def norm_keys(d: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return {str(k).replace("-", "_"): v for k, v in (d or {}).items()}
 
 
-def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
+def build_mini(image: Path, s: FigureSettings, *, bleed_mm: float = 0.0, use_cache: bool = True,
                debug_dir: Optional[Path] = None,
                log=print, on_stage=None) -> Mini:
+    """Build one figure. ``bleed_mm``: print the edge colors this far beyond the cut
+    line (a sheet cut by machine, see ``SheetSettings.figure_bleed``)."""
     # model "mask" = your own mask image; "auto" also uses a mask image if one is given
     use_mask = s.model == "mask" or (s.model == "auto" and bool(s.mask))
     if s.model == "mask" and not s.mask:
@@ -161,7 +156,7 @@ def build_mini(image: Path, s: FigureSettings, *, use_cache: bool = True,
         crop=s.crop, model="auto" if s.model == "mask" else s.model,
         mask_path=Path(s.mask) if use_mask else None,
         dpi=s.dpi, simplify_mm=s.simplify_mm, smooth_path=not s.no_smooth,
-        bleed_mm=s.bleed_mm if s.cutter else 0.0, adjust=s.adjustments(),
+        bleed_mm=bleed_mm, adjust=s.adjustments(),
         use_cache=use_cache, style=s.style(), debug_dir=debug_dir,
         log=log, on_stage=on_stage,
     )
@@ -183,6 +178,34 @@ class SheetSettings:
     margin_mm: float = 12.0
     gap_mm: float = 7.0
     enabled: bool = True
+    cut: str = "hand"                # "hand": cut lines on the sheet; "machine": see below
+    bleed_mm: float = 1.0            # cut by machine: edge colors printed beyond the cut line
+    marks: str = "corners"           # cut by machine: "corners" or "silhouette" alignment marks
+    cut_folds: bool = False          # cut by machine: fold lines in the cut file too
+
+    @property
+    def machine(self) -> bool:
+        return self.cut == "machine"
+
+    @property
+    def figure_bleed(self) -> float:
+        """The bleed every figure is built with: only when cut by machine."""
+        return self.bleed_mm if self.machine else 0.0
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "SheetSettings":
+        d = norm_keys(d)
+        unknown = set(d) - {f.name for f in fields(cls)}
+        if unknown:
+            raise ValueError(f"unknown sheet option(s) {', '.join(sorted(unknown))}")
+        for key, allowed in (("cut", CUT_MODES), ("marks", MARKS), ("paper", tuple(PAPER))):
+            if key in d and d[key] not in allowed:
+                raise ValueError(f"sheet {key} must be one of {', '.join(allowed)}, "
+                                 f"not {d[key]!r}")
+        if "bleed_mm" in d and not (isinstance(d["bleed_mm"], (int, float))
+                                    and 0 <= d["bleed_mm"] <= 5):
+            raise ValueError(f"sheet bleed_mm must be from 0 to 5, not {d['bleed_mm']!r}")
+        return cls(**d)
 
 
 @dataclass
@@ -227,11 +250,10 @@ def load_project(path: Path) -> Project:
     path = Path(path).resolve()
     cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     base = path.parent
-    sheet_d = norm_keys(cfg.get("sheet"))
-    unknown = set(sheet_d) - {f.name for f in fields(SheetSettings)}
-    if unknown:
-        raise ValueError(f"{path.name}: unknown sheet option(s) {', '.join(sorted(unknown))}")
-    sheet = SheetSettings(**sheet_d)
+    try:
+        sheet = SheetSettings.from_dict(cfg.get("sheet") or {})
+    except ValueError as e:
+        raise ValueError(f"{path.name}: {e}") from None
     defaults = norm_keys(cfg.get("defaults"))
     figures = []
     for entry in cfg.get("figures") or []:

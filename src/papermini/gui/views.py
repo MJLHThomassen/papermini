@@ -16,10 +16,10 @@ from . import theme
 
 from ..geometry import CutPath
 from ..mini import Mini
-from ..sheet import INSTRUCTIONS, INSTRUCTIONS_DOUBLE, SheetLayout
+from ..sheet import SheetLayout
 
 
-def print_sheet(printer, lay: SheetLayout, title: str, margin_mm: float = 12.0) -> int:
+def print_sheet(printer, lay: SheetLayout, title: str) -> int:
     """Print the sheet at its real size (1 mm on the sheet = 1 mm on paper), the pages
     chosen in the print dialog or all of them. Returns the number of pages printed.
 
@@ -29,7 +29,7 @@ def print_sheet(printer, lay: SheetLayout, title: str, margin_mm: float = 12.0) 
     from PySide6.QtWidgets import QGraphicsScene
 
     scene = QGraphicsScene()
-    pages = draw_sheet(scene, lay, title, margin_mm)
+    pages = draw_sheet(scene, lay, title)
     first, last = printer.fromPage(), printer.toPage()  # 1-based; 0 = all pages
     chosen = [r for i, r in enumerate(pages, 1)
               if not first or first <= i <= (last or len(pages))]
@@ -225,8 +225,9 @@ def cut_painter_path(m: Mini, x: float = 0.0, y: float = 0.0) -> QPainterPath:
 
 
 def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
-              pixmap: Optional[QPixmap] = None) -> None:
-    """Draw a miniature exactly as printed, top-left at (x, y) mm."""
+              pixmap: Optional[QPixmap] = None, cut_line: bool = True) -> None:
+    """Draw a miniature exactly as printed, top-left at (x, y) mm (on a sheet cut by
+    machine without its cut line)."""
     st = m.style
     pm = pixmap or QPixmap.fromImage(pil_to_qimage(m.art))
     art = QGraphicsPixmapItem(pm)
@@ -245,6 +246,8 @@ def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
                   x + cx, y + cy, rot)
     for text, cx, cy, rot, size in m.texts:
         _text(scene, text, size, st.back_text_color, "Times New Roman", x + cx, y + cy, rot)
+    if not cut_line:
+        return
     cut = QGraphicsPathItem(cut_painter_path(m, x, y))
     pen = QPen(QColor(st.cut_color), st.cut_width_mm)
     pen.setJoinStyle(Qt.RoundJoin)
@@ -318,37 +321,40 @@ def draw_mini_page(scene: QGraphicsScene, m: Mini) -> None:
 
 
 def draw_sheet(scene: QGraphicsScene, lay: SheetLayout, title: str,
-               margin_mm: float = 12.0, pixmaps: Optional[dict] = None) -> List[QRectF]:
-    """All pages of the sheet stacked vertically; returns the page rectangles."""
+               pixmaps: Optional[dict] = None) -> List[QRectF]:
+    """All pages of the sheet stacked vertically, as the PDF prints them; returns the
+    page rectangles."""
     scene.clear()
     pw, ph = lay.paper
+    margin_mm, hx = lay.margin_mm, lay.header_x
     pages = []
-    double = any(len(p.mini.labels) > 1 or len(p.mini.folds) > 1 for p in lay.placements)
     for page in range(lay.pages):
         oy = page * (ph + PAGE_GAP_MM)
         r = QRectF(0, oy, pw, ph)
         _paper(scene, r)
         pages.append(r)
-        _text(scene, title, 3.9, "#000", "Arial", margin_mm, oy + margin_mm + 4,
+        for x, y, w, h in lay.mark_rects():  # alignment marks (cut by machine)
+            scene.addRect(QRectF(x, oy + y, w, h), QPen(Qt.NoPen), QBrush(QColor("#000")))
+        _text(scene, title, 3.9, "#000", "Arial", hx, oy + margin_mm + 4,
               anchor="left", bold=True)
-        lines = INSTRUCTIONS + ([INSTRUCTIONS_DOUBLE] if double else [])
-        for i, line in enumerate(lines):
-            _text(scene, line, 2.6, "#000", "Arial", margin_mm, oy + margin_mm + 8.5 + 3.4 * i,
+        for i, line in enumerate(lay.instructions()):
+            _text(scene, line, 2.6, "#000", "Arial", hx, oy + margin_mm + 8.5 + 3.4 * i,
                   anchor="left")
         if lay.pages > 1:
             _text(scene, f"page {page + 1}/{lay.pages}", 2.6, "#000", "Arial",
-                  pw - margin_mm - 16, oy + margin_mm + 4, anchor="left")
+                  lay.header_right - 16, oy + margin_mm + 4, anchor="left")
         cy = oy + margin_mm + lay.header_mm - 4
         pen = QPen(QColor("#000"), 0.4)
-        scene.addLine(margin_mm, cy, margin_mm + 50, cy, pen)
+        scene.addLine(hx, cy, hx + 50, cy, pen)
         thin = QPen(QColor("#000"), 0.2)
         for t in range(0, 51, 10):
             h = 1.6 if t % 50 == 0 else 1.0
-            scene.addLine(margin_mm + t, cy - h, margin_mm + t, cy + h, thin)
-        _text(scene, "50 mm", 2.4, "#000", "Arial", margin_mm + 52, cy + 1, anchor="left")
+            scene.addLine(hx + t, cy - h, hx + t, cy + h, thin)
+        _text(scene, "50 mm", 2.4, "#000", "Arial", hx + 52, cy + 1, anchor="left")
     for p in lay.placements:
         pm = (pixmaps or {}).get(id(p.mini))
-        draw_mini(scene, p.mini, p.x, p.page * (ph + PAGE_GAP_MM) + p.y, pm)
+        draw_mini(scene, p.mini, p.x, p.page * (ph + PAGE_GAP_MM) + p.y, pm,
+                  cut_line=not lay.machine)
     return pages
 
 

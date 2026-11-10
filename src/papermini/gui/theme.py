@@ -255,6 +255,7 @@ QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSp
     width: 0px; border: none; }}
 QSpinBox::up-arrow, QSpinBox::down-arrow, QDoubleSpinBox::up-arrow, QDoubleSpinBox::down-arrow {{
     image: none; width: 0px; height: 0px; }}
+QSpinBox#CopiesEditor {{ padding: 0px 2px; min-height: 0px; }}
 QSlider {{ min-height: 22px; }}
 QSlider::groove:horizontal {{ height: 4px; border-radius: 2px; background: {t.border}; }}
 QSlider::sub-page:horizontal {{ height: 4px; border-radius: 2px; background: {t.accent}; }}
@@ -310,6 +311,7 @@ QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #WorkCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px; }}
 #WorkTitle {{ color: {t.text}; font-weight: 600; }}
 #StepHint {{ color: {t.muted}; font-size: 9pt; padding: 8px 10px; background: {t.surface2}; border-radius: 8px; }}
+#MethodBox {{ color: {t.text}; font-size: 9pt; padding: 6px 9px; background: {t.surface2}; border: 1px solid {t.border}; border-radius: 6px; }}
 #SizeLink {{ border: none; background: transparent; padding: 4px; border-radius: 6px; }}
 #SizeLink:hover {{ background: {t.surface2}; }}
 #StepArrow {{ padding: 0 1px; }}
