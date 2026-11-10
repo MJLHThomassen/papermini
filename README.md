@@ -32,8 +32,9 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 - **[Background removal](docs/reference.md#background-removal)**: AI models that run on
   your own computer, or the image's own transparency.
 - **[Cropping](docs/reference.md#crop)**: drag a box to keep only the figure.
-- **Cut line**: a smooth vector outline with a margin, for scissors or a
-  cutting machine.
+- **Cut line**: a smooth vector outline with a margin, for scissors or a knife.
+- **[Cutting machines](docs/reference.md#cutting-by-machine)**: a sheet with
+  alignment marks, plus a cut file with the cut lines and the same marks.
 - **[Stand tab](docs/reference.md#stands-and-bases)**: square to slot into a
   stand, or round to fold out into a base.
 - **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank
@@ -59,33 +60,37 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
    2. In **1 Source**, drag a box around the figure. Its outline is drawn on
       the image.
    3. In **2 Miniature**, type the label for the tab, such as `Red dragon`.
-   4. In **3 Print sheet**, set the figure height, such as 42 mm, and the
-      number of copies.
-   5. Click **Print…** and print at 100%. Cut along the solid line, fold
-      along the dashed lines and glue the two halves back to back.
+   4. Still in **2 Miniature**, set the figure height under *Size*, such as
+      42 mm. Set how many to print with the − and + on its card in the list.
+   5. In **3 Print sheet**, click **Print…** and print at 100%. Cut along the
+      solid line, fold along the dashed lines and glue the two halves back to
+      back.
 
 # Usage via GUI
 
 1. **Add images.** Drop images onto the window, or use the add-image button
    above the figure list. You can also drag a picture from your browser, paste
    one with Ctrl+V, or paste its link into the link bar. Each image becomes a
-   figure in the list on the left.
+   figure in the list on the left; the − and + on its card set how many of it
+   go on the sheet.
 2. **Step 1, Source.** Drag a box around the figure to crop it, and pick the
    background removal model. The outline that was found is drawn on your
    image, and everything outside it is faded. If the outline is wrong, try a
    lower strength, a tighter crop or another model. A slow model can be
    cancelled. [All Source settings](docs/reference.md#step-1-source).
-3. **Step 2, Miniature.** Set the back side, margin, cut line, tab and label.
+3. **Step 2, Miniature.** Set the size, back side, margin, cut line, tab and label.
    The back side, tab and label each have a checkbox in their header to turn
    them on or off; all three are on by default, so a mini has a front and a
    back, folded over the head. The preview updates as you go.
    [All Miniature settings](docs/reference.md#step-2-miniature), including
    the tab's [overlap](docs/reference.md#overlap-into-figure) and
    [fold](docs/reference.md#fold-above-lowest-point).
-4. **Step 3, Print sheet.** Set each figure's size (height, width, or both)
-   and copies, and see all figures laid out on pages. Click **Print…** to
-   print them straight away at real size, or **Export PDF** and print that at
-   100% ("actual size"). Each page has a 50 mm bar to check the scale.
+   **Export SVG…** at the bottom saves the piece as an SVG.
+4. **Step 3, Print sheet.** Set the paper and how the pieces are cut (by hand,
+   or by cutting machine), and see all figures laid out on pages. Click
+   **Print…** to print them straight away at real size, or **Export…** to save
+   a PDF (print it at 100%, "actual size") and, for a cutting machine, the cut
+   file. Each page has a 50 mm bar to check the scale.
    [All Print sheet settings](docs/reference.md#step-3-print-sheet).
 
 | Step 1, Source | Step 2, Miniature (dark theme) | Step 3, Print sheet |

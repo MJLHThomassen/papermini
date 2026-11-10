@@ -9,6 +9,7 @@ the desktop app in depth, and how the pipeline works.
 - [Background removal models](#model-licence)
 - [Stands and bases](#stands-and-bases)
 - [Double-sided minis](#double-sided-minis)
+- [Cutting by machine](#cutting-by-machine)
 - [Color adjustments](#color-adjustments)
 - [Tips](#tips)
 - [How it works](#how-it-works)
@@ -18,14 +19,16 @@ the desktop app in depth, and how the pipeline works.
 ## Desktop app
 
 - **Header.** Open and save on the left; the three steps of the workflow in
-  the middle (**1 Source**, **2 Miniature**, **3 Print sheet**); **Export SVG**
-  and **Export PDF** on the right. The steps are in the order you usually work,
-  but you can open any of them at any time. The ☰ menu
-  holds everything else: new project, save as, export all SVGs, **View**
+  the middle of the window (**1 Source**, **2 Miniature**, **3 Print sheet**);
+  the ☰ menu on the right. The steps are in the order you usually work, but you
+  can open any of them at any time. Export and print are in the step they
+  belong to: **Export SVG…** at the bottom of the Miniature settings, **Print…**
+  and **Export…** at the bottom of the Print sheet settings. The ☰ menu has
+  them too, and holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
   or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
   open, Ctrl+I add images, Ctrl+L add an image from a link, Ctrl+V paste images, Ctrl+S save,
-  Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export PDF,
+  Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export the sheet,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
 - **Images.** PNG, JPG, WebP, BMP and TIFF. Besides files, an image can come
   from the web: paste its link (URL) into the bar at the top of the figure list
@@ -38,7 +41,10 @@ the desktop app in depth, and how the pipeline works.
   or drag them shut. The buttons in the bottom corners of the canvas hide and
   show them (filled = shown) and stay put while a panel is hidden.
 - **Figures** (left). Each figure is a card with a thumbnail of the finished
-  piece, its height and number of copies. Add images with the add-image button
+  piece, its height and its **Amount**: how many of it go on the print sheet.
+  Click − or + to change the amount, or click the number and type one; 0 leaves
+  the figure off the sheet. In a narrow list the height gives way first, then
+  the word *Amount*. Add images with the add-image button
   above the list, add one from the web by pasting its link into the link bar
   under it, or drop files or a project anywhere in the window. Drag to reorder; **Delete**
   removes the selected one. A new figure starts with the settings of the one
@@ -50,27 +56,32 @@ the desktop app in depth, and how the pipeline works.
     filling, detached parts), then *Image adjustments* (greyscale,
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
     [Color adjustments](#color-adjustments)).
-  - **Miniature:** *Back side*, *Outline and cut line* and *Tab*, with
+  - **Miniature:** *Size* (figure height and width, image resolution), then
+    *Back side*, *Outline and cut line* and *Tab*, with
     *Label* as an indented sub-group at the end of *Tab* (the label is
     printed on the tab). *Back side*, *Tab* and *Label* each have a checkbox
     at the right of their header that turns the whole group on or off
     (*Print a back side*, *Print a tab*, *Print a label*); all three are on
     by default. A group that is off shows only its header and cannot be
-    opened; turning the tab off also hides *Label*.
+    opened; turning the tab off also hides *Label*. **Export SVG…** at the
+    bottom saves this figure's piece as an SVG.
+  - **Print sheet:** instead of a figure's settings, the sheet's own: *Paper
+    and layout* (paper, title, margin, gap) and *Cutting* (by hand, or by
+    [cutting machine](#cutting-by-machine), with its bleed, marks and fold
+    lines), then how many pieces and pages there are, **Print…** and
+    **Export…**.
 
   The settings side cannot be made narrower than its widest step needs, so
   no field or checkbox is ever cut off; drag it shut to hide it instead.
-  - **Print sheet:** *Size and copies* (figure height and width, copies on
-    the sheet, image resolution).
 
   The preview updates about a second after each change, and fast series of
   changes (holding an arrow key) only build the final value. The model only
-  runs once per image and crop. Changing *Copies* only updates the sheet.
+  runs once per image and crop. Changing an *Amount* only updates the sheet.
   Number fields step with the arrow keys, or the mouse wheel once you click
   into them, so scrolling the panel never edits values. Decimals use a point
   (`1.6`) whatever your system's language; a typed comma becomes a point.
   The *Apply … to all figures* button copies the settings of the step you are
-  on to every other figure, except the crop, mask file, label and copies.
+  on to every other figure, except the crop, mask file, label and amount.
 - **1 Source.** The original image with the outline that background removal
   found, before any margin or tab (those belong to the miniature). Everything
   outside the outline is faded, so you can spot a clipped sword tip or a
@@ -109,18 +120,19 @@ the desktop app in depth, and how the pipeline works.
 - **2 Miniature.** The piece as it will print, with a 10 mm scale bar. The
   zoom controls at the bottom right zoom, fit (Ctrl+0), or show the piece at
   real size (*1:1*, Ctrl+1), depending on the DPI your screen reports.
-- **3 Print sheet.** A live preview of the PDF layout, with paper, title,
-  margin and gap settings in the bar above it. The settings panel sets each
-  figure's size: *Figure height* and *Figure width*, with a link button beside
-  them. Linked (the default), the figure keeps its proportions: type a height
-  and the width follows, or the other way round. Unlinked, height and width
-  are set separately and the figure is stretched to them. **Print…** (or
+- **3 Print sheet.** A live preview of the sheet as it prints, with the
+  sheet's settings beside it. **Print…** (or
   Ctrl+Shift+P) prints the sheet straight away, without saving a PDF first.
   It always prints at real size, from the corner of the paper, on the sheet's
   paper (A4 or Letter); the app warns if the printer is set to another paper
   size. With several pages you can pick which to print.
-- **Exporting.** Anything that still needs building is built in the background
-  first; the window stays responsive and you can cancel.
+- **Exporting.** **Export…** (Ctrl+P) opens a small dialog: the folder, the
+  name (the sheet's title to start with) and what to save, each with the exact
+  file names: the sheet to print (PDF) and, cut by machine, the cut file (one
+  SVG per page). It remembers what you ticked, so after printing from the app,
+  saving only the cut file is one click; it asks before replacing files.
+  Anything that still needs building is built in the background first; the
+  window stays responsive and you can cancel.
 - **Model downloads.** The first time a figure needs a model that is not on
   this computer yet, the app asks first: it shows the model, its download size,
   where it comes from, where it will be kept and its licence. *Download* shows
@@ -170,7 +182,8 @@ the dragon leaves out the text and the corner ornament:
 How the figure is cut out of its background.
 
 *Auto* uses the image's own transparency when it has some, and rmbg-1.4
-otherwise. *Mask image file* uses a mask you painted yourself (see *Mask image
+otherwise; a box under it says *Chosen method:* and which one it used for the
+selected figure. *Mask image file* uses a mask you painted yourself (see *Mask image
 file*). The first time a model is needed, the app asks before downloading it;
 after that, papermini works offline. **Models…** in the ☰ menu shows which
 models are downloaded, and where.
@@ -277,6 +290,28 @@ green, as in the picture above.
 
 ### Step 2, Miniature
 
+#### Size
+
+##### Figure height
+`--height-mm` [42 mm]\
+The height of the drawing itself, without the margin and the tab.
+
+With the link button beside the size on (the default), the figure keeps its
+proportions: set the height and the width follows.
+
+##### Figure width
+`--width-mm` [follows the height]\
+The width of the drawing itself, without the margin.
+
+Linked, setting the width sets the height. With the link button off, the
+figure is stretched to both the height and the width.
+
+##### Image resolution
+`--dpi` [300 dpi]\
+The resolution of the printed picture.
+
+300 suits most printers; lower values make smaller files.
+
 #### Back side
 
 ![The three kinds of back: the mirrored drawing, a blank back and a back with text](screenshots/settings/back.png)
@@ -368,33 +403,18 @@ How far the cut line may stray from the outline to use fewer points.
 Higher values give fewer points and less detail; lower values follow the
 outline more closely.
 
-##### Cutting-machine style (red hairline)
-`--cutter` [off]\
-Draws the cut line as a red 0.1 mm hairline, for a cutting machine.
-
-Many cutting machines take a red hairline as the line to cut. Use it with
-*Bleed*.
-
-![A wing tip with a normal cut line, a cutting-machine hairline, and a hairline with 1 mm bleed](screenshots/settings/cutter.png)
-
-##### Bleed
-`--bleed-mm` [1 mm]\
-Prints the color at the edge this far beyond the cut line.
-
-Shown with *Cutting-machine style*. The margin, tab or back color is
-extended, so a machine cut that is slightly off never shows a white edge.
-
 ##### Color
 `--cut-color` [#000000 (black)]\
 The color of the printed cut line.
 
-For cutting by hand. *Cutting-machine style* sets it to red.
+For cutting by hand. A sheet cut by machine prints no cut lines; its cut file
+has them (see [Cut by](#cut-by) in the Print sheet step).
 
 ##### Width
 `--cut-width-mm` [0.3 mm]\
 The width of the printed cut line.
 
-For cutting by hand. *Cutting-machine style* sets it to 0.1 mm.
+For cutting by hand: a thicker line is easier to follow with scissors.
 
 #### Tab
 
@@ -503,38 +523,17 @@ disappears.
 
 ### Step 3, Print sheet
 
-#### Size and copies
+The settings panel holds the sheet's own settings on this step. How many of a
+figure go on the sheet is set on its card in the figure list:
 
-##### Figure height
-`--height-mm` [42 mm]\
-The height of the drawing itself, without the margin and the tab.
-
-With the link button beside the size on (the default), the figure keeps its
-proportions: set the height and the width follows. *Apply size settings to all
-figures* copies the size and resolution to every other figure.
-
-##### Figure width
-`--width-mm` [follows the height]\
-The width of the drawing itself, without the margin.
-
-Linked, setting the width sets the height. With the link button off, the
-figure is stretched to both the height and the width.
-
-##### Copies on sheet
+##### Amount
 `papermini sheet --copies` [1]\
-How many of this figure are printed.
+How many of this figure go on the print sheet.
 
-0 leaves it off the sheet. In a project file it is `copies`.
+On each figure's card: click − or +, or click the number and type one. 0
+leaves the figure off the sheet. In a project file it is `copies`.
 
-##### Image resolution
-`--dpi` [300 dpi]\
-The resolution of the printed picture.
-
-300 suits most printers; lower values make smaller files.
-
-#### Sheet
-
-The bar above the sheet holds the settings of the sheet itself.
+#### Paper and layout
 
 ##### Paper
 `papermini sheet --paper a4|letter` [A4]\
@@ -552,13 +551,57 @@ It is printed above the instructions for cutting and folding.
 `papermini sheet --margin-mm` [12 mm]\
 The empty border around each page.
 
-Keep it at least as wide as the edge your printer cannot print on.
+Keep it at least as wide as the edge your printer cannot print on. Cut by
+machine, the alignment marks sit in the corners, this far from the paper edges.
 
 ##### Gap
 `papermini sheet --gap-mm` [7 mm]\
 The space between the pieces on the sheet.
 
 A wider gap leaves more room for scissors between the pieces.
+
+#### Cutting
+
+##### Cut by
+`papermini sheet --cut hand|machine` [By hand]\
+How the pieces are cut: by hand, or with a cutting machine.
+
+*By hand* prints the cut lines on the sheet, for scissors or a knife.
+*Machine* prints the sheet without cut lines but with alignment marks, and
+**Export…** can also save a cut file: an SVG with the cut lines and the same
+marks, to load in your cutting machine's software. See
+[Cutting by machine](#cutting-by-machine).
+
+##### Bleed
+`--bleed-mm` [1 mm]\
+Prints the edge colors this far beyond the cut line.
+
+Shown when *Cut by* is *Machine*. The margin, tab or back color goes on past
+the cut line, so a machine cut that is slightly off never shows a white edge.
+In a project file it is the sheet's `bleed_mm`; with `papermini make` it is
+`--bleed-mm` (0 by default), for SVGs that go on a machine sheet.
+
+![A wing tip without bleed and with 1 mm bleed; the red line is where the machine cuts](screenshots/settings/bleed.png)
+
+##### Marks
+`papermini sheet --marks corners|silhouette|none` [Corners]\
+The alignment marks on the sheet and in the cut file.
+
+Shown when *Cut by* is *Machine*. *Corners* is an L in each corner and a
+small square top-left, so the page cannot be lined up the wrong way round.
+*Silhouette* copies Silhouette Studio's *Type 1* marks: a filled square
+top-left and an L top-right and bottom-left. See
+[Cutting by machine](#cutting-by-machine) for the settings to match in
+Silhouette Studio. *None* leaves the marks out: the cut file is then lined up
+with the page itself.
+
+##### Fold lines in cut file
+`papermini sheet --cut-folds` [off]\
+Also puts the fold lines in the cut file.
+
+Shown when *Cut by* is *Machine*. The fold lines go in their own group, in
+blue, so the cutting software can score or draw them, or leave them out. They
+are always printed on the sheet.
 
 ## Commands
 
@@ -615,8 +658,7 @@ papermini make *.png -o minis --debug
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
 | `--no-smooth` | | straight segments only (by default the cut line uses Bézier curves) |
 | `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | cut line style |
-| `--cutter` | | cutting-machine style: red 0.1 mm cut line |
-| `--bleed-mm` | 1 | with `--cutter`: print the background this far beyond the cut line, so a slightly misaligned cut shows no white edge |
+| `--bleed-mm` | 0 | print the edge colors this far beyond the cut line, for a sheet cut by machine (`papermini sheet --cut machine`) |
 | `--debug` | | write intermediate masks and a red overlay preview to `debug/` |
 
 ### `papermini sheet SVG... [-o minis.pdf]`
@@ -632,6 +674,16 @@ papermini sheet "minis/*.svg" --copies 2 --paper letter -o minis.pdf --preview
 Options: `--copies`, `--paper a4|letter`, `--margin-mm`, `--gap-mm`, `--title`, and
 `--preview` (also writes a PNG per page). The sheet only reads SVGs written by
 papermini. An SVG that was re-saved in another editor may not load.
+
+For a cutting machine, `--cut machine` leaves the cut lines off the PDF, adds
+alignment marks (`--marks corners|silhouette`) and writes a cut file per page
+next to it (`minis-cut.svg`, `minis-cut-2.svg` and so on); `--cut-folds` also
+puts the fold lines in it. Make the SVGs with `papermini make --bleed-mm 1` for
+a bleed. See [Cutting by machine](#cutting-by-machine).
+
+```bash
+papermini sheet "minis/*.svg" --cut machine --marks silhouette -o minis.pdf
+```
 
 ### `papermini batch config.yaml`
 
@@ -654,6 +706,10 @@ figures:
     crop: [0.08, 0, 0.92, 0.62]
 ```
 
+The `sheet` also takes `title`, `margin_mm`, `gap_mm` and, for a
+[cutting machine](#cutting-by-machine), `cut: machine` with `bleed_mm`,
+`marks` and `cut_folds`; every figure is then built with the bleed.
+
 An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
 It is downloaded once (later runs use the cached copy) and saved projects keep
 the link.
@@ -666,12 +722,20 @@ proportions; both stretch it to that height and width. A figure that gives only
 [examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
 sample outputs in [examples/dragons/samples](../examples/dragons/samples), four
 ways to print the same dragon: a default (double-sided) mini, a single-sided
-mini on a round colored base, a mini with back text, and a print-and-cut mini
-with bleed. Their sheet is
+mini on a round colored base, a mini with back text, and a mini with a dark
+margin and a green tab. Their sheet is
 [samples-sheet.pdf](../examples/dragons/samples/samples-sheet.pdf).
+[samples-machine.yaml](../examples/dragons/samples-machine.yaml) makes a sheet
+cut by machine:
+[machine-sheet.pdf](../examples/dragons/samples/machine-sheet.pdf) and its cut
+file [machine-sheet-cut.svg](../examples/dragons/samples/machine-sheet-cut.svg).
 
 ```bash
 papermini batch examples/dragons/samples.yaml
+```
+
+```bash
+papermini batch examples/dragons/samples-machine.yaml
 ```
 
 ## Model licence
@@ -775,12 +839,47 @@ with the background removal settings.
   and adds a bridge.
 - **Printing.** Print a PDF at 100% / "actual size", never "fit to page"
   (the app's **Print…** does this for you). Measure the 50 mm bar to check.
-- **Cutting machines.** Import the SVG and use `path#cut` as the cut layer.
-  `--cutter` gives a red hairline that many tools treat as a cut line. It also
-  adds a bleed (`--bleed-mm`, 1 mm by default): the background is printed a
-  little beyond the cut line, so a cut that lands slightly off still shows no
-  white paper. The bleed extends whatever color is at the edge (margin, tab or
-  back color).
+- **Cutting machines.** Set the sheet's *Cut by* to *Machine*: see
+  [Cutting by machine](#cutting-by-machine).
+
+## Cutting by machine
+
+Set *Cut by* to *Machine* in the Print sheet settings (`cut: machine` in a
+project file, `papermini sheet --cut machine` on the command line). Then:
+
+- **The PDF** is for printing. It has the pieces with a bleed (the edge colors
+  go on 1 mm past the cut line), the fold lines and the labels, but no cut
+  lines. Alignment marks sit in the corners, *Margin* (12 mm) from the paper
+  edges. Nothing else comes within 6 mm of them: a piece that would moves along
+  its row, and the header starts beside the top-left mark, so a machine sheet
+  holds about as many pieces as one cut by hand.
+- **The cut file** is for the cutting machine's software: an SVG the size of
+  the page, in millimetres, with the cut line of every piece exactly where it
+  is on the page, and the same marks in the same places. A sheet of several
+  pages gets one per page: `NAME-cut.svg`, `NAME-cut-2.svg` and so on. Its
+  groups are `registration` (the marks), `cut` (red hairlines) and, with *Fold
+  lines in cut file*, `fold` (blue).
+
+![A sheet cut by machine: the PDF with alignment marks and no cut lines, and its cut file with the cut lines and the same marks](screenshots/settings/machine.png)
+
+In the app, **Print…** prints the sheet and **Export…** saves the files: tick
+the PDF, the cut file or both. To cut, print the sheet at 100% (**Print…** does
+this), load the cut file in your cutting software at its real size, and line up
+its marks with the printed ones. How depends on the machine:
+
+- **A machine that scans the sheet** (for example a Brother ScanNCut), or
+  software that shows a scan or photo of it: place the cut file over the scan
+  so its marks cover the printed marks. *Corners* marks work well for this.
+- **Silhouette** (Cameo, Portrait): choose *Silhouette* marks. In Silhouette
+  Studio, open the page settings, turn on registration marks with *Type 1*,
+  *Length* 20 mm, *Thickness* 0.5 mm and *Inset* equal to the sheet's
+  *Margin* (12 mm by default), and place the cut file at the top-left corner of
+  the page. Studio's marks then cover the marks in the cut file, and its sensor
+  reads the printed ones. papermini draws these marks to those measurements;
+  check one sheet before cutting a batch, because Studio versions differ.
+- **Cricut**: Print Then Cut only reads the marks that Cricut Design Space
+  prints itself, so it cannot use these. Upload the pieces' images to Design
+  Space instead, or cut by hand.
 
 ## How it works
 

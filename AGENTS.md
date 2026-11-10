@@ -83,8 +83,9 @@ docs/           reference.md (full option docs) and README screenshots
   visible change, regenerate the README screenshots with
   `scripts/screenshots.py`.
 - **Regenerate the samples** in `examples/dragons/samples/` with
-  `papermini batch examples/dragons/samples.yaml` when the output format or
-  defaults change.
+  `papermini batch examples/dragons/samples.yaml` and
+  `papermini batch examples/dragons/samples-machine.yaml` when the output
+  format or defaults change.
 - **Binaries:** new runtime dependencies or data files must also work in the
   PyInstaller build (`packaging/papermini.spec`). After such a change, build
   locally and run the frozen `papermini --version` and a `papermini make`.
