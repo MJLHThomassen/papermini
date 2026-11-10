@@ -70,15 +70,11 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 
 The downloads are not code-signed, so the first start can need one extra step:
 
-- **macOS:** if macOS says the app is damaged and should be moved to the
-  Trash, or that it cannot be opened, remove the download mark once in
-  Terminal, then open it as usual. Drag the app into the Terminal window to
-  type its path:
-
-  ```bash
-  xattr -dr com.apple.quarantine /Applications/papermini.app
-  ```
-
+- **macOS:** macOS blocks the first start with a message that offers only
+  *Done* and *Move to Trash*. Click *Done*, then open **System Settings →
+  Privacy & Security**, scroll down to *Security* and click **Open Anyway**
+  next to papermini (the button shows up after you tried to open it). Confirm,
+  and from then on papermini opens as usual.
 - **Windows:** if SmartScreen warns, click *More info*, then *Run anyway*.
 - **Linux:** Qt needs a few X11 libraries; on Debian and Ubuntu, run
   `sudo apt install libxcb-cursor0`.
