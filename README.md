@@ -80,7 +80,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
    them on or off; all three are on by default, so a mini has a front and a
    back, folded over the head. The preview updates as you go.
    [All Miniature settings](docs/reference.md#step-2-miniature), including
-   the tab's [overlap](docs/reference.md#tab) and fold.
+   the tab's [overlap](docs/reference.md#overlap-into-figure) and
+   [fold](docs/reference.md#fold-above-lowest-point).
 4. **Step 3, Print sheet.** Set each figure's size (height, width, or both)
    and copies, and see all figures laid out on pages. Click **Print…** to
    print them straight away at real size, or **Export PDF** and print that at
