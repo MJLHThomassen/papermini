@@ -54,16 +54,19 @@ tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py, release_notes.py
 packaging/      PyInstaller spec, entry scripts and app icon (make_icon.py)
 .github/        CI (tests on push/PR) and release (binaries on version tags)
-examples/       batch YAML examples and generated sample outputs
+examples/       minis.yaml (a batch example) and dragons/: the images and
+                project of the README screenshots, and the sample outputs
 docs/           reference.md (full option docs) and README screenshots
 ```
 
 ## Making changes
 
-- **An option lives in four places; keep them in sync:** `FigureSettings` in
+- **An option lives in five places; keep them in sync:** `FigureSettings` in
   `settings.py` (with validation in `from_dict`), the CLI flags in `cli.py`,
-  the GUI field in `gui/panels.py` (`SECTIONS`, `TIPS`, visibility rules), and
-  the options table in `docs/reference.md`. Add a test.
+  the GUI field in `gui/panels.py` (`SECTIONS`, `TIPS`, visibility rules), the
+  options table in `docs/reference.md`, and its entry in the settings guide
+  there (with a comparison picture from `scripts/screenshots.py` when values
+  look different). Add a test.
 - **Test before you finish.** Run the whole suite with the venv's Python. Add
   a regression test for every bug you fix. Tests must not need the network or
   the segmentation model: `tests/conftest.py` gives every test an empty model
@@ -72,8 +75,8 @@ docs/           reference.md (full option docs) and README screenshots
   plus `grab()`) and check the image, in both light and dark themes. After a
   visible change, regenerate the README screenshots with
   `scripts/screenshots.py`.
-- **Regenerate the samples** in `examples/sample/` with
-  `papermini batch examples/sample/sample.yaml` when the output format or
+- **Regenerate the samples** in `examples/dragons/samples/` with
+  `papermini batch examples/dragons/samples.yaml` when the output format or
   defaults change.
 - **Binaries:** new runtime dependencies or data files must also work in the
   PyInstaller build (`packaging/papermini.spec`). After such a change, build

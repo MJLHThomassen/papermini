@@ -108,6 +108,27 @@ def test_double_sided_is_mirror_symmetric():
     assert n == 2
 
 
+def test_top_fold_is_where_a_raised_wing_meets_the_fold():
+    # a body with a wing raised high on the left and the head lower on the right:
+    # the halves meet at the wing, so the bridge and the fold belong there, not in
+    # the gap between wing and head
+    m = np.zeros((1400, 1100), np.uint8)
+    cv2.rectangle(m, (300, 500), (800, 1300), 255, -1)                       # body
+    cv2.fillPoly(m, [np.array([(300, 700), (150, 100), (350, 100), (450, 600)])], 255)  # wing
+    cv2.circle(m, (750, 330), 100, 255, -1)                                  # head
+    clean = geo.clean_mask(m, close_px=9)
+    lay = geo.build_layout(clean, rgb_like(clean), geo.Params(double_sided=True))
+    h = int(lay.front_top)
+    top = [(a, b) for a, b, y in lay.folds if y == h]
+    paper = np.flatnonzero(lay.cut[h])
+    assert all(any(a <= x < b for a, b in top) for x in paper)  # the fold spans the joint
+    first = h + np.flatnonzero(lay.figure[h:].any(axis=1))[0]  # the figure's highest row
+    tip = np.flatnonzero(lay.figure[first])
+    wing_x = (tip.min() + tip.max()) / 2  # the wing tip
+    assert len(top) == 1 and top[0][0] < wing_x < top[0][1]
+    assert abs((top[0][0] + top[0][1]) / 2 - wing_x) < 2 * lay.px_per_mm  # centred on it
+
+
 def test_bezier_stays_close_to_polygon():
     clean = geo.clean_mask(ghost(), close_px=9)
     lay = geo.build_layout(clean, rgb_like(clean), geo.Params())
@@ -189,35 +210,35 @@ def test_round_tab_is_a_half_disc():
     assert not np.any((lay.figure > 0) & (lay.cut == 0))
 
 
-def test_tab_and_margin_colours():
+def test_tab_and_margin_colors():
     clean = geo.clean_mask(ghost(), close_px=9)
     rgb = rgb_like(clean)
     lay = geo.build_layout(clean, rgb, geo.Params(tab_color="#3b6e2a",
                                                   margin_color="#f3e6c8"))
     (fx0, fx1, fy), = lay.folds
     below = lay.rgb[int(fy) + 3:][lay.cut[int(fy) + 3:] > 0]
-    assert (below == (0x3b, 0x6e, 0x2a)).all()                     # tab in the tab colour
+    assert (below == (0x3b, 0x6e, 0x2a)).all()                     # tab in the tab color
     margin = (lay.cut > 0) & (geo.dilate(lay.figure, 0.6 * lay.px_per_mm) == 0)
     margin[int(fy):] = False
-    assert (lay.rgb[margin] == (0xf3, 0xe6, 0xc8)).all()          # margin in the margin colour
+    assert (lay.rgb[margin] == (0xf3, 0xe6, 0xc8)).all()          # margin in the margin color
     # with the original image in the margin, the tab background is plain white
     lay = geo.build_layout(clean, rgb, geo.Params(margin_fill="image", margin_color="#000000"))
     (fx0, fx1, fy), = lay.folds
     assert (lay.rgb[int(fy) + 3:][lay.cut[int(fy) + 3:] > 0] == 255).all()
 
 
-def test_double_sided_blank_back_keeps_tab_colour():
+def test_double_sided_blank_back_keeps_tab_color():
     clean = geo.clean_mask(ghost(), close_px=9)
     lay = geo.build_layout(clean, rgb_like(clean), geo.Params(
         double_sided=True, back="blank", tab_shape="round", tab_color="#3b6e2a"))
     assert np.array_equal(lay.cut, lay.cut[::-1])
     green = (lay.rgb == (0x3b, 0x6e, 0x2a)).all(-1)
     h = lay.cut.shape[0] // 2
-    assert green[:h].sum() == pytest.approx(green[h:].sum(), rel=0.02)  # both tabs coloured
+    assert green[:h].sum() == pytest.approx(green[h:].sum(), rel=0.02)  # both tabs colored
 
 
-def test_margin_colour_does_not_colour_the_label_tab():
-    """Regression: the margin colour used to show behind the tab label."""
+def test_margin_color_does_not_color_the_label_tab():
+    """Regression: the margin color used to show behind the tab label."""
     clean = geo.clean_mask(ghost(), close_px=9)
     rgb = rgb_like(clean)
     for tab_color, expected in ((None, (255, 255, 255)), ("#ddeeff", (0xdd, 0xee, 0xff))):
@@ -229,7 +250,7 @@ def test_margin_colour_does_not_colour_the_label_tab():
         assert (tab == expected).all()
         margin = (lay.cut > 0) & (geo.dilate(lay.figure, 0.6 * lay.px_per_mm) == 0)
         margin[int(fy):] = False
-        assert (lay.rgb[margin] == (0xf3, 0xe6, 0xc8)).all()  # margin keeps its own colour
+        assert (lay.rgb[margin] == (0xf3, 0xe6, 0xc8)).all()  # margin keeps its own color
 
 
 
@@ -245,16 +266,16 @@ def test_tab_joint_width_and_overlap():
     assert wide.tab_joint_px / wide.px_per_mm == pytest.approx(22, abs=0.5)
 
 
-def test_blank_back_has_its_own_colour():
+def test_blank_back_has_its_own_color():
     clean = geo.clean_mask(ghost(), close_px=9)
     lay = geo.build_layout(clean, rgb_like(clean), geo.Params(
         double_sided=True, back="blank", back_color="#202040", margin_color="#f3e6c8",
         tab_color="#3b6e2a"))
     h = lay.cut.shape[0] // 2
     back = lay.rgb[:h][lay.cut[:h] > 0]
-    colours = {tuple(c) for c in back}
-    assert (0x20, 0x20, 0x40) in colours and (0x3b, 0x6e, 0x2a) in colours  # back + its tab
-    assert (0xf3, 0xe6, 0xc8) not in colours                                # no margin colour
+    colors = {tuple(c) for c in back}
+    assert (0x20, 0x20, 0x40) in colors and (0x3b, 0x6e, 0x2a) in colors  # back + its tab
+    assert (0xf3, 0xe6, 0xc8) not in colors                                # no margin color
 
 
 def _ring_drawing():
@@ -280,7 +301,7 @@ def test_no_white_halo_on_a_dark_margin():
 
 
 def test_alpha_cutout_blends_into_the_margin():
-    """A cut-out's soft edge blends into the margin colour (no white fringe), while
+    """A cut-out's soft edge blends into the margin color (no white fringe), while
     see-through parts inside the figure look as they do on white paper."""
     img, fig = _ring_drawing()
     alpha = cv2.GaussianBlur(fig, (0, 0), 3)                 # soft edge

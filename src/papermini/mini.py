@@ -77,7 +77,7 @@ def _load_for_pipeline(path: Path):
     """(PIL image, file bytes, pixels, has transparency) for the caches.
 
     Pixels are RGB, or for images with transparency premultiplied RGBA: never
-    flattened onto white, so a cut-out's soft edge blends into the margin colour
+    flattened onto white, so a cut-out's soft edge blends into the margin color
     instead of leaving a white fringe (and scales without bleeding).
     """
     im, data = load_image(path)
@@ -232,7 +232,7 @@ def make_mini(
     work_key = (clean_key, height_mm, stretch, prm.max_px_per_mm)
     clean, rgb = _work() if debug_dir else cache.working.get_or_make(work_key, _work)
 
-    # 2c. colour adjustments of the picture, at the working size (cheap there); the mask
+    # 2c. color adjustments of the picture, at the working size (cheap there); the mask
     # and outline above never see them, so a slider never runs the model again
     adj = adjust or adj_mod.Adjustments()
     if not adj.is_identity():
@@ -240,7 +240,7 @@ def make_mini(
             (work_key, adj), lambda: _frozen(adj_mod.apply(rgb, adj))))
 
     # 3+4. margin, tab and vector cut line - cached, so cosmetic changes (label,
-    # colours, line width, dpi) only redo the cheap finishing below
+    # colors, line width, dpi) only redo the cheap finishing below
     def _layout():
         lay = geo.build_layout(clean, rgb, prm)
         return lay, geo.trace_cut(lay.cut, lay.px_per_mm, simplify_mm, smooth_path,

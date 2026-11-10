@@ -29,12 +29,12 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                    help="what shows between drawing and cut line: --margin-color (default) "
                         "or the original image")
     g.add_argument("--margin-color", default=D.margin_color,
-                   help="colour of the margin around the drawing (#ffffff)")
+                   help="color of the margin around the drawing (#ffffff)")
     g.add_argument("--tab-shape", choices=["square", "round"], default=D.tab_shape,
                    help="square: slots into a stand; round: a half disc (--tab-radius-mm) "
                         "that folds out into a round base")
     g.add_argument("--tab-color", default=D.tab_color,
-                   help="tab colour behind the label, independent of the margin; "
+                   help="tab color behind the label, independent of the margin; "
                         "use --label '' for a plain tab (#ffffff)")
     g.add_argument("--tab-width-mm", type=float, default=D.tab_width_mm,
                    help="square tab width (22)")
@@ -52,18 +52,18 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                    help="double-sided back: mirrored image (default), blank, or text")
     g.add_argument("--back-text", help="text on the back with --back text (default: the label)")
     g.add_argument("--back-color", default=D.back_color,
-                   help="colour of a blank or text back (#ffffff)")
+                   help="color of a blank or text back (#ffffff)")
     g.add_argument("--back-text-color", default=D.back_text_color,
-                   help="colour of the back text (#2f5597)")
-    g = p.add_argument_group("picture (colours of what is printed; the mask is unaffected)")
+                   help="color of the back text (#2f5597)")
+    g = p.add_argument_group("picture (colors of what is printed; the mask is unaffected)")
     g.add_argument("--greyscale", action="store_true", help="print in black and white")
     g.add_argument("--brightness", type=int, default=D.brightness,
                    help="-100 (black) to 100 (white); white paper stays white (0)")
     g.add_argument("--contrast", type=int, default=D.contrast, help="-100 to 100 (0)")
     g.add_argument("--saturation", type=int, default=D.saturation,
-                   help="-100 (grey) to 100 (twice as colourful) (0)")
+                   help="-100 (grey) to 100 (twice as colorful) (0)")
     g.add_argument("--hue", type=int, default=D.hue,
-                   help="turn the colours around the colour wheel, -180 to 180 degrees (0)")
+                   help="turn the colors around the color wheel, -180 to 180 degrees (0)")
     g = p.add_argument_group("mask")
     g.add_argument("--model", default=D.model,
                    help="rmbg-1.4, birefnet, birefnet-lite, alpha, mask (with --mask) or a .onnx file; "
@@ -85,7 +85,7 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--dpi", type=int, default=D.dpi, help="embedded image resolution (300)")
     g.add_argument("--simplify-mm", type=float, default=D.simplify_mm, help="cut line simplification (0.15)")
     g.add_argument("--no-smooth", action="store_true", help="straight-segment cut line, no Béziers")
-    g.add_argument("--cut-color", default=D.cut_color, help="cut line colour (#000000)")
+    g.add_argument("--cut-color", default=D.cut_color, help="cut line color (#000000)")
     g.add_argument("--cut-width-mm", type=float, default=D.cut_width_mm, help="cut line width (0.3)")
     g.add_argument("--cutter", action="store_true",
                    help="cutting-machine style: red 0.1 mm cut line, with a --bleed-mm bleed")

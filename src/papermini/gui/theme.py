@@ -1,7 +1,7 @@
 """Look and feel: light/dark palettes, one style sheet, line icons and the logo.
 
 ``apply(app, mode)`` sets everything up; mode is "system", "light" or "dark".
-Colours are design tokens (``Theme``) so widgets that paint themselves (the
+Colors are design tokens (``Theme``) so widgets that paint themselves (the
 canvas, the figure cards) can use the same values.
 """
 
@@ -120,7 +120,7 @@ def icon(name: str, color: Optional[str] = None, size: int = 18) -> QIcon:
 
 
 # --------------------------------------------------------------------------- logo
-LOGO = Path(__file__).with_name("logo.svg")  # the full-colour dragon
+LOGO = Path(__file__).with_name("logo.svg")  # the full-color dragon
 
 
 def logo_pixmap(size: int, ratio: float = 2.0) -> QPixmap:

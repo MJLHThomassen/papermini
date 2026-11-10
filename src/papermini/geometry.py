@@ -203,12 +203,12 @@ class Params:
     keep_all: bool = False
     bridge_mm: float = 2.5        # width of bridges joining separate parts (--keep-all)
     margin_fill: str = "color"    # "color" (margin_color) or "image": what shows in the margin
-    margin_color: str = "#ffffff" # colour of the margin around the drawing
+    margin_color: str = "#ffffff" # color of the margin around the drawing
     tab_shape: str = "square"     # "square" (slots into a stand) or "round" (folds out to a base)
-    tab_color: str = "#ffffff"    # tab background, independent of the margin colour
+    tab_color: str = "#ffffff"    # tab background, independent of the margin color
     double_sided: bool = False
     back: str = "mirror"          # double-sided back: "mirror" (image), "blank" or "text"
-    back_color: str = "#ffffff"   # colour of a blank/text back
+    back_color: str = "#ffffff"   # color of a blank/text back
     max_px_per_mm: float = 24.0   # working resolution cap (~600 dpi; output is 300 dpi)
     top_bridge_width_mm: float = 12.0  # double-sided: joint at the top fold
     top_bridge_depth_mm: float = 3.0
@@ -239,8 +239,8 @@ class Layout:
     # onto them so a round tab is a true circle, not a traced pixel staircase.
     tab_circles: List[Tuple[float, float, float, int]] = field(default_factory=list)
     label_max_h_px: float = 0.0
-    paper: Tuple[int, int, int] = (255, 255, 255)  # margin colour, RGB
-    tabfill: Optional[np.ndarray] = None  # HxW bool: tab area (painted in the tab colour)
+    paper: Tuple[int, int, int] = (255, 255, 255)  # margin color, RGB
+    tabfill: Optional[np.ndarray] = None  # HxW bool: tab area (painted in the tab color)
     # where this canvas lies in the image given to build_layout, for the front side:
     # (sx, sy, dx, dy) with image pixel = ((x - dx) * sx, (y - dy) * sy)
     src: Tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0)
@@ -282,7 +282,7 @@ def hex_rgb(c: str) -> Tuple[int, int, int]:
     if len(h) == 3:
         h = "".join(ch * 2 for ch in h)
     if len(h) != 6:
-        raise ValueError(f"not a colour: {c!r} (use #rrggbb)")
+        raise ValueError(f"not a color: {c!r} (use #rrggbb)")
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
 
@@ -304,6 +304,34 @@ def draw_tab(m: np.ndarray, shape: str, cx: float, fold: float, top: float, tw: 
 def _band_centre(m: np.ndarray, y0: int, y1: int) -> int:
     cols = np.flatnonzero(m[max(0, y0):y1 + 1].any(axis=0))
     return int(round((cols.min() + cols.max()) / 2))
+
+
+def _bridge_centre(sil: np.ndarray, y_top: int, depth: int, width: int) -> float:
+    """Column for the top bridge of a double-sided mini.
+
+    The bridge is a ``width`` x ``depth`` rectangle hanging from the fold row. It goes
+    where it overlaps the silhouette most, so it holds the halves together where the
+    figure really reaches the fold (a raised wing, not the gap beside it). Among
+    equally good places it takes the middle one, so it is centred on a head.
+    """
+    cover = np.count_nonzero(sil[y_top:y_top + max(1, depth)], axis=0).astype(np.float64)
+    w = int(np.clip(width, 1, len(cover)))
+    c = np.concatenate([[0.0], np.cumsum(cover)])
+    score = c[w:] - c[:-w]  # score[i]: overlap of a bridge over columns i .. i + w - 1
+    best = int(np.argmax(score))
+    good = score >= 0.99 * score[best]
+    lo, hi = best, best
+    while lo > 0 and good[lo - 1]:
+        lo -= 1
+    while hi < len(good) - 1 and good[hi + 1]:
+        hi += 1
+    return (lo + hi) / 2 + w / 2
+
+
+def _runs(row: np.ndarray) -> List[Tuple[int, int]]:
+    """(start, end) column pairs of the filled runs in a row, end exclusive."""
+    d = np.diff(np.concatenate([[0], (row > 0).astype(np.int8), [0]]))
+    return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
 
 
 def figure_size(w_px: int, h_px: int, height_mm: Optional[float],
@@ -371,20 +399,20 @@ def _window(mask: np.ndarray, rgb: np.ndarray, x0: int, y0: int, x1: int, y1: in
 
 def compose_art(img: np.ndarray, fig: np.ndarray, sil: np.ndarray,
                 paper: Tuple[int, int, int], pxmm: float, image_margin: bool) -> np.ndarray:
-    """Artwork on the margin colour ``paper``.
+    """Artwork on the margin color ``paper``.
 
     ``img`` is RGB, or premultiplied RGBA for images with transparency (used as
     real transparency, never flattened onto white).
 
-    The inside of the drawing keeps its own colours (a white ghost stays white).
+    The inside of the drawing keeps its own colors (a white ghost stays white).
     Around its edge - a thin rim inside the outline and a 0.25 mm band beyond it,
     kept so stray pencil strokes are not clipped - the picture is printed like ink
-    on the margin colour: the source's white paper becomes the margin colour and
+    on the margin color: the source's white paper becomes the margin color and
     dark strokes stay dark. On a white margin this is exactly the plain picture;
     on a dark one it removes the white halo around the figure.
     """
     P = np.array(paper, np.float32)
-    S = img[..., :3].astype(np.float32)            # (premultiplied) colour
+    S = img[..., :3].astype(np.float32)            # (premultiplied) color
     a = img[..., 3:4].astype(np.float32) / 255.0 if img.shape[2] == 4 else 1.0
     if image_margin:
         w = (sil > 0).astype(np.float32)[..., None]
@@ -396,7 +424,7 @@ def compose_art(img: np.ndarray, fig: np.ndarray, sil: np.ndarray,
         band = np.maximum(soft(dilate(fig, 0.25 * pxmm)), fig[..., None] / 255.0)
         ink = S * (P / 255.0)                                        # printed on the margin
         # inside the drawing, transparency shows as it does on white paper (a translucent
-        # ghost stays light); at the edge and beyond, it lets the margin colour through
+        # ghost stays light); at the edge and beyond, it lets the margin color through
         inside = S + (1.0 - a) * 255.0
         edge = band * ink + (1.0 - band) * a * P + (1.0 - a) * P
         art = core * inside + (1.0 - core) * edge
@@ -468,10 +496,10 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
 
     if prm.double_sided:
         bw = prm.top_bridge_width_mm * pxmm
-        bcx = _band_centre(sil, sy0, int(sy0 + prm.tab_band_mm * pxmm))
+        depth = int(round(prm.top_bridge_depth_mm * pxmm))
+        bcx = _bridge_centre(sil, sy0, depth, int(round(bw)))
         cv2.rectangle(cut, (int(round(bcx - bw / 2)), sy0),
-                      (int(round(bcx + bw / 2)), int(round(sy0 + prm.top_bridge_depth_mm * pxmm))),
-                      255, -1)
+                      (int(round(bcx + bw / 2)) - 1, sy0 + depth), 255, -1)
 
     if prm.fillet_mm > 0:
         cut = close(cut, prm.fillet_mm * pxmm)
@@ -494,17 +522,15 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
     labels = [(x - ox, y - oy, r) for x, y, r in labels]
     circles = [(x - ox, y - oy, r, d) for x, y, r, d in circles]
     sy0 -= oy
-    if prm.double_sided:
-        bcx -= ox
 
-    # Artwork: the drawing where the figure is, the paper colour in margin and tab
-    # (or the original image in the margin), and optionally a coloured tab.
+    # Artwork: the drawing where the figure is, the paper color in margin and tab
+    # (or the original image in the margin), and optionally a colored tab.
     # (with the image in the margin, the tab and a blank back are plain white)
     paper = hex_rgb(prm.margin_color) if prm.margin_fill == "color" else (255, 255, 255)
     art = compose_art(img, fig, sil, paper, pxmm, prm.margin_fill == "image")
     tabfill = None
     if prm.tab:
-        # the tab has its own colour (with or without the label on it): everything that
+        # the tab has its own color (with or without the label on it): everything that
         # folds under - the cut shape below the fold, minus the drawing
         fold_row = int(np.ceil(folds[0][2]))
         tabfill = np.zeros(cut.shape, bool)
@@ -519,17 +545,19 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
                  label_max_w_px=label_w, label_max_h_px=label_h,
                  paper=paper, tabfill=tabfill, src=src)
     if prm.double_sided:
-        lay = _mirror_at_top(lay, sy0, bw, bcx, prm.back, hex_rgb(prm.back_color))
+        lay = _mirror_at_top(lay, sy0, prm.back, hex_rgb(prm.back_color))
     return lay
 
 
 BACK_MODES = ("mirror", "blank", "text")
 
 
-def _mirror_at_top(lay: Layout, y_top: int, bw: float, bcx: float,
-                   back: str = "mirror", back_rgb: Tuple[int, int, int] = (255, 255, 255)) -> Layout:
+def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
+                   back_rgb: Tuple[int, int, int] = (255, 255, 255)) -> Layout:
     """Front + vertically mirrored back, joined at a fold through ``y_top``.
 
+    The fold line runs across all the paper that joins the halves there (the top
+    bridge, and a wing or head that reaches the fold beside it).
     The cut shape is always mirrored (so the halves line up when glued); with
     ``back`` "blank" or "text" the back half shows white paper instead of the
     mirrored drawing, and "text" also reports where text fits (``back_box``).
@@ -544,13 +572,13 @@ def _mirror_at_top(lay: Layout, y_top: int, bw: float, bcx: float,
         else:
             top = np.empty_like(front)
             top[:] = back_rgb
-            if lay.tabfill is not None:  # the back tab keeps its colour
+            if lay.tabfill is not None:  # the back tab keeps its color
                 keep = lay.tabfill[y_top:][::-1]
                 top[keep] = front[::-1][keep]
         return np.concatenate([top, front], axis=0)
 
     h = lay.cut.shape[0] - y_top  # rows of each half; fold is at row h
-    folds = [(bcx - bw / 2, bcx + bw / 2, float(h))]
+    folds = [(float(a), float(b), float(h)) for a, b in _runs(lay.cut[y_top])]
     labels = []
     for fx0, fx1, fy in lay.folds:
         fy = fy - y_top
@@ -727,14 +755,14 @@ def trace_cut(cut: np.ndarray, px_per_mm: float, simplify_mm: float = 0.15,
 
 
 def add_bleed(rgb: np.ndarray, alpha: np.ndarray, bleed_px: float):
-    """Print beyond the cut line: extend the colours at the cut edge outwards by
-    ``bleed_px`` (each new pixel takes the colour of the nearest pixel inside), so a
+    """Print beyond the cut line: extend the colors at the cut edge outwards by
+    ``bleed_px`` (each new pixel takes the color of the nearest pixel inside), so a
     slightly misaligned machine cut never shows white paper. Returns (rgb, alpha)."""
     inside = alpha > 127
     if bleed_px <= 0 or not inside.any():
         return rgb, alpha
-    # take the colours from just inside the edge: right at the cut line a pixel can
-    # still hold a neighbouring colour (raster fill vs. the exact vector cut line)
+    # take the colors from just inside the edge: right at the cut line a pixel can
+    # still hold a neighbouring color (raster fill vs. the exact vector cut line)
     e = 2
     core = cv2.erode(inside.astype(np.uint8), disk(e)) > 0
     if not core.any():

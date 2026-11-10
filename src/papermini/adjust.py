@@ -1,4 +1,4 @@
-"""Colour adjustments of the printed picture: greyscale, hue, saturation, brightness
+"""Color adjustments of the printed picture: greyscale, hue, saturation, brightness
 and contrast.
 
 They change what is printed (the drawing, a margin filled with the image, the
@@ -29,8 +29,8 @@ _ROWS = 256  # rows per chunk, so a large image never needs a full float copy
 class Adjustments:
     brightness: int = 0      # -100 (black) .. 100 (white); white paper stays white
     contrast: int = 0        # -100 (flat grey) .. 100 (hard)
-    saturation: int = 0      # -100 (grey) .. 100 (twice as colourful)
-    hue: int = 0             # degrees around the colour wheel
+    saturation: int = 0      # -100 (grey) .. 100 (twice as colorful)
+    hue: int = 0             # degrees around the color wheel
     greyscale: bool = False  # black and white (saturation and hue then do nothing)
 
     def is_identity(self) -> bool:
@@ -77,7 +77,7 @@ def apply(px: np.ndarray, adj: Adjustments, premultiplied: bool = True) -> np.nd
         part = out[y:y + _ROWS]
         c = part[..., :3].astype(np.float32) / 255.0
         a = part[..., 3:4].astype(np.float32) / 255.0 if rgba else None
-        if rgba and premultiplied:  # adjust the colours, not colour times coverage
+        if rgba and premultiplied:  # adjust the colors, not color times coverage
             c = np.where(a > 0, c / np.maximum(a, 1e-6), 0.0)
         c = _tone(c @ m, adj)
         c = np.clip(c, 0.0, 1.0)
