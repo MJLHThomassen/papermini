@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import html
 from dataclasses import replace
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
@@ -719,6 +720,13 @@ class FigurePanel(QScrollArea):
                     form.labelForField(w).setObjectName("FormLabel")
                     if title in SUBSECTIONS:
                         sub_labels.append(form.labelForField(w))
+                if name == "model":
+                    self.auto_hint = QLabel()
+                    self.auto_hint.setWordWrap(True)
+                    self.auto_hint.setObjectName("MethodBox")
+                    self.auto_hint.setTextFormat(Qt.RichText)
+                    self.auto_hint.setVisible(False)
+                    form.addRow(self.auto_hint)
                 if name == "tab_overlap_mm":
                     self.overlap_hint = QLabel()
                     self.overlap_hint.setWordWrap(True)
@@ -1003,6 +1011,29 @@ class FigurePanel(QScrollArea):
             self.overlap_hint.setText(self.OVERLAP_HINTS[kind].format(joint=joint))
         self.overlap_hint.setVisible(show)
 
+    @staticmethod
+    def auto_method_text(method: str) -> str:
+        """What model "auto" picked for a figure, in words (the Mini's ``method``)."""
+        if method == "alpha":
+            chosen = "the image's own transparency"
+        elif method == "mask":
+            chosen = "your mask image file"
+        else:
+            chosen = f"{html.escape(method)} (the image has no transparency)"
+        return f"<b>Chosen method:</b> {chosen}"
+
+    def set_auto_method(self, method: Optional[str]):
+        """Note under 'Model': how "auto" found the selected figure (the method of its
+        last build), or None while that is not known yet."""
+        self._auto_method = method
+        if method:
+            self.auto_hint.setText(self.auto_method_text(method))
+        self._sync_auto_hint()
+
+    def _sync_auto_hint(self):
+        model = self._w["model"][1].currentText().strip()
+        self.auto_hint.setVisible(bool(getattr(self, "_auto_method", None)) and model == "auto")
+
     def set_auto_fill_gaps(self, px: int):
         """The gap filling the last build picked automatically, shown while Auto is on."""
         self._w["fill_gaps"][1].set_auto_value(px)
@@ -1067,6 +1098,7 @@ class FigurePanel(QScrollArea):
             b.setEnabled(any(read[n] != getattr(d, n) for n in names))
         if not tab:
             self.overlap_hint.setVisible(False)
+        self._sync_auto_hint()
 
     def _reset(self, names):
         """Put ``names`` back to their defaults, as one change."""

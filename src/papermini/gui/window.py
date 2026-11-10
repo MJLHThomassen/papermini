@@ -1094,6 +1094,9 @@ class MainWindow(QMainWindow):
     def _show_mini(self, fig: Figure):
         sc = self.mini_view.scene()
         self.panel.set_overlap_hint(None)
+        # how "auto" found the figure: it depends only on the image and mask, so a stale
+        # piece of this figure still tells
+        self.panel.set_auto_method(fig.mini.method if fig.mini is not None else None)
         if fig.error and not fig.up_to_date:
             sc.clear()
             self.crop_view.set_outline(None)

@@ -1699,3 +1699,43 @@ def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
     finally:
         w._modified = False
         w.close()
+
+
+def test_auto_model_says_which_method_it_used(app, tmp_path):
+    """Model "auto" shows under the model box how it found the figure: the image's own
+    transparency, or the default model for an image without it."""
+    from papermini import segment
+    from papermini.gui.window import MainWindow
+
+    im = np.full((600, 500, 3), 255, np.uint8)
+    cv2.ellipse(im, (250, 300), (150, 220), 0, 0, 360, (60, 60, 60), -1)
+    Image.fromarray(im).save(tmp_path / "flat.png")
+    rgba = np.dstack([im, np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)])
+    Image.fromarray(rgba, "RGBA").save(tmp_path / "cutout.png")
+
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "flat.png", tmp_path / "cutout.png"])
+        flat, cutout = w.figures
+        assert flat.entry.settings.model == "auto"
+        w.list.setCurrentRow(0)
+        assert wait(app, lambda: flat.up_to_date), flat.error
+        assert flat.mini.method == segment.DEFAULT_MODEL
+        hint = w.panel.auto_hint
+        assert hint.isVisibleTo(w.panel) and segment.DEFAULT_MODEL in hint.text()
+        assert "Chosen method" in hint.text()
+        assert "no transparency" in hint.text()
+
+        w.list.setCurrentRow(1)
+        assert wait(app, lambda: cutout.up_to_date), cutout.error
+        assert cutout.mini.method == "alpha"
+        assert hint.isVisibleTo(w.panel) and "own transparency" in hint.text()
+
+        # another model than auto: nothing to explain
+        box = w.panel._w["model"][1]
+        box.setCurrentText("alpha")
+        box.activated.emit(box.currentIndex())  # (as when the user picks it)
+        assert not hint.isVisibleTo(w.panel)
+    finally:
+        w._modified = False
+        w.close()

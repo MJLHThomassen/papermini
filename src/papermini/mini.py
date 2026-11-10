@@ -59,6 +59,9 @@ class Mini:
     source_top: float = 0.0  # above this row the piece is the double-sided back, not the image
     # what background removal found (outer edges and holes), in source image pixels
     source_outline: List[np.ndarray] = field(default_factory=list)
+    # how the figure was found: "alpha" (the image's own transparency), "mask" (a mask
+    # image file) or the model that ran; for model "auto", the one it picked
+    method: str = ""
 
     def png_bytes(self) -> bytes:
         buf = io.BytesIO()
@@ -178,12 +181,14 @@ def make_mini(
     # 1. raw mask - cached per image, mask source and crop (the AI model also on disk)
     if mask_path is not None:
         source: tuple = ("mask",) + cache.file_key(mask_path)
+        method = "mask"
     else:
         if model == "auto":
             model = "alpha" if transparent else DEFAULT_MODEL
             if model == "alpha":
                 log(f"  {image_path.name}: has transparency, using its alpha channel as mask")
         source = ("model", model)
+        method = model
         if model.lower().endswith(".onnx") and Path(model).exists():
             source += cache.file_key(model)
     raw_key = (fkey, source, box)
@@ -289,6 +294,7 @@ def make_mini(
         figure_width_mm=height_mm * bw * stretch / bh,
         aspect=bw / bh,
         source_outline=contours,
+        method=method,
         tab_overlap_used=lay.tab_overlap_used or not prm.tab or prm.tab_overlap_mm == 0,
         tab_joint_mm=lay.tab_joint_px * s if prm.tab else 0.0,
         tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
