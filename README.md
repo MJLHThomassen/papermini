@@ -66,6 +66,20 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
       solid line, fold along the dashed lines and glue the two halves back to
       back.
 
+<details><summary>Does papermini not start the first time?</summary>
+
+The downloads are not code-signed, so the first start can need one extra step:
+
+- **macOS:** macOS blocks the first start with a message that offers only
+  *Done* and *Move to Trash*. Click *Done*, then open **System Settings →
+  Privacy & Security**, scroll down to *Security* and click **Open Anyway**
+  next to papermini (the button shows up after you tried to open it). Confirm,
+  and from then on papermini opens as usual.
+- **Windows:** if SmartScreen warns, click *More info*, then *Run anyway*.
+- **Linux:** Qt needs a few X11 libraries; on Debian and Ubuntu, run
+  `sudo apt install libxcb-cursor0`.
+</details>
+
 # Usage via GUI
 
 1. **Add images.** Drop images onto the window, or use the add-image button
