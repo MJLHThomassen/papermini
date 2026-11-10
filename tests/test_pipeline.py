@@ -146,7 +146,7 @@ def test_double_sided_back_text(figure, tmp_path):
 
 
 
-def test_back_text_has_its_own_colour(figure, tmp_path):
+def test_back_text_has_its_own_color(figure, tmp_path):
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
@@ -171,7 +171,7 @@ def test_mask_model_choice(figure):
 
 
 def test_cutter_bleed(figure):
-    """Cutting-machine style prints the edge colours beyond the cut line."""
+    """Cutting-machine style prints the edge colors beyond the cut line."""
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
@@ -185,14 +185,14 @@ def test_cutter_bleed(figure):
     assert nocut.width_mm == pytest.approx(hand.width_mm, abs=0.01)  # bleed needs the cutter
     a = np.asarray(bled.art.convert("RGBA")).astype(int)
     px_mm = a.shape[1] / bled.width_mm
-    # a point 1 mm outside the cut line, beside the figure: margin colour, opaque
+    # a point 1 mm outside the cut line, beside the figure: margin color, opaque
     pts = bled.cut.flatten()
     above = pts[pts[:, 1] < bled.folds[0][2] - 10]      # beside the figure, above the tab
     i = int(np.argmin(above[:, 0]))
     x, y = above[i, 0] - 1.0, above[i, 1]
     r, g, b, al = a[int(y * px_mm), int(x * px_mm)]
     assert al == 255 and abs(r - 0x20) < 8 and abs(g - 0x40) < 8 and abs(b - 0x80) < 8
-    # below the tab: tab colour continues
+    # below the tab: tab color continues
     by = pts[:, 1].max() + 1.0
     bx = pts[np.argmax(pts[:, 1]), 0]
     r, g, b, al = a[int(by * px_mm), int(bx * px_mm)]

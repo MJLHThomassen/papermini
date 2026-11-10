@@ -75,7 +75,7 @@ PREVIEW_PX = 1600  # longest side of the adjusted picture on the Source view
 
 
 def adjusted_preview(img: QImage, adj) -> QImage:
-    """``img`` with the colour adjustments ``adj``, for the Source view: at most
+    """``img`` with the color adjustments ``adj``, for the Source view: at most
     PREVIEW_PX on its longest side, so a slider stays smooth on a large photo (the
     view shows it at the original's size; the print uses the full image)."""
     from ..adjust import apply
@@ -94,7 +94,7 @@ def adjusted_preview(img: QImage, adj) -> QImage:
 class ZoomView(QGraphicsView):
     """Wheel zoom around the cursor, fit-to-view and actual-size (1 scene unit = 1 mm).
 
-    Draws a quiet dot grid behind the paper in the current theme's colours.
+    Draws a quiet dot grid behind the paper in the current theme's colors.
     """
 
     zoomChanged = Signal(float)  # 1.0 = actual size
@@ -440,7 +440,7 @@ class CropView(ZoomView):
         self.fit()
 
     def replace_picture(self, img: QImage):
-        """Show another picture of the same image (e.g. with other colour adjustments),
+        """Show another picture of the same image (e.g. with other color adjustments),
         keeping the crop box, outline and zoom; drawn at the original's size."""
         if self._img_size is None or img is None or img.isNull():
             return
@@ -791,7 +791,7 @@ class CropView(ZoomView):
 
 
 class SourceLegend(QFrame):
-    """What the marks on the Source view mean, drawn with the same colours: the
+    """What the marks on the Source view mean, drawn with the same colors: the
     detected outline, the faded background and the crop area. The texts never change
     (how to draw a crop box is the hint on the view itself)."""
 
@@ -824,7 +824,7 @@ class SourceLegend(QFrame):
             p = QPainter(pm)
             p.setRenderHint(QPainter.Antialiasing)
             r = QRectF(2, 2, self.SW - 4, 10)
-            if i == 0:    # the outline, in the accent colour
+            if i == 0:    # the outline, in the accent color
                 pen = QPen(QColor(t.accent), 2)
                 p.setPen(pen)
                 p.drawRoundedRect(r, 4, 4)

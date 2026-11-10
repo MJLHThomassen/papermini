@@ -40,11 +40,11 @@ class FigureSettings:
     fold_mm: float = 0.0
     no_tab: bool = False
     tab_shape: str = "square"        # "square" (for a stand) or "round" (folds out to a base)
-    tab_color: str = "#ffffff"       # tab background, independent of the margin colour
+    tab_color: str = "#ffffff"       # tab background, independent of the margin color
     double_sided: bool = True        # front and back, joined at a fold above the head
     back: str = "mirror"             # double-sided back: "mirror", "blank" or "text"
     back_text: Optional[str] = None  # back="text": None = the label (or file name)
-    back_color: str = "#ffffff"      # colour of a blank/text back
+    back_color: str = "#ffffff"      # color of a blank/text back
     back_text_color: str = "#2f5597"
     # mask
     model: str = "auto"
@@ -56,7 +56,7 @@ class FigureSettings:
     min_area: int = 1000
     margin_fill: str = "color"       # "color" (margin_color) or "image"
     margin_color: str = "#ffffff"
-    # picture: colour adjustments of what is printed (never of what the model sees)
+    # picture: color adjustments of what is printed (never of what the model sees)
     greyscale: bool = False
     brightness: int = 0              # -100..100
     contrast: int = 0                # -100..100
@@ -102,7 +102,7 @@ class FigureSettings:
         for key in ("margin_color", "tab_color", "back_color", "back_text_color", "cut_color",
                     "label_color"):
             if key in d:
-                geo.hex_rgb(str(d[key]))  # raises a clear error for a bad colour
+                geo.hex_rgb(str(d[key]))  # raises a clear error for a bad color
         return cls(**d)
 
     def to_dict(self, base: Optional["FigureSettings"] = None) -> Dict[str, Any]:

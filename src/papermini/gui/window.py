@@ -148,7 +148,7 @@ class MainWindow(QMainWindow):
 
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
         self._sheet_timer = QTimer(self, singleShot=True, interval=150, timeout=self._refresh_sheet)
-        # the Source view's picture follows the colour sliders, a moment after they move
+        # the Source view's picture follows the color sliders, a moment after they move
         self._picture_timer = QTimer(self, singleShot=True, interval=60,
                                      timeout=self._refresh_picture)
         self._original = (None, None)  # (image path, QImage): the shown image, loaded once
@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
     SOURCE, MINI, SHEET = range(3)
 
     def _make_ui(self):
-        self._tinted = []  # (widget, icon name, colour token, size): re-tinted on theme change
+        self._tinted = []  # (widget, icon name, color token, size): re-tinted on theme change
         central = QWidget()
         central.setObjectName("Body")
         root = QVBoxLayout(central)
@@ -624,7 +624,7 @@ class MainWindow(QMainWindow):
         self.list.viewport().update()
         fig = self.current()
         if fig is not None and fig.mini is not None:
-            self._show_mini(fig)  # paper shadow colour
+            self._show_mini(fig)  # paper shadow color
         self._sheet_timer.start()
 
     # ----------------------------------------------------------------- figures
@@ -1142,7 +1142,7 @@ class MainWindow(QMainWindow):
 
     def _source_picture(self, fig: Figure):
         """(picture, original size or None) for the Source view: the image itself, or
-        with colour adjustments a smaller adjusted preview of it."""
+        with color adjustments a smaller adjusted preview of it."""
         path = fig.entry.image
         if self._original[0] != path:
             self._original = (path, load_qimage(path))

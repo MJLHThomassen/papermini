@@ -38,7 +38,7 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   stand, or round to fold out into a base.
 - **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank
   or text back, folded over the head.
-- **[Colour adjustments](docs/reference.md#colour-adjustments)**: greyscale,
+- **[Color adjustments](docs/reference.md#color-adjustments)**: greyscale,
   brightness, contrast, saturation and hue.
 - **Print sheets**: A4 or Letter PDF pages at real size, or an SVG per figure.
 - **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web.

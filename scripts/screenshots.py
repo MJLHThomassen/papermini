@@ -299,7 +299,7 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     ])
     compare("margin-fill", [
         (mini(fly, height_mm=36, margin_color="#24477a", no_tab=True, **one), None,
-         "Colour", "any colour, here blue"),
+         "Color", "any color, here blue"),
         (mini(fly, height_mm=36, margin_fill="image", no_tab=True, **one), None,
          "Original image", "the picture around the figure"),
     ])

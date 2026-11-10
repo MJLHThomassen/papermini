@@ -9,7 +9,7 @@ the desktop app in depth, and how the pipeline works.
 - [Background removal models](#model-licence)
 - [Stands and bases](#stands-and-bases)
 - [Double-sided minis](#double-sided-minis)
-- [Colour adjustments](#colour-adjustments)
+- [Color adjustments](#color-adjustments)
 - [Tips](#tips)
 - [How it works](#how-it-works)
 - [Caching and speed](#caching-and-speed)
@@ -49,7 +49,7 @@ the desktop app in depth, and how the pipeline works.
   - **Source:** *Crop*, then *Background removal* (model, strength, gap
     filling, detached parts), then *Image adjustments* (greyscale,
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
-    [Colour adjustments](#colour-adjustments)).
+    [Color adjustments](#color-adjustments)).
   - **Miniature:** *Back side*, *Outline and cut line* and *Tab*, with
     *Label* as an indented sub-group at the end of *Tab* (the label is
     printed on the tab). *Back side*, *Tab* and *Label* each have a checkbox
@@ -234,10 +234,10 @@ small part you want, such as a dagger, is dropped.
 
 #### Image adjustments
 
-These change the colours that are printed, never the outline, so they never
+These change the colors that are printed, never the outline, so they never
 run the model again. **Reset adjustments** puts them all back, and a
 double-click puts one slider back to 0. See
-[Colour adjustments](#colour-adjustments).
+[Color adjustments](#color-adjustments).
 
 ![The red dragon as drawn, in greyscale, and with its hue turned 120 degrees](screenshots/settings/adjustments.png)
 
@@ -245,7 +245,7 @@ double-click puts one slider back to 0. See
 `--greyscale` [off]\
 Prints the figure in black and white.
 
-Saves colour ink, or gives a set of minis one look. Combine it with
+Saves color ink, or gives a set of minis one look. Combine it with
 *Contrast* for punchier lines.
 
 ##### Brightness
@@ -264,13 +264,13 @@ prints too pale.
 
 ##### Saturation
 `--saturation` [0]\
-Makes the colours stronger or weaker (−100 to 100).
+Makes the colors stronger or weaker (−100 to 100).
 
-−100 is grey and 100 twice as colourful.
+−100 is grey and 100 twice as colorful.
 
 ##### Hue
 `--hue` [0°]\
-Turns every colour around the colour wheel (−180° to 180°).
+Turns every color around the color wheel (−180° to 180°).
 
 Positive values go from red to yellow to green: +120 turns the red dragon
 green, as in the picture above.
@@ -294,15 +294,15 @@ both sides. Off prints only the front. See
 What is on the back half.
 
 *Mirrored drawing* is the figure seen from behind. *Blank* is plain paper in
-*Colour*, for example to draw on. *Text* is plain paper with *Text* on it. The
+*Color*, for example to draw on. *Text* is plain paper with *Text* on it. The
 cut line is mirrored either way, so the halves always line up.
 
-##### Colour
+##### Color
 `--back-color` [#ffffff (white)]\
-The colour of a blank or text back.
+The color of a blank or text back.
 
 Shown when *Shows* is *Blank* or *Text*. The back's tab keeps the tab's fill
-colour.
+color.
 
 ##### Text
 `--back-text` [the label]\
@@ -312,9 +312,9 @@ Shown when *Shows* is *Text*. It is centred on the body and sized as large as
 fits; a long text wraps. On the sheet it is upside down, and it reads the
 right way up once the piece is folded.
 
-##### Text colour
+##### Text color
 `--back-text-color` [#2f5597 (blue)]\
-The colour of the text on a text back.
+The color of the text on a text back.
 
 Shown when *Shows* is *Text*.
 
@@ -330,19 +330,19 @@ claws and horn tips, stronger.
 ![The red dragon with a margin of 0.8, 1.6 and 3.5 mm](screenshots/settings/margin.png)
 
 ##### Margin fill type
-`--margin-fill color|image` [Colour]\
-What fills the margin: one colour, or the original image.
+`--margin-fill color|image` [Color]\
+What fills the margin: one color, or the original image.
 
 *Original image* shows the picture around the figure in the margin, as it is
 in the image.
 
 ![The flying dragon with a blue margin, and with the original picture in the margin](screenshots/settings/margin-fill.png)
 
-##### Margin fill colour
+##### Margin fill color
 `--margin-color` [#ffffff (white)]\
-The colour of the margin.
+The color of the margin.
 
-Shown when *Margin fill type* is *Colour*. A dark margin hides a cut that is a
+Shown when *Margin fill type* is *Color*. A dark margin hides a cut that is a
 little off, as on the printed dragon at the top of the README.
 
 ##### Outline smoothing
@@ -379,14 +379,14 @@ Many cutting machines take a red hairline as the line to cut. Use it with
 
 ##### Bleed
 `--bleed-mm` [1 mm]\
-Prints the colour at the edge this far beyond the cut line.
+Prints the color at the edge this far beyond the cut line.
 
-Shown with *Cutting-machine style*. The margin, tab or back colour is
+Shown with *Cutting-machine style*. The margin, tab or back color is
 extended, so a machine cut that is slightly off never shows a white edge.
 
-##### Colour
+##### Color
 `--cut-color` [#000000 (black)]\
-The colour of the printed cut line.
+The color of the printed cut line.
 
 For cutting by hand. *Cutting-machine style* sets it to red.
 
@@ -457,18 +457,18 @@ Where the fold line is, measured up from the lowest point of the outline.
 At 0 the fold is at the bottom of the margin, so the figure stands a margin's
 height above the table. Set it to the margin (1.6 mm by default) to put the
 fold right under the feet, so the figure stands on them. Everything below the
-fold folds back with the tab and takes the tab's fill colour; set it higher
+fold folds back with the tab and takes the tab's fill color; set it higher
 and the feet fold back too. Leave it at 0 for a flying figure that has nothing
 to stand on.
 
 ![The red dragon's feet with the fold at 0, 1.6 and 4 mm, with a green tab](screenshots/settings/fold.png)
 
-##### Fill colour
+##### Fill color
 `--tab-color` [#ffffff (white)]\
-The colour of everything below the fold, behind the label.
+The color of everything below the fold, behind the label.
 
 For example grass green or stone grey for a plain base, as on the round tab
-above. It does not depend on the margin colour.
+above. It does not depend on the margin color.
 
 #### Label
 
@@ -478,7 +478,7 @@ The label is text on the tab, in a sub-group at the end of *Tab*.
 `--label ""` [on]\
 Prints a label on the tab.
 
-Turn it off for a plain tab in its fill colour. On the command line an empty
+Turn it off for a plain tab in its fill color. On the command line an empty
 `--label ""` turns it off.
 
 ##### Text
@@ -494,11 +494,11 @@ The largest size of the label.
 
 A long label shrinks to fit the tab.
 
-##### Colour
+##### Color
 `--label-color` [#2f5597 (blue)]\
-The colour of the label.
+The color of the label.
 
-Pick one that shows on the tab's fill colour: a dark label on a dark tab
+Pick one that shows on the tab's fill color: a dark label on a dark tab
 disappears.
 
 ### Step 3, Print sheet
@@ -590,26 +590,26 @@ papermini make *.png -o minis --debug
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
 | `--tab-width-mm` / `--tab-height-mm` | 22 / 12 | square tab size (height measured below the fold) |
 | `--tab-radius-mm` | 12.5 | round tab radius (12.5 makes a 25 mm base) |
-| `--tab-color` | #ffffff | tab colour (everything below the fold), behind the label; independent of the margin colour |
+| `--tab-color` | #ffffff | tab color (everything below the fold), behind the label; independent of the margin color |
 | `--tab-overlap-mm` | 0 | how far the tab reaches up past the fold. It only adds paper where the figure's bottom is narrower than the tab (feet, a tail), to strengthen the joint; on a wide bottom it has no effect, and the app says so |
 | `--fold-mm` | 0 | fold line distance above the silhouette's lowest point |
 | `--no-tab` | | no tab |
 | `--double-sided` / `--no-double-sided` | on | front plus back, joined at a top fold, with a tab at both ends; `--no-double-sided` prints the front only |
 | `--back` | mirror | double-sided back: `mirror` (the drawing seen from behind), `blank` (white paper) or `text` |
 | `--back-text` | label | text for `--back text`; auto-sized and wrapped to fit the figure |
-| `--back-color` | #ffffff | colour of a `blank` or `text` back |
-| `--back-text-color` | #2f5597 | colour of the back text |
+| `--back-color` | #ffffff | color of a `blank` or `text` back |
+| `--back-text-color` | #2f5597 | color of the back text |
 | `--crop x0,y0,x1,y1` | | region the model looks at, as fractions (0–1) or pixels |
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
 | `--fill-gaps` | auto | fill gaps and notches in the outline up to this many px; 0 = off (auto ≈ 9 px at a 1400 px image) |
 | `--keep-all` / `--min-area` | / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
-| `--margin-color` | #ffffff | colour of the margin around the drawing |
+| `--margin-color` | #ffffff | color of the margin around the drawing |
 | `--greyscale` | | print in black and white |
 | `--brightness` | 0 | −100 (towards black) to 100 (towards white); white paper stays white, black lines stay black |
 | `--contrast` | 0 | −100 (flat grey) to 100 (hard) |
-| `--saturation` | 0 | −100 (grey) to 100 (twice as colourful) |
-| `--hue` | 0 | turn every colour around the colour wheel, −180 to 180 degrees (red → yellow → green for positive values) |
+| `--saturation` | 0 | −100 (grey) to 100 (twice as colorful) |
+| `--hue` | 0 | turn every color around the color wheel, −180 to 180 degrees (red → yellow → green for positive values) |
 | `--label` | file name | text on the tab; `--label ""` for none |
 | `--dpi` | 300 | resolution of the embedded artwork |
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
@@ -666,7 +666,7 @@ proportions; both stretch it to that height and width. A figure that gives only
 [examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
 sample outputs in [examples/dragons/samples](../examples/dragons/samples), four
 ways to print the same dragon: a default (double-sided) mini, a single-sided
-mini on a round coloured base, a mini with back text, and a print-and-cut mini
+mini on a round colored base, a mini with back text, and a print-and-cut mini
 with bleed. Their sheet is
 [samples-sheet.pdf](../examples/dragons/samples/samples-sheet.pdf).
 
@@ -706,8 +706,8 @@ The tab under the figure comes in two shapes:
   to opposite sides and together make a full round base. `--tab-radius-mm` sets
   its size; 12.5 (the default) gives a 25 mm, one-inch base.
 
-Either shape has its own colour, `--tab-color`. It is white by default,
-independent of the margin colour, and covers everything below the fold. The
+Either shape has its own color, `--tab-color`. It is white by default,
+independent of the margin color, and covers everything below the fold. The
 label is printed on it; use `--label ""` for a plain tab, for example grass
 green or stone grey.
 
@@ -715,7 +715,7 @@ green or stone grey.
 papermini make dragon.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --label ""
 ```
 
-The margin around the drawing can be any colour (`--margin-color "#f3e6c8"`)
+The margin around the drawing can be any color (`--margin-color "#f3e6c8"`)
 instead of white, or show the original image (`--margin-fill image`).
 
 ## Double-sided minis
@@ -740,16 +740,16 @@ the back is up to you:
   Without `--back-text`, it uses the label. On the sheet the back text is upside
   down; it reads the right way up once the piece is folded.
 
-## Colour adjustments
+## Color adjustments
 
-Greyscale, brightness, contrast, saturation and hue change the colours of what
+Greyscale, brightness, contrast, saturation and hue change the colors of what
 is printed: the drawing, a margin filled with the image (`--margin-fill image`)
 and the mirrored back. They never change what background removal sees, so the
 outline stays where it is and moving a slider never runs the model again; even
 with BiRefNet the preview follows at once. In the app they are in *Image
 adjustments* in step 1, and the Source view shows the adjusted picture (a
 smaller preview on large photos; the print always uses the full image). Their
-sliders have 0 in the middle, marked with a short line: the coloured fill runs
+sliders have 0 in the middle, marked with a short line: the colored fill runs
 from there to the handle, a drag that comes close to 0 snaps to it (typed values
 are kept as they are), and a double-click puts a slider back to 0.
 
@@ -779,8 +779,8 @@ with the background removal settings.
   `--cutter` gives a red hairline that many tools treat as a cut line. It also
   adds a bleed (`--bleed-mm`, 1 mm by default): the background is printed a
   little beyond the cut line, so a cut that lands slightly off still shows no
-  white paper. The bleed extends whatever colour is at the edge (margin, tab or
-  back colour).
+  white paper. The bleed extends whatever color is at the edge (margin, tab or
+  back color).
 
 ## How it works
 
@@ -820,7 +820,7 @@ the decoded image, the raw mask (from the AI model, the alpha channel or a mask
 file), the cleaned mask, and the outline and cut line. A change only redoes the
 stages it affects:
 
-- **Cosmetic** (label, colours, line width, resolution): a fraction of a second.
+- **Cosmetic** (label, colors, line width, resolution): a fraction of a second.
 - **Shape** (height, margin, smoothing, tab): about a second.
 - **Mask clean-up** (strength, gap filling, keep-all): reruns the clean-up.
 - **Model or crop**: reruns the AI model.

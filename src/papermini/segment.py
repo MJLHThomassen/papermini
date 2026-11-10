@@ -402,7 +402,7 @@ def compute_mask(
     seg = get_cached_segmenter(model)  # loading cannot be interrupted: stop right after
     check_cancel()
     rgb = im.convert("RGB")
-    if has_alpha(im):  # the model sees a cut-out on white, not its hidden pixel colours
+    if has_alpha(im):  # the model sees a cut-out on white, not its hidden pixel colors
         rgb = Image.alpha_composite(Image.new("RGBA", im.size, (255, 255, 255, 255)),
                                     im.convert("RGBA")).convert("RGB")
     if crop:

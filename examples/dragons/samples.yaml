@@ -18,7 +18,7 @@ figures:
   # all defaults: double-sided (mirrored back), square tab with the file name as label
   - image: dragon.webp
 
-  # single-sided: round fold-out base in a colour, cream margin, own label
+  # single-sided: round fold-out base in a color, cream margin, own label
   - image: dragon.webp
     name: dragon-round
     double_sided: false
@@ -36,7 +36,7 @@ figures:
     back: text
     back_text: Ember
 
-  # print-and-cut: red hairline, 1 mm bleed of the dark margin and tab colour
+  # print-and-cut: red hairline, 1 mm bleed of the dark margin and tab color
   - image: dragon.webp
     name: dragon-cutter
     label: ""

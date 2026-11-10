@@ -25,7 +25,7 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 
 # The steps of the workflow, one view each: the settings panel shows the active
 # step's groups. (step, group title, fields); fields are (field, label, kind, extra) -
-# kind: f=float, i=int, b=bool, c=choice, s=str, col=colour, size=height and width
+# kind: f=float, i=int, b=bool, c=choice, s=str, col=color, size=height and width
 # with a link toggle, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
 # heading=sub-heading inside a group (not a setting), switch=a checkbox in the group's
 # header that turns the whole group on or off (extra "invert": the setting is the
@@ -63,21 +63,21 @@ SECTIONS = [
         ("double_sided", "Print a back side", "switch", None),
         ("back", "Shows", "c", [("mirror", "Mirrored drawing"), ("blank", "Blank"),
                                 ("text", "Text")]),
-        ("back_color", "Colour", "col", None),
+        ("back_color", "Color", "col", None),
         ("back_text", "Text", "s", None),
-        ("back_text_color", "Text colour", "col", None),
+        ("back_text_color", "Text color", "col", None),
     ]),
     (MINIATURE, "Outline and cut line", [
         ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
-        ("margin_fill", "Margin fill type", "c", [("color", "Colour"), ("image", "Original image")]),
-        ("margin_color", "Margin fill colour", "col", None),
+        ("margin_fill", "Margin fill type", "c", [("color", "Color"), ("image", "Original image")]),
+        ("margin_color", "Margin fill color", "col", None),
         ("smooth_mm", "Outline smoothing", "f", (0, 5, 0.1, 2, " mm")),
         ("_cut_line", "Cut line", "heading", None),
         ("no_smooth", "Straight segments only (no curves)", "b", None),
         ("simplify_mm", "Simplify", "f", (0.01, 2, 0.05, 3, " mm")),
         ("cutter", "Cutting-machine style (red hairline)", "b", None),
         ("bleed_mm", "Bleed", "f", (0, 5, 0.1, 1, " mm")),
-        ("cut_color", "Colour", "col", None),
+        ("cut_color", "Color", "col", None),
         ("cut_width_mm", "Width", "f", (0.01, 2, 0.05, 2, " mm")),
     ]),
     (MINIATURE, "Tab", [
@@ -89,13 +89,13 @@ SECTIONS = [
         ("tab_height_mm", "Height", "f", (1, 100, 0.5, 1, " mm")),
         ("tab_overlap_mm", "Overlap into figure", "f", (0, 30, 0.5, 1, " mm")),
         ("fold_mm", "Fold above lowest point", "f", (0, 20, 0.1, 1, " mm")),
-        ("tab_color", "Fill colour", "col", None),
+        ("tab_color", "Fill color", "col", None),
     ]),
     (MINIATURE, "Label", [  # on the tab: a sub-group of Tab (SUBSECTIONS)
         ("no_label", "Print a label", "nolabel", None),
         ("label", "Text", "label", None),
         ("label_size_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
-        ("label_color", "Colour", "col", None),
+        ("label_color", "Color", "col", None),
     ]),
     (PRINT, "Size and copies", [
         ("size", "Size", "size", None),
@@ -152,20 +152,20 @@ TIPS = {
                 "instead of keeping only the largest part.",
     "min_area": "With 'keep detached parts': smaller parts than this are dropped as specks.",
     "margin_mm": "Distance between the drawing and the cut line. The margin is filled\n"
-                 "with a colour or the original image (see Margin fill type).",
+                 "with a color or the original image (see Margin fill type).",
     "margin_fill": "What fills the margin, the strip between the cut-out drawing and its\n"
                    "cut line:\n"
-                   "Colour: one solid colour (Margin fill colour).\n"
+                   "Color: one solid color (Margin fill color).\n"
                    "Original image: the picture around the figure, as it is in the image.",
-    "margin_color": "The colour of the margin between the drawing and the cut line.",
+    "margin_color": "The color of the margin between the drawing and the cut line.",
     "smooth_mm": "Rounds the outline; higher values give a calmer cut line.",
     "no_smooth": "Cut line made of straight segments instead of smooth curves.",
     "simplify_mm": "How far the cut line may deviate to use fewer points.",
     "cutter": "Red 0.1 mm cut line, which many cutting machines treat as the cut layer.",
     "bleed_mm": "Prints the background this far beyond the cut line, so a slightly misaligned\n"
-                "machine cut never shows a white edge. The colour at the edge (margin, tab or\n"
-                "back colour) is extended.",
-    "cut_color": "Colour of the cut line.",
+                "machine cut never shows a white edge. The color at the edge (margin, tab or\n"
+                "back color) is extended.",
+    "cut_color": "Color of the cut line.",
     "cut_width_mm": "Width of the printed cut line.",
     "no_tab": "Print a tab: a fold-over stand tab under the feet.\n"
               "Off for slotted or magnetic bases.",
@@ -180,29 +180,29 @@ TIPS = {
                       "strengthen the joint.",
     "fold_mm": "Where the tab folds, measured up from the figure's lowest point.",
     "no_label": "Print a label: text on the tab.\n"
-                "Off for a plain tab in its fill colour.",
+                "Off for a plain tab in its fill color.",
     "label": "Text printed on the tab (empty = the file name). Also the default back text.",
     "label_size_mm": "Largest text size; long labels shrink to fit the tab.",
-    "label_color": "Colour of the tab label.",
-    "tab_color": "Colour of the tab (everything below the fold), behind the label.\n"
-                 "Independent of the margin colour; e.g. grass green for a plain tab.",
-    "greyscale": "Print the figure in black and white (saves colour ink).\n"
-                 "Colour adjustments change only what is printed: background removal\n"
+    "label_color": "Color of the tab label.",
+    "tab_color": "Color of the tab (everything below the fold), behind the label.\n"
+                 "Independent of the margin color; e.g. grass green for a plain tab.",
+    "greyscale": "Print the figure in black and white (saves color ink).\n"
+                 "Color adjustments change only what is printed: background removal\n"
                  "always looks at the original picture, so they never run the model again.",
     "brightness": "Lighter (towards white) or darker (towards black). White paper stays\n"
                   "white when lightening, black lines stay black when darkening.",
     "contrast": "More contrast makes lights lighter and darks darker; less makes it flatter.",
-    "saturation": "How colourful the picture is: -100 is grey, 100 twice as colourful.",
-    "hue": "Turns every colour around the colour wheel (red -> yellow -> green ...).",
-    "_reset_adjust": "Back to the original colours.\n"
+    "saturation": "How colorful the picture is: -100 is grey, 100 twice as colorful.",
+    "hue": "Turns every color around the color wheel (red -> yellow -> green ...).",
+    "_reset_adjust": "Back to the original colors.\n"
                      "(One slider: double-click it to put it back to 0.)",
     "double_sided": "Print a back side: front and back joined at a fold above the head,\n"
                     "glued back to back. Off for the front only.",
     "back": "mirror: the drawing seen from behind; blank: plain paper; "
             "text: plain paper with text (a name or stats).",
     "back_text": "Text for the back (empty = the tab label). It is sized to fit the body.",
-    "back_color": "Colour of a blank or text back (the back tab keeps the tab's fill colour).",
-    "back_text_color": "Colour of the back text.",
+    "back_color": "Color of a blank or text back (the back tab keeps the tab's fill color).",
+    "back_text_color": "Color of the back text.",
 }
 
 
@@ -481,13 +481,13 @@ class ColorButton(QPushButton):
         fg = "#fff" if QColor(c).lightness() < 128 else "#000"
         self.setText(c)
         # scoped to this button: an unscoped style sheet is inherited by child widgets,
-        # which painted the whole colour dialog in the selected colour
+        # which painted the whole color dialog in the selected color
         self.setStyleSheet(f"QPushButton {{ background: {c}; color: {fg}; border-radius: 6px; "
                            f"border: 1px solid rgba(128, 128, 128, 0.45); padding: 3px 8px; "
                            f"font-family: Consolas, monospace; }}")
 
     def _pick(self):
-        c = QColorDialog.getColor(QColor(self._color), self.window(), "Colour")
+        c = QColorDialog.getColor(QColor(self._color), self.window(), "Color")
         if c.isValid():
             self.set_color(c.name())
             self.colorChanged.emit(c.name())

@@ -271,14 +271,14 @@ def test_panel_choices_round_trip(app):
     assert not p.is_shown("margin_color")                # the image fills the margin
     assert p.is_shown("tab_color") and not p.is_shown("label_size_mm")
     assert p.is_shown("back_text") and p.is_shown("back_color")
-    assert not p.label_switch.isChecked()               # no label = a plain coloured tab
+    assert not p.label_switch.isChecked()               # no label = a plain colored tab
     assert not p.is_shown("label") and p.is_shown("no_label")
     assert p.is_shown("tab_radius_mm") and not p.is_shown("tab_width_mm")
     got = []
     p.changed.connect(got.append)
     p._w["tab_shape"][1].setCurrentIndex(p._w["tab_shape"][1].findData("square"))
     assert got[-1].tab_shape == "square" and p.is_shown("tab_height_mm")
-    # a blank back has a colour but no text fields
+    # a blank back has a color but no text fields
     p._w["back"][1].setCurrentIndex(p._w["back"][1].findData("blank"))
     assert p.is_shown("back_color") and not p.is_shown("back_text")
     assert not p.is_shown("back_text_color")
@@ -366,8 +366,8 @@ def test_settings_side_never_cuts_off_controls(app, tmp_path):
         w.close()
 
 
-def test_colour_dialog_does_not_inherit_button_colour(app):
-    """Regression: the button's style sheet coloured the whole colour dialog."""
+def test_color_dialog_does_not_inherit_button_color(app):
+    """Regression: the button's style sheet colored the whole color dialog."""
     from PySide6.QtWidgets import QWidget
 
     from papermini.gui.panels import ColorButton
@@ -956,8 +956,8 @@ def test_crop_changes_can_be_undone_and_cleared(app, tmp_path):
         w.close()
 
 
-def test_colour_sliders_snap_to_their_centre(app):
-    """A slider around 0 (the colour adjustments) fills from the middle, marks 0 with a
+def test_color_sliders_snap_to_their_centre(app):
+    """A slider around 0 (the color adjustments) fills from the middle, marks 0 with a
     short line, snaps to 0 when dragged close by (typed values are kept), and goes back to
     0 on a double-click. Sliders that start at 0 (strength) stay as they were."""
     from PySide6.QtCore import QEvent, QPointF, Qt
@@ -1029,7 +1029,7 @@ def test_colour_sliders_snap_to_their_centre(app):
 
 
 def test_image_adjustments_panel(app):
-    """Step 1 has colour sliders; greyscale hides saturation and hue (nothing to turn);
+    """Step 1 has color sliders; greyscale hides saturation and hue (nothing to turn);
     Reset puts all of them back in one change, and is off while there is nothing to reset."""
     from papermini.gui.panels import SOURCE, FigurePanel
 
@@ -1058,8 +1058,8 @@ def test_image_adjustments_panel(app):
 
 
 def test_source_view_shows_the_adjusted_picture_without_running_the_model(app, tmp_path):
-    """The Source view follows the colour sliders (a preview at the original's size),
-    and a colour change rebuilds the miniature from the cached mask: the model does not
+    """The Source view follows the color sliders (a preview at the original's size),
+    and a color change rebuilds the miniature from the cached mask: the model does not
     run again and the outline stays."""
     from papermini import segment
     from papermini.gui.views import PREVIEW_PX
@@ -1437,7 +1437,7 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
     from papermini.gui import theme
     from papermini.gui.window import MainWindow
 
-    def colours(pm):
+    def colors(pm):
         img = pm.toImage()
         return {img.pixelColor(x, y).name() for x in range(img.width()) for y in range(img.height())
                 if img.pixelColor(x, y).alpha() == 255}
@@ -1445,7 +1445,7 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
     assert theme.LOGO.is_file()  # shipped as package data (pyproject.toml, papermini.spec)
     pm = theme.logo_pixmap(64)
     assert pm.width() == 128  # 2x for sharp rendering on high-DPI screens
-    assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colours(pm)  # full colour, not a line icon
+    assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colors(pm)  # full color, not a line icon
     assert pm.toImage().pixelColor(0, 0).alpha() == 0  # transparent around the sticker
 
     sizes = theme.app_icon().availableSizes()
@@ -1453,11 +1453,11 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
 
     w = MainWindow()
     try:
-        assert "#fd3c1b" in colours(w.logo.pixmap())
-        assert "#fd3c1b" in colours(w.empty.icon.pixmap())
+        assert "#fd3c1b" in colors(w.logo.pixmap())
+        assert "#fd3c1b" in colors(w.empty.icon.pixmap())
         w.set_theme("dark")  # re-theming must not swap the logo for a tinted line icon
-        assert "#fd3c1b" in colours(w.logo.pixmap())
-        assert "#fd3c1b" in colours(w.empty.icon.pixmap())
+        assert "#fd3c1b" in colors(w.logo.pixmap())
+        assert "#fd3c1b" in colors(w.empty.icon.pixmap())
     finally:
         w.close()
 
