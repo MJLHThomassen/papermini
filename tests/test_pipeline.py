@@ -170,19 +170,17 @@ def test_mask_model_choice(figure):
 
 
 
-def test_cutter_bleed(figure):
-    """Cutting-machine style prints the edge colors beyond the cut line."""
+def test_bleed(figure):
+    """A bleed (for a sheet cut by machine) prints the edge colors beyond the cut line."""
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
-    base = dict(mask=str(mask), margin_color="#204080", tab_color="#3b6e2a",
-                double_sided=False)  # (the points below assume one side)
-    plain = build_mini(img, FigureSettings(cutter=True, bleed_mm=0, **base), log=lambda *_: None)
-    bled = build_mini(img, FigureSettings(cutter=True, bleed_mm=1.5, **base), log=lambda *_: None)
-    nocut = build_mini(img, FigureSettings(bleed_mm=1.5, **base), log=lambda *_: None)
-    assert bled.width_mm == pytest.approx(plain.width_mm + 2 * (1.5 + 0.2 - 0.35), abs=0.1)
-    hand = build_mini(img, FigureSettings(bleed_mm=0, **base), log=lambda *_: None)
-    assert nocut.width_mm == pytest.approx(hand.width_mm, abs=0.01)  # bleed needs the cutter
+    s = FigureSettings(mask=str(mask), margin_color="#204080", tab_color="#3b6e2a",
+                       double_sided=False)  # (the points below assume one side)
+    plain = build_mini(img, s, log=lambda *_: None)
+    bled = build_mini(img, s, bleed_mm=1.5, log=lambda *_: None)
+    # the canvas grows from half the 0.3 mm cut line + 0.3 to the bleed + 0.2, on each side
+    assert bled.width_mm == pytest.approx(plain.width_mm + 2 * (1.5 + 0.2 - 0.45), abs=0.1)
     a = np.asarray(bled.art.convert("RGBA")).astype(int)
     px_mm = a.shape[1] / bled.width_mm
     # a point 1 mm outside the cut line, beside the figure: margin color, opaque
@@ -298,3 +296,111 @@ def test_cli_width_alone_scales_by_width(figure, tmp_path):
     # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not the
     # default 42 mm (margin and tab stay the same, so compare the difference)
     assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 42, abs=0.5)
+
+
+def _square_mini(name="sq", w=30.0, h=40.0):
+    from papermini.geometry import CutPath
+    from papermini.mini import Mini
+
+    sq = CutPath(np.array([[0, 0], [w, 0], [w, h], [0, h]], float))
+    return Mini(name, w, h, Image.new("RGBA", (int(w * 10), int(h * 10)), (200, 40, 30, 255)),
+                sq, folds=[(0.0, w, h - 5)])
+
+
+def test_machine_sheet_keeps_clear_of_the_marks():
+    """The pieces keep MARK_CLEAR_MM away from the corner marks only, so a machine sheet
+    holds as many pieces as one cut by hand; the header starts beside the marks."""
+    from papermini.sheet import MARK_CLEAR_MM
+
+    m = _square_mini()
+    hand = pack([(m, 40)], "a4", 12, 7)
+    assert hand.mark_rects() == [] and hand.header_x == 12
+    for kind in ("corners", "silhouette"):
+        lay = pack([(m, 40)], "a4", 12, 7, cut="machine", marks=kind)
+        rects = lay.mark_rects()
+        # the marks sit 12 mm from the paper edges, inside the paper
+        assert min(x for x, *_ in rects) == pytest.approx(12)
+        assert max(x + w for x, _, w, _ in rects) == pytest.approx(210 - 12)
+        assert max(y + h for _, y, _, h in rects) == pytest.approx(297 - 12)
+        c = MARK_CLEAR_MM
+        for p in lay.placements:  # no piece within MARK_CLEAR_MM of a mark
+            for x, y, w, h in rects:
+                apart = (p.x + m.width_mm <= x - c + 1e-9 or p.x >= x + w + c - 1e-9
+                         or p.y + m.height_mm <= y - c + 1e-9 or p.y >= y + h + c - 1e-9)
+                assert apart, (kind, p.x, p.y, (x, y, w, h))
+        assert lay.header_x > 12  # beside the top-left mark
+        # about as many on a page as cut by hand: only the bottom corners cost room
+        first = sum(p.page == 0 for p in lay.placements)
+        assert first >= sum(p.page == 0 for p in hand.placements) - 2
+    none = pack([(m, 40)], "a4", 12, 7, cut="machine", marks="none")
+    assert none.mark_rects() == [] and none.header_x == 12 and none.machine
+    assert [p.page for p in none.placements] == [p.page for p in hand.placements]
+    assert "edges of this page" not in none.instructions()[1]  # (its own wording)
+    assert "with this page" in none.instructions()[1]
+    with pytest.raises(ValueError, match="marks must be"):
+        pack([(m, 1)], "a4", cut="machine", marks="dots")
+    with pytest.raises(ValueError, match="cut must be"):
+        pack([(m, 1)], "a4", cut="laser")
+
+
+def test_cut_files_match_the_sheet(tmp_path):
+    """Cut by machine: the PDF gets no cut lines, and a cut file per page holds the cut
+    lines where the pieces are on the page plus the same marks as the PDF."""
+    import re
+    import xml.etree.ElementTree as ET
+
+    from papermini.sheet import cut_file_paths, default_cut_file, write_cut_files
+
+    m = _square_mini()
+    lay = pack([(m, 30)], "a4", 12, 7, cut="machine", marks="corners")
+    assert lay.pages > 1 and lay.machine
+    pdf = write_pdf(lay, tmp_path / "s.pdf")
+    assert pdf.read_bytes()[:5] == b"%PDF-"
+    paths = write_cut_files(lay, default_cut_file(pdf))
+    assert paths == cut_file_paths(tmp_path / "s-cut.svg", lay.pages)
+    assert [p.name for p in paths[:2]] == ["s-cut.svg", "s-cut-2.svg"]
+    ns = {"s": "http://www.w3.org/2000/svg"}
+    root = ET.parse(paths[0]).getroot()
+    assert root.get("width") == "210mm" and root.get("viewBox") == "0 0 210 297"
+    rects = [tuple(float(r.get(k)) for k in ("x", "y", "width", "height"))
+             for r in root.findall("s:g[@id='registration']/s:rect", ns)]
+    assert np.allclose(rects, lay.mark_rects(), atol=1e-3)  # the same marks as the PDF
+    cuts = root.findall("s:g[@id='cut']/s:path", ns)
+    first = [p for p in lay.placements if p.page == 0]
+    assert len(cuts) == len(first)
+    xy = [float(v) for v in re.findall(r"[-\d.]+", cuts[0].get("d"))[:2]]
+    assert xy == pytest.approx([first[0].x, first[0].y], abs=1e-3)  # placed as on the page
+    assert root.find("s:g[@id='fold']", ns) is None  # fold lines only when asked for
+    folded = ET.fromstring(write_cut_files(lay, tmp_path / "f.svg", folds=True)[0].read_text())
+    assert len(folded.findall("s:g[@id='fold']/s:line", ns)) == len(first)
+
+
+def test_sheet_cli_cut_by_machine(figure, tmp_path):
+    img, mask = figure
+    from papermini.cli import main
+
+    assert main(["make", str(img), "--mask", str(mask), "--bleed-mm", "1", "-o",
+                 str(tmp_path / "hero.svg")]) == 0
+    assert main(["sheet", str(tmp_path / "hero.svg"), "-o", str(tmp_path / "s.pdf"),
+                 "--cut", "machine", "--marks", "silhouette", "--cut-folds"]) == 0
+    assert (tmp_path / "s.pdf").exists()
+    svg = (tmp_path / "s-cut.svg").read_text()
+    assert 'id="registration"' in svg and 'id="cut"' in svg and 'id="fold"' in svg
+
+
+def test_batch_cut_by_machine_builds_the_bleed(figure, tmp_path):
+    img, mask = figure
+    (tmp_path / "p.yaml").write_text(
+        f"output: out\nsheet:\n  output: out/s.pdf\n  cut: machine\n  bleed_mm: 1.5\n"
+        f"figures:\n  - image: {img.as_posix()}\n    mask: {mask.as_posix()}\n"
+        f"  - image: {img.as_posix()}\n    mask: {mask.as_posix()}\n    name: b\n",
+        encoding="utf-8")
+    from papermini.cli import main
+
+    assert main(["batch", str(tmp_path / "p.yaml")]) == 0
+    assert (tmp_path / "out" / "s.pdf").exists() and (tmp_path / "out" / "s-cut.svg").exists()
+    from papermini.svg import read_svg
+
+    plain = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
+    bled = read_svg(tmp_path / "out" / "b.svg")
+    assert bled.width_mm > plain.width_mm + 2  # built with the sheet's bleed

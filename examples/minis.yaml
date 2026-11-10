@@ -3,7 +3,8 @@
 #
 # Every per-figure option of `papermini make` can be used here (with
 # underscores or dashes): height_mm, margin_mm, strength, fill_gaps, crop,
-# keep_all, min_area, no_tab, double_sided, label, model, mask, cutter, ...
+# keep_all, min_area, no_tab, double_sided, label, model, mask, ...
+# The sheet can also be cut by machine (cut: machine, bleed_mm, marks, cut_folds).
 
 output: minis                 # folder for the SVGs (and debug output)
 

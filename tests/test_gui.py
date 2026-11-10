@@ -232,9 +232,9 @@ def test_review_regressions(app, tmp_path):
             app.sendEvent(part, ev)
         assert field.value() == before
 
-        # 3. copies only change the sheet: same Mini object, no rebuild
+        # 3. copies (on the figure's card) only change the sheet: same Mini, no rebuild
         mini = fig.mini
-        w.panel.copies.setValue(3)
+        click_copies(w, 0, "+", 2)
         assert fig.entry.settings.copies == 3
         app.processEvents()
         assert fig.up_to_date and fig.mini is mini
@@ -398,15 +398,28 @@ def test_mask_file_is_a_model_choice(app):
     assert p.settings().label is None and p.is_shown("label")
 
 
-def test_bleed_only_with_cutter(app):
-    from papermini.gui.panels import FigurePanel
+def test_sheet_bar_cut_by_machine(app):
+    """Bleed, marks and the cut file only show (and only matter) when cut by machine."""
+    from papermini.gui.panels import SheetPanel
+    from papermini.settings import SheetSettings
 
-    p = FigurePanel()
-    p.set_settings(FigureSettings(), "x", "x")
-    assert not p.is_shown("bleed_mm")
-    p._w["cutter"][1].setChecked(True)
-    assert p.is_shown("bleed_mm") and not p.is_shown("cut_color")
-    assert p.settings().cutter and p.settings().bleed_mm == 1.0
+    p = SheetPanel()
+    got = []
+    p.changed.connect(got.append)
+    p.set_settings(SheetSettings())
+    for w in (p.bleed, p.marks, p.cut_folds):
+        assert not p.is_shown(w)
+    p.cut.setCurrentIndex(p.cut.findData("machine"))
+    assert got[-1].cut == "machine" and got[-1].bleed_mm == 1.0
+    for w in (p.bleed, p.marks, p.cut_folds):
+        assert p.is_shown(w)
+    p.marks.setCurrentIndex(p.marks.findData("silhouette"))
+    p.cut_folds.setChecked(True)
+    assert got[-1].marks == "silhouette" and got[-1].cut_folds
+    p.set_settings(SheetSettings(cut="machine", bleed_mm=2.0))
+    assert p.bleed.value() == 2.0 and p.is_shown(p.bleed)
+    p.marks.setCurrentIndex(p.marks.findData("none"))
+    assert got[-1].marks == "none"
 
 
 
@@ -1133,7 +1146,7 @@ def test_source_view_has_a_legend(app, tmp_path):
 
 def test_settings_panel_follows_the_step(app, tmp_path):
     """Each step shows its own settings; "Apply to all" copies only those."""
-    from papermini.gui.panels import PRINT, SOURCE
+    from papermini.gui.panels import MINIATURE, PRINT, SOURCE
     from papermini.gui.window import MainWindow
 
     for n in "ab":
@@ -1144,22 +1157,27 @@ def test_settings_panel_follows_the_step(app, tmp_path):
         p = w.panel
         titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]  # noqa: E731
         expected = [["Crop", "Background removal", "Image adjustments"],
-                    ["Back side", "Outline and cut line", "Tab", "Label"],
-                    ["Size and copies"]]
+                    ["Size", "Back side", "Outline and cut line", "Tab", "Label"],
+                    []]
         for i, want in enumerate(expected):
             w.views.group.button(i).click()               # the step buttons in the header
             assert w.tabs.currentIndex() == i and p.step() == i and titles() == want
+            # the Print sheet step shows the sheet's own settings instead
+            assert w.side.currentWidget() is (w.sheet_panel if i == PRINT else p)
+            assert p.export_svg.isVisibleTo(p) == (i == MINIATURE)  # (this figure's SVG)
         w.tabs.setCurrentIndex(w.SOURCE)
         assert "Crop" in p.step_hint.text() and p.step() == SOURCE
 
         a, b = w.figures
         w.list.setCurrentRow(0)
-        w._settings_changed(replace(a.entry.settings, height_mm=30, margin_mm=3, copies=4))
-        w.tabs.setCurrentIndex(w.SHEET)
-        assert p.step() == PRINT and "size" in p.apply_all.text()
+        w._settings_changed(replace(a.entry.settings, height_mm=30, margin_mm=3, strength=90))
+        w._copies_changed(a.uid, 4)
+        w.tabs.setCurrentIndex(w.MINI)
+        assert "miniature" in p.apply_all.text()
         p.apply_all.click()
-        assert b.entry.settings.height_mm == 30            # the size step's settings...
-        assert b.entry.settings.margin_mm == FigureSettings().margin_mm  # ...not the others
+        assert b.entry.settings.height_mm == 30            # the Miniature step's settings...
+        assert b.entry.settings.margin_mm == 3
+        assert b.entry.settings.strength == FigureSettings().strength  # ...not the others
         assert b.entry.settings.copies == 1                # copies stay per figure
     finally:
         w._modified = False
@@ -1655,7 +1673,7 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     lay = pack([(m, 30)], "a4", 12, 7)
     assert lay.pages > 1
     pr = ImagePrinter()
-    assert print_sheet(pr, lay, "test", 12) == lay.pages == pr.pages
+    assert print_sheet(pr, lay, "test") == lay.pages == pr.pages
     k = 100 / 25.4
     y = round((12 + lay.header_mm - 4) * k)             # the scale bar's row
     dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
@@ -1664,7 +1682,7 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     assert QColor(pr.pixel(2, 2)).lightness() > 250       # white paper from the very corner
 
     pr = ImagePrinter(2, 2)                                # "pages 2 to 2" in the dialog
-    assert print_sheet(pr, lay, "test", 12) == 1 and pr.pages == 1
+    assert print_sheet(pr, lay, "test") == 1 and pr.pages == 1
 
 
 def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
@@ -1736,6 +1754,147 @@ def test_auto_model_says_which_method_it_used(app, tmp_path):
         box.setCurrentText("alpha")
         box.activated.emit(box.currentIndex())  # (as when the user picks it)
         assert not hint.isVisibleTo(w.panel)
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(app, tmp_path, monkeypatch):
+    """Switching the sheet to machine cutting builds every figure with the bleed, and
+    Export PDF also writes the cut file."""
+    from papermini.gui.window import MainWindow
+
+    im = np.full((600, 500, 3), 255, np.uint8)
+    cv2.ellipse(im, (250, 300), (150, 220), 0, 0, 360, (60, 60, 60), -1)
+    Image.fromarray(im).save(tmp_path / "hero.png")
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "hero.png"])
+        fig = w.current()
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        hand_w = fig.mini.width_mm
+        w.sheet_panel.cut.setCurrentIndex(w.sheet_panel.cut.findData("machine"))
+        assert w.project.sheet.machine and fig.bleed_mm == 1.0 and not fig.up_to_date
+        assert wait(app, lambda: fig.up_to_date), fig.error
+        assert fig.mini.width_mm > hand_w + 1  # the bleed on both sides
+
+        out = tmp_path / "sheet.pdf"
+        seen = {}
+
+        def run(dlg):  # instead of showing the Export dialog: save both, as "sheet"
+            seen["name"] = dlg.name.text()
+            dlg.folder.setText(str(tmp_path))
+            dlg.name.setText("sheet")
+            dlg.pdf.setChecked(True)
+            dlg.cut.setChecked(True)
+            return True
+
+        monkeypatch.setattr(w, "_run_export_dialog", run)
+        w.export_pdf()
+        assert seen["name"] == "Paper miniatures"  # (named after the sheet's title)
+        assert wait(app, lambda: (tmp_path / "sheet-cut.svg").exists())
+        assert out.exists() and 'id="registration"' in (tmp_path / "sheet-cut.svg").read_text()
+    finally:
+        w._modified = False
+        w.close()
+
+
+def click_copies(w, row: int, which: str, times: int = 1):
+    """Click - or + of the copies control on a figure's card."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    lst = w.list
+    minus, _, plus = lst.itemDelegate()._copies_rects(lst.visualItemRect(lst.item(row)))
+    at = (plus if which == "+" else minus).center().toPoint()
+    for _ in range(times):
+        QTest.mouseClick(lst.viewport(), Qt.LeftButton, Qt.NoModifier, at)
+
+
+def test_copies_on_the_figure_card(app, tmp_path):
+    """Each card has "Amount - n +": - and + change the copies, a click on the number
+    types one; never below 0, and nothing rebuilds."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QSpinBox
+
+    from papermini.gui.widgets import COPIES_ROLE
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
+    w = MainWindow()
+    w.resize(1300, 800)
+    w.show()
+    try:
+        w.add_images([tmp_path / "a.png"])
+        fig = w.figures[0]
+        app.processEvents()
+        click_copies(w, 0, "+", 3)
+        assert fig.entry.settings.copies == 4 and w.list.item(0).data(COPIES_ROLE) == 4
+        assert w._modified
+        click_copies(w, 0, "-", 9)
+        assert fig.entry.settings.copies == 0  # (not below 0)
+        lst = w.list
+        _, num, _ = lst.itemDelegate()._copies_rects(lst.visualItemRect(lst.item(0)))
+        QTest.mouseClick(lst.viewport(), Qt.LeftButton, Qt.NoModifier, num.center().toPoint())
+        app.processEvents()
+        box = [b for b in lst.findChildren(QSpinBox) if b.isVisible()][0]
+        QTest.keyClicks(box, "12")
+        QTest.keyClick(box, Qt.Key_Return)
+        app.processEvents()
+        assert fig.entry.settings.copies == 12
+        # an edit in the panel keeps the copies set on the card
+        w.panel._w["margin_mm"][1].setValue(2.0)
+        assert fig.entry.settings.copies == 12 and fig.entry.settings.margin_mm == 2.0
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_export_dialog(app, tmp_path):
+    """The Export dialog shows the files it writes (named after the sheet's title),
+    writes only what is ticked, and remembers the ticks."""
+    from PySide6.QtWidgets import QDialog
+
+    from papermini.gui.export import ExportDialog
+
+    d = ExportDialog(tmp_path, "My minis", pages=3, machine=True)
+    assert d.pdf_path() == tmp_path / "My minis.pdf"
+    assert [p.name for p in d.cut_paths()] == ["My minis-cut.svg", "My minis-cut-2.svg",
+                                               "My minis-cut-3.svg"]
+    assert "My minis-cut-3.svg" in d.cut_files.text() and d.pdf_files.text() == "My minis.pdf"
+    d.pdf.setChecked(False)  # only the cut file, after printing from the app
+    assert d.chosen() == d.cut_paths()
+    d.cut.setChecked(False)
+    assert d.chosen() == [] and not d.export_btn.isEnabled()
+    d.cut.setChecked(True)
+    d._accept()
+    assert d.result() == QDialog.Accepted
+    again = ExportDialog(tmp_path, "My minis", pages=1, machine=True)
+    assert not again.pdf.isChecked() and again.cut.isChecked()  # remembered
+    hand = ExportDialog(tmp_path, "My minis", pages=1, machine=False)
+    hand.pdf.setChecked(True)
+    assert hand.chosen() == [tmp_path / "My minis.pdf"]  # cut by hand: no cut file
+    assert not hand.cut.isVisibleTo(hand)
+
+
+def test_header_steps_stay_centred(app, tmp_path):
+    """The step buttons sit in the middle of the window, whatever the header holds."""
+    from PySide6.QtCore import Qt
+
+    from papermini.gui.window import MainWindow
+
+    w = MainWindow()
+    w.setAttribute(Qt.WA_DontShowOnScreen)
+    w.resize(1360, 820)
+    w.show()
+    try:
+        for change in (lambda: None, w._set_modified):
+            change()
+            for _ in range(5):
+                app.processEvents()
+            centre = w.views.mapTo(w, w.views.rect().center()).x()
+            assert abs(centre - w.width() / 2) <= 2
     finally:
         w._modified = False
         w.close()

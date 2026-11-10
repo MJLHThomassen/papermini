@@ -15,23 +15,26 @@ from typing import Dict, List, Optional
 from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
-                               QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
+                               QHBoxLayout, QLabel, QListView, QListWidget, QListWidgetItem,
+                               QMainWindow,
                                QDialog, QLineEdit, QMenu, QMessageBox, QProgressDialog,
-                               QPushButton, QSplitter, QTabWidget, QToolButton, QVBoxLayout,
-                               QWidget)
+                               QPushButton, QSplitter, QStackedWidget, QTabWidget, QToolButton,
+                               QVBoxLayout, QWidget)
 
 from .. import __version__, remote, segment
 from ..mini import Mini
 from ..segment import Cancelled, ModelError
-from ..settings import FigureEntry, FigureSettings, Project, build_mini, load_project, save_project
-from ..sheet import pack, write_pdf
+from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_project,
+                        save_project)
+from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
 from ..svg import write_svg
 from . import prefs, theme
 from .models import DownloadDialog, ModelsDialog
+from .export import ExportDialog
 from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
 from .views import (CropView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
                     draw_sheet, load_qimage, print_sheet, pil_to_qimage)
-from .widgets import (SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, WorkCard,
+from .widgets import (COPIES_ROLE, SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, WorkCard,
                       ZoomBar,
                       overlay_wrap)
 
@@ -52,11 +55,12 @@ class Figure:
     pixmap: Optional[QPixmap] = None   # art of ``mini`` as a QPixmap (cached for the sheet)
     queued: Optional[str] = None       # key of the job waiting in the pool
     cancelled: Optional[str] = None    # mask_key whose background removal the user cancelled
+    bleed_mm: float = 0.0              # from the sheet: only when it is cut by machine
 
     def key(self) -> str:
         d = asdict(self.entry.settings)
         d.pop("copies")  # only matters for the sheet, never a reason to rebuild
-        return f"{self.entry.image}|{sorted(d.items())}"
+        return f"{self.entry.image}|{sorted(d.items())}|bleed={self.bleed_mm}"
 
     def mask_key(self) -> str:
         """What the background removal depends on: a cancelled run stays cancelled
@@ -91,6 +95,7 @@ class BuildJob(QRunnable):
         super().__init__()
         self.sig, self.uid, self.gen = sig, fig.uid, fig.gen
         self.image, self.settings, self.key = fig.entry.image, fig.entry.settings, fig.key()
+        self.bleed_mm = fig.bleed_mm
         self.mask_key = fig.mask_key()
         self.is_current = is_current
 
@@ -100,7 +105,8 @@ class BuildJob(QRunnable):
         self.sig.status.emit(f"Building {self.image.name}…")
         try:
             with segment.cancellable():  # Cancel also stops it while the model loads
-                m = build_mini(self.image, self.settings, log=lambda *_: None,
+                m = build_mini(self.image, self.settings, bleed_mm=self.bleed_mm,
+                               log=lambda *_: None,
                                on_stage=lambda name, data: self.sig.stage.emit(
                                    self.uid, self.key, self.mask_key, name, data))
         except Cancelled:
@@ -187,6 +193,11 @@ class MainWindow(QMainWindow):
         self.panel = FigurePanel()
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
+        self.sheet_panel = SheetPanel()
+        self.sheet_panel.changed.connect(self._sheet_changed)
+        self.sheet_panel.printClicked.connect(self.print_sheet)
+        self.sheet_panel.exportClicked.connect(self.export_pdf)
+        self.panel.exportSvg.connect(self.export_current_svg)
         canvas = self._make_canvas()
         root.addWidget(self._make_header())
 
@@ -199,13 +210,18 @@ class MainWindow(QMainWindow):
         right.setObjectName("SideRight")
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
-        rv.addWidget(self.panel)
+        # the selected figure's settings, or on the Print sheet step the sheet's own
+        self.side = QStackedWidget()
+        self.side.addWidget(self.panel)
+        self.side.addWidget(self.sheet_panel)
+        rv.addWidget(self.side)
         # usable width or dragged shut - never a sliver with clipped fields: as wide as
         # the widest step needs (measured with every group shown), not just the empty state
-        right.setMinimumWidth(self.panel.minimumSizeHint().width())
+        right.setMinimumWidth(max(self.panel.minimumSizeHint().width(),
+                                  self.sheet_panel.minimumSizeHint().width()))
         split.addWidget(right)
         split.setStretchFactor(1, 1)
-        split.setSizes([260, 820, 380])
+        split.setSizes([290, 790, 380])
         # the side panels can be dragged shut (and back open); the canvas cannot
         split.setCollapsible(0, True)
         split.setCollapsible(1, False)
@@ -232,8 +248,14 @@ class MainWindow(QMainWindow):
     def _make_header(self) -> QFrame:
         bar = QFrame()
         bar.setObjectName("Header")
-        h = QHBoxLayout(bar)
-        h.setContentsMargins(14, 8, 12, 8)
+        outer = QHBoxLayout(bar)
+        outer.setContentsMargins(14, 8, 12, 8)
+        outer.setSpacing(4)
+        # the steps sit in the middle of the window: the parts left and right of them are
+        # kept equally wide (see _balance_header)
+        self._head_left, self._head_right = QWidget(), QWidget()
+        h = QHBoxLayout(self._head_left)
+        h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(4)
         self.logo = QLabel()
         self.logo.setPixmap(theme.logo_pixmap(30))
@@ -252,22 +274,19 @@ class MainWindow(QMainWindow):
         h.addStretch(1)
         self.views = Segmented(self.VIEWS, steps=True)
         self.views.changed.connect(self.tabs.setCurrentIndex)
-        h.addWidget(self.views)
+        outer.addWidget(self._head_left, 1)
+        outer.addWidget(self.views)
+        outer.addWidget(self._head_right, 1)
+        h = QHBoxLayout(self._head_right)
+        h.setContentsMargins(0, 0, 0, 0)
         h.addStretch(1)
-        self.btn_svg = QPushButton("Export SVG")
-        self.btn_svg.setToolTip("Save the selected miniature as SVG  (Ctrl+E)")
-        self.btn_svg.clicked.connect(self.export_current_svg)
-        self._tinted.append((self.btn_svg, "export", "text", 16))
-        self.btn_pdf = QPushButton("Export PDF")
-        self.btn_pdf.setProperty("primary", True)
-        self.btn_pdf.setToolTip("Save the print sheet as PDF  (Ctrl+P)")
-        self.btn_pdf.clicked.connect(self.export_pdf)
-        self._tinted.append((self.btn_pdf, "pdf", "accent_text", 16))
-        for btn in (self.btn_svg, self.btn_pdf):
-            btn.setCursor(Qt.PointingHandCursor)
+        # (Export SVG is on the Miniature step's panel, Print and Export on the sheet's)
+        self._tinted += [(self.panel.export_svg, "export", "text", 16),
+                         (self.sheet_panel.print_btn, "printer", "text", 16),
+                         (self.sheet_panel.export_btn, "pdf", "accent_text", 16)]
+        for btn in (self.panel.export_svg, self.sheet_panel.print_btn,
+                    self.sheet_panel.export_btn):
             btn.setIconSize(QSize(16, 16))
-            h.addWidget(btn)
-        h.addSpacing(4)
         self.menu_btn = QToolButton()
         self.menu_btn.setToolTip("Menu")
         self.menu_btn.setAccessibleName("Menu")
@@ -277,6 +296,12 @@ class MainWindow(QMainWindow):
         self._tinted.append((self.menu_btn, "menu", "text", 18))
         h.addWidget(self.menu_btn)
         return bar
+
+    def _balance_header(self):
+        """Both sides of the steps as wide as the wider one, so the steps stay centred."""
+        w = max(self._head_left.sizeHint().width(), self._head_right.sizeHint().width())
+        for side in (self._head_left, self._head_right):
+            side.setMinimumWidth(w)
 
     def _side_button(self, i: int):
         """A floating button on the canvas that hides / shows side panel ``i``."""
@@ -315,9 +340,14 @@ class MainWindow(QMainWindow):
         v.addLayout(self._make_link_bar())
         self.list = QListWidget()
         self.list.setObjectName("Figures")
-        self.list.setItemDelegate(FigureDelegate(self.list))
+        delegate = FigureDelegate(self.list)
+        delegate.copiesChanged.connect(self._copies_changed)
+        self.list.setItemDelegate(delegate)
+        self.list.setEditTriggers(QAbstractItemView.NoEditTriggers)  # (copies: see the delegate)
         self.list.setMouseTracking(True)
         self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.list.setResizeMode(QListView.Adjust)  # cards follow the list's width
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list.setDragDropMode(QAbstractItemView.InternalMove)
         self.list.currentRowChanged.connect(lambda _: self._show_current())
         self.list.model().rowsMoved.connect(self._rows_moved)
@@ -366,12 +396,7 @@ class MainWindow(QMainWindow):
         sv = QVBoxLayout(sheet_page)
         sv.setContentsMargins(0, 0, 0, 0)
         sv.setSpacing(0)
-        self.sheet_panel = SheetPanel()
-        self.sheet_panel.changed.connect(self._sheet_changed)
-        self.sheet_panel.printClicked.connect(self.print_sheet)
-        self._tinted.append((self.sheet_panel.print_btn, "printer", "text", 16))
         self.sheet_view = ZoomView()
-        sv.addWidget(self.sheet_panel)
         sv.addWidget(self.sheet_view)
         for view, (label, tip) in zip((self.crop_view, self.mini_view, sheet_page),
                                       self.VIEWS):
@@ -469,7 +494,8 @@ class MainWindow(QMainWindow):
         self.a_svg = act("Export SVG…", self.export_current_svg, "Ctrl+E",
                          "Save the selected miniature as SVG")
         self.a_svgs = act("Export all SVGs…", self.export_all_svgs, "Ctrl+Shift+E")
-        self.a_pdf = act("Export PDF sheet…", self.export_pdf, "Ctrl+P")
+        self.a_pdf = act("Export sheet…", self.export_pdf, "Ctrl+P",
+                         "Save the sheet to print (PDF) and, cut by machine, the cut file")
         self.a_print = act("Print sheet…", self.print_sheet, "Ctrl+Shift+P",
                            "Print the sheet at its real size")
         self.a_undo_crop = act("Undo crop change", self.undo_crop, QKeySequence.Undo,
@@ -740,7 +766,7 @@ class MainWindow(QMainWindow):
             self._status("Nothing to paste: copy image files, or an image or its link in a browser")
 
     def _append(self, entry: FigureEntry):
-        fig = Figure(next(self._uids), entry)
+        fig = Figure(next(self._uids), entry, bleed_mm=self.project.sheet.figure_bleed)
         self.figures.append(fig)
         item = QListWidgetItem(entry.display_name)
         img = load_qimage(entry.image)
@@ -750,6 +776,8 @@ class MainWindow(QMainWindow):
         item.setToolTip(entry.source or str(entry.image))
         item.setData(Qt.UserRole, fig.uid)
         item.setData(SUBTITLE_ROLE, "Building…")
+        item.setData(COPIES_ROLE, entry.settings.copies)
+        item.setFlags(item.flags() | Qt.ItemIsEditable)  # (the copies box)
         item.setSizeHint(QSize(0, FigureDelegate.H))
         self.list.addItem(item)
         self.count_label.setText(str(len(self.figures)))
@@ -760,16 +788,15 @@ class MainWindow(QMainWindow):
         if item is None:
             return
         item.setText(fig.entry.display_name)
-        n = fig.entry.settings.copies
-        copies = f"{n} cop{'y' if n == 1 else 'ies'}"
+        item.setData(COPIES_ROLE, fig.entry.settings.copies)
         if fig.error and not fig.up_to_date:
-            item.setData(SUBTITLE_ROLE, "Needs attention · " + copies)
+            item.setData(SUBTITLE_ROLE, "Needs attention")
         elif fig.stopped and not fig.up_to_date:
-            item.setData(SUBTITLE_ROLE, "Cancelled · " + copies)
+            item.setData(SUBTITLE_ROLE, "Cancelled")
         elif fig.mini is None:
             item.setData(SUBTITLE_ROLE, "Building…")
         else:
-            item.setData(SUBTITLE_ROLE, f"{fig.mini.figure_height_mm:.0f} mm · {copies}")
+            item.setData(SUBTITLE_ROLE, f"{fig.mini.figure_height_mm:.0f} mm")
             if fig.pixmap is not None:
                 item.setIcon(QIcon(fig.pixmap.scaled(112, 112, Qt.KeepAspectRatio,
                                                      Qt.SmoothTransformation)))
@@ -800,11 +827,22 @@ class MainWindow(QMainWindow):
         return None
 
     # ----------------------------------------------------------------- settings
+    def _copies_changed(self, uid, n: int):
+        """Copies set on a figure's card: only the sheet changes, nothing rebuilds."""
+        fig = self._figure(uid)
+        if fig is None or n == fig.entry.settings.copies:
+            return
+        fig.entry.settings = replace(fig.entry.settings, copies=n)
+        self._refresh_card(fig)
+        self._set_modified()
+        self._sheet_timer.start()
+
     def _settings_changed(self, s: FigureSettings):
         fig = self.current()
         if fig is None:
             return
         old = fig.entry.settings
+        s = replace(s, copies=old.copies)  # (the copies are set on the card, not the panel)
         if s.adjustments() != old.adjustments():
             self._picture_timer.start()  # (the model is not involved: no rebuild of the mask)
         if s.crop != old.crop and not self._undoing:  # a crop change can be undone
@@ -848,8 +886,20 @@ class MainWindow(QMainWindow):
 
     def _sheet_changed(self, s):
         self.project.sheet = s
+        if any(f.bleed_mm != s.figure_bleed for f in self.figures):
+            for f in self.figures:  # cut by machine (or not): every piece gets its bleed
+                f.bleed_mm = s.figure_bleed
+                f.gen += 1
+                f.error = f.queued = None
+            self._build_timer.start()
         self._set_modified()
         self._sheet_timer.start()
+
+    def _pack(self, figs: List[Figure]):
+        """The sheet layout of ``figs`` (built) with the project's sheet settings."""
+        sh = self.project.sheet
+        return pack([(f.mini, f.entry.settings.copies) for f in figs], sh.paper,
+                    sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
 
     # ----------------------------------------------------------------- building
     def _is_current(self, uid, key) -> bool:
@@ -1062,9 +1112,10 @@ class MainWindow(QMainWindow):
     def _show_current(self):
         fig = self.current()
         has = fig is not None
-        for w in (self.a_svg, self.btn_svg, self.btn_remove):
+        for w in (self.a_svg, self.panel.export_svg, self.btn_remove):
             w.setEnabled(has)
-        self.btn_pdf.setEnabled(bool(self.figures))
+        for w in (self.sheet_panel.print_btn, self.sheet_panel.export_btn):
+            w.setEnabled(bool(self.figures))
         self.empty.setVisible(not self.figures)
         self.zoombar.setVisible(bool(self.figures))
         self._sync_legend()
@@ -1137,6 +1188,7 @@ class MainWindow(QMainWindow):
 
     def _tab_changed(self, i):
         self.panel.set_step(i)
+        self.side.setCurrentWidget(self.sheet_panel if i == self.SHEET else self.panel)
         self._update_work()
         self._sync_legend()
         if i == self.SHEET:
@@ -1198,21 +1250,20 @@ class MainWindow(QMainWindow):
         ready = [f for f in self.figures if f.mini is not None and f not in failed]
         sh = self.project.sheet
         sc = self.sheet_view.scene()
-        self.sheet_panel.print_btn.setEnabled(bool(self.figures))
-        self.a_print.setEnabled(bool(self.figures))
+        for w in (self.sheet_panel.print_btn, self.sheet_panel.export_btn, self.a_print):
+            w.setEnabled(bool(self.figures))
         if not ready:
             sc.clear()
             self.sheet_panel.info.setText("Building…" if missing else "No miniatures yet")
             return
         try:
-            lay = pack([(f.mini, f.entry.settings.copies) for f in ready], sh.paper,
-                       sh.margin_mm, sh.gap_mm)
+            lay = self._pack(ready)
         except ValueError as e:
             sc.clear()
             self.sheet_panel.info.setText(str(e))
             return
         first = sc.itemsBoundingRect().isEmpty()
-        draw_sheet(sc, lay, sh.title, sh.margin_mm, {id(f.mini): f.pixmap for f in ready})
+        draw_sheet(sc, lay, sh.title, {id(f.mini): f.pixmap for f in ready})
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.sheet_view.fit()
@@ -1307,18 +1358,32 @@ class MainWindow(QMainWindow):
 
     def _save_pdf(self):
         sh = self.project.sheet
-        default = self.project.sheet_path if self.project.path else self._out_dir() / "minis.pdf"
-        f, _ = QFileDialog.getSaveFileName(self, "Export PDF sheet", str(default), "PDF (*.pdf)")
-        if not f:
-            return
+        # named after the sheet's title, in the project's sheet folder (or next to the images)
+        folder = self.project.sheet_path.parent if self.project.path else self._out_dir()
         try:
-            lay = pack([(x.mini, x.entry.settings.copies) for x in self.figures], sh.paper,
-                       sh.margin_mm, sh.gap_mm)
-            write_pdf(lay, Path(f), sh.margin_mm, sh.title)
-        except (ValueError, OSError) as e:
+            lay = self._pack(self.figures)
+        except ValueError as e:
             QMessageBox.warning(self, "papermini", str(e))
             return
-        self._status(f"Saved {f} ({len(lay.placements)} pieces, {lay.pages} page(s))")
+        dlg = ExportDialog(folder, sh.title, lay.pages, lay.machine, self)
+        if not self._run_export_dialog(dlg):
+            return
+        pdf = dlg.pdf_path() if dlg.pdf.isChecked() else None
+        cut = lay.machine and dlg.cut.isChecked()
+        try:
+            if pdf is not None:
+                write_pdf(lay, pdf, sh.title)
+            files = ([pdf] if pdf is not None else []) + (
+                write_cut_files(lay, default_cut_file(dlg.pdf_path()), sh.cut_folds, sh.title)
+                if cut else [])
+        except OSError as e:
+            QMessageBox.warning(self, "papermini", str(e))
+            return
+        self._status(f"Saved {', '.join(f.name for f in files)} in {files[0].parent} "
+                     f"({len(lay.placements)} pieces, {lay.pages} page(s))")
+
+    def _run_export_dialog(self, dlg) -> bool:  # (the tests replace this)
+        return dlg.exec() == QDialog.Accepted
 
     def print_sheet(self):
         if self.figures:
@@ -1330,8 +1395,7 @@ class MainWindow(QMainWindow):
 
         sh = self.project.sheet
         try:
-            lay = pack([(x.mini, x.entry.settings.copies) for x in self.figures], sh.paper,
-                       sh.margin_mm, sh.gap_mm)
+            lay = self._pack(self.figures)
         except ValueError as e:
             QMessageBox.warning(self, "papermini", str(e))
             return
@@ -1352,7 +1416,7 @@ class MainWindow(QMainWindow):
                 "size, but parts of the sheet may be cut off.\n\nPrint anyway?") \
                 != QMessageBox.Yes:
             return
-        n = print_sheet(printer, lay, sh.title, sh.margin_mm)
+        n = print_sheet(printer, lay, sh.title)
         if n:
             self._status(f"Sent {n} page(s) to {printer.printerName() or 'the printer'}")
         else:
@@ -1465,6 +1529,7 @@ class MainWindow(QMainWindow):
         name = self.project.path.name if self.project.path else "untitled"
         self.setWindowTitle(f"{name}{' *' if self._modified else ''} — papermini")
         self.project_label.setText(f"{name}{'  •  unsaved changes' if self._modified else ''}")
+        self._balance_header()
 
     def _about(self):
         QMessageBox.about(

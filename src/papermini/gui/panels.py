@@ -36,8 +36,9 @@ STEPS = ["Source", "Miniature", "Print sheet"]
 SOURCE, MINIATURE, PRINT = range(3)
 STEP_HINTS = [
     "Crop the picture first: background removal only looks inside the box.",
-    "The paper piece around the figure: back side, margin, cut line and stand tab.",
-    "How big this figure prints and how many go on the sheet.",
+    "How big the figure prints, and the paper piece around it: back side, margin, cut "
+    "line and stand tab.",
+    "The paper, the layout and how the pieces are cut.",
 ]
 SECTIONS = [
     (SOURCE, "Crop", [
@@ -60,7 +61,11 @@ SECTIONS = [
         ("_reset_adjust", "Reset adjustments", "reset",
          ("greyscale", "brightness", "contrast", "saturation", "hue")),
     ]),
-    (MINIATURE, "Back side", [  # first: it decides what the rest of the piece is
+    (MINIATURE, "Size", [  # first: how big the figure prints
+        ("size", "Size", "size", None),
+        ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
+    ]),
+    (MINIATURE, "Back side", [  # it decides what the rest of the piece is
         ("double_sided", "Print a back side", "switch", None),
         ("back", "Shows", "c", [("mirror", "Mirrored drawing"), ("blank", "Blank"),
                                 ("text", "Text")]),
@@ -76,8 +81,6 @@ SECTIONS = [
         ("_cut_line", "Cut line", "heading", None),
         ("no_smooth", "Straight segments only (no curves)", "b", None),
         ("simplify_mm", "Simplify", "f", (0.01, 2, 0.05, 3, " mm")),
-        ("cutter", "Cutting-machine style (red hairline)", "b", None),
-        ("bleed_mm", "Bleed", "f", (0, 5, 0.1, 1, " mm")),
         ("cut_color", "Color", "col", None),
         ("cut_width_mm", "Width", "f", (0.01, 2, 0.05, 2, " mm")),
     ]),
@@ -97,11 +100,6 @@ SECTIONS = [
         ("label", "Text", "label", None),
         ("label_size_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
         ("label_color", "Color", "col", None),
-    ]),
-    (PRINT, "Size and copies", [
-        ("size", "Size", "size", None),
-        ("copies", "Copies on sheet", "i", (0, 999, 1, "")),
-        ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
     ]),
 ]
 
@@ -162,12 +160,9 @@ TIPS = {
     "smooth_mm": "Rounds the outline; higher values give a calmer cut line.",
     "no_smooth": "Cut line made of straight segments instead of smooth curves.",
     "simplify_mm": "How far the cut line may deviate to use fewer points.",
-    "cutter": "Red 0.1 mm cut line, which many cutting machines treat as the cut layer.",
-    "bleed_mm": "Prints the background this far beyond the cut line, so a slightly misaligned\n"
-                "machine cut never shows a white edge. The color at the edge (margin, tab or\n"
-                "back color) is extended.",
-    "cut_color": "Color of the cut line.",
-    "cut_width_mm": "Width of the printed cut line.",
+    "cut_color": "Color of the cut line, for cutting by hand. A sheet cut by machine has no\n"
+                 "cut lines (see Cut by in the Print sheet step).",
+    "cut_width_mm": "Width of the printed cut line, for cutting by hand.",
     "no_tab": "Print a tab: a fold-over stand tab under the feet.\n"
               "Off for slotted or magnetic bases.",
     "tab_shape": "Square: a tab to slot into a (3D printed) stand.\n"
@@ -204,6 +199,27 @@ TIPS = {
     "back_text": "Text for the back (empty = the tab label). It is sized to fit the body.",
     "back_color": "Color of a blank or text back (the back tab keeps the tab's fill color).",
     "back_text_color": "Color of the back text.",
+}
+
+
+SHEET_TIPS = {
+    "Paper": "The paper size of the sheet.",
+    "Title": "Printed at the top of each page, above the instructions.",
+    "Margin": "The empty border around each page. Cut by machine, the alignment marks sit\n"
+              "here, this far from the paper edges.",
+    "Gap": "The space between the pieces on the sheet.",
+    "Cut by": "By hand: the cut lines are printed on the sheet, for scissors or a knife.\n"
+              "Machine: the sheet has no cut lines but alignment marks; Export PDF also\n"
+              "writes a cut file (SVG) with the cut lines and the same marks, to line up in\n"
+              "your cutting machine's software.",
+    "Bleed": "Prints the edge colors (margin, tab or back) this far beyond the cut line, so a\n"
+             "machine cut that is slightly off never shows a white edge.",
+    "Marks": "Corners: an L in each corner and a small square top-left.\n"
+             "Silhouette: Silhouette Studio's Type 1 marks (a square top-left, an L top-right\n"
+             "and bottom-left; length 20 mm, thickness 0.5 mm, inset = the margin).\n"
+             "None: no marks; line up the cut file with the page edges.",
+    "cut_folds": "Also put the fold lines in the cut file (in blue, in their own group), to\n"
+                 "score or draw them with the machine.",
 }
 
 
@@ -611,6 +627,7 @@ class FigurePanel(QScrollArea):
     changed = Signal(object)
     applyToAll = Signal(object)  # the settings to copy (those of the shown step)
     clearCrop = Signal()
+    exportSvg = Signal()         # the Miniature step's Export SVG button
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -745,12 +762,18 @@ class FigurePanel(QScrollArea):
         for lab in labels:  # one column of fields, also inside the indented sub-groups
             lab.setMinimumWidth(widest - (SUB_INDENT if lab in sub_labels else 0))
         self.sections = sections
-        self.copies = self._w["copies"][1]
         self.size_field = self._w["size"][1]
         lay.addSpacing(12)
         self.apply_all = QPushButton("Apply to all figures")
         self.apply_all.clicked.connect(lambda: self.applyToAll.emit(self.step_settings()))
         lay.addWidget(self.apply_all)
+        lay.addSpacing(8)
+        self.export_svg = QPushButton("Export SVG…")  # (Miniature step: this figure's piece)
+        self.export_svg.setToolTip("Save this miniature as an SVG: the piece with its cut "
+                                   "line, for Inkscape or a cutting machine  (Ctrl+E)")
+        self.export_svg.setCursor(Qt.PointingHandCursor)
+        self.export_svg.clicked.connect(self.exportSvg)
+        lay.addWidget(self.export_svg)
         lay.addStretch()
         self.setWidget(body)
         self._empty = True
@@ -786,6 +809,7 @@ class FigurePanel(QScrollArea):
         self._empty = empty
         for w in (self.title, self.subtitle, self.step_hint, self.apply_all):
             w.setVisible(not empty)
+        self.export_svg.setVisible(not empty and self._step == MINIATURE)
         self.empty_box.setVisible(empty)
         self.empty_text.setText(message)
         self._sync_sections()
@@ -794,6 +818,7 @@ class FigurePanel(QScrollArea):
         """Show the settings of one workflow step (SOURCE, MINIATURE or PRINT)."""
         self._step = step
         self.step_hint.setText(STEP_HINTS[step])
+        self.export_svg.setVisible(not self._empty and step == MINIATURE)
         self._sync_sections()
         self.verticalScrollBar().setValue(0)
 
@@ -1070,9 +1095,6 @@ class FigurePanel(QScrollArea):
             "mask": MODEL_VALUES.get(model, model) == "mask",
             "min_area": self._w["keep_all"][1].isChecked(),
             "margin_color": val("margin_fill") == "color",
-            "cut_color": not self._w["cutter"][1].isChecked(),
-            "cut_width_mm": not self._w["cutter"][1].isChecked(),
-            "bleed_mm": self._w["cutter"][1].isChecked(),
             "tab_shape": tab,
             "tab_width_mm": tab and square,
             "tab_height_mm": tab and square,
@@ -1145,57 +1167,129 @@ def _parse_crop_text(text: str, old):
     return vals if len(vals) == 4 else old
 
 
-class SheetPanel(QWidget):
-    """Paper, title, margins - edits a SheetSettings - and a Print button."""
+class SheetPanel(QScrollArea):
+    """The Print sheet step's side panel: edits a SheetSettings (paper, layout and how
+    the pieces are cut), says what is on the sheet, and prints or exports it. The
+    copies of each figure are set on its card in the figure list."""
 
     changed = Signal(object)
     printClicked = Signal()
+    exportClicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from .widgets import FlowLayout
+        self.setObjectName("SheetPanel")
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body = QWidget()
+        lay = QVBoxLayout(body)
+        lay.setContentsMargins(18, 16, 14, 16)
+        lay.setSpacing(0)
+        title = QLabel("Print sheet")
+        title.setObjectName("PanelTitle")
+        lay.addWidget(title)
+        sub = QLabel("Settings for the whole sheet")
+        sub.setObjectName("PanelSub")
+        lay.addWidget(sub)
+        lay.addSpacing(10)
+        hint = QLabel("Paper, layout and how the pieces are cut. Set how many of each "
+                      "figure go on the sheet on its card in the list on the left.")
+        hint.setObjectName("StepHint")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        lay.addSpacing(8)
 
-        self.setObjectName("SheetBar")
-        self.setAttribute(Qt.WA_StyledBackground)
-        # wraps onto a second line when the canvas is narrow (a single row would hold
-        # the canvas - and so the side panels - at ~760 px)
-        h = FlowLayout(self, spacing=14)
-        h.setContentsMargins(14, 8, 14, 8)
         self.paper = ComboBox()
         self.paper.addItems(["a4", "letter"])
         self.title = QLineEdit()
-        self.title.setFixedWidth(180)
         self.margin = DoubleSpinBox()
         self.margin.setRange(0, 50)
         self.margin.setSuffix(" mm")
         self.gap = DoubleSpinBox()
         self.gap.setRange(0, 50)
         self.gap.setSuffix(" mm")
-        for lbl, w in (("Paper", self.paper), ("Title", self.title),
-                       ("Margin", self.margin), ("Gap", self.gap)):
-            pair = QWidget()  # a label and its field wrap together
-            ph = QHBoxLayout(pair)
-            ph.setContentsMargins(0, 0, 0, 0)
-            ph.setSpacing(6)
-            lab = QLabel(lbl)
-            lab.setObjectName("FormLabel")
-            ph.addWidget(lab)
-            ph.addWidget(w)
-            h.addWidget(pair)
+        self.cut = ComboBox()
+        for text, value in (("By hand", "hand"), ("Machine", "machine")):
+            self.cut.addItem(text, value)
+        self.bleed = DoubleSpinBox()
+        self.bleed.setRange(0, 5)
+        self.bleed.setSingleStep(0.1)
+        self.bleed.setDecimals(1)
+        self.bleed.setSuffix(" mm")
+        self.marks = ComboBox()
+        for text, value in (("Corners", "corners"), ("Silhouette", "silhouette"),
+                            ("None", "none")):
+            self.marks.addItem(text, value)
+        self.cut_folds = QCheckBox("Fold lines in cut file")
+
+        self._rows = {}  # widget -> its form, to show or hide the row
+        labels = []
+        for heading, fields in (("Paper and layout", (("Paper", self.paper),
+                                                     ("Title", self.title),
+                                                     ("Margin", self.margin),
+                                                     ("Gap", self.gap))),
+                                ("Cutting", (("Cut by", self.cut), ("Bleed", self.bleed),
+                                             ("Marks", self.marks), ("", self.cut_folds)))):
+            box = Section(heading)
+            form = QFormLayout(box.body)
+            form.setContentsMargins(2, 0, 0, 0)
+            form.setHorizontalSpacing(12)
+            form.setVerticalSpacing(8)
+            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+            for label, w in fields:
+                w.setToolTip(SHEET_TIPS.get(label or "cut_folds", ""))
+                if label:
+                    form.addRow(label, w)
+                    lab = form.labelForField(w)
+                    lab.setObjectName("FormLabel")
+                    lab.setToolTip(SHEET_TIPS.get(label, ""))
+                    labels.append(lab)
+                else:
+                    form.addRow(w)
+                self._rows[w] = form
+            lay.addWidget(box)
+        widest = max(lab.sizeHint().width() for lab in labels)
+        for lab in labels:  # one column of fields across both groups
+            lab.setMinimumWidth(widest)
+
+        lay.addSpacing(12)
         self.info = QLabel()
         self.info.setObjectName("Muted")
-        h.addWidget(self.info)
+        self.info.setWordWrap(True)
+        lay.addWidget(self.info)
+        lay.addSpacing(8)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
         self.print_btn = QPushButton("Print…")
         self.print_btn.setToolTip("Print the sheet at its real size  (Ctrl+Shift+P)")
-        self.print_btn.setCursor(Qt.PointingHandCursor)
         self.print_btn.clicked.connect(self.printClicked)
-        h.addWidget(self.print_btn)
+        self.export_btn = QPushButton("Export…")
+        self.export_btn.setProperty("primary", True)
+        self.export_btn.setToolTip("Save the sheet to print (PDF) and, cut by machine, the cut "
+                                   "file (SVG): pick the folder and what to save  (Ctrl+P)")
+        self.export_btn.clicked.connect(self.exportClicked)
+        for b in (self.print_btn, self.export_btn):
+            b.setCursor(Qt.PointingHandCursor)
+            buttons.addWidget(b, 1)
+        lay.addLayout(buttons)
+        lay.addStretch()
+        self.setWidget(body)
+
         self.paper.currentTextChanged.connect(self._emit)
         self.title.editingFinished.connect(self._emit)
         self.margin.valueChanged.connect(self._emit)
         self.gap.valueChanged.connect(self._emit)
+        self.cut.currentIndexChanged.connect(self._emit)
+        self.bleed.valueChanged.connect(self._emit)
+        self.marks.currentIndexChanged.connect(self._emit)
+        self.cut_folds.toggled.connect(self._emit)
         self._s = SheetSettings()
         self._loading = False
+        self._sync_visible()
+
+    def is_shown(self, w: QWidget) -> bool:
+        return self._rows[w].isRowVisible(w)
 
     def set_settings(self, s: SheetSettings):
         self._loading = True
@@ -1204,13 +1298,27 @@ class SheetPanel(QWidget):
         self.title.setText(s.title)
         self.margin.setValue(s.margin_mm)
         self.gap.setValue(s.gap_mm)
+        self.cut.setCurrentIndex(self.cut.findData(s.cut))
+        self.bleed.setValue(s.bleed_mm)
+        self.marks.setCurrentIndex(self.marks.findData(s.marks))
+        self.cut_folds.setChecked(s.cut_folds)
         self._loading = False
+        self._sync_visible()
+
+    def _sync_visible(self):
+        """Bleed, marks and the cut file only matter when cut by machine."""
+        machine = self.cut.currentData() == "machine"
+        for w in (self.bleed, self.marks, self.cut_folds):
+            self._rows[w].setRowVisible(w, machine)
 
     def _emit(self, *_):
         if self._loading:
             return
+        self._sync_visible()
         new = replace(self._s, paper=self.paper.currentText(), title=self.title.text(),
-                      margin_mm=self.margin.value(), gap_mm=self.gap.value())
+                      margin_mm=self.margin.value(), gap_mm=self.gap.value(),
+                      cut=self.cut.currentData(), bleed_mm=self.bleed.value(),
+                      marks=self.marks.currentData(), cut_folds=self.cut_folds.isChecked())
         if new != self._s:
             self._s = new
             self.changed.emit(new)

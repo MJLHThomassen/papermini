@@ -255,6 +255,7 @@ QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSp
     width: 0px; border: none; }}
 QSpinBox::up-arrow, QSpinBox::down-arrow, QDoubleSpinBox::up-arrow, QDoubleSpinBox::down-arrow {{
     image: none; width: 0px; height: 0px; }}
+QSpinBox#CopiesEditor {{ padding: 0px 2px; min-height: 0px; }}
 QSlider {{ min-height: 22px; }}
 QSlider::groove:horizontal {{ height: 4px; border-radius: 2px; background: {t.border}; }}
 QSlider::sub-page:horizontal {{ height: 4px; border-radius: 2px; background: {t.accent}; }}
