@@ -61,6 +61,13 @@ docs/           reference.md (full option docs) and README screenshots
 
 ## Making changes
 
+- **New features: get the design approved first.** After building a new
+  feature, stop and ask the maintainer to run the app and try it: say how to
+  start it (for example `~/.venvs/papermini/Scripts/python -m papermini gui
+  examples/dragons/dragons.yaml`) and what to look at. Only once they approve
+  how the feature looks and works, run the test suite, update the docs and
+  samples, and (re)generate the screenshots. Until then, keep those steps
+  undone, so they are not redone after every change to the design.
 - **An option lives in five places; keep them in sync:** `FigureSettings` in
   `settings.py` (with validation in `from_dict`), the CLI flags in `cli.py`,
   the GUI field in `gui/panels.py` (`SECTIONS`, `TIPS`, visibility rules), the
