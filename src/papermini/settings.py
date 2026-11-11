@@ -1,7 +1,10 @@
 """Per-figure settings and projects, shared by the CLI, batch YAML and the GUI.
 
-A project file *is* a batch config::
+A project file *is* a batch config (saved projects also record the papermini that
+saved them and the project format)::
 
+    papermini: 1.0.0
+    format: 1
     output: minis
     sheet: {output: minis/sheet.pdf, paper: a4, copies: 1}
     defaults: {height_mm: 42}
@@ -13,9 +16,10 @@ A project file *is* a batch config::
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import geometry as geo
 from . import remote
@@ -24,6 +28,8 @@ from .adjust import Adjustments
 from .mini import Mini, Style, make_mini
 from .sheet import CUT_MODES, MARKS, PAPER
 
+# Saved projects carry this format and the papermini version that saved them. The format
+# changes only when a project from an older papermini could no longer be read as it is.
 _PROJECT_FORMAT = 1
 
 
@@ -251,19 +257,12 @@ def load_project(path: Path) -> Project:
 
     path = Path(path).resolve()
     cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    format_version = cfg.get("format", 1)
-    if isinstance(format_version, bool) or not isinstance(format_version, int):
-        raise ValueError(f"{path.name}: project format must be an integer")
-    if format_version > _PROJECT_FORMAT:
-        raise ValueError(f"{path.name}: project was made by a newer papermini "
-                         "version; update papermini to open it")
-    if format_version != _PROJECT_FORMAT:
-        raise ValueError(f"{path.name}: unsupported project format {format_version}")
+    newer = _check_format(cfg, path.name)
     base = path.parent
     try:
         sheet = SheetSettings.from_dict(cfg.get("sheet") or {})
     except ValueError as e:
-        raise ValueError(f"{path.name}: {e}") from None
+        raise ValueError(f"{path.name}: {e}{newer}") from None
     defaults = norm_keys(cfg.get("defaults"))
     figures = []
     for entry in cfg.get("figures") or []:
@@ -284,13 +283,40 @@ def load_project(path: Path) -> Project:
         try:
             s = FigureSettings.from_dict(o)
         except ValueError as e:
-            raise ValueError(f"{path.name}: {image.name}: {e}") from None
+            raise ValueError(f"{path.name}: {image.name}: {e}{newer}") from None
         figures.append(FigureEntry(image, s, name, source))
     return Project(path, str(cfg.get("output", "minis")), sheet, figures, bool(cfg.get("debug", False)))
 
 
+def _release(version: Any) -> Optional[Tuple[int, int, int]]:
+    """The leading MAJOR.MINOR.PATCH of a papermini version (a development version such
+    as 1.2.1.dev3+g1a2b3c4 counts as 1.2.1), or None when it has none."""
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", str(version).strip())
+    return (int(m[1]), int(m[2]), int(m[3])) if m else None
+
+
+def _check_format(cfg: Dict[str, Any], name: str) -> str:
+    """Refuse a project in a format this papermini cannot read, naming the papermini that
+    saved it. Returns the note for errors in a project saved by a newer papermini of the
+    same format (which may use options this one does not know), or ""."""
+    from . import __version__
+
+    saved = cfg.get("papermini")  # the papermini that saved the project (none when hand-written)
+    made_by = f"was made by papermini {saved}" if saved else "uses a newer project format"
+    fmt = cfg.get("format", 1)
+    if isinstance(fmt, bool) or not isinstance(fmt, int) or fmt < 1:
+        raise ValueError(f"{name}: the project format must be a whole number from 1, not {fmt!r}")
+    if fmt > _PROJECT_FORMAT:
+        raise ValueError(f"{name} {made_by} (project format {fmt}), and papermini {__version__} opens project format {_PROJECT_FORMAT}. Update papermini to open it.")
+    made, this = _release(saved or ""), _release(__version__)
+    if made and this and made > this:
+        return f". The project was made by papermini {saved}, which is newer than papermini {__version__}. Update papermini to open it."
+    return ""
+
+
 def save_project(p: Project, path: Path) -> Path:
-    """Write ``p`` as a batch YAML; paths are stored relative to the file."""
+    """Write ``p`` as a batch YAML, with the papermini version that saved it and the
+    project format. Paths are stored relative to the file."""
     import os
 
     import yaml
@@ -319,7 +345,10 @@ def save_project(p: Project, path: Path) -> Path:
             o["crop"] = list(o["crop"])
         d.update(o)
         figures.append(d)
-    cfg: Dict[str, Any] = {"format": _PROJECT_FORMAT, "output": p.output}
+    from . import __version__
+
+    cfg: Dict[str, Any] = {"papermini": __version__, "format": _PROJECT_FORMAT,
+                           "output": p.output}
     if sheet:
         cfg["sheet"] = sheet
     cfg["figures"] = figures

@@ -724,9 +724,12 @@ The `sheet` also takes `title`, `margin_mm`, `gap_mm` and, for a
 [cutting machine](#cutting-by-machine), `cut: machine` with `bleed_mm`,
 `marks` and `cut_folds`; every figure is then built with the bleed.
 
-Papermini-saved projects include a top-level integer `format: 1`. Hand-written
-and older project files without `format` are read as format 1; a newer format
-needs a newer papermini.
+Projects saved by papermini start with the papermini version that saved them and
+the project format, such as `papermini: 1.0.0` and `format: 1`. A file without
+them, such as a hand-written one, is read as format 1. A project in a newer format
+does not open, and the error names the papermini that saved it, so you know which
+version to update to. A project from a newer papermini of the same format opens,
+unless it uses an option this papermini does not know yet.
 
 An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
 It is downloaded once (later runs use the cached copy) and saved projects keep
