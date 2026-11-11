@@ -114,7 +114,7 @@ def install_dir() -> Optional[Path]:
         return None
     exe = Path(sys.executable).resolve()
     if sys.platform == "darwin":
-        app = exe.parents[2]  # papermini.app/Contents/MacOS/papermini-gui
+        app = exe.parents[2]  # (the program is in papermini.app/Contents/MacOS)
         return app if app.suffix == ".app" else None
     return exe.parent
 
@@ -303,7 +303,7 @@ def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> Tup
     ``pid`` (papermini) has quit; returns (script, command to start it)."""
     folder = Path(tempfile.mkdtemp(prefix="papermini-update-"))
     if sys.platform == "win32":
-        exe = old_app / "papermini-gui.exe"
+        exe = old_app / "papermini.exe"
         sys32 = "%SystemRoot%\\System32"  # Windows' own tools, whatever else is on PATH
         lines = [
             "@echo off",
@@ -332,7 +332,7 @@ def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> Tup
         f'rm -rf "{new_app.parent}"',
     ]
     if restart:
-        lines.append(f'open "{old}"' if sys.platform == "darwin" else f'"{old}/papermini-gui" &')
+        lines.append(f'open "{old}"' if sys.platform == "darwin" else f'"{old}/papermini" &')
     lines.append('rm -f "$0"')
     script = folder / "update.sh"
     script.write_text("\n".join(lines) + "\n", encoding="utf-8")

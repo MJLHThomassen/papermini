@@ -34,8 +34,8 @@ from fake_update import make_release  # noqa: E402
 
 MAC = sys.platform == "darwin"
 APP = "papermini.app" if MAC else "papermini"
-GUI = ("Contents/MacOS/papermini-gui" if MAC
-       else "papermini-gui.exe" if sys.platform == "win32" else "papermini-gui")
+GUI = ("Contents/MacOS/papermini" if MAC   # (started without a command: the desktop app)
+       else "papermini.exe" if sys.platform == "win32" else "papermini")
 MARKER = "OLD-COPY.txt"
 WORK = Path(tempfile.gettempdir()) / "papermini-update-build"  # build/ and dist/ of the test
 HOW = ("In papermini: open the menu, choose 'Check for updates...', click Update, then\n"

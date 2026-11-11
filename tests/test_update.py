@@ -247,3 +247,18 @@ def test_release_key_writes_the_public_key(monkeypatch, tmp_path):
     assert len(base64.b64decode(public)) == 32 and len(base64.b64decode(key_file.read_text())) == 32
     with pytest.raises(SystemExit, match="exists"):  # never replaces a key by accident
         release_key.main()
+
+
+def test_helper_restarts_papermini_itself(tmp_path):
+    """After Restart now, the helper starts the one papermini program (which opens the
+    desktop app without a command)."""
+    script, _ = update.install_script(tmp_path / "new" / "papermini",
+                                      tmp_path / "old" / "papermini", 1, restart=True)
+    text = script.read_text()
+    assert "papermini-gui" not in text
+    if sys.platform == "win32":
+        assert 'start "" "' in text and text.count("papermini.exe") == 1
+    elif sys.platform == "darwin":
+        assert "open " in text
+    else:
+        assert '/papermini" &' in text

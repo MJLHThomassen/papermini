@@ -48,7 +48,7 @@ def pretend_app(where: Path, version: str, note: str) -> Path:
     if app.exists():
         shutil.rmtree(app)
     app.mkdir(parents=True)
-    exe = "papermini-gui.exe" if sys.platform == "win32" else "papermini-gui"
+    exe = "papermini.exe" if sys.platform == "win32" else "papermini"
     (app / exe).write_text(f"pretend papermini {version}\n", encoding="utf-8")
     (app / "VERSION.txt").write_text(f"{version} ({note})\n", encoding="utf-8")
     return app
@@ -142,9 +142,9 @@ def main() -> None:
         print(f"\nThen start papermini from source in that shell. On closing it, "
               f"{installed} is replaced by the update (see its VERSION.txt).")
     else:
-        exe = ("papermini.app/Contents/MacOS/papermini-gui" if sys.platform == "darwin"
-               else "papermini\\papermini-gui.exe" if sys.platform == "win32"
-               else "papermini/papermini-gui")
+        exe = ("papermini.app/Contents/MacOS/papermini" if sys.platform == "darwin"
+               else "papermini\\papermini.exe" if sys.platform == "win32"
+               else "papermini/papermini")
         print(f"\nThen copy {args.app} somewhere outside dist (that copy plays the installed "
               f"app), and start its {exe} in that shell. Update it from the About window; "
               "on closing, the copy is replaced by the update.")
