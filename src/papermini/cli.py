@@ -197,7 +197,8 @@ def _expand(patterns: List[str]) -> List[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="papermini", description="Turn illustrations into print-ready paper miniatures.")
+        prog="papermini", description="Turn illustrations into print-ready paper miniatures. "
+                                      "Without a command, papermini opens the desktop app.")
     p.add_argument("--version", action="version", version=f"papermini {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -239,14 +240,30 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--no-cache", action="store_true")
     bt.set_defaults(func=cmd_batch)
 
-    gu = sub.add_parser("gui", help="open the desktop app (needs papermini[gui])")
+    gu = sub.add_parser("gui", help="open the desktop app (also what papermini does without a "
+                                    "command)")
     gu.add_argument("files", nargs="*", help="images or a project .yaml to open")
     gu.set_defaults(func=cmd_gui)
     return p
 
 
+COMMANDS = ("make", "sheet", "batch", "gui")
+
+
+def route(argv: List[str]) -> List[str]:
+    """Turn the program's arguments into a command: a command or an option runs the
+    command line as given; no arguments, or only files (an image dropped on the program,
+    or opened with it), open the desktop app with those files."""
+    args = [a for a in argv if not a.startswith("-psn_")]  # (older macOS adds a process id)
+    if not args:
+        return ["gui"]
+    if args[0] in COMMANDS or args[0].startswith("-"):
+        return args
+    return ["gui", *args]
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    a = build_parser().parse_args(argv)
+    a = build_parser().parse_args(route(sys.argv[1:] if argv is None else argv))
     try:
         return a.func(a)
     except (ValueError, FileNotFoundError, ModelError) as e:

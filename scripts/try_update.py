@@ -4,6 +4,8 @@
     python scripts/try_update.py --no-build   # the same with the last build of this script
     python scripts/try_update.py --source     # no build: papermini run from source updates
                                               # a pretend installed copy (quick)
+    python scripts/try_update.py --installer  # Windows: install the build with its installer,
+                                              # then update it with a newer installer
 
 It builds in the temp folder (papermini-update-build), not in the project's dist/, so a
 cloud sync of the project (such as OneDrive) cannot lock the build. It copies the build
@@ -13,6 +15,12 @@ fake, signed release 99.0.0 of the build (scripts/fake_update.py) and starts the
 pointed at that release. Update it in papermini (the menu's Check for updates, then
 Update and Restart now, or close papermini), and the script then says whether the copy
 was replaced. ``just try-update`` and ``just try-update-source`` run it.
+
+With --installer (Windows, needs Inno Setup 6) it builds the installer of the build and
+installs it silently into a test folder in the temp folder (this is a real install of
+papermini for your user: it shows in Apps & features). The fake release 99.0.0 then holds
+an installer, and the script checks that Apps & features shows 99.0.0 after the update.
+Uninstall it afterwards in Apps & features. ``just try-update-installer`` runs it.
 """
 
 from __future__ import annotations
@@ -34,8 +42,8 @@ from fake_update import make_release  # noqa: E402
 
 MAC = sys.platform == "darwin"
 APP = "papermini.app" if MAC else "papermini"
-GUI = ("Contents/MacOS/papermini-gui" if MAC
-       else "papermini-gui.exe" if sys.platform == "win32" else "papermini-gui")
+GUI = ("Contents/MacOS/papermini" if MAC   # (started without a command: the desktop app)
+       else "papermini.exe" if sys.platform == "win32" else "papermini")
 MARKER = "OLD-COPY.txt"
 WORK = Path(tempfile.gettempdir()) / "papermini-update-build"  # build/ and dist/ of the test
 HOW = ("In papermini: open the menu, choose 'Check for updates...', click Update, then\n"
@@ -66,13 +74,57 @@ def run(app_cmd, env: dict) -> None:
     subprocess.run(app_cmd, env={**os.environ, **env}, cwd=ROOT)
 
 
+def installed_version() -> str:
+    """The version of papermini in Apps & features ("" when it is not installed)."""
+    import winreg
+
+    from papermini.update import SETUP_KEY
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, SETUP_KEY) as k:
+            return str(winreg.QueryValueEx(k, "DisplayVersion")[0])
+    except OSError:
+        return ""
+
+
+def try_installer(build: Path) -> None:
+    """Install ``build`` with its installer, then update it with the installer of a
+    fake release 99.0.0 and check that Apps & features shows the new version."""
+    from build_installer import build as build_setup
+
+    from papermini import __version__
+
+    setups = WORK / "installers"
+    print("Building the installers (this version and the fake 99.0.0)...")
+    first = build_setup(__version__, build, setups)
+    newer = build_setup("99.0.0", build, setups)
+    target = fresh(Path(tempfile.gettempdir()) / "papermini-installer-test") / "papermini"
+    print(f"Installing papermini {__version__} into {target}...")
+    subprocess.run([str(first), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+                    f"/DIR={target}"], check=True)
+    print(f"Apps & features: papermini {installed_version()}")
+    env, _, _ = make_release(version="99.0.0", setup=newer)
+    run([str(target / "papermini.exe")], env)
+    # the helper runs the new installer once papermini has quit (and restarts it, if asked)
+    ok = wait_for(lambda: installed_version() == "99.0.0", 90)
+    print("Updated: Apps & features shows papermini 99.0.0." if ok else
+          f"Not updated: Apps & features shows papermini {installed_version()} "
+          "(was the update installed?).")
+    print("Uninstall it in Apps & features (papermini) when you are done; answer No when "
+          "it asks to delete the cache, unless you want to download the models again.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--no-build", action="store_true",
                     help="use the last build of this script as it is")
     ap.add_argument("--source", action="store_true",
                     help="no build: papermini from source updates a pretend installed copy")
+    ap.add_argument("--installer", action="store_true",
+                    help="Windows: update a copy installed with the installer")
     args = ap.parse_args()
+    if args.installer and sys.platform != "win32":
+        sys.exit("--installer is for Windows only")
 
     if args.source:
         env, installed, _ = make_release()
@@ -92,6 +144,9 @@ def main() -> None:
                         "--workpath", str(WORK / "build")], cwd=ROOT, check=True)
     if not build.exists():
         sys.exit(f"{build} does not exist: run without --no-build to build it")
+    if args.installer:
+        try_installer(build)
+        return
     copy = fresh(Path(tempfile.gettempdir()) / "papermini-update-test") / APP
     print(f"Copying the build to {copy} (it plays the installed papermini)...")
     shutil.copytree(build, copy, symlinks=True)

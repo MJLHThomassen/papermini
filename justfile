@@ -33,6 +33,10 @@ gui *args:
 build:
     {{ run }}"{{ python }}" -m PyInstaller packaging/papermini.spec --noconfirm
 
+# build the Windows installer of the build in dist/ (needs Inno Setup 6)
+installer:
+    {{ run }}"{{ python }}" scripts/build_installer.py
+
 # build, then update a copy of the build to a fake signed release (see scripts/try_update.py)
 try-update:
     {{ run }}"{{ python }}" scripts/try_update.py
@@ -40,6 +44,10 @@ try-update:
 # the same with the last build of try-update (it builds in the temp folder)
 try-update-nobuild:
     {{ run }}"{{ python }}" scripts/try_update.py --no-build
+
+# Windows: install the build with its installer, then update it with a newer installer
+try-update-installer:
+    {{ run }}"{{ python }}" scripts/try_update.py --installer
 
 # quick: papermini from source updates a pretend installed copy (no build)
 try-update-source:

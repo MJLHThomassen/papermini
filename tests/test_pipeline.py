@@ -404,3 +404,18 @@ def test_batch_cut_by_machine_builds_the_bleed(figure, tmp_path):
     plain = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
     bled = read_svg(tmp_path / "out" / "b.svg")
     assert bled.width_mm > plain.width_mm + 2  # built with the sheet's bleed
+
+
+def test_no_command_opens_the_app(monkeypatch):
+    """One program for both: without a command (double-clicked, or with files dropped on
+    it) papermini opens the desktop app; with a command it runs the command line."""
+    import papermini.gui
+    from papermini import cli
+
+    opened = []
+    monkeypatch.setattr(papermini.gui, "run", lambda files=None: opened.append(list(files)) or 0)
+    assert cli.main([]) == 0 and opened[-1] == []
+    assert cli.main(["hero.png", "lair.yaml"]) == 0 and opened[-1] == ["hero.png", "lair.yaml"]
+    assert cli.route(["make", "hero.png"]) == ["make", "hero.png"]
+    assert cli.route(["--version"]) == ["--version"]
+    assert cli.route(["-psn_0_42"]) == ["gui"]  # (older macOS adds a process id)
