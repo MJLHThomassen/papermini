@@ -48,10 +48,15 @@ src/papermini/
   cache.py      in-memory LRU caches for the pipeline stages
   remote.py     images from links (downloaded once into the cache), image types
   svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
+  update.py     the app's updates: check GitHub, download, verify the release
+                signature, install when the app closes
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
-                prefs, models: download dialog and Models window)
+                prefs, about, export, models: download dialog and Models window)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
-scripts/        setup_venv.py, screenshots.py, release_notes.py
+scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
+                sign_release.py (release signing); fake_update.py and
+                try_update.py (try the app's update locally)
+justfile        the common tasks (just setup, test, gui, build, try-update, ...)
 packaging/      PyInstaller spec, entry scripts and app icon (make_icon.py)
 .github/        CI (tests on push/PR) and release (binaries on version tags)
 examples/       minis.yaml (a batch example) and dragons/: the images and
@@ -89,6 +94,9 @@ docs/           reference.md (full option docs) and README screenshots
 - **Binaries:** new runtime dependencies or data files must also work in the
   PyInstaller build (`packaging/papermini.spec`). After such a change, build
   locally and run the frozen `papermini --version` and a `papermini make`.
+- **Updates:** never weaken the release signature check in `update.py`, and
+  never commit a private release key. Try a change to updating with
+  `just try-update` (a real build) or `just try-update-source`.
 - **Docs:** user-facing behaviour goes in `docs/reference.md`; keep `README.md`
   short (features, usage with screenshots, CLI basics, development setup).
 
