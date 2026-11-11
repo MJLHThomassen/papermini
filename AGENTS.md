@@ -62,7 +62,8 @@ justfile        the common tasks (just setup, test, gui, build, try-update, ...)
 packaging/      PyInstaller spec (one program: the app without a command, the command
                 line with one), its entry script, app icon (make_icon.py) and the
                 Inno Setup script of the Windows installer (papermini.iss)
-.github/        CI (tests on push/PR) and release (binaries on version tags)
+.github/        CI (tests on push/PR) and release (binaries on version tags);
+                ci-image/: the image the Linux tests run in (Python, Qt's libraries)
 examples/       minis.yaml (a batch example) and dragons/: the images and
                 project of the README screenshots, and the sample outputs
 docs/           reference.md (full option docs) and README screenshots
