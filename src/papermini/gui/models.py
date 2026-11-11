@@ -1,4 +1,5 @@
-"""Model downloads: the approve-and-download dialog and the Models window."""
+"""Model downloads and the cache: the approve-and-download dialog and the Cache
+Management window."""
 
 from __future__ import annotations
 
@@ -6,15 +7,32 @@ import html
 import threading
 import urllib.parse
 
-from PySide6.QtCore import QObject, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QLayout, QMessageBox,
-                               QProgressBar,
-                               QPushButton, QVBoxLayout)
+                               QProgressBar, QPushButton, QScrollArea, QVBoxLayout,
+                               QWidget)
 
-from .. import segment
+from .. import remote, segment
 
 MB = 1024 * 1024
+CONTENT_WIDTH = 644  # the Cache Management window's content opens this wide
+
+
+def _size(files) -> str:
+    """The total size of ``files``, in MB (with a decimal below 10 MB)."""
+    total = 0
+    for f in files:
+        try:
+            total += f.stat().st_size
+        except OSError:
+            pass
+    mb = total / MB
+    return f"{mb:.1f} MB" if mb < 10 else f"{mb:.0f} MB"
+
+
+def _count(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
 
 
 def _host(model: str) -> str:
@@ -176,9 +194,10 @@ class DownloadDialog(QDialog):
 
 
 class ModelCard(QFrame):
-    """One built-in model in the Models window: what it is, where it is, actions."""
+    """One built-in model in the Cache Management window: what it is, where it is,
+    actions."""
 
-    def __init__(self, model: str, dialog: "ModelsDialog"):
+    def __init__(self, model: str, dialog: "CacheDialog"):
         super().__init__()
         self.setObjectName("ModelCard")
         self.model, self.dialog = model, dialog
@@ -222,51 +241,141 @@ class ModelCard(QFrame):
         self.btn_del.setAccessibleName(f"Delete {spec['title']}")
 
 
-class ModelsDialog(QDialog):
-    """Which background-removal models are downloaded, where, and actions on them."""
+class CacheCard(QFrame):
+    """A kind of cached file in the Cache Management window: what it is, how much
+    there is, and Clear."""
+
+    def __init__(self, title: str, about: str, clear):
+        super().__init__()
+        self.setObjectName("ModelCard")
+        h = QHBoxLayout(self)
+        h.setContentsMargins(14, 12, 14, 12)
+        h.setSpacing(14)
+        v = QVBoxLayout()
+        v.setSpacing(3)
+        v.addWidget(_label(f"<b>{html.escape(title)}</b>"))
+        v.addWidget(_label(html.escape(about), "Muted"))
+        self.state = _label("", "Hint")
+        v.addWidget(self.state)
+        h.addLayout(v, 1)
+        self.btn_clear = QPushButton("Clear")
+        self.btn_clear.setAccessibleName(f"Clear {title.lower()}")
+        self.btn_clear.clicked.connect(clear)
+        h.addWidget(self.btn_clear, 0, Qt.AlignVCenter)
+
+    def show_state(self, text: str, can_clear: bool):
+        self.state.setText(text)
+        self.btn_clear.setEnabled(can_clear)
+
+
+class CacheDialog(QDialog):
+    """The Cache Management window: the cache folder, which background-removal models
+    are downloaded (with actions on them), and papermini's other cached files (masks,
+    images from links), which it can clear. Resizable: the content scrolls when the
+    window is too small for it. ``in_use()`` gives the image files of the open
+    figures, which clearing keeps."""
 
     changed = Signal(str)  # a model was downloaded or deleted
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, in_use=lambda: ()):
         super().__init__(parent)
-        self.setObjectName("ModelsDialog")
-        self.setWindowTitle("Models")
-        v = QVBoxLayout(self)
-        v.setSizeConstraint(QLayout.SetFixedSize)  # as tall as the content, no gaps
-        v.setContentsMargins(22, 20, 22, 18)
+        self.setObjectName("CacheDialog")
+        self.setWindowTitle("Cache Management")
+        self.setSizeGripEnabled(True)
+        self.in_use = in_use
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 18)
+        outer.setSpacing(0)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("CacheScroll")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        content = QWidget()
+        content.setObjectName("CacheContent")
+        v = QVBoxLayout(content)
+        v.setContentsMargins(22, 20, 22, 6)
         v.setSpacing(10)
-        v.addWidget(_label("Background-removal models", "DialogTitle", wrap=False))
-        intro = _label(
-            "Models are downloaded once and kept on this computer. Delete one to free disk "
-            "space: papermini asks before downloading it again when you next use it.", "Muted")
-        intro.setMinimumWidth(600)  # sets the dialog width (its height follows)
-        v.addWidget(intro)
-        folder = QHBoxLayout()
-        self.folder = _label(f"Folder: {html.escape(str(segment.cache_dir()))}", "Hint")
+
+        v.addWidget(_label("Cache", "DialogTitle", wrap=False))
+        about = _label("papermini keeps its downloaded models and other cached files in "
+                       "one folder.", "Muted")
+        v.addWidget(about)
+        top = QHBoxLayout()
+        top.setSpacing(10)
+        self.folder = _label(html.escape(str(segment.cache_dir())), "Hint")
         self.folder.setTextInteractionFlags(Qt.TextSelectableByMouse)
         btn_open = QPushButton("Open folder")
         btn_open.clicked.connect(lambda: QDesktopServices.openUrl(
             QUrl.fromLocalFile(str(segment.cache_dir()))))
-        folder.addWidget(self.folder, 1)
-        folder.addWidget(btn_open)
-        v.addLayout(folder)
+        self.btn_all = QPushButton("Clear cache…")
+        self.btn_all.setToolTip("Delete everything in the cache folder: the downloaded "
+                                "models, the masks and the images from links")
+        self.btn_all.clicked.connect(self.delete_all)
+        top.addWidget(self.folder, 1)
+        top.addWidget(btn_open, 0, Qt.AlignVCenter)
+        top.addWidget(self.btn_all, 0, Qt.AlignVCenter)
+        v.addLayout(top)
+
+        v.addSpacing(10)
+        v.addWidget(_label("Background-removal models", "DialogTitle", wrap=False))
+        v.addWidget(_label(
+            "Models are downloaded once and kept on this computer. Delete one to free disk "
+            "space: papermini asks before downloading it again when you next use it.",
+            "Muted"))
         v.addSpacing(4)
         self.cards = {m: ModelCard(m, self) for m in segment.ONNX_MODELS}
         for card in self.cards.values():
             v.addWidget(card)
-        v.addSpacing(6)
-        row = QHBoxLayout()
+
+        v.addSpacing(10)
+        v.addWidget(_label("Other cached files", "DialogTitle", wrap=False))
+        v.addWidget(_label("papermini keeps these to open figures quickly. Clear them to "
+                           "free disk space: papermini makes or downloads them again "
+                           "when it needs them.", "Muted"))
+        self.masks = CacheCard(
+            "Masks", "The background removal of each image, so a figure need not run "
+            "the model again.", self.clear_masks)
+        self.images = CacheCard(
+            "Images from links", "The images of figures added from a link. Images that "
+            "open figures use are kept.", self.clear_images)
+        v.addWidget(self.masks)
+        v.addWidget(self.images)
+        v.addStretch(1)
+        self.scroll.setWidget(content)
+        outer.addWidget(self.scroll, 1)
+
+        row = QHBoxLayout()  # (outside the scrolling part: always in view)
+        row.setContentsMargins(22, 12, 22, 0)
         row.addStretch(1)
         close = QPushButton("Close")
         close.setDefault(True)
         close.clicked.connect(self.accept)
         row.addWidget(close)
-        v.addLayout(row)
+        outer.addLayout(row)
+        self.refresh_cache()
+        self._fit(content)
+
+    def _fit(self, content: QWidget):
+        """Open as large as the content, but no larger than the screen allows."""
+        inner = max(CONTENT_WIDTH, content.minimumSizeHint().width())
+        width = inner + self.scroll.verticalScrollBar().sizeHint().width()
+        lay = content.layout()
+        height = (lay.totalHeightForWidth(inner) if lay.hasHeightForWidth()
+                  else content.sizeHint().height())
+        want = QSize(width, height + self.layout().sizeHint().height()
+                     - self.scroll.sizeHint().height() + 2)  # (+ the Close row)
+        screen = (self.parent().screen() if self.parent() is not None
+                  else QGuiApplication.primaryScreen())
+        if screen is not None:
+            room = screen.availableGeometry().size() * 0.9
+            want = want.boundedTo(QSize(int(room.width()), int(room.height())))
+        self.resize(want)
 
     def download(self, model: str):
         DownloadDialog(model, self, ask=False,
                        force=segment.model_path(model).exists()).exec()
         self.cards[model].refresh()
+        self.refresh_cache()
         if segment.model_path(model).exists():
             self.changed.emit(model)
 
@@ -284,4 +393,67 @@ class ModelsDialog(QDialog):
         except OSError as e:
             QMessageBox.warning(self, "Delete model", f"Could not delete the file: {e}")
         self.cards[model].refresh()
+        self.refresh_cache()
         self.changed.emit(model)
+
+    def _kept(self) -> list:
+        """The downloaded images that open figures use."""
+        folder = remote.cached_images()
+        use = {str(p) for p in self.in_use()}
+        return [p for p in folder if str(p) in use]
+
+    def refresh_cache(self):
+        masks = segment.cached_masks()
+        self.masks.show_state(f"{_count(len(masks), 'mask', 'masks')} · {_size(masks)}"
+                              if masks else "No masks", bool(masks))
+        images, kept = remote.cached_images(), self._kept()
+        text = (f"{_count(len(images), 'image', 'images')} · {_size(images)}" if images
+                else "No images")
+        if kept:
+            text += f" · {len(kept)} in use by open figures"
+        self.images.show_state(text, len(images) > len(kept))
+        self.btn_all.setEnabled(bool(self._downloaded() or masks or len(images) > len(kept)))
+
+    def _downloaded(self) -> list:
+        """The built-in models that are downloaded."""
+        return [m for m in segment.ONNX_MODELS if segment.model_path(m).exists()]
+
+    def delete_all(self):
+        """Delete the downloaded models, the masks and the images from links (except
+        those open figures use), after asking."""
+        models = self._downloaded()
+        kept = set(map(str, self._kept()))
+        files = ([segment.model_path(m) for m in models] + segment.cached_masks()
+                 + [p for p in remote.cached_images() if str(p) not in kept])
+        ok = QMessageBox.question(
+            self, "Clear cache",
+            f"Clear the whole cache ({_size(files)})? This also deletes the downloaded "
+            "models, not only the masks and images from links."
+            "\n\npapermini asks before downloading a model again, the next time a figure "
+            "needs it. Images that open figures use are kept.",
+            QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
+        if ok != QMessageBox.Yes:
+            return
+        failed = []
+        for m in models:
+            try:
+                segment.delete_model(m)
+            except OSError as e:
+                failed.append(f"{segment.model_path(m).name}: {e}")
+        segment.clear_masks()
+        remote.clear_images(keep=self._kept())
+        for card in self.cards.values():
+            card.refresh()
+        self.refresh_cache()
+        for m in models:
+            self.changed.emit(m)
+        if failed:
+            QMessageBox.warning(self, "Clear cache", "Could not delete:\n" + "\n".join(failed))
+
+    def clear_masks(self):
+        segment.clear_masks()
+        self.refresh_cache()
+
+    def clear_images(self):
+        remote.clear_images(keep=self._kept())
+        self.refresh_cache()

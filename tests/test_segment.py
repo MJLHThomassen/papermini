@@ -153,7 +153,7 @@ def test_refused_download_explains_and_downloads_nothing(monkeypatch, tmp_path, 
     got = fake_downloads(monkeypatch, tmp_path)
     asked = []
     monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", lambda m: asked.append(m) or False)
-    with pytest.raises(ModelError, match="not downloaded.*Models"):
+    with pytest.raises(ModelError, match="not downloaded.*Cache management"):
         segment.get_segmenter("rmbg-1.4")
     assert asked == ["rmbg-1.4"] and got == []
     # an approved download goes ahead; a model that is already there is never asked about
@@ -276,3 +276,19 @@ def test_tests_never_use_the_network_or_the_real_cache(tmp_path):
     assert str(segment.cache_dir()) != str(Path.home() / ".cache" / "papermini")
     with pytest.raises(AssertionError, match="must not use the network"):
         segment.download("https://example.org/m.onnx", tmp_path / "m.onnx")
+
+
+def test_clear_masks_keeps_the_folder_and_other_files():
+    """Clearing the masks deletes them (and leftovers of interrupted writes) but keeps
+    the folder, so a build saving a mask meanwhile still can, and the models."""
+    d = segment.masks_dir()
+    d.mkdir(parents=True)
+    for name in ("a.png", "b.png", "c.123.456.tmp"):
+        (d / name).write_bytes(b"x")
+    model = segment.model_path(segment.DEFAULT_MODEL)
+    model.write_bytes(b"model")
+    assert [p.name for p in segment.cached_masks()] == ["a.png", "b.png"]
+    assert segment.clear_masks() == 2
+    assert d.is_dir() and not any(d.iterdir()) and segment.cached_masks() == []
+    assert model.exists()
+    assert segment.clear_masks() == 0

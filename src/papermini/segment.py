@@ -149,6 +149,33 @@ def cache_dir() -> Path:
     return d
 
 
+def masks_dir() -> Path:
+    """Where the masks of images are cached (one PNG per image, model and crop)."""
+    return cache_dir() / "masks"
+
+
+def cached_masks() -> list:
+    """The cached mask files."""
+    d = masks_dir()
+    return sorted(d.glob("*.png")) if d.is_dir() else []
+
+
+def clear_masks() -> int:
+    """Delete the cached masks (and files left from interrupted writes); returns how
+    many masks were deleted. A file another program holds open is skipped. The folder
+    stays, so a build that is saving a mask meanwhile still can."""
+    d = masks_dir()
+    gone = 0
+    for f in (sorted(d.iterdir()) if d.is_dir() else []):
+        if f.is_file():
+            try:
+                f.unlink()
+            except OSError:
+                continue
+            gone += f.suffix == ".png"
+    return gone
+
+
 def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
              cancel: Optional[threading.Event] = None) -> Path:
     """Download ``url`` to ``dest`` with progress (atomic via a .part file).
@@ -321,7 +348,7 @@ def get_segmenter(model: str):
         if not path.exists():
             if CONFIRM_DOWNLOAD is not None and not CONFIRM_DOWNLOAD(model):
                 raise ModelError(f"the {model} model is not downloaded. Download it from "
-                                 "Models… in the menu, or pick another model.")
+                                 "Cache management… in the menu, or pick another model.")
             fetch_model(model)
         return OnnxSegmenter(path, spec["size"], spec["mean"], spec["std"], spec["post"])
     if model.lower().endswith(".onnx"):

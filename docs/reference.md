@@ -28,7 +28,7 @@ the desktop app in depth, and how the pipeline works.
   and **Export…** at the bottom of the Print sheet settings. The ☰ menu has
   them too, and holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
-  or dark), **Models…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
+  or dark), **Cache management…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
   open, Ctrl+I add images, Ctrl+L add an image from a link, Ctrl+V paste images, Ctrl+S save,
   Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export the sheet,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
@@ -140,10 +140,18 @@ the desktop app in depth, and how the pipeline works.
   where it comes from, where it will be kept and its licence. *Download* shows
   the progress and can be cancelled; *Not now* leaves the figure with a note,
   and the app does not ask again until you pick another model.
-- **Models…** (☰ menu). Every built-in model with its licence, whether it is
-  downloaded, its size and file name, and the folder it is kept in (*Open
-  folder*). *Download* or *Download again* (to replace a damaged file), and
-  *Delete* to free disk space.
+- **Cache management…** (☰ menu) shows what papermini keeps on this computer,
+  in the cache folder (*Open folder*). *Clear cache…* deletes all of it,
+  downloaded models included, after asking. Below that:
+  - every built-in model with its licence, whether it is downloaded, its size and
+    file name: *Download* or *Download again* (to replace a damaged file), and
+    *Delete* to free disk space;
+  - the other cached files, with how many there are and their size: the
+    **masks** (the background removal of each image) and the **images from
+    links**. *Clear* deletes them; papermini makes or downloads them again when it
+    needs them. Images that open figures use are kept.
+
+  The window can be resized; its content scrolls when it does not fit.
 - **Check for updates…** and **About papermini** (☰ menu) open the About window,
   which shows the version and checks for a newer one; **Update automatically**
   turns the daily check and background download on or off. See
@@ -191,8 +199,8 @@ How the figure is cut out of its background.
 otherwise; a box under it says *Chosen method:* and which one it used for the
 selected figure. *Mask image file* uses a mask you painted yourself (see *Mask image
 file*). The first time a model is needed, the app asks before downloading it;
-after that, papermini works offline. **Models…** in the ☰ menu shows which
-models are downloaded, and where.
+after that, papermini works offline. **Cache management…** in the ☰ menu shows
+which models are downloaded, and where.
 
 | Model | Download | Loading | Per image | Licence |
 |---|---|---|---|---|
@@ -968,7 +976,9 @@ environment variable. After that, everything works offline, and each image takes
 a few seconds on a CPU. AI model masks are cached on disk per image, crop and
 model, so re-running with a different `--strength` or `--height-mm` skips the
 model entirely (`--no-cache` turns this off). Images from links are kept in
-`images/` in the same folder, so each link is downloaded only once.
+`images/` in the same folder, so each link is downloaded only once. In the
+desktop app, **Cache management…** in the ☰ menu shows how much space the models,
+masks and images take, and clears them.
 
 Within one run (and in the desktop app), every stage is also cached in memory:
 the decoded image, the raw mask (from the AI model, the alpha channel or a mask
