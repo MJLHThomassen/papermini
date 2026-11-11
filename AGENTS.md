@@ -55,10 +55,12 @@ src/papermini/
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
                 sign_release.py (release signing); fake_update.py and
-                try_update.py (try the app's update locally)
+                try_update.py (try the app's update locally); build_installer.py
+                (the Windows installer)
 justfile        the common tasks (just setup, test, gui, build, try-update, ...)
 packaging/      PyInstaller spec (one program: the app without a command, the command
-                line with one), its entry script and app icon (make_icon.py)
+                line with one), its entry script, app icon (make_icon.py) and the
+                Inno Setup script of the Windows installer (papermini.iss)
 .github/        CI (tests on push/PR) and release (binaries on version tags)
 examples/       minis.yaml (a batch example) and dragons/: the images and
                 project of the README screenshots, and the sample outputs
@@ -97,7 +99,9 @@ docs/           reference.md (full option docs) and README screenshots
   locally and run the frozen `papermini --version` and a `papermini make`.
 - **Updates:** never weaken the release signature check in `update.py`, and
   never commit a private release key. Try a change to updating with
-  `just try-update` (a real build) or `just try-update-source`.
+  `just try-update` (a real build) or `just try-update-source`, and a change to
+  the Windows installer or to how an installed copy updates with
+  `just try-update-installer`.
 - **Docs:** user-facing behaviour goes in `docs/reference.md`; keep `README.md`
   short (features, usage with screenshots, CLI basics, development setup).
 

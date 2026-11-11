@@ -54,8 +54,10 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 # Quick start
 
 1. Download papermini from the
-   [latest release](https://github.com/MJLHThomassen/papermini/releases/latest),
-   unpack it and start it.
+   [latest release](https://github.com/MJLHThomassen/papermini/releases/latest).
+   On Windows, run the installer (`papermini-…-windows-x64-setup.exe`), or
+   unpack the `.zip` to use papermini without installing it. On macOS and
+   Linux, unpack the download and start papermini.
 2. Make your first mini:
    1. Drop an image onto the window, for example
       [dragon.webp](examples/dragons/dragon.webp).
@@ -77,7 +79,8 @@ The downloads are not code-signed, so the first start can need one extra step:
   Privacy & Security**, scroll down to *Security* and click **Open Anyway**
   next to papermini (the button shows up after you tried to open it). Confirm,
   and from then on papermini opens as usual.
-- **Windows:** if SmartScreen warns, click *More info*, then *Run anyway*.
+- **Windows:** if SmartScreen warns about the installer or papermini, click
+  *More info*, then *Run anyway*.
 - **Linux:** Qt needs a few X11 libraries; on Debian and Ubuntu, run
   `sudo apt install libxcb-cursor0`.
 </details>
@@ -134,8 +137,8 @@ command line can rebuild too.
 
 The app is also the command line: started without a command, `papermini`
 (`papermini.exe` on Windows) opens the app; with a command, such as `make`, it
-runs that command in your terminal. On macOS it is
-`papermini.app/Contents/MacOS/papermini`. When running from source, the
+runs that command in your terminal. The Windows installer can add papermini to
+your PATH. On macOS it is `papermini.app/Contents/MacOS/papermini`. When running from source, the
 `papermini` command is in the venv (`Scripts/` on Windows, `bin/` on macOS and
 Linux).
 
@@ -223,12 +226,15 @@ birefnet models:
 
 The [justfile](justfile) has the common tasks, the same on every system (with
 [just](https://just.systems)): `just setup`, `just test`, `just gui`, `just
-build`, `just screenshots` and `just samples`; `just` lists them all.
+build`, `just installer`, `just screenshots` and `just samples`; `just` lists
+them all.
 
 To try the automatic update locally, `just try-update` builds papermini, copies
 the build to a test folder, makes a fake signed release of it and starts the
 copy pointed at that release; update it from the About window. `just
-try-update-source` does the same without a build, from source
+try-update-source` does the same without a build, from source, and `just
+try-update-installer` (Windows) installs the build with its installer and
+updates it with a newer installer
 ([scripts/try_update.py](scripts/try_update.py)).
 
 Contributors and coding agents: read [AGENTS.md](AGENTS.md) first.
@@ -251,8 +257,8 @@ git push origin v1.2.0
 ```
 
 The [release workflow](.github/workflows/release.yml) then runs the tests,
-builds the Windows, macOS and Linux downloads and publishes them as a GitHub
-release with SHA-256 checksums. The release notes list every commit since the
+builds the Windows, macOS and Linux downloads and the Windows installer, and
+publishes them as a GitHub release with SHA-256 checksums. The release notes list every commit since the
 previous version tag, grouped by Conventional Commit type, with the pull request
 each came in with (`python scripts/release_notes.py v1.2.0` shows them before
 you tag). A tag with a suffix, such as `v1.2.0-rc.1`, makes a pre-release. To try the builds without releasing, run
@@ -278,3 +284,7 @@ python scripts/setup_venv.py --dev --build
 ```
 
 The result is in `dist/`. PyInstaller builds for the system it runs on only.
+
+On Windows, `python scripts/build_installer.py` (or `just installer`) then builds
+the installer from `dist/papermini` with [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+([packaging/papermini.iss](packaging/papermini.iss)), into `dist/`.

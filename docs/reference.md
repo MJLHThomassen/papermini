@@ -11,6 +11,7 @@ the desktop app in depth, and how the pipeline works.
 - [Double-sided minis](#double-sided-minis)
 - [Cutting by machine](#cutting-by-machine)
 - [Color adjustments](#color-adjustments)
+- [Installing on Windows](#installing-on-windows)
 - [Updates](#updates)
 - [Tips](#tips)
 - [How it works](#how-it-works)
@@ -908,6 +909,23 @@ its marks with the printed ones. How depends on the machine:
    element, `line.fold` dashed lines, `text.label` and `path#cut`. The PDF is drawn
    with ReportLab in exact millimetres.
 
+## Installing on Windows
+
+Each release has a Windows installer (`papermini-…-windows-x64-setup.exe`) next
+to the `.zip`:
+
+- It installs papermini for your user only, in
+  `%LocalAppData%\Programs\papermini`, without asking for administrator rights,
+  and adds it to the Start menu. Optional: a desktop shortcut, and **Add
+  papermini to PATH** to run its [commands](#commands) in any terminal.
+- papermini then shows in **Settings → Apps** (Apps & features), where you can
+  uninstall it. The uninstaller also removes papermini from your PATH, and asks
+  whether to delete papermini's cache too: the downloaded models, masks and
+  images in `~/.cache/papermini` (or `PAPERMINI_CACHE`). Keep it if you will
+  install papermini again, so the models need not be downloaded again.
+- The `.zip` is the same app without installing: unpack it anywhere and start
+  `papermini.exe`. Both update themselves (see [Updates](#updates)).
+
 ## Updates
 
 The downloaded app keeps itself up to date:
@@ -929,11 +947,16 @@ The downloaded app keeps itself up to date:
   installed when you close papermini, with *Restart now*. After papermini has
   quit, a small helper replaces the app with the new version (and starts it
   again, after *Restart now*). Unsaved work is asked about first, as always.
+  A papermini installed with the [Windows installer](#installing-on-windows)
+  downloads the new installer instead and runs it silently, so its shortcuts and
+  its entry in Apps & features stay up to date. papermini counts as installed
+  when the installer's entry in Apps & features names its folder; other copies,
+  such as an unpacked `.zip`, replace their own folder.
   The downloads wait in `~/.cache/papermini/updates` until then.
 
 papermini can only replace itself when it may write to its folder (your own
-folders, or the usual Applications folder; `Program Files` on Windows needs
-administrator rights). Otherwise, and when it runs from source, it shows the
+folders, the installer's folder, or the usual Applications folder; `Program
+Files` on Windows needs administrator rights). Otherwise, and when it runs from source, it shows the
 new version with a link to its release page instead.
 
 ## Caching and speed
