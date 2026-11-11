@@ -289,6 +289,22 @@ def test_installer_entry_is_only_on_windows(monkeypatch):
     assert update.setup_install_dir() is None
 
 
+def test_installer_script_compiles(tmp_path):
+    """Inno Setup compiles packaging/papermini.iss, its [Code] included (Windows, with
+    Inno Setup 6 installed)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import build_installer
+
+    if sys.platform != "win32" or build_installer.find_iscc() is None:
+        pytest.skip("needs Windows and Inno Setup 6")
+    dist = tmp_path / "papermini"
+    (dist / "_internal").mkdir(parents=True)
+    (dist / "papermini.exe").write_bytes(b"pretend papermini")
+    (dist / "_internal" / "a.dll").write_bytes(b"pretend library")
+    setup = build_installer.build("0.0.1", dist, tmp_path / "out")
+    assert setup.is_file() and setup.name == "papermini-0.0.1-windows-x64-setup.exe"
+
+
 def test_installer_has_the_apps_id():
     """papermini finds the installer's entry by the AppId in papermini.iss."""
     iss = (Path(__file__).resolve().parent.parent / "packaging" / "papermini.iss").read_text()
