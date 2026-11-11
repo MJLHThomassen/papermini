@@ -262,3 +262,72 @@ def test_helper_restarts_papermini_itself(tmp_path):
         assert "open " in text
     else:
         assert '/papermini" &' in text
+
+
+# --------------------------------------------------------------------------- installer
+
+def test_only_the_installed_folder_updates_with_the_installer(monkeypatch, tmp_path):
+    """The copy that the installer's Apps & features entry names updates with the
+    installer; a copy elsewhere (unpacked, or a copy of the installed folder) does not."""
+    installed, other = tmp_path / "Programs" / "papermini", tmp_path / "copy" / "papermini"
+    installed.mkdir(parents=True)
+    other.mkdir(parents=True)
+    monkeypatch.setattr(update, "setup_install_dir", lambda: installed.resolve())
+    monkeypatch.setenv(update.INSTALL_ENV, str(installed))
+    assert update.installed_with_setup()  # (also without its uninstaller)
+    monkeypatch.setenv(update.INSTALL_ENV, str(other))
+    assert not update.installed_with_setup()
+    monkeypatch.setattr(update, "setup_install_dir", lambda: None)  # not installed
+    monkeypatch.setenv(update.INSTALL_ENV, str(installed))
+    assert not update.installed_with_setup()
+    monkeypatch.delenv(update.INSTALL_ENV)
+    assert not update.installed_with_setup()  # (run from source)
+
+
+def test_installer_entry_is_only_on_windows(monkeypatch):
+    monkeypatch.setattr(update.sys, "platform", "darwin")
+    assert update.setup_install_dir() is None
+
+
+def test_installer_has_the_apps_id():
+    """papermini finds the installer's entry by the AppId in papermini.iss."""
+    iss = (Path(__file__).resolve().parent.parent / "packaging" / "papermini.iss").read_text()
+    app_id = iss.split("AppId={", 1)[1].split("}", 1)[0].lstrip("{")
+    assert update.SETUP_KEY.endswith("\\{" + app_id + "}_is1")
+    assert update.asset_name("0.6.0", "windows-x64", setup=True) == \
+        "papermini-0.6.0-windows-x64-setup.exe"
+
+
+def test_installed_copy_downloads_the_installer(monkeypatch, tmp_path, keys, local_files):
+    private, public = keys
+    monkeypatch.setattr(update, "target", lambda: "windows-x64")
+    monkeypatch.setattr(update, "installed_with_setup", lambda: True)
+    rel = tmp_path / "release"
+    rel.mkdir()
+    setup = rel / update.asset_name("9.9.9", "windows-x64", setup=True)
+    setup.write_bytes(b"the installer")
+    sums = f"{hashlib.sha256(b'the installer').hexdigest()}  {setup.name}\n".encode()
+    (rel / update.CHECKSUMS).write_bytes(sums)
+    (rel / update.SIGNATURE).write_bytes(sign(sums, private))
+    release = update.Release("9.9.9", "", {f.name: f.as_uri() for f in rel.iterdir()})
+    monkeypatch.setenv(update.KEY_ENV, public)
+    steps = []
+    got = update.download(release, step=steps.append)
+    assert got.name == setup.name and got.read_bytes() == b"the installer"
+    assert steps == ["verifying"]  # (nothing to unpack)
+    assert update.pending() == ("9.9.9", got)
+    # a changed installer is refused, like any download
+    setup.write_bytes(b"another installer")
+    with pytest.raises(update.UpdateError, match="checksum"):
+        update.download(release)
+    assert update.pending() is None
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the installer is for Windows")
+def test_helper_runs_the_installer_silently(tmp_path):
+    setup = tmp_path / "new" / "papermini-9.9.9-windows-x64-setup.exe"
+    script, _ = update.install_script(setup, tmp_path / "papermini", 1, restart=True)
+    text = script.read_text()
+    assert f'"{setup}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART' in text
+    assert "Robocopy" not in text  # (the installer replaces the files)
+    assert 'start "" "' in text  # Restart now: start papermini after it

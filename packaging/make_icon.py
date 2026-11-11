@@ -2,7 +2,8 @@
 
     python packaging/make_icon.py
 
-PyInstaller converts the PNG to .ico (Windows) and .icns (macOS) at build time.
+PyInstaller converts the PNG to .ico (Windows) and .icns (macOS) at build time. The
+script also writes packaging/icon.ico for the Windows installer (papermini.iss).
 """
 
 import os
@@ -37,6 +38,13 @@ def main() -> None:
     out = HERE / "icon.png"
     img.save(str(out))
     print(f"wrote {out}")
+    # the Windows installer's icon (Inno Setup takes only .ico)
+    from PIL import Image
+
+    ico = HERE / "icon.ico"
+    Image.open(out).convert("RGBA").save(
+        ico, sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
+    print(f"wrote {ico}")
 
 
 if __name__ == "__main__":

@@ -68,10 +68,12 @@ def pack(app: Path, archive: Path) -> None:
 
 
 def make_release(app: Optional[Path] = None, version: str = "99.0.0",
-                 out: Optional[Path] = None) -> Tuple[Dict[str, str], Optional[Path], Path]:
+                 out: Optional[Path] = None, setup: Optional[Path] = None
+                 ) -> Tuple[Dict[str, str], Optional[Path], Path]:
     """Make the fake release (of the build ``app``, or of a pretend app with a pretend
-    installed copy). Returns (environment variables to set, the pretend installed copy
-    or None, the release folder)."""
+    installed copy; with ``setup``, of that Windows installer, for an installed
+    papermini). Returns (environment variables to set, the pretend installed copy or
+    None, the release folder)."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -88,7 +90,11 @@ def make_release(app: Optional[Path] = None, version: str = "99.0.0",
     rel = out / "release"
     rel.mkdir(parents=True)
 
-    if app is not None:
+    installed = None
+    if setup is not None:
+        archive = rel / update.asset_name(version, tgt, setup=True)
+        shutil.copy2(setup, archive)
+    elif app is not None:
         app = app.resolve()
         want = "dist/papermini.app" if sys.platform == "darwin" else "dist/papermini"
         if app.name != Path(want).name:
@@ -96,12 +102,12 @@ def make_release(app: Optional[Path] = None, version: str = "99.0.0",
         if not app.exists():
             sys.exit(f"{app} does not exist: build it first with "
                      "pyinstaller packaging/papermini.spec --noconfirm")
-        installed = None
     else:
         app = pretend_app(out / "new", version, "the update")
         installed = pretend_app(out / "installed", "0.0.1", "installed before the update")
-    archive = rel / update.asset_name(version, tgt)
-    pack(app, archive)
+    if setup is None:
+        archive = rel / update.asset_name(version, tgt)
+        pack(app, archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     sums = f"{digest}  {archive.name}\n".encode()
     (rel / update.CHECKSUMS).write_bytes(sums)

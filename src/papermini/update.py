@@ -5,7 +5,9 @@ Every release has a ``SHA256SUMS.txt`` with the checksum of each download, signe
 release workflow with a private Ed25519 key (``SHA256SUMS.txt.sig``). The app has the
 public key built in (``PUBLIC_KEY``) and installs a download only when that signature and
 its checksum match. Only the standalone app updates itself; run from source, papermini
-just reports a newer version.
+just reports a newer version. A papermini installed with the Windows installer updates
+by running the new version's installer silently; the other copies replace their folder
+(or papermini.app) with the new archive's.
 
 For trying updates locally (see scripts/fake_update.py), three environment variables
 stand in for the real thing: PAPERMINI_UPDATE_FEED (a release description in GitHub's
@@ -100,8 +102,44 @@ def target() -> Optional[str]:
     return None
 
 
-def asset_name(version: str, tgt: str) -> str:
+def asset_name(version: str, tgt: str, setup: bool = False) -> str:
+    """The release download for ``tgt``: its archive, or with ``setup`` its installer
+    (Windows)."""
+    if setup:
+        return f"papermini-{version}-{tgt}-setup.exe"
     return f"papermini-{version}-{tgt}." + ("tar.gz" if tgt.startswith("linux") else "zip")
+
+
+# the installer's entry in Apps & features (per user; the AppId in packaging/papermini.iss)
+SETUP_KEY = (r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
+             r"\{8ABD2E9A-F789-4350-88F8-2565C60699F0}_is1")
+
+
+def setup_install_dir() -> Optional[Path]:
+    """The folder the Windows installer installed papermini in, for this user, as its
+    entry in Apps & features says (None when it did not install papermini)."""
+    if sys.platform != "win32":
+        return None
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, SETUP_KEY) as k:
+            return Path(winreg.QueryValueEx(k, "Inno Setup: App Path")[0]).resolve()
+    except OSError:
+        return None
+
+
+def installed_with_setup() -> bool:
+    """Whether this papermini is the copy the Windows installer installed: the installer's
+    entry in Apps & features names this folder. That copy updates by running the
+    installer of the new version, which installs into the folder of that entry and keeps
+    the shortcuts and the entry up to date (it also puts back an uninstaller that was
+    deleted). Any other copy, such as one unpacked from the archive or a copy of the
+    installed folder, replaces its own folder."""
+    where = install_dir()
+    installed = setup_install_dir()
+    return (where is not None and installed is not None
+            and os.path.normcase(installed) == os.path.normcase(where))
 
 
 def install_dir() -> Optional[Path]:
@@ -242,12 +280,14 @@ def _unpack(archive: Path, dest: Path) -> Path:
 def download(release: Release, progress: Optional[Callable[[int, int], None]] = None,
              timeout: float = 30.0, step: Optional[Callable[[str], None]] = None) -> Path:
     """Download this computer's archive of ``release``, verify it and unpack it, ready to
-    install; returns the unpacked app. ``progress(done, total)`` hears the bytes of the
-    download (total 0 when unknown), ``step(name)`` the steps after it: "verifying" and
-    "unpacking"."""
+    install; returns the unpacked app. A papermini installed with the Windows installer
+    downloads the new installer instead, and gets that back. ``progress(done, total)``
+    hears the bytes of the download (total 0 when unknown), ``step(name)`` the steps
+    after it: "verifying" and "unpacking" (not for an installer)."""
     step = step or (lambda _name: None)
     tgt = target()
-    name = asset_name(release.version, tgt or "")
+    setup = installed_with_setup()
+    name = asset_name(release.version, tgt or "", setup)
     for need in (name, CHECKSUMS, SIGNATURE):
         if need not in release.assets:
             raise UpdateError(f"The release of papermini {release.version} has no {need}.")
@@ -260,15 +300,28 @@ def download(release: Release, progress: Optional[Callable[[int, int], None]] = 
     sig = _fetch(release.assets[SIGNATURE], where / SIGNATURE, timeout).read_bytes()
     step("verifying")
     verify(sums, sig, archive)
-    step("unpacking")
-    app = _unpack(archive, where / "new")
-    archive.unlink(missing_ok=True)
+    if setup:
+        (where / "new").mkdir()
+        app = archive.replace(where / "new" / name)
+    else:
+        step("unpacking")
+        app = _unpack(archive, where / "new")
+        archive.unlink(missing_ok=True)
     (where / READY).write_text(release.version, encoding="utf-8")
     return app
 
 
+def _new_app(new: Path) -> Optional[Path]:
+    """The update in a download's ``new`` folder: the unpacked app, or the installer."""
+    for app in ("papermini.app", "papermini"):
+        if (new / app).exists():
+            return new / app
+    return next(iter(sorted(new.glob("papermini-*-setup.exe"))), None) if new.is_dir() else None
+
+
 def pending() -> Optional[Tuple[str, Path]]:
-    """(version, unpacked app) of a downloaded update that is newer than this one."""
+    """(version, unpacked app or installer) of a downloaded update that is newer than
+    this one."""
     from . import __version__
 
     root = updates_dir()
@@ -276,12 +329,11 @@ def pending() -> Optional[Tuple[str, Path]]:
         return None
     best = None
     for d in root.iterdir():
-        ready = d / READY
-        if ready.is_file() and is_newer(d.name, __version__):
-            for app in ("papermini.app", "papermini"):
-                if (d / "new" / app).exists() and (
-                        best is None or parse_version(d.name) > parse_version(best[0])):
-                    best = (d.name, d / "new" / app)
+        if (d / READY).is_file() and is_newer(d.name, __version__):
+            app = _new_app(d / "new")
+            if app is not None and (
+                    best is None or parse_version(d.name) > parse_version(best[0])):
+                best = (d.name, app)
     return best
 
 
@@ -300,20 +352,27 @@ def forget_old() -> None:
 
 def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> Tuple[Path, list]:
     """Write the helper that replaces ``old_app`` with ``new_app`` once the process
-    ``pid`` (papermini) has quit; returns (script, command to start it)."""
+    ``pid`` (papermini) has quit; returns (script, command to start it). When
+    ``new_app`` is the Windows installer, the helper runs it silently instead (it
+    installs over the previous install)."""
     folder = Path(tempfile.mkdtemp(prefix="papermini-update-"))
     if sys.platform == "win32":
         exe = old_app / "papermini.exe"
         sys32 = "%SystemRoot%\\System32"  # Windows' own tools, whatever else is on PATH
+        if new_app.suffix.lower() == ".exe":  # the installer
+            install = [f'"{new_app}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+                       f'if %ERRORLEVEL% EQU 0 rmdir /s /q "{new_app.parent}"']
+        else:
+            install = [f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
+                       "/NFL /NDL /NJH /NJS /NP >NUL",
+                       f'if %ERRORLEVEL% LSS 8 rmdir /s /q "{new_app.parent}"']
         lines = [
             "@echo off",
             ":wait",  # until papermini has quit (its files are locked while it runs)
             f'{sys32}\\tasklist.exe /FI "PID eq {pid}" /NH 2>NUL | '
             f'{sys32}\\find.exe "{pid}" >NUL && '
             f"({sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)",
-            f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
-            "/NFL /NDL /NJH /NJS /NP >NUL",
-            f'if %ERRORLEVEL% LSS 8 rmdir /s /q "{new_app.parent}"',
+            *install,
         ]
         if restart:
             lines.append(f'start "" "{exe}"')

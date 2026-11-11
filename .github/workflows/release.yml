@@ -2,7 +2,8 @@
 #
 # - Push a version tag (vMAJOR.MINOR.PATCH, e.g. v1.2.0, or v1.2.0-rc.1 for a
 #   pre-release): tests run, binaries are built, and a GitHub release is created
-#   with the archives, their SHA-256 checksums, and notes listing every commit
+#   with the archives, the Windows installer (Inno Setup, packaging/papermini.iss),
+#   their SHA-256 checksums, and notes listing every commit
 #   since the previous version tag (scripts/release_notes.py).
 # - Run it by hand (Actions > Release > Run workflow) to build the binaries as
 #   workflow artifacts without making a release.
@@ -58,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: windows-2025  # has Inno Setup, for the installer
             target: windows-x64
           - os: macos-latest
             target: macos-arm64
@@ -132,6 +133,23 @@ jobs:
             macOS)   ditto -c -k --sequesterRsrc --keepParent dist/papermini.app "out/$base.zip" ;;
             *)       tar -C dist -czf "out/$base.tar.gz" papermini ;;
           esac
+          ls -l out
+
+      - name: Installer (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python scripts/build_installer.py --version "${{ steps.ver.outputs.name }}" \
+            --dist dist/papermini --out out
+          # install it silently for this user, run the installed papermini, uninstall it
+          setup=$(cygpath -w out/*-setup.exe)
+          dir=$(cygpath -u "$RUNNER_TEMP")/papermini-installed
+          powershell -NoProfile -Command "Start-Process -Wait '$setup' \
+            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR=$(cygpath -w "$dir")'"
+          "$dir/papermini.exe" --version
+          "$dir/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          for _ in $(seq 60); do [[ -e "$dir/papermini.exe" ]] || break; sleep 1; done
+          [[ ! -e "$dir/papermini.exe" ]] || { echo "::error::the uninstaller left papermini.exe"; exit 1; }
           ls -l out
 
       - uses: actions/upload-artifact@v7
