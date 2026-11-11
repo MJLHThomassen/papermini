@@ -1,50 +1,94 @@
 # Builds standalone binaries for Windows, macOS and Linux.
 #
-# - Push a version tag (vMAJOR.MINOR.PATCH, e.g. v1.2.0, or v1.2.0-rc.1 for a
-#   pre-release): tests run, binaries are built, and a GitHub release is created
-#   with the archives, the Windows installer (Inno Setup, packaging/papermini.iss),
-#   their SHA-256 checksums, and notes listing every commit
-#   since the previous version tag (scripts/release_notes.py).
-# - Run it by hand (Actions > Release > Run workflow) to build the binaries as
-#   workflow artifacts without making a release.
+# - Run it by hand on main (Actions > Release > Run workflow) with a version
+#   (MAJOR.MINOR.PATCH, e.g. 1.2.0, or 1.2.0-rc.1 for a pre-release), or push a
+#   version tag (v1.2.0): tests run, binaries are built, and a GitHub release is
+#   created with the archives, the Windows installer (Inno Setup,
+#   packaging/papermini.iss), their SHA-256 checksums, and notes listing every
+#   commit since the previous version tag (scripts/release_notes.py). A run by hand
+#   tags the commit it ran on (v1.2.0) once every build has passed.
+# - Run it by hand without a version to build the binaries as workflow artifacts
+#   without making a release.
 name: Release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Version to release, e.g. 1.2.0 or 1.2.0-rc.1 (tags the latest commit on
+          main as v1.2.0). Leave empty to only build the binaries.
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   version:
-    name: Check version tag
+    name: Check version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       release: ${{ steps.tag.outputs.release }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
+      tag: ${{ steps.tag.outputs.tag }}          # v1.2.0
+      version: ${{ steps.tag.outputs.version }}  # 1.2.0
+      new: ${{ steps.tag.outputs.new }}          # true: the release job makes the tag
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the existing version tags
+
       - id: tag
         shell: bash
+        env:
+          INPUT: ${{ inputs.version }}
         run: |
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+          fail() { echo "::error::$1"; exit 1; }
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME" new=false
+          elif [[ -n "${INPUT// /}" ]]; then
+            input="${INPUT// /}"
+            tag="v${input#v}" new=true
+          else
             echo "release=false" >> "$GITHUB_OUTPUT"
-            echo "Manual run: building binaries only, no release."
+            echo "Manual run without a version: building binaries only, no release."
             exit 0
           fi
           semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
-          if [[ ! "$GITHUB_REF_NAME" =~ $semver ]]; then
-            echo "::error::Tag '$GITHUB_REF_NAME' is not a semantic version (vMAJOR.MINOR.PATCH[-PRERELEASE])"
-            exit 1
+          [[ "$tag" =~ $semver ]] ||
+            fail "'$tag' is not a semantic version (MAJOR.MINOR.PATCH[-PRERELEASE])"
+          pre="${BASH_REMATCH[4]}"
+          core="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          if [[ "$new" == true ]]; then
+            [[ "$GITHUB_REF" == "refs/heads/main" ]] ||
+              fail "Run the release on main (this run is on $GITHUB_REF_NAME)"
+            ! git rev-parse -q --verify "refs/tags/$tag" > /dev/null ||
+              fail "$tag exists already: pick a new version"
+            # newer than the latest version tag (a release may follow its own pre-release)
+            latest=$(git tag -l 'v[0-9]*' --sort=-v:refname |
+                     grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | head -n 1)
+            if [[ -n "$latest" ]]; then
+              lcore="${latest#v}"; lcore="${lcore%%-*}"
+              newest=$(printf '%s\n%s\n' "$core" "$lcore" | sort -V | tail -n 1)
+              if [[ "$core" == "$lcore" ]]; then
+                [[ "$latest" == *-* ]] || fail "$tag is not newer than $latest"
+              elif [[ "$newest" != "$core" ]]; then
+                fail "$tag is not newer than $latest"
+              fi
+            fi
+            echo "Releasing $tag from $GITHUB_SHA (tagged once every build has passed)"
           fi
-          echo "release=true" >> "$GITHUB_OUTPUT"
-          if [[ -n "${BASH_REMATCH[4]}" ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
+          {
+            echo "release=true"
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "new=$new"
+            echo "prerelease=$([[ -n "$pre" ]] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
 
   test:
     needs: version
@@ -92,7 +136,13 @@ jobs:
             libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0
 
       - name: Install
-        run: python -m pip install ".[gui,build]"
+        shell: bash
+        env:
+          NEW_VERSION: ${{ needs.version.outputs.new == 'true' && needs.version.outputs.version || '' }}
+        run: |
+          # a release run by hand is not tagged yet: give setuptools-scm its version
+          if [[ -n "$NEW_VERSION" ]]; then export SETUPTOOLS_SCM_PRETEND_VERSION="$NEW_VERSION"; fi
+          python -m pip install ".[gui,build]"
 
       - name: Version
         id: ver
@@ -101,11 +151,12 @@ jobs:
           version=$(python -c "import papermini; print(papermini.__version__)")
           echo "Building papermini $version"
           if [[ "${{ needs.version.outputs.release }}" == "true" && "$version" == *dev* ]]; then
-            echo "::error::Tagged build got a development version ($version)"
+            echo "::error::Release build got a development version ($version)"
             exit 1
           fi
-          # archive names use the tag's semantic version; manual runs use the dev version
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then name="${GITHUB_REF_NAME#v}"; else name="$version"; fi
+          # archive names use the release's semantic version; other runs the dev version
+          name="${{ needs.version.outputs.version }}"
+          if [[ "${{ needs.version.outputs.release }}" != "true" ]]; then name="$version"; fi
           echo "name=${name//+/-}" >> "$GITHUB_OUTPUT"
 
       - name: Build
@@ -167,9 +218,19 @@ jobs:
         with:
           fetch-depth: 0  # the notes list every commit since the previous version tag
 
-      - name: Release notes
+      - name: Tag (a release run by hand)
+        if: needs.version.outputs.new == 'true'
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
-          python3 scripts/release_notes.py "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+
+      - name: Release notes
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          python3 scripts/release_notes.py "$TAG" --repo "$GITHUB_REPOSITORY" \
             -o "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
 
@@ -193,12 +254,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
           flags=()
           [[ "$PRERELEASE" == "true" ]] && flags+=(--prerelease)
-          gh release create "$GITHUB_REF_NAME" out/* \
+          gh release create "$TAG" out/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "papermini ${GITHUB_REF_NAME#v}" \
+            --title "papermini ${TAG#v}" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --verify-tag \
             "${flags[@]}"

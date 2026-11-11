@@ -246,24 +246,25 @@ from git tags, so there is no version number to edit: tag `v1.2.3` builds
 version 1.2.3, and commits after it report a development version such as
 `1.2.4.dev3+g1a2b3c4` (`papermini --version`).
 
-To release, tag a commit on `main` and push the tag:
+To release, open *Actions → Release → Run workflow* on GitHub, keep the branch
+`main`, enter the version (such as `1.2.0`) and run it. Or from a terminal:
 
 ```bash
-git tag v1.2.0
+gh workflow run release.yml -f version=1.2.0
 ```
 
-```bash
-git push origin v1.2.0
-```
-
-The [release workflow](.github/workflows/release.yml) then runs the tests,
-builds the Windows, macOS and Linux downloads and the Windows installer, and
-publishes them as a GitHub release with SHA-256 checksums. The release notes list every commit since the
+The [release workflow](.github/workflows/release.yml) checks that the version is
+new and newer than the latest release, runs the tests, builds the Windows, macOS
+and Linux downloads and the Windows installer, and publishes them as a GitHub
+release with SHA-256 checksums. Once every build has passed, it tags the commit
+it ran on (`v1.2.0`), so a failed run leaves no tag behind. Pushing a tag
+yourself (`git tag v1.2.0`, then `git push origin v1.2.0`) releases that commit
+the same way. The release notes list every commit since the
 previous version tag, grouped by Conventional Commit type, with the pull request
 each came in with (`python scripts/release_notes.py v1.2.0` shows them before
-you tag). A tag with a suffix, such as `v1.2.0-rc.1`, makes a pre-release. To try the builds without releasing, run
-the workflow by hand from the *Actions* tab; the downloads appear as workflow
-artifacts.
+you release). A version with a suffix, such as `1.2.0-rc.1`, makes a pre-release.
+To try the builds without releasing, run the workflow without a version; the
+downloads appear as workflow artifacts.
 
 The workflow signs each release's checksum list with the release key, which the
 app's [updates](docs/reference.md#updates) check. The private key is the
