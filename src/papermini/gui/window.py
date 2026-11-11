@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import itertools
 import re
+import sys
 import threading
 import time
 import traceback
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListView, QListWidget, QListWidgetItem,
                                QMainWindow,
@@ -81,6 +82,7 @@ class Figure:
 # --------------------------------------------------------------------------- worker
 
 class Signals(QObject):
+    update = Signal(str, object, str)      # update check: state, data, who asked (see check_updates)
     done = Signal(int, int, str, object)   # uid, gen, key, Mini
     failed = Signal(int, int, str, str)     # uid, gen, key, message
     cancelled = Signal(int, int, str)       # uid, gen, key: the user stopped the model
@@ -144,6 +146,12 @@ class MainWindow(QMainWindow):
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
+        self.sig.update.connect(self._on_update)
+        self._update_ready = None      # (version, unpacked app) to install on quit
+        self._about = None             # the About window while it is open
+        self._restart_after_update = False
+        self._checking_updates = False
+        self._update_available = None  # (release, why it cannot be installed) of the last check
         self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = set()  # models the user did not want to download (until they change model)
         self._crop_undo = []    # (figure uid, crop before a change), newest last: Ctrl+Z
@@ -171,6 +179,7 @@ class MainWindow(QMainWindow):
         self.sheet_panel.set_settings(self.project.sheet)
         self._update_title()
         self._show_current()
+        QTimer.singleShot(2000, self._startup_updates)  # (after the window is up)
 
     # ----------------------------------------------------------------- ui
     # the workflow, one view per step; any step can be opened at any time
@@ -200,6 +209,7 @@ class MainWindow(QMainWindow):
         self.panel.exportSvg.connect(self.export_current_svg)
         canvas = self._make_canvas()
         root.addWidget(self._make_header())
+        root.addWidget(self._make_update_bar())
 
         split = QSplitter(Qt.Horizontal)
         split.setHandleWidth(1)
@@ -516,6 +526,13 @@ class MainWindow(QMainWindow):
             a.setChecked(True)
         self.a_models = act("Models…", self.show_models, None,
                             "See, download or delete the background-removal models")
+        self.a_check_updates = act("Check for updates…", self.show_about, None,
+                                   "See whether there is a newer papermini, and update")
+        self.a_auto_updates = act("Update automatically", self._set_auto_updates, None,
+                                  "Look for a new version once a day, download it in the "
+                                  "background and install it when papermini closes")
+        self.a_auto_updates.setCheckable(True)
+        self.a_auto_updates.setChecked(prefs.store().value("updates/auto", True, type=bool))
 
         m = self.menu = QMenu(self)
         for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None,
@@ -538,7 +555,9 @@ class MainWindow(QMainWindow):
             self.theme_actions[mode] = a
         m.addAction(self.a_models)
         m.addSeparator()
-        m.addAction("About papermini", self._about)
+        m.addAction(self.a_check_updates)
+        m.addAction(self.a_auto_updates)
+        m.addAction("About papermini", self.show_about)
         m.addAction(self.a_quit)
         self.menu_btn.setMenu(m)
         self._sync_sides()
@@ -1531,16 +1550,23 @@ class MainWindow(QMainWindow):
         self.project_label.setText(f"{name}{'  •  unsaved changes' if self._modified else ''}")
         self._balance_header()
 
-    def _about(self):
-        QMessageBox.about(
-            self, "About papermini",
-            f"<b>papermini {__version__}</b><br><br>"
-            "Turns illustrations into print-ready paper miniatures.<br><br>"
-            "The default background-removal model, BRIA RMBG-1.4, is licensed for "
-            "<b>non-commercial use only</b>. The BiRefNet models are MIT-licensed."
-            "<br><br>"
-            "Projects are saved as batch YAML files, so you can also run them from the "
-            "command line: <code>papermini batch project.yaml</code>")
+    def show_about(self):
+        """Open the About window and start an update check for it, unless an update is
+        already downloaded or a check is running."""
+        from .about import AboutDialog
+
+        self._about = AboutDialog(self)
+        try:
+            if self._update_ready is not None:
+                self._about.update_state("ready", None, version=self._update_ready[0])
+            elif self._checking_updates:
+                self._about.update_state("checking", None)
+            else:
+                self._about.update_state("checking", None)
+                self.check_updates(source="about")
+            self._about.exec()
+        finally:
+            self._about = None
 
     # ----------------------------------------------------------------- events
     def dragEnterEvent(self, e):
@@ -1551,6 +1577,206 @@ class MainWindow(QMainWindow):
     def dropEvent(self, e):
         files, links = self._sources(e.mimeData())
         self.open_paths(files + links)
+
+    # ----------------------------------------------------------------- updates
+    def _make_update_bar(self) -> QFrame:
+        """Build the bar under the header that announces a new version or a downloaded
+        update, with buttons for the release page and for updating or restarting."""
+        bar = QFrame()
+        bar.setObjectName("UpdateBar")
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(16, 6, 10, 6)
+        h.setSpacing(10)
+        self.update_text = QLabel()
+        self.update_text.setObjectName("UpdateText")
+        h.addWidget(self.update_text, 1)
+        self.update_notes = QPushButton("What's new")
+        self.update_notes.clicked.connect(self._open_release_page)
+        self.update_restart = QPushButton("Restart now")
+        self.update_restart.setProperty("primary", True)
+        self.update_restart.clicked.connect(self._update_bar_action)
+        close = QToolButton()
+        close.setText("\u2715")
+        close.setToolTip("Hide")
+        close.clicked.connect(bar.hide)
+        for w in (self.update_notes, self.update_restart, close):
+            w.setCursor(Qt.PointingHandCursor)
+            h.addWidget(w)
+        bar.hide()
+        self.update_bar = bar
+        return bar
+
+    def _startup_updates(self):
+        """At start: offer an update downloaded earlier, or look for one (once a day)."""
+        from .. import update
+
+        if update.install_dir() is None:  # run from source: no updates of its own
+            return
+        update.forget_old()
+        ready = update.pending()
+        if ready is not None:
+            self._show_update_ready(ready[0], ready[1], "")
+            return
+        last = prefs.store().value("updates/last_check", 0.0, type=float)
+        if self.a_auto_updates.isChecked() and time.time() - last > 24 * 3600:
+            self.check_updates(False)
+
+    def check_updates(self, asked: bool = False, source: str = ""):
+        """Look for a newer papermini in the background, and download it when this copy
+        can install it. ``source`` says who asked, which decides whether to download
+        and how to report the result: "menu" (report it, and download), "auto" (the
+        daily check: download only with automatic updating on) or "about" (the About
+        window reports it and leaves downloading to the user)."""
+        source = source or ("menu" if asked else "auto")
+        if self._checking_updates:
+            return
+        self._checking_updates = True
+        download = source == "menu" or (source == "auto" and self.a_auto_updates.isChecked())
+        if source == "menu":
+            self._status("Checking for updates…")
+        threading.Thread(target=self._update_job, args=(source, download), daemon=True).start()
+
+    def download_update(self, rel, source: str = "about"):
+        """Download and verify ``rel`` in the background, ready to install on quit."""
+        if self._checking_updates:
+            return
+        self._checking_updates = True
+        threading.Thread(target=self._download_job, args=(rel, source), daemon=True).start()
+
+    def _update_job(self, source: str, download: bool):  # on a worker thread
+        from .. import __version__, update
+
+        try:
+            rel = update.latest_release()
+        except Exception as e:  # noqa: BLE001 - always report back
+            self.sig.update.emit("error", str(e), source)
+            return
+        if not update.is_newer(rel.version, __version__):
+            self.sig.update.emit("latest", rel, source)
+            return
+        why = update.unsupported()
+        if why is not None or not download:
+            self.sig.update.emit("available", (rel, why), source)
+            return
+        self._download_job(rel, source)
+
+    def _download_job(self, rel, source: str):  # on a worker thread
+        from .. import update
+
+        last = [0.0]
+
+        def progress(done, total):  # (at most ten times a second, and the end)
+            now = time.monotonic()
+            if now - last[0] >= 0.1 or done == total:
+                last[0] = now
+                self.sig.update.emit("progress", (done, total), source)
+
+        try:
+            self.sig.update.emit("downloading", rel, source)
+            app = update.download(rel, progress=progress,
+                                  step=lambda name: self.sig.update.emit(name, rel, source))
+            self.sig.update.emit("ready", (rel, app), source)
+        except Exception as e:  # noqa: BLE001 - always report back
+            self.sig.update.emit("error", str(e), source)
+
+    def _on_update(self, state: str, data, source: str):
+        from .. import __version__
+
+        if state not in ("downloading", "progress", "verifying", "unpacking"):
+            self._checking_updates = False
+        if state in ("latest", "available", "ready", "downloading"):
+            prefs.store().setValue("updates/last_check", time.time())
+        asked = source == "menu"
+        if state == "latest":
+            self._status("papermini is up to date")
+            if asked:
+                QMessageBox.information(self, "papermini",
+                                        f"papermini {__version__} is the latest version.")
+        elif state == "available":
+            rel, why = data
+            self._update_available = (rel, why)
+            self._release_page = rel.url
+            if source == "about":
+                pass  # (the About window shows it and offers to update)
+            elif source == "auto" and why is None:  # (Update automatically is off)
+                self._show_update_available(rel)
+            elif asked:
+                box = QMessageBox(QMessageBox.Information, "papermini",
+                                  f"papermini {rel.version} is available (you have "
+                                  f"{__version__}).", parent=self)
+                if why:
+                    box.setInformativeText(why)
+                page = box.addButton("Open the release page", QMessageBox.AcceptRole)
+                box.addButton(QMessageBox.Close)
+                box.exec()
+                if box.clickedButton() is page:
+                    self._open_release_page()
+        elif state == "downloading":
+            self._status(f"Downloading papermini {data.version}…")
+        elif state == "progress":
+            done, total = data
+            if total:
+                self._status(f"Downloading the update… {100 * done // total}%")
+        elif state == "ready":
+            rel, app = data
+            self._show_update_ready(rel.version, app, rel.url)
+        elif state == "error":
+            self._status(data)
+            if asked:
+                QMessageBox.warning(self, "papermini", data)
+        if self._about is not None:
+            self._about.update_state(state, data)
+
+    def _show_update_available(self, rel):
+        """Announce a new version in the update bar, with a button that opens the About
+        window to update (for the daily check with automatic updating off)."""
+        self.update_text.setText(f"papermini {rel.version} is available.")
+        self.update_restart.setText("Update…")
+        self.update_bar.show()
+
+    def _update_bar_action(self):
+        if self._update_ready is not None:
+            self._restart_for_update()
+        else:
+            self.update_bar.hide()
+            self.show_about()  # (it checks again and offers Update, with its progress)
+
+    def _show_update_ready(self, version: str, app, page: str):
+        self.update_restart.setText("Restart now")
+        self._update_ready = (version, app)
+        self._release_page = page or f"https://github.com/MJLHThomassen/papermini/releases/tag/v{version}"
+        self.update_text.setText(f"papermini {version} is ready: it is installed when you "
+                                 "close papermini.")
+        self.update_bar.show()
+        self._status(f"papermini {version} is ready to install")
+
+    def _open_release_page(self):
+        from PySide6.QtCore import QUrl
+
+        url = getattr(self, "_release_page", "") or \
+            "https://github.com/MJLHThomassen/papermini/releases/latest"
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _restart_for_update(self):
+        self._restart_after_update = True
+        if not self.close():  # (the user kept the window open, e.g. to save first)
+            self._restart_after_update = False
+
+    def _set_auto_updates(self, on: bool):
+        prefs.store().setValue("updates/auto", bool(on))
+        if on:
+            QTimer.singleShot(0, self._startup_updates)
+
+    def _install_update_on_quit(self):
+        """Start the helper that installs a downloaded update once papermini has quit."""
+        if self._update_ready is None:
+            return
+        from .. import update
+
+        try:
+            update.install_on_exit(self._update_ready[1], restart=self._restart_after_update)
+        except Exception as e:  # noqa: BLE001 - never block quitting
+            print(f"papermini: could not install the update: {e}", file=sys.stderr)
 
     def closeEvent(self, e):
         if self._maybe_save():
@@ -1565,6 +1791,7 @@ class MainWindow(QMainWindow):
             self.pool.waitForDone(15000)    # builds stop at the next checkpoint
             segment.CANCEL.clear()
             self._save_layout()
+            self._install_update_on_quit()
             e.accept()
         else:
             e.ignore()

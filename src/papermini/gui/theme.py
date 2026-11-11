@@ -308,6 +308,8 @@ QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #EmptyTitle {{ font-size: 12pt; font-weight: 600; }}
 #PanelEmpty #Muted {{ font-size: 10pt; }}
 #ErrorBanner {{ background: {t.surface}; border: 1px solid {t.danger}; border-radius: 10px; }}
+#UpdateBar {{ background: {t.accent_soft}; border-bottom: 1px solid {t.border}; }}
+#UpdateText {{ color: {t.text}; }}
 #WorkCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px; }}
 #WorkTitle {{ color: {t.text}; font-weight: 600; }}
 #StepHint {{ color: {t.muted}; font-size: 9pt; padding: 8px 10px; background: {t.surface2}; border-radius: 8px; }}

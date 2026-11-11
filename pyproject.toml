@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = ["PySide6-Essentials>=6.8"]
+gui = ["PySide6-Essentials>=6.8", "cryptography>=42"]  # (cryptography: signed updates)
 dev = ["pytest>=7"]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
 
