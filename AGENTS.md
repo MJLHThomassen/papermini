@@ -28,8 +28,10 @@ Rules for anyone, human or coding agent, working in this repository.
   aliases, migrations or fallbacks, unless the maintainer asks for them.
 - **Never hard-code a version number.** The version comes from git tags
   through setuptools-scm (`src/papermini/_version.py` is generated and
-  ignored). Releases are cut only by the maintainer, by pushing a
-  `vMAJOR.MINOR.PATCH` tag; never create or push tags yourself unless asked.
+  ignored). Releases are cut only by the maintainer: by running the release
+  workflow with a version (it tags the commit) or by pushing a
+  `vMAJOR.MINOR.PATCH` tag. Never start a release, or create or push tags,
+  yourself unless asked.
 - **Respect the model licences.** The default segmentation model, BRIA
   RMBG-1.4, is non-commercial; BiRefNet is MIT. Never add model weights to the
   repository; they are downloaded to `~/.cache/papermini/` on first use.
