@@ -919,10 +919,13 @@ to the `.zip`:
   and adds it to the Start menu. Optional: a desktop shortcut, and **Add
   papermini to PATH** to run its [commands](#commands) in any terminal.
 - papermini then shows in **Settings → Apps** (Apps & features), where you can
-  uninstall it. The uninstaller also removes papermini from your PATH, and asks
-  whether to delete papermini's cache too: the downloaded models, masks and
-  images in `~/.cache/papermini` (or `PAPERMINI_CACHE`). Keep it if you will
-  install papermini again, so the models need not be downloaded again.
+  uninstall it. The uninstaller asks you to close papermini first if it is
+  still running (its files cannot be removed while it runs). Before it removes
+  anything, it asks whether to delete papermini's cache too: the downloaded
+  models, masks and images in `~/.cache/papermini` (or `PAPERMINI_CACHE`). Keep
+  it if you will install papermini again, so the models need not be downloaded
+  again. It also removes papermini from your PATH, and lists any files it could
+  not remove, with their folder, so you can delete them yourself.
 - The `.zip` is the same app without installing: unpack it anywhere and start
   `papermini.exe`. Both update themselves (see [Updates](#updates)).
 
