@@ -1,7 +1,10 @@
 """Shared settings and project (batch YAML) round-trip."""
 
+from pathlib import Path
+
 import pytest
 
+from papermini import __version__
 from papermini.settings import (FigureEntry, FigureSettings, Project, SheetSettings,
                                 load_project, save_project)
 
@@ -46,6 +49,7 @@ def test_project_roundtrip(tmp_path):
     )
     path = save_project(p, tmp_path / "proj.yaml")
     text = path.read_text(encoding="utf-8")
+    assert text.startswith(f"papermini: {__version__}\nformat: 1\n")
     assert "img/a.png" in text and str(tmp_path) not in text  # relative paths
     q = load_project(path)
     assert q.output == "out" and q.sheet.paper == "letter" and q.sheet.title == "Crypt"
@@ -53,6 +57,65 @@ def test_project_roundtrip(tmp_path):
     assert q.figures[0].settings == p.figures[0].settings
     assert q.figures[1].settings == p.figures[1].settings
     assert q.figures[1].name == "boss" and q.figures[1].svg_name() == "boss.svg"
+
+
+def test_frozen_1_0_project():
+    path = Path(__file__).parent / "fixtures" / "project-v1.0.yaml"
+    p = load_project(path)
+    assert p.output == "finished"
+    assert p.sheet == SheetSettings(output="finished/print.pdf", paper="letter",
+                                    copies=2, title="Dragon collection")
+    assert [f.image for f in p.figures] == [
+        p.base / "images/dragon.png", p.base / "images/knight.png"]
+    assert [f.settings for f in p.figures] == [
+        FigureSettings(height_mm=45, strength=55, label="Red dragon", copies=3),
+        FigureSettings(height_mm=38, strength=55, double_sided=False, copies=2),
+    ]
+    assert p.figures[1].name == "blue-knight"
+
+
+def test_project_format_defaults_to_one_and_rejects_newer(tmp_path):
+    legacy = tmp_path / "legacy.yaml"
+    legacy.write_text("figures: [dragon.png]\n", encoding="utf-8")
+    assert load_project(legacy).figures[0].image == tmp_path / "dragon.png"
+
+    newer = tmp_path / "newer.yaml"
+    newer.write_text("papermini: 2.1.0\nformat: 2\n", encoding="utf-8")
+    with pytest.raises(ValueError) as e:
+        load_project(newer)
+    assert str(e.value) == (f"newer.yaml was made by papermini 2.1.0 (project format 2), and "
+                            f"papermini {__version__} opens project format 1. Update papermini "
+                            "to open it.")
+
+    hand_written = tmp_path / "hand.yaml"
+    hand_written.write_text("format: 2\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"^hand.yaml uses a newer project format \(project format 2\)"):
+        load_project(hand_written)
+
+    for bad in ("x", "true", "0"):
+        (tmp_path / "bad.yaml").write_text(f"format: {bad}\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="project format must be a whole number from 1"):
+            load_project(tmp_path / "bad.yaml")
+
+
+def test_errors_in_a_project_from_a_newer_papermini_say_so(tmp_path):
+    """A newer papermini of the same format may save options this one does not know: the
+    error then names the papermini that saved the project."""
+    (tmp_path / "p.yaml").write_text(
+        "papermini: 99.1.0\nformat: 1\nfigures:\n  - {image: a.png, sparkle: true}\n",
+        encoding="utf-8")
+    with pytest.raises(ValueError) as e:
+        load_project(tmp_path / "p.yaml")
+    assert str(e.value) == (f"p.yaml: a.png: unknown option(s) sparkle. The project was made by "
+                            f"papermini 99.1.0, which is newer than papermini {__version__}. "
+                            "Update papermini to open it.")
+    # the same mistake in a project from an older papermini is just the error
+    (tmp_path / "p.yaml").write_text(
+        "papermini: 0.1.0\nformat: 1\nfigures:\n  - {image: a.png, sparkle: true}\n",
+        encoding="utf-8")
+    with pytest.raises(ValueError) as e:
+        load_project(tmp_path / "p.yaml")
+    assert str(e.value) == "p.yaml: a.png: unknown option(s) sparkle"
 
 
 def test_sheet_copies_are_the_default_for_figures(tmp_path):

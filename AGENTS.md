@@ -23,9 +23,10 @@ Rules for anyone, human or coding agent, working in this repository.
   `!` after the type or scope (`feat(cli)!: ...`) or a `BREAKING CHANGE:`
   footer. One logical change per commit; pull request titles follow the same
   format.
-- **No backwards-compatibility code.** There are no released project files to
-  support yet: rename or remove options and settings outright, without
-  aliases, migrations or fallbacks, unless the maintainer asks for them.
+- **Project compatibility from 1.0.** Project files saved by 1.0 must keep
+  opening in every 1.x version. From 1.0, renaming or removing an option, CLI
+  flag or YAML key needs a migration, or must wait for 2.0. The no
+  backwards-compatibility-code rule applies only before 1.0.
 - **Never hard-code a version number.** The version comes from git tags
   through setuptools-scm (`src/papermini/_version.py` is generated and
   ignored). Releases are cut only by the maintainer: by running the release
