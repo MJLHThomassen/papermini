@@ -57,7 +57,8 @@ scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py 
                 sign_release.py (release signing); fake_update.py and
                 try_update.py (try the app's update locally)
 justfile        the common tasks (just setup, test, gui, build, try-update, ...)
-packaging/      PyInstaller spec, entry scripts and app icon (make_icon.py)
+packaging/      PyInstaller spec (one program: the app without a command, the command
+                line with one), its entry script and app icon (make_icon.py)
 .github/        CI (tests on push/PR) and release (binaries on version tags)
 examples/       minis.yaml (a batch example) and dragons/: the images and
                 project of the README screenshots, and the sample outputs

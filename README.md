@@ -132,10 +132,12 @@ command line can rebuild too.
 
 # Usage via CLI
 
-The `papermini` command comes with the app: next to `papermini-gui` in the
-Windows and Linux downloads, and at `papermini.app/Contents/MacOS/papermini` on
-macOS. When running from source, it is in the venv (`Scripts/` on Windows,
-`bin/` on macOS and Linux).
+The app is also the command line: started without a command, `papermini`
+(`papermini.exe` on Windows) opens the app; with a command, such as `make`, it
+runs that command in your terminal. On macOS it is
+`papermini.app/Contents/MacOS/papermini`. When running from source, the
+`papermini` command is in the venv (`Scripts/` on Windows, `bin/` on macOS and
+Linux).
 
 Make one SVG per image:
 
