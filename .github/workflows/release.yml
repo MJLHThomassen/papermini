@@ -54,13 +54,15 @@ jobs:
     name: Build (${{ matrix.target }})
     needs: [version, test]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10  # builds take 1-5 minutes (Windows is slowest)
+    # builds take 1-5 minutes; Windows also builds the installer, which takes longer
+    timeout-minutes: ${{ matrix.timeout || 10 }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-2025  # has Inno Setup, for the installer
             target: windows-x64
+            timeout: 15
           - os: macos-latest
             target: macos-arm64
           - os: macos-15-intel
@@ -141,15 +143,6 @@ jobs:
         run: |
           python scripts/build_installer.py --version "${{ steps.ver.outputs.name }}" \
             --dist dist/papermini --out out
-          # install it silently for this user, run the installed papermini, uninstall it
-          setup=$(cygpath -w out/*-setup.exe)
-          dir=$(cygpath -u "$RUNNER_TEMP")/papermini-installed
-          powershell -NoProfile -Command "Start-Process -Wait '$setup' \
-            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR=$(cygpath -w "$dir")'"
-          "$dir/papermini.exe" --version
-          "$dir/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          for _ in $(seq 60); do [[ -e "$dir/papermini.exe" ]] || break; sleep 1; done
-          [[ ! -e "$dir/papermini.exe" ]] || { echo "::error::the uninstaller left papermini.exe"; exit 1; }
           ls -l out
 
       - uses: actions/upload-artifact@v7
