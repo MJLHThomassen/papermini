@@ -130,3 +130,16 @@ def test_webp_file_works_like_any_other(tmp_path):
     assert m.name == "ogre" and abs(m.figure_height_mm - 42) < 0.5
     assert main(["make", (tmp_path / "ogre.webp").as_uri()]) == 0  # a file:// URI is a path
     assert (tmp_path / "ogre.svg").is_file()
+
+
+def test_clear_images_keeps_the_ones_in_use(web):
+    web["https://example.com/a.png"] = figure_bytes()
+    web["https://example.com/b.png"] = figure_bytes()
+    a = remote.fetch_image("https://example.com/a.png")
+    b = remote.fetch_image("https://example.com/b.png")
+    assert remote.cached_images() == sorted([a, b])
+    assert remote.clear_images(keep=[a]) == 1
+    assert remote.cached_images() == [a] and not b.exists()
+    # a cleared link is downloaded again
+    assert remote.fetch_image("https://example.com/b.png").exists()
+    assert remote.clear_images() == 2 and remote.cached_images() == []

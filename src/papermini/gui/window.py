@@ -30,7 +30,7 @@ from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_p
 from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
 from ..svg import write_svg
 from . import prefs, theme
-from .models import DownloadDialog, ModelsDialog
+from .models import CacheDialog, DownloadDialog
 from .export import ExportDialog
 from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
 from .views import (CropView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
@@ -524,8 +524,9 @@ class MainWindow(QMainWindow):
         for a in (self.a_left, self.a_right):
             a.setCheckable(True)
             a.setChecked(True)
-        self.a_models = act("Models…", self.show_models, None,
-                            "See, download or delete the background-removal models")
+        self.a_models = act("Cache management…", self.show_models, None,
+                            "See, download or delete the background-removal models, "
+                            "and clear papermini's other cached files")
         self.a_check_updates = act("Check for updates…", self.show_about, None,
                                    "See whether there is a newer papermini, and update")
         self.a_auto_updates = act("Update automatically", self._set_auto_updates, None,
@@ -1093,7 +1094,7 @@ class MainWindow(QMainWindow):
         try:
             if answer.get("gone"):  # the build stopped waiting (window closed): do not ask
                 return
-            if segment.model_path(model).exists():  # downloaded meanwhile (Models window)
+            if segment.model_path(model).exists():  # downloaded meanwhile (Cache Management)
                 answer["ok"] = True
                 return
             ok = DownloadDialog(model, self).exec() == QDialog.Accepted
@@ -1104,7 +1105,7 @@ class MainWindow(QMainWindow):
             done.set()
 
     def show_models(self):
-        dlg = ModelsDialog(self)
+        dlg = CacheDialog(self, in_use=lambda: [f.entry.image for f in self.figures])
         dlg.changed.connect(self._models_changed)
         dlg.exec()
 

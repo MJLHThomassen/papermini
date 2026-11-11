@@ -341,7 +341,8 @@ QMenu::item {{ padding: 6px 22px 6px 12px; border-radius: 5px; }}
 QMenu::item:selected {{ background: {t.accent_soft}; color: {t.text}; }}
 QMenu::item:disabled {{ color: {t.muted}; }}
 QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 6px; }}
-QProgressDialog, QMessageBox, #DownloadDialog, #ModelsDialog {{ background: {t.surface}; }}
+QProgressDialog, QMessageBox, #DownloadDialog, #CacheDialog {{ background: {t.surface}; }}
+#CacheScroll, #CacheContent {{ background: transparent; }}
 #DialogTitle {{ font-size: 11pt; font-weight: 600; }}
 #ModelCard {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 10px; }}
 #DownloadDialog QProgressBar {{ background: {t.surface2}; border: 1px solid {t.border};

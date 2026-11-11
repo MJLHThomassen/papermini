@@ -51,7 +51,8 @@ src/papermini/
   update.py     the app's updates: check GitHub, download, verify the release
                 signature, install when the app closes
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
-                prefs, about, export, models: download dialog and Models window)
+                prefs, about, export, models: download dialog and Cache
+                Management window)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
                 sign_release.py (release signing); fake_update.py and

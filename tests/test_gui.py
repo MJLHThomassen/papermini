@@ -695,13 +695,13 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         fig = w.current()
         assert wait(app, lambda: fig.error is not None, 30)
         assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
-        assert "Models" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
+        assert "Cache management" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
         assert model_cache == []
         assert w._confirm_download("birefnet-lite") is False   # declined: not asked again
         assert asked == ["birefnet-lite"]
 
-        # the Models window lists every model, downloads one, and the figure is retried
-        dlg = models.ModelsDialog(w)
+        # the Cache Management window lists every model, downloads one, and the figure is retried
+        dlg = models.CacheDialog(w)
         dlg.changed.connect(w._models_changed)
         assert set(dlg.cards) == set(segment.ONNX_MODELS)
         card = dlg.cards["birefnet-lite"]
@@ -732,16 +732,81 @@ def test_models_menu_entry(app):
         w.close()
 
 
+def test_cache_management_clears_masks_images_and_everything(app, model_cache, monkeypatch):
+    """The Cache Management window counts the masks and images from links, clears each,
+    keeps the images open figures use, and Clear cache also deletes the models."""
+    from papermini import remote, segment
+    from papermini.gui import models
+
+    masks = segment.masks_dir()
+    masks.mkdir(parents=True)
+    for i in range(3):
+        (masks / f"m{i}.png").write_bytes(b"x" * 1000)
+    images = []
+    for key in ("aaa", "bbb"):
+        (remote._cache_dir() / key).mkdir(parents=True)
+        images.append(remote._cache_dir() / key / f"{key}.png")
+        images[-1].write_bytes(b"x" * 1000)
+    model = segment.model_path(segment.DEFAULT_MODEL)
+    model.write_bytes(b"model")
+
+    dlg = models.CacheDialog(in_use=lambda: [images[0]])
+    assert dlg.windowTitle() == "Cache Management"
+    assert str(segment.cache_dir()) in dlg.folder.text()
+    assert dlg.masks.state.text().startswith("3 masks")
+    assert dlg.images.state.text().startswith("2 images")
+    assert "1 in use by open figures" in dlg.images.state.text()
+    dlg.masks.btn_clear.click()
+    assert dlg.masks.state.text() == "No masks" and not dlg.masks.btn_clear.isEnabled()
+    dlg.images.btn_clear.click()
+    assert images[0].exists() and not images[1].exists()
+    assert not dlg.images.btn_clear.isEnabled()  # (only the image in use is left)
+    assert model.exists() and dlg.btn_all.isEnabled()
+
+    changed = []
+    dlg.changed.connect(changed.append)
+    asked = []
+    monkeypatch.setattr(models.QMessageBox, "question",
+                        lambda *a, **k: asked.append(a[2]) or models.QMessageBox.Yes)
+    dlg.btn_all.click()
+    assert "also deletes the downloaded models" in asked[0]
+    assert not model.exists() and images[0].exists()
+    assert changed == [segment.DEFAULT_MODEL] and not dlg.btn_all.isEnabled()
+    assert "Not downloaded" in dlg.cards[segment.DEFAULT_MODEL].state.text()
+
+
+def test_cache_management_scrolls_when_short(app, model_cache):
+    """The window can be resized smaller than its content, which then scrolls, and
+    Close stays in view."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QPushButton
+
+    from papermini.gui.models import CacheDialog
+
+    dlg = CacheDialog()
+    dlg.setAttribute(Qt.WA_DontShowOnScreen)
+    dlg.show()
+    app.processEvents()
+    room = dlg.screen().availableGeometry()  # opens no larger than the screen allows
+    assert dlg.height() <= room.height() * 0.9 + 1 and dlg.width() <= room.width() * 0.9 + 1
+    dlg.resize(dlg.width(), 300)
+    app.processEvents()
+    assert dlg.height() == 300 and dlg.scroll.verticalScrollBar().isVisible()
+    close = [b for b in dlg.findChildren(QPushButton) if b.text() == "Close"][0]
+    assert not dlg.scroll.isAncestorOf(close)
+    dlg.close()
+
+
 def test_licences_are_links(app, model_cache):
     from papermini import segment
-    from papermini.gui.models import DownloadDialog, ModelsDialog
+    from papermini.gui.models import CacheDialog, DownloadDialog
 
     for model, spec in segment.ONNX_MODELS.items():
         assert spec["licence_url"].startswith("https://")
         d = DownloadDialog(model)
         assert f'<a href="{spec["licence_url"]}">' in d.body.text()
         assert d.body.openExternalLinks()
-    dlg = ModelsDialog()
+    dlg = CacheDialog()
     card = dlg.cards["birefnet"]
     assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
     assert card.licence.openExternalLinks()

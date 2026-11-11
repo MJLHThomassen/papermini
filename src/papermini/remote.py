@@ -10,6 +10,7 @@ import hashlib
 import io
 import os
 import re
+import shutil
 import threading
 import urllib.error
 import urllib.parse
@@ -62,6 +63,35 @@ def cached_image(url: str) -> Optional[Path]:
             if is_image_file(p):
                 return p
     return None
+
+
+def cached_images() -> list:
+    """The downloaded copies of every link in the cache."""
+    d = _cache_dir()
+    if not d.is_dir():
+        return []
+    return sorted(p for sub in d.iterdir() if sub.is_dir()
+                  for p in sub.iterdir() if is_image_file(p))
+
+
+def clear_images(keep=()) -> int:
+    """Delete the downloaded images, except the files in ``keep`` (images that open
+    figures use); returns how many were deleted. A link is downloaded again when a
+    project that uses it opens."""
+    d = _cache_dir()
+    if not d.is_dir():
+        return 0
+    keep = {os.path.normcase(os.path.abspath(p)) for p in keep}
+    gone = 0
+    for sub in sorted(d.iterdir()):
+        if not sub.is_dir() or any(os.path.normcase(os.path.abspath(p)) in keep
+                                   for p in sub.iterdir()):
+            continue
+        images = sum(is_image_file(p) for p in sub.iterdir())
+        shutil.rmtree(sub, ignore_errors=True)
+        if not sub.exists():
+            gone += images
+    return gone
 
 
 def _key(url: str) -> str:
