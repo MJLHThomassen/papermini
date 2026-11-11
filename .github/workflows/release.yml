@@ -49,6 +49,9 @@ jobs:
   test:
     needs: version
     uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write  # (CI pushes its Linux image when the Dockerfile changed)
 
   build:
     name: Build (${{ matrix.target }})
