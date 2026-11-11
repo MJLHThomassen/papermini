@@ -168,6 +168,13 @@ jobs:
         working-directory: out
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
 
+      - name: Sign the checksums (the app's updates check this signature)
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          python3 -m pip install --quiet "cryptography>=42"
+          python3 scripts/sign_release.py out/SHA256SUMS.txt
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}

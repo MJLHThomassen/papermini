@@ -11,6 +11,7 @@ the desktop app in depth, and how the pipeline works.
 - [Double-sided minis](#double-sided-minis)
 - [Cutting by machine](#cutting-by-machine)
 - [Color adjustments](#color-adjustments)
+- [Updates](#updates)
 - [Tips](#tips)
 - [How it works](#how-it-works)
 - [Caching and speed](#caching-and-speed)
@@ -142,6 +143,10 @@ the desktop app in depth, and how the pipeline works.
   downloaded, its size and file name, and the folder it is kept in (*Open
   folder*). *Download* or *Download again* (to replace a damaged file), and
   *Delete* to free disk space.
+- **Check for updates…** and **About papermini** (☰ menu) open the About window,
+  which shows the version and checks for a newer one; **Update automatically**
+  turns the daily check and background download on or off. See
+  [Updates](#updates).
 
 Projects are saved as **batch YAML** files, the same format as
 `papermini batch`, so anything set up in the app can be rebuilt from the
@@ -902,6 +907,34 @@ its marks with the printed ones. How depends on the machine:
 7. **Output.** The SVG has `width`/`height` in mm, a `viewBox` in mm, an `image#art`
    element, `line.fold` dashed lines, `text.label` and `path#cut`. The PDF is drawn
    with ReportLab in exact millimetres.
+
+## Updates
+
+The downloaded app keeps itself up to date:
+
+- **Checking.** A few seconds after it starts, at most once a day, papermini asks
+  GitHub for the latest release. It sends nothing about you or your files: only
+  a request for the latest release, named papermini and its version. Offline,
+  the check fails quietly. **Check for updates…** (or **About papermini**) in the
+  ☰ menu checks right away and shows the result in the About window.
+- **Downloading.** With **Update automatically** on (the default), a new version
+  is downloaded in the background. Otherwise the bar under the header says a new
+  version is available, and **Update** in the About window downloads it, with
+  its progress.
+- **Checking the download.** Every release has a list of the SHA-256 checksums
+  of its downloads, signed with papermini's release key. papermini only installs
+  a download whose list carries that signature and whose checksum matches; an
+  update that fails either check is refused.
+- **Installing.** When the update is ready, the bar under the header says it is
+  installed when you close papermini, with *Restart now*. After papermini has
+  quit, a small helper replaces the app with the new version (and starts it
+  again, after *Restart now*). Unsaved work is asked about first, as always.
+  The downloads wait in `~/.cache/papermini/updates` until then.
+
+papermini can only replace itself when it may write to its folder (your own
+folders, or the usual Applications folder; `Program Files` on Windows needs
+administrator rights). Otherwise, and when it runs from source, it shows the
+new version with a link to its release page instead.
 
 ## Caching and speed
 

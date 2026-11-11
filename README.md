@@ -43,6 +43,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   brightness, contrast, saturation and hue.
 - **Print sheets**: A4 or Letter PDF pages at real size, or an SVG per figure.
 - **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web.
+- **[Updates](docs/reference.md#updates)**: checks once a day, and installs a
+  new version when you close papermini.
 - **[App](#usage-via-gui) and [command line](#usage-via-cli)**: live previews
   in the app, batches from the command line.
 
@@ -217,6 +219,16 @@ birefnet models:
 ~/.venvs/papermini/Scripts/python scripts/screenshots.py
 ```
 
+The [justfile](justfile) has the common tasks, the same on every system (with
+[just](https://just.systems)): `just setup`, `just test`, `just gui`, `just
+build`, `just screenshots` and `just samples`; `just` lists them all.
+
+To try the automatic update locally, `just try-update` builds papermini, copies
+the build to a test folder, makes a fake signed release of it and starts the
+copy pointed at that release; update it from the About window. `just
+try-update-source` does the same without a build, from source
+([scripts/try_update.py](scripts/try_update.py)).
+
 Contributors and coding agents: read [AGENTS.md](AGENTS.md) first.
 
 ## Versions and releases
@@ -244,6 +256,14 @@ each came in with (`python scripts/release_notes.py v1.2.0` shows them before
 you tag). A tag with a suffix, such as `v1.2.0-rc.1`, makes a pre-release. To try the builds without releasing, run
 the workflow by hand from the *Actions* tab; the downloads appear as workflow
 artifacts.
+
+The workflow signs each release's checksum list with the release key, which the
+app's [updates](docs/reference.md#updates) check. The private key is the
+repository secret `RELEASE_SIGNING_KEY`; its public key is in
+`src/papermini/update.py`. `python scripts/release_key.py` makes a new pair (and
+says how to store the secret). The workflow stops when the secret does not
+belong to the public key in the code. A new key pair means that versions with
+the old public key no longer update themselves.
 
 ## Building the binaries locally
 
