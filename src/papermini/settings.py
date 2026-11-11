@@ -24,6 +24,8 @@ from .adjust import Adjustments
 from .mini import Mini, Style, make_mini
 from .sheet import CUT_MODES, MARKS, PAPER
 
+_PROJECT_FORMAT = 1
+
 
 @dataclass
 class FigureSettings:
@@ -249,6 +251,14 @@ def load_project(path: Path) -> Project:
 
     path = Path(path).resolve()
     cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    format_version = cfg.get("format", 1)
+    if isinstance(format_version, bool) or not isinstance(format_version, int):
+        raise ValueError(f"{path.name}: project format must be an integer")
+    if format_version > _PROJECT_FORMAT:
+        raise ValueError(f"{path.name}: project was made by a newer papermini "
+                         "version; update papermini to open it")
+    if format_version != _PROJECT_FORMAT:
+        raise ValueError(f"{path.name}: unsupported project format {format_version}")
     base = path.parent
     try:
         sheet = SheetSettings.from_dict(cfg.get("sheet") or {})
@@ -309,7 +319,7 @@ def save_project(p: Project, path: Path) -> Path:
             o["crop"] = list(o["crop"])
         d.update(o)
         figures.append(d)
-    cfg: Dict[str, Any] = {"output": p.output}
+    cfg: Dict[str, Any] = {"format": _PROJECT_FORMAT, "output": p.output}
     if sheet:
         cfg["sheet"] = sheet
     cfg["figures"] = figures

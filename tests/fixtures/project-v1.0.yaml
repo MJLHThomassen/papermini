@@ -1,0 +1,18 @@
+format: 1
+output: finished
+sheet:
+  output: finished/print.pdf
+  paper: letter
+  copies: 2
+  title: Dragon collection
+defaults:
+  height_mm: 45
+  strength: 55
+figures:
+  - image: images/dragon.png
+    label: Red dragon
+    copies: 3
+  - image: images/knight.png
+    name: blue-knight
+    height_mm: 38
+    double_sided: false

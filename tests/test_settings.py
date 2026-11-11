@@ -1,5 +1,7 @@
 """Shared settings and project (batch YAML) round-trip."""
 
+from pathlib import Path
+
 import pytest
 
 from papermini.settings import (FigureEntry, FigureSettings, Project, SheetSettings,
@@ -46,6 +48,7 @@ def test_project_roundtrip(tmp_path):
     )
     path = save_project(p, tmp_path / "proj.yaml")
     text = path.read_text(encoding="utf-8")
+    assert "format: 1" in text
     assert "img/a.png" in text and str(tmp_path) not in text  # relative paths
     q = load_project(path)
     assert q.output == "out" and q.sheet.paper == "letter" and q.sheet.title == "Crypt"
@@ -53,6 +56,32 @@ def test_project_roundtrip(tmp_path):
     assert q.figures[0].settings == p.figures[0].settings
     assert q.figures[1].settings == p.figures[1].settings
     assert q.figures[1].name == "boss" and q.figures[1].svg_name() == "boss.svg"
+
+
+def test_frozen_1_0_project():
+    path = Path(__file__).parent / "fixtures" / "project-v1.0.yaml"
+    p = load_project(path)
+    assert p.output == "finished"
+    assert p.sheet == SheetSettings(output="finished/print.pdf", paper="letter",
+                                    copies=2, title="Dragon collection")
+    assert [f.image for f in p.figures] == [
+        p.base / "images/dragon.png", p.base / "images/knight.png"]
+    assert [f.settings for f in p.figures] == [
+        FigureSettings(height_mm=45, strength=55, label="Red dragon", copies=3),
+        FigureSettings(height_mm=38, strength=55, double_sided=False, copies=2),
+    ]
+    assert p.figures[1].name == "blue-knight"
+
+
+def test_project_format_defaults_to_one_and_rejects_newer(tmp_path):
+    legacy = tmp_path / "legacy.yaml"
+    legacy.write_text("figures: [dragon.png]\n", encoding="utf-8")
+    assert load_project(legacy).figures[0].image == tmp_path / "dragon.png"
+
+    newer = tmp_path / "newer.yaml"
+    newer.write_text("format: 2\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="newer papermini.*update papermini"):
+        load_project(newer)
 
 
 def test_sheet_copies_are_the_default_for_figures(tmp_path):
