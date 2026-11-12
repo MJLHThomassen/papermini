@@ -1,0 +1,71 @@
+# papermini's Report a problem opens this form with some fields filled in, through the
+# URL (.../issues/new?template=bug_report.yml&version=...). Released versions fill in
+# these ids, so never rename or remove the ids of version, os, runs-as and traceback.
+name: Bug report
+description: Something in papermini does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The more you can tell, the sooner it can be fixed.
+
+  - type: input
+    id: version
+    attributes:
+      label: papermini version
+      description: In the app, ☰ → About papermini. On the command line, `papermini --version`.
+      placeholder: "1.2.3"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: The system and its version.
+      placeholder: "Windows 11, macOS 15, Ubuntu 24.04, ..."
+    validations:
+      required: true
+
+  - type: input
+    id: runs-as
+    attributes:
+      label: How papermini runs
+      description: Installed with the Windows installer, unpacked from the download, or from source (pip or a clone).
+      placeholder: "installed, unpacked or from source"
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, step by step? If it is about an image, attach a sample image if you can.
+      placeholder: |
+        1. Open ...
+        2. Set ...
+        3. ...
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Error details
+      description: The details of an error message, if there was one.
+      render: text
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: |
+        If your papermini writes a log, drag the newest log file in here (or the `.crash` file papermini names). The logs stay on your computer until you attach one:
+        - Windows: `%LOCALAPPDATA%\papermini\logs`
+        - macOS: `~/Library/Logs/papermini`
+        - Linux: `~/.local/state/papermini`
