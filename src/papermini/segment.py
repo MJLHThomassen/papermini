@@ -13,6 +13,7 @@ Backends ("models"):
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import sys
 import threading
@@ -26,6 +27,8 @@ import numpy as np
 from PIL import Image
 
 DEFAULT_MODEL = "rmbg-1.4"
+
+logger = logging.getLogger(__name__)
 
 ONNX_MODELS = {
     "rmbg-1.4": {
@@ -328,7 +331,9 @@ def fetch_model(model: str, force: bool = False, progress=None,
         path = model_path(model)
         existed = path.exists()
         if force or not existed:
+            logger.info("Downloading the %s model", model)
             download(ONNX_MODELS[model]["url"], path, progress=progress, cancel=cancel)
+            logger.info("Downloaded the %s model", model)
             if existed:  # (a missing file has no loaded session; and the build thread
                 _forget_segmenter(model)  # may hold the segmenter lock while it asks)
         return path
@@ -350,11 +355,13 @@ def get_segmenter(model: str):
                 raise ModelError(f"the {model} model is not downloaded. Download it from "
                                  "Cache management… in the menu, or pick another model.")
             fetch_model(model)
+        logger.info("Loading the %s model", model)
         return OnnxSegmenter(path, spec["size"], spec["mean"], spec["std"], spec["post"])
     if model.lower().endswith(".onnx"):
         path = Path(model).expanduser()
         if not path.exists():
             raise ModelError(f"model file not found: {path}")
+        logger.info("Loading the model %s", path)
         return OnnxSegmenter(path)
     known = ", ".join(list(ONNX_MODELS) + ["alpha", "<file>.onnx"])
     raise ModelError(f"unknown model {model!r} (known: {known})")

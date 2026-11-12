@@ -4,6 +4,7 @@ Management window."""
 from __future__ import annotations
 
 import html
+import logging
 import threading
 import urllib.parse
 
@@ -14,6 +15,8 @@ from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QLayout, QM
                                QWidget)
 
 from .. import remote, segment
+
+ui_log = logging.getLogger("papermini.ui")
 
 MB = 1024 * 1024
 CONTENT_WIDTH = 644  # the Cache Management window's content opens this wide
@@ -169,6 +172,7 @@ class DownloadDialog(QDialog):
         elif self._cancel.is_set():
             super().reject()
         else:  # keep the dialog open so the user sees why, and can retry
+            ui_log.warning("Downloading the %s model failed: %s", self.model, error)
             self.title.setText("The download failed")
             self.bar.hide()
             self.status.setText(html.escape(error))
@@ -388,9 +392,11 @@ class CacheDialog(QDialog):
             QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
         if ok != QMessageBox.Yes:
             return
+        ui_log.info("Deleting the %s model", model)
         try:
             segment.delete_model(model)
         except OSError as e:
+            ui_log.warning("Could not delete the %s model: %s", model, e)
             QMessageBox.warning(self, "Delete model", f"Could not delete the file: {e}")
         self.cards[model].refresh()
         self.refresh_cache()
@@ -434,6 +440,7 @@ class CacheDialog(QDialog):
             QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
         if ok != QMessageBox.Yes:
             return
+        ui_log.info("Clearing the whole cache")
         failed = []
         for m in models:
             try:
@@ -448,12 +455,13 @@ class CacheDialog(QDialog):
         for m in models:
             self.changed.emit(m)
         if failed:
+            ui_log.warning("Could not delete: %s", "; ".join(failed))
             QMessageBox.warning(self, "Clear cache", "Could not delete:\n" + "\n".join(failed))
 
     def clear_masks(self):
-        segment.clear_masks()
+        ui_log.info("Cleared %d cached mask(s)", segment.clear_masks())
         self.refresh_cache()
 
     def clear_images(self):
-        remote.clear_images(keep=self._kept())
+        ui_log.info("Cleared %d downloaded image(s)", remote.clear_images(keep=self._kept()))
         self.refresh_cache()

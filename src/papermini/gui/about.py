@@ -61,6 +61,7 @@ class AboutDialog(QDialog):
         text.setFixedWidth(400)
         col.addSpacing(4)
         col.addWidget(text)
+        col.addWidget(self._log_label())
         top.addLayout(col, 1)
         v.addLayout(top)
 
@@ -78,6 +79,26 @@ class AboutDialog(QDialog):
         buttons.addWidget(close)
         v.addLayout(buttons)
         self._do = None
+
+    @staticmethod
+    def _log_label() -> QLabel:
+        """Where this session's log is, as a link that opens the log folder."""
+        from .. import log
+        from .errors import open_log_folder
+
+        s = log.session()
+        if s is None:
+            label = QLabel("papermini could not write a log this time.")
+        else:
+            folder = html.escape(log.redact(str(s.log.parent)))
+            label = QLabel(f"Log: <a href='#'>{folder}</a><br>"
+                           f"<span style='font-size:small'>{html.escape(s.log.name)}</span>")
+            label.setTextFormat(Qt.RichText)
+            label.linkActivated.connect(lambda _: open_log_folder())
+            label.setToolTip("Open the log folder")
+        label.setWordWrap(True)
+        label.setFixedWidth(400)
+        return label
 
     def _offer(self, text: str, do=None):
         self.action.setText(text)

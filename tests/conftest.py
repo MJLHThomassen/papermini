@@ -1,8 +1,27 @@
-"""Shared test setup: no test may use the real models, the network or the user's cache."""
+"""Shared test setup: no test may use the real models, the network, the user's cache or
+the user's log folder."""
 
+import logging
+import sys
+import threading
 import urllib.request
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_log(monkeypatch, tmp_path_factory):
+    """Every test gets an empty log folder, and leaves no log session, logger level or
+    error hook behind."""
+    from papermini import log
+
+    monkeypatch.setenv(log.LOG_ENV, str(tmp_path_factory.mktemp("papermini-logs")))
+    hooks = sys.excepthook, threading.excepthook
+    yield
+    log.stop()
+    log.logger.setLevel(logging.NOTSET)
+    log.logger.propagate = True
+    sys.excepthook, threading.excepthook = hooks
 
 
 @pytest.fixture(autouse=True)

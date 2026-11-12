@@ -13,6 +13,7 @@ the desktop app in depth, and how the pipeline works.
 - [Color adjustments](#color-adjustments)
 - [Installing on Windows](#installing-on-windows)
 - [Updates](#updates)
+- [Logs and reporting a problem](#logs-and-reporting-a-problem)
 - [Tips](#tips)
 - [How it works](#how-it-works)
 - [Caching and speed](#caching-and-speed)
@@ -28,7 +29,8 @@ the desktop app in depth, and how the pipeline works.
   and **Export…** at the bottom of the Print sheet settings. The ☰ menu has
   them too, and holds everything else: new project, save as, export all SVGs, **View**
   (show or hide the side panels, zoom), the **theme** (follow the system, light
-  or dark), **Cache management…** and about. Keyboard shortcuts work without opening the menu: Ctrl+O
+  or dark), **Cache management…**, **Report a problem…**, the **Log** (open the log
+  folder, detailed log) and about. Keyboard shortcuts work without opening the menu: Ctrl+O
   open, Ctrl+I add images, Ctrl+L add an image from a link, Ctrl+V paste images, Ctrl+S save,
   Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export the sheet,
   Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
@@ -156,6 +158,9 @@ the desktop app in depth, and how the pipeline works.
   which shows the version and checks for a newer one; **Update automatically**
   turns the daily check and background download on or off. See
   [Updates](#updates).
+- **Report a problem…** (☰ menu) opens a new bug report on GitHub with your
+  papermini version and system filled in, and the log folder to attach the log
+  from. See [Logs and reporting a problem](#logs-and-reporting-a-problem).
 
 Projects are saved as **batch YAML** files, the same format as
 `papermini batch`, so anything set up in the app can be rebuilt from the
@@ -939,8 +944,9 @@ to the `.zip`:
   anything, it asks whether to delete papermini's cache too: the downloaded
   models, masks and images in `~/.cache/papermini` (or `PAPERMINI_CACHE`). Keep
   it if you will install papermini again, so the models need not be downloaded
-  again. It also removes papermini from your PATH, and lists any files it could
-  not remove, with their folder, so you can delete them yourself.
+  again. It also removes papermini from your PATH and deletes its
+  [logs](#logs-and-reporting-a-problem), and lists any files it could not
+  remove, with their folder, so you can delete them yourself.
 - The `.zip` is the same app without installing: unpack it anywhere and start
   `papermini.exe`. Both update themselves (see [Updates](#updates)).
 
@@ -977,6 +983,45 @@ folders, the installer's folder, or the usual Applications folder; `Program
 Files` on Windows needs administrator rights). Otherwise, and when it runs from source, it shows the
 new version with a link to its release page instead.
 
+## Logs and reporting a problem
+
+The desktop app keeps a log on your computer, so a problem can be traced and
+reported. Nothing is sent anywhere: you decide what to attach to a report.
+
+- **Where.** Each time papermini starts, it writes a new log file,
+  `papermini-<date>-<time>-<process>.log`, in your system's log folder:
+  - Windows: `%LOCALAPPDATA%\papermini\logs`
+  - macOS: `~/Library/Logs/papermini`
+  - Linux: `$XDG_STATE_HOME/papermini` (`~/.local/state/papermini` by default)
+
+  **Open log folder** (☰ menu → **Log**) opens it, and the About window shows
+  where it is. Logs older than 30 days are deleted when papermini starts, and the
+  [Windows uninstaller](#installing-on-windows) deletes the folder. Clearing the
+  cache keeps the logs. Copies of papermini running at the same time each write
+  their own file.
+- **What is in it.** The papermini version, your system, Python and Qt; what you
+  do (opening, saving and exporting, adding and removing images, the model you
+  pick, Cache management actions); model downloads and loads; update checks,
+  downloads and installs; warnings papermini shows you; and every error, with the
+  settings of the figure it happened to (those not at their default). Your home
+  folder is written as `~`. Image files are named but their contents are never
+  logged. With **Detailed log** on (☰ menu → **Log**, until papermini closes) it
+  also logs every settings change, as old → new values once the change settles,
+  and each build with its time.
+- **When something goes wrong.** An unexpected error shows *Something went
+  wrong*: it is in the log, and you can keep working (save your project soon).
+  *Show details* shows the technical details (the traceback) in a window you can
+  enlarge, and *Copy details* copies them. An error while papermini starts offers
+  *Quit* instead. If papermini closes because of a crash, it offers to report it
+  the next time it starts, once; the crash is in a `.crash.log` file next to that
+  session's log.
+- **Report a problem…** (☰ menu, the error window and the crash offer) opens a new
+  bug report on GitHub in your browser, with your papermini version, system and
+  how papermini runs filled in (and the error's details, from the error window).
+  It also opens the log folder and names the file to attach: the newest log, or
+  the crash file and log of the session that crashed. Nothing is sent until you
+  submit the report on GitHub.
+
 ## Caching and speed
 
 The first run downloads the segmentation model (~176 MB for RMBG-1.4, 215 MB
@@ -1009,5 +1054,6 @@ The tests use synthetic masks, so they need no model or download. They cover hol
 filling, part filtering, mm scaling, margin width, tab placement, a single closed
 cut path that never cuts into the drawing, figures touching the border,
 double-sided symmetry, Bézier deviation, SVG round-trip, sheet packing, PDF output,
-the batch command and project round-trip. If PySide6 is installed, an offscreen
-smoke test of the GUI also runs.
+the batch command, project round-trip and the app's log. If PySide6 is installed,
+an offscreen smoke test of the GUI also runs, with its error window and problem
+reports.
