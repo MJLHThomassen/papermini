@@ -1,0 +1,6 @@
+# Others only see the forms; the maintainer can still open a blank issue.
+blank_issues_enabled: false
+contact_links:
+  - name: papermini reference
+    url: https://github.com/MJLHThomassen/papermini/blob/main/docs/reference.md
+    about: How every setting and command works. Your answer may already be there.

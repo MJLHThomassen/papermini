@@ -65,7 +65,8 @@ packaging/      PyInstaller spec (one program: the app without a command, the co
                 line with one), its entry script, app icon (make_icon.py) and the
                 Inno Setup script of the Windows installer (papermini.iss)
 .github/        CI (tests on push/PR) and release (binaries on version tags);
-                ci-image/: the image the Linux tests run in (Python, Qt's libraries)
+                ci-image/: the image the Linux tests run in (Python, Qt's libraries);
+                ISSUE_TEMPLATE/: the bug report and feature request forms
 examples/       minis.yaml (a batch example) and dragons/: the images and
                 project of the README screenshots, and the sample outputs
 docs/           reference.md (full option docs) and README screenshots
@@ -108,6 +109,10 @@ docs/           reference.md (full option docs) and README screenshots
   `just try-update-installer`.
 - **Docs:** user-facing behaviour goes in `docs/reference.md`; keep `README.md`
   short (features, usage with screenshots, CLI basics, development setup).
+- **Issue forms:** the app's *Report a problem* fills in fields of
+  `.github/ISSUE_TEMPLATE/bug_report.yml` through the URL, by their ids
+  (`version`, `os`, `runs-as`, `traceback`). Released versions rely on them:
+  never rename or remove those ids, and keep them text fields.
 
 ## GUI pitfalls (learned the hard way)
 

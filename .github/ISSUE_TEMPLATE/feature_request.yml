@@ -1,0 +1,25 @@
+name: Feature request
+description: An idea that would make papermini better for you.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard, slow or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What would you like papermini to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: at-the-table
+    attributes:
+      label: How you would use it
+      description: How would this help you make or use minis at the table? Example images are welcome.
