@@ -285,11 +285,21 @@ def main() -> None:
         from papermini.settings import load_project
         from papermini.sheet import cut_file_svg, pack
 
+        from papermini import sizes
+
         proj = load_project(args.project)
         sh = replace(proj.sheet, cut="machine")
-        lay = pack([(build_mini(f.image, f.settings, bleed_mm=sh.figure_bleed,
+
+        def smaller(s):  # one creature size down, so all three dragons fit on one page
+            if s.size not in sizes.SIZES:
+                return s
+            down = sizes.SIZES[max(sizes.SIZES.index(s.size) - 1, 0)]
+            return sizes.apply(s, down, proj.sizes)
+
+        lay = pack([(build_mini(f.image, smaller(f.settings), bleed_mm=sh.figure_bleed,
                                 log=lambda *_: None), 1) for f in proj.figures],
                    sh.paper, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+        assert lay.pages == 1, "the machine sheet picture should fit on one page"
         k = 2.2 * ratio  # device pixels per mm
         pw, ph = lay.paper
 
