@@ -351,7 +351,6 @@ QListWidget#PrefNav::item {{ padding: 7px 10px; border-radius: 5px; color: {t.te
 QListWidget#PresetList::item {{ border-radius: 5px; }}
 QListWidget#PrefNav::item:selected, QListWidget#PresetList::item:selected {{
     background: {t.accent_soft}; color: {t.text}; }}
-#EntryName {{ color: {t.text}; }}
 #PageSection {{ font-size: 10.5pt; font-weight: 600; }}
 #DialogTitle {{ font-size: 11pt; font-weight: 600; }}
 #ModelCard {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 10px; }}

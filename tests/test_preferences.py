@@ -56,12 +56,11 @@ def _image(path):
 
 def _names(page):
     """The list as shown: (name, notes) per entry."""
-    out = []
-    for i in range(page.list.count()):
-        item = page.list.item(i)
-        label = page.list.itemWidget(item)
-        out.append((label.name.text(), label.notes.text().replace("\n", " · ")))
-    return out
+    from papermini.gui.preferences import NOTES_ROLE
+
+    return [(page.list.item(i).text(),
+             page.list.item(i).data(NOTES_ROLE).replace("\n", " · "))
+            for i in range(page.list.count())]
 
 
 def _answer(monkeypatch, name):
@@ -258,3 +257,19 @@ def test_the_other_pages(window):
     dlg.show_page("nothing")  # (an unknown page: the first)
     assert dlg.stack.currentIndex() == 0
     dlg.close()
+
+
+def test_a_sizes_page_is_freed(app):
+    """Regression: a lambda connected to the preset list kept every page alive until
+    Python quit, after the QApplication was gone, and Python crashed on exit."""
+    import gc
+    import weakref
+
+    from papermini.gui.preferences import SizesPage
+
+    page = SizesPage(sizes.BUILTIN)
+    page.copy_preset()  # (the list is filled again)
+    ref = weakref.ref(page)
+    del page
+    gc.collect()
+    assert ref() is None

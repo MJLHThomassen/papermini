@@ -14,13 +14,15 @@ import logging
 from dataclasses import replace
 from typing import List, Optional, Tuple
 
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QGridLayout, QHBoxLayout,
-                               QInputDialog, QLabel, QListWidget, QListWidgetItem, QMessageBox,
-                               QPushButton, QRadioButton, QStackedWidget, QVBoxLayout, QWidget)
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog, QGridLayout,
+                               QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
+                               QMessageBox, QPushButton, QRadioButton, QStackedWidget, QStyle,
+                               QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget)
 
 from .. import log, sizes
-from . import errors, prefs
+from . import errors, prefs, theme
 from .models import CachePage
 from .panels import DoubleSpinBox
 
@@ -30,6 +32,7 @@ DEFAULT_KEY = "sizes/default_preset"
 COLUMNS = (("height_mm", "Height"), ("base_mm", "Round base"),
            ("tab_width_mm", "Stand tab width"), ("tab_height_mm", "Stand tab height"))
 PROJECT = "project"  # the entry of a project table that matches no preset
+NOTES_ROLE = Qt.UserRole + 1  # a preset entry's notes: what it is used for, a line each
 
 
 # ----------------------------------------------------------------- presets
@@ -113,30 +116,53 @@ def _page_title(text: str) -> QLabel:
     return lab
 
 
-class _EntryLabel(QWidget):
-    """A preset list entry: the name, and below it what it is used for."""
+class _EntryDelegate(QStyledItemDelegate):
+    """Paints a preset list entry: the name, and below it, smaller and muted, a line for
+    each thing it is used for (``NOTES_ROLE``). Painted rather than a widget per entry:
+    item widgets of a list that is filled again are deleted later, which can crash Qt
+    when papermini quits."""
 
-    def __init__(self, name: str, notes: str):
-        super().__init__()
-        self.setAttribute(Qt.WA_TransparentForMouseEvents)
-        v = QVBoxLayout(self)
-        v.setContentsMargins(8, 5, 8, 5)
-        v.setSpacing(1)
-        self.name = QLabel(name)
-        self.name.setObjectName("EntryName")
-        v.addWidget(self.name)
-        self.notes = QLabel()
-        self.notes.setObjectName("Hint")
-        v.addWidget(self.notes)
-        self.set_notes(notes)
+    PAD_X, PAD_Y = 8, 5
 
-    def set_notes(self, notes: str) -> None:
-        self.notes.setText(notes)
-        self.notes.setVisible(bool(notes))
-        self.layout().activate()
+    @staticmethod
+    def _fonts(option) -> Tuple[QFont, QFont]:
+        notes = QFont(option.font)
+        notes.setPointSizeF(8.5)  # (as #Hint)
+        return QFont(option.font), notes
 
-    def height_hint(self) -> int:
-        return self.layout().sizeHint().height()
+    @staticmethod
+    def _lines(index) -> List[str]:
+        return [n for n in (index.data(NOTES_ROLE) or "").split("\n") if n]
+
+    def sizeHint(self, option, index) -> QSize:
+        name, notes = self._fonts(option)
+        lines = self._lines(index)
+        h = QFontMetrics(name).height() + len(lines) * (QFontMetrics(notes).height() + 1)
+        return QSize(200, h + 2 * self.PAD_Y)
+
+    def paint(self, p, option, index) -> None:
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""  # (the background and selection only)
+        style = opt.widget.style() if opt.widget is not None else QApplication.style()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, p, opt.widget)
+        name_font, notes_font = self._fonts(option)
+        r = option.rect.adjusted(self.PAD_X, self.PAD_Y, -self.PAD_X, -self.PAD_Y)
+        p.save()
+        fm = QFontMetrics(name_font)
+        p.setFont(name_font)
+        p.setPen(QColor(theme.current.text))
+        p.drawText(QRect(r.left(), r.top(), r.width(), fm.height()), Qt.AlignLeft | Qt.AlignVCenter,
+                   fm.elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, r.width()))
+        y = r.top() + fm.height() + 1
+        fn = QFontMetrics(notes_font)
+        p.setFont(notes_font)
+        p.setPen(QColor(theme.current.muted))
+        for line in self._lines(index):
+            p.drawText(QRect(r.left(), y, r.width(), fn.height()), Qt.AlignLeft | Qt.AlignVCenter,
+                       fn.elidedText(line, Qt.ElideRight, r.width()))
+            y += fn.height() + 1
+        p.restore()
 
 
 class SizesPage(QWidget):
@@ -172,7 +198,8 @@ class SizesPage(QWidget):
         self.list = QListWidget()
         self.list.setObjectName("PresetList")
         self.list.setFixedWidth(230)
-        self.list.currentItemChanged.connect(lambda *_: self._show_selected())
+        self.list.setItemDelegate(_EntryDelegate(self.list))
+        self.list.currentItemChanged.connect(self._show_selected)
         left.addWidget(self.list, 1)
         tools = QGridLayout()
         tools.setSpacing(6)
@@ -316,14 +343,12 @@ class SizesPage(QWidget):
         self.list.clear()
         current = None
         for key in self._entries():
-            item = QListWidgetItem()
-            item.setData(Qt.UserRole, key)
             name = "This project's table" if key[0] == PROJECT else key[1]
-            label = _EntryLabel(name, self._notes(key))
-            item.setSizeHint(QSize(200, label.height_hint()))
+            item = QListWidgetItem(name)
+            item.setData(Qt.UserRole, key)
+            item.setData(NOTES_ROLE, self._notes(key))
             item.setToolTip(name)
             self.list.addItem(item)
-            self.list.setItemWidget(item, label)
             if key == select:
                 current = item
         self.list.setCurrentItem(current or self.list.item(0))
@@ -337,12 +362,11 @@ class SizesPage(QWidget):
             return
         for i in range(self.list.count()):
             item = self.list.item(i)
-            label = self.list.itemWidget(item)
-            label.set_notes(self._notes(item.data(Qt.UserRole)))
-            item.setSizeHint(QSize(200, label.height_hint()))
+            item.setData(NOTES_ROLE, self._notes(item.data(Qt.UserRole)))
+        self.list.doItemsLayout()  # (an entry's height follows its notes)
         self._sync_buttons()
 
-    def _show_selected(self) -> None:
+    def _show_selected(self, *_) -> None:
         key = self._key()
         table = self._table(key)
         builtin = key == ("preset", sizes.BUILTIN_NAME)
