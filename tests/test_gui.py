@@ -632,14 +632,21 @@ def test_download_dialog_asks_then_downloads(app, model_cache):
 
     d = DownloadDialog("rmbg-1.4")
     assert "Download the BRIA RMBG-1.4 model?" in d.title.text()
-    assert "176 MB" in d.body.text() and "non-commercial" in d.body.text()
+    assert "176 MB" in d.body.text()
+    assert "non-commercial use only" in d.licence_note.text()
+    assert "You are responsible for not using it commercially" in d.licence_note.text()
     assert d.btn_go.text() == "Download"
     d.btn_no.click()                                   # "Not now"
     assert d.result() == QDialog.Rejected and model_cache == []
 
     d = DownloadDialog("rmbg-1.4")
+    assert not d.btn_go.isEnabled()                    # the licence is not accepted yet
+    d.start()                                          # (Enter: still nothing happens)
+    assert model_cache == [] and d.title.text().startswith("Download the")
+    d.accept_licence.setChecked(True)
+    assert d.btn_go.isEnabled()
     d.btn_go.click()                                   # "Download"
-    assert d.btn_no.text() == "Cancel"
+    assert d.btn_no.text() == "Cancel" and not d.accept_licence.isEnabled()
     assert wait(app, lambda: d.result() == QDialog.Accepted, 10)
     assert d.bar.value() == 1000 and d.status.text() == "0 of 0 MB"  # 30 bytes
     assert segment.model_path("rmbg-1.4").exists() and model_cache == ["rmbg-1.4.onnx"]
@@ -804,12 +811,65 @@ def test_licences_are_links(app, model_cache):
     for model, spec in segment.ONNX_MODELS.items():
         assert spec["licence_url"].startswith("https://")
         d = DownloadDialog(model)
-        assert f'<a href="{spec["licence_url"]}">' in d.body.text()
-        assert d.body.openExternalLinks()
+        label = d.licence_note if segment.non_commercial(model) else d.body
+        assert f'<a href="{spec["licence_url"]}">' in label.text()
+        assert label.openExternalLinks()
     dlg = CacheDialog()
     card = dlg.cards["birefnet"]
     assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
     assert card.licence.openExternalLinks()
+
+
+def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cache):
+    """RMBG-1.4 only downloads once the user accepts it is for non-commercial use, also
+    from Cache management (which otherwise downloads at once); BiRefNet just downloads."""
+    from PySide6.QtWidgets import QDialog
+
+    from papermini.gui.models import CacheDialog, DownloadDialog
+
+    d = DownloadDialog("rmbg-1.4", ask=False)          # Cache management's Download
+    assert d.accept_licence is not None and not d.btn_go.isEnabled()
+    assert model_cache == [] and d.bar.isHidden()
+    d.accept_licence.setChecked(True)
+    d.btn_go.click()
+    assert wait(app, lambda: d.result() == QDialog.Accepted, 10)
+    d = DownloadDialog("birefnet-lite")
+    assert d.accept_licence is None and d.licence_note is None and d.btn_go.isEnabled()
+    card = CacheDialog().cards["rmbg-1.4"]
+    assert card.licence.objectName() == "LicenceNote"
+    assert "responsible for not using it commercially" in card.licence.toolTip()
+    assert CacheDialog().cards["birefnet"].licence.objectName() == "Muted"
+
+
+def test_the_settings_show_the_licence_of_the_model_in_use(app, tmp_path, model_cache):
+    from papermini import segment
+    from papermini.gui.window import MainWindow
+
+    Image.new("RGB", (300, 400), (40, 40, 40)).save(tmp_path / "a.png")
+    w = MainWindow()
+    segment.CONFIRM_DOWNLOAD = lambda model: False  # (no download prompt)
+    try:
+        w.add_images([tmp_path / "a.png"])
+        p = w.panel
+        combo = p._w["model"][1]
+
+        def pick(model):
+            combo.setCurrentText(model)
+            combo.activated.emit(combo.currentIndex())
+            app.processEvents()
+
+        pick("rmbg-1.4")
+        assert p.licence_hint.isVisibleTo(p) and "Non-commercial use only" in p.licence_hint.text()
+        pick("birefnet")
+        assert not p.licence_hint.isVisibleTo(p)
+        pick("auto")
+        p.set_auto_method("rmbg-1.4")  # (auto picked it: the image has no transparency)
+        assert p.licence_hint.isVisibleTo(p)
+        p.set_auto_method("alpha")
+        assert not p.licence_hint.isVisibleTo(p)
+    finally:
+        w._modified = False
+        w.close()
 
 
 def test_no_figure_hides_the_settings(app, tmp_path):

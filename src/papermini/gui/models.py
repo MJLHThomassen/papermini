@@ -10,9 +10,9 @@ import urllib.parse
 
 from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QGuiApplication
-from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QLayout, QMessageBox,
-                               QProgressBar, QPushButton, QScrollArea, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QLayout,
+                               QMessageBox, QProgressBar, QPushButton, QScrollArea,
+                               QVBoxLayout, QWidget)
 
 from .. import remote, segment
 
@@ -66,6 +66,8 @@ class _Signals(QObject):
 
 class DownloadDialog(QDialog):
     """Asks before downloading a built-in model (``ask``), then shows its progress.
+    A non-commercial model always asks: Download stays disabled until the user accepts
+    that they will not use it commercially.
 
     Accepted once the model is on disk; rejected when the user says no, cancels,
     or closes the dialog after a failed download.
@@ -91,14 +93,30 @@ class DownloadDialog(QDialog):
         self.title = _label(name="DialogTitle", wrap=False)
         v.addWidget(self.title)
         folder = html.escape(str(segment.cache_dir()))
+        restricted = segment.non_commercial(model)  # (its licence gets a box of its own)
         self.body = _label(
             f"papermini uses <b>{html.escape(spec['title'])}</b> to separate the figure from "
             f"the background. It is downloaded once (about {spec['mb']} MB) from "
             f"{html.escape(_host(model))} and kept in<br><code>{folder}</code>"
-            f"<br><br>{licence_link(model)}", "Muted")
+            + ("" if restricted else f"<br><br>{licence_link(model)}"), "Muted")
         self.body.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self.body.setMinimumWidth(440)  # sets the dialog width (its height follows)
         v.addWidget(self.body)
+        self.accept_licence = self.licence_note = None  # (for a non-commercial model)
+        if restricted:
+            ask = True  # (also from Cache management: the licence must be accepted)
+            rest = segment.licence_notice(model).split(". ", 1)[1]
+            note = _label(f"<b>Licence: <a href=\"{html.escape(spec['licence_url'])}\">"
+                          f"non-commercial use only</a>.</b> {html.escape(rest)}",
+                          "LicenceBox")
+            note.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            self.licence_note = note
+            note.setMinimumWidth(440)
+            v.addWidget(note)
+            self.accept_licence = QCheckBox(
+                f"I will only use {spec['title']} non-commercially")
+            self.accept_licence.toggled.connect(self._sync_go)
+            v.addWidget(self.accept_licence)
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(8)
@@ -124,6 +142,7 @@ class DownloadDialog(QDialog):
             self.title.setText(f"Download the {html.escape(spec['title'])} model?")
             self.bar.hide()
             self.status.hide()
+            self._sync_go()
         else:
             self.start()
 
@@ -131,8 +150,18 @@ class DownloadDialog(QDialog):
     def downloading(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
+    def _sync_go(self):
+        """Download only once the licence is accepted (for a non-commercial model)."""
+        self.btn_go.setEnabled(self.accept_licence is None or self.accept_licence.isChecked())
+
     def start(self):
         spec = segment.ONNX_MODELS[self.model]
+        if self.accept_licence is not None:
+            if not self.accept_licence.isChecked():
+                return
+            if self.accept_licence.isEnabled():
+                ui_log.info("Accepted that %s is for non-commercial use only", spec["title"])
+            self.accept_licence.setEnabled(False)  # (accepted: a retry needs no new tick)
         self.title.setText(f"Downloading {html.escape(spec['title'])}…")
         self.bar.setRange(0, 0)  # busy until the size is known
         self.bar.show()
@@ -214,8 +243,11 @@ class ModelCard(QFrame):
         v.addWidget(_label(f"<b>{html.escape(spec['title'])}</b>"
                            f"&nbsp;&nbsp;<span style='font-weight:400'>{model}</span>"))
         v.addWidget(_label(html.escape(spec["about"]), "Muted"))
-        self.licence = _label(licence_link(model), "Muted")
+        restricted = segment.non_commercial(model)
+        self.licence = _label(licence_link(model), "LicenceNote" if restricted else "Muted")
         self.licence.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        if restricted:
+            self.licence.setToolTip(segment.licence_notice(model))
         v.addWidget(self.licence)
         self.state = _label("", "Hint")
         self.state.setTextInteractionFlags(Qt.TextSelectableByMouse)

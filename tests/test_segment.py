@@ -292,3 +292,22 @@ def test_clear_masks_keeps_the_folder_and_other_files():
     assert d.is_dir() and not any(d.iterdir()) and segment.cached_masks() == []
     assert model.exists()
     assert segment.clear_masks() == 0
+
+
+@pytest.mark.parametrize("model, noted", [("rmbg-1.4", True), ("birefnet-lite", False)])
+def test_the_command_line_names_the_licence_when_it_downloads_a_model(monkeypatch, capsys,
+                                                                     model, noted):
+    monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", None)  # (the command line)
+    monkeypatch.setattr(segment, "fetch_model", lambda m, **k: segment.model_path(m))
+    monkeypatch.setattr(segment, "OnnxSegmenter", lambda *a, **k: object())
+    segment.get_segmenter(model)
+    err = capsys.readouterr().err
+    assert ("non-commercial use only" in err) == noted
+    if noted:
+        assert "You are responsible for not using it commercially" in err
+        assert "BiRefNet or BiRefNet lite (MIT licence)" in err
+
+
+def test_only_rmbg_is_non_commercial():
+    assert [m for m in segment.ONNX_MODELS if segment.non_commercial(m)] == ["rmbg-1.4"]
+    assert not segment.non_commercial("alpha") and not segment.non_commercial("x.onnx")

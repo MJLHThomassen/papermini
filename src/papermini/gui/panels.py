@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
                                QPushButton, QScrollArea, QSlider, QSpinBox, QStyle,
                                QStyleOptionSlider, QToolButton, QVBoxLayout, QWidget)
 
-from .. import remote
+from .. import remote, segment
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
 from .widgets import ElidedLabel
@@ -744,6 +744,13 @@ class FigurePanel(QScrollArea):
                     self.auto_hint.setTextFormat(Qt.RichText)
                     self.auto_hint.setVisible(False)
                     form.addRow(self.auto_hint)
+                    # the licence of a non-commercial model, while it is the one used
+                    self.licence_hint = QLabel()
+                    self.licence_hint.setWordWrap(True)
+                    self.licence_hint.setObjectName("LicenceBox")
+                    self.licence_hint.setTextFormat(Qt.RichText)
+                    self.licence_hint.setVisible(False)
+                    form.addRow(self.licence_hint)
                 if name == "tab_overlap_mm":
                     self.overlap_hint = QLabel()
                     self.overlap_hint.setWordWrap(True)
@@ -1057,7 +1064,17 @@ class FigurePanel(QScrollArea):
 
     def _sync_auto_hint(self):
         model = self._w["model"][1].currentText().strip()
-        self.auto_hint.setVisible(bool(getattr(self, "_auto_method", None)) and model == "auto")
+        method = getattr(self, "_auto_method", None)
+        self.auto_hint.setVisible(bool(method) and model == "auto")
+        used = method if model == "auto" else model  # (auto: what it picked, once known)
+        if used and segment.non_commercial(used):
+            self.licence_hint.setText(
+                f"<b>Non-commercial use only.</b> You are responsible for not using "
+                f"{html.escape(segment.ONNX_MODELS[used]['title'])} commercially, for "
+                f"example to make minis you sell. For commercial use, pick birefnet or "
+                f"birefnet-lite.")
+            self.licence_hint.setToolTip(segment.licence_notice(used))
+        self.licence_hint.setVisible(bool(used) and segment.non_commercial(used))
 
     def set_auto_fill_gaps(self, px: int):
         """The gap filling the last build picked automatically, shown while Auto is on."""
