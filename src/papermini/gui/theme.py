@@ -314,6 +314,8 @@ QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #WorkTitle {{ color: {t.text}; font-weight: 600; }}
 #StepHint {{ color: {t.muted}; font-size: 9pt; padding: 8px 10px; background: {t.surface2}; border-radius: 8px; }}
 #MethodBox {{ color: {t.text}; font-size: 9pt; padding: 6px 9px; background: {t.surface2}; border: 1px solid {t.border}; border-radius: 6px; }}
+#LicenceBox {{ color: {t.text}; font-size: 9pt; padding: 7px 10px; background: {t.accent_soft}; border: 1px solid {t.accent}; border-radius: 6px; }}
+#LicenceNote {{ color: {t.accent}; font-weight: 600; }}
 #SizeLink {{ border: none; background: transparent; padding: 4px; border-radius: 6px; }}
 #SizeLink:hover {{ background: {t.surface2}; }}
 #StepArrow {{ padding: 0 1px; }}

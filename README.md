@@ -124,10 +124,13 @@ with pictures of different values.
 Save your work as a project (Ctrl+S). Projects are plain YAML files that the
 command line can rebuild too.
 
-> [!IMPORTANT]
+> [!WARNING]
 > The default background-removal model,
 > [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4), is licensed for
-> **non-commercial use only**. For commercial use, pick a
+> **non-commercial use only**. papermini itself is MIT-licensed, but the model
+> is not: **if you use RMBG-1.4, you are responsible for not using it
+> commercially**, for example to make minis you sell. papermini asks you to
+> accept this before it downloads the model. For commercial use, pick a
 > [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) model
 > ([MIT licence](https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE)) or
 > use images with transparency. See

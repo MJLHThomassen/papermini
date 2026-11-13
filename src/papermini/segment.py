@@ -35,6 +35,7 @@ ONNX_MODELS = {
         "title": "BRIA RMBG-1.4",
         "about": "Fast and good on most artwork (the default).",
         "licence": "non-commercial use only",
+        "commercial": False,  # users accept that before it downloads
         # BRIA's licence page is gone and the repository has no licence file;
         # the model card states the licence
         "licence_url": "https://huggingface.co/briaai/RMBG-1.4",
@@ -59,6 +60,7 @@ for _name, _title, _about, _mb, _file in (
         "title": _title,
         "about": _about,
         "licence": "MIT",
+        "commercial": True,
         "licence_url": "https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE",
         "mb": _mb,
         "page": "https://github.com/ZhengPeng7/BiRefNet",
@@ -318,6 +320,20 @@ class OnnxSegmenter:
 _MODEL_LOCKS = {name: threading.Lock() for name in ONNX_MODELS}
 
 
+def non_commercial(model: str) -> bool:
+    """Whether the built-in ``model`` may only be used non-commercially."""
+    return not ONNX_MODELS.get(model, {}).get("commercial", True)
+
+
+def licence_notice(model: str) -> str:
+    """What a user of a non-commercial built-in ``model`` is responsible for, in words."""
+    title = ONNX_MODELS[model]["title"]
+    free = " or ".join(s["title"] for s in ONNX_MODELS.values() if s.get("commercial"))
+    return (f"{title} is licensed for non-commercial use only. You are responsible for not "
+            f"using it commercially, for example to make minis you sell. For commercial use, "
+            f"pick {free} (MIT licence).")
+
+
 def model_path(model: str) -> Path:
     """Where the built-in ``model`` is (or will be) stored."""
     return cache_dir() / ONNX_MODELS[model]["file"]
@@ -354,6 +370,8 @@ def get_segmenter(model: str):
             if CONFIRM_DOWNLOAD is not None and not CONFIRM_DOWNLOAD(model):
                 raise ModelError(f"the {model} model is not downloaded. Download it from "
                                  "Cache management… in the menu, or pick another model.")
+            if CONFIRM_DOWNLOAD is None and non_commercial(model) and sys.stderr is not None:
+                print(f"Note: {licence_notice(model)}", file=sys.stderr)  # (the command line)
             fetch_model(model)
         logger.info("Loading the %s model", model)
         return OnnxSegmenter(path, spec["size"], spec["mean"], spec["std"], spec["post"])

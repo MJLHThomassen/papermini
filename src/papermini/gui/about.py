@@ -53,7 +53,9 @@ class AboutDialog(QDialog):
         text = QLabel(
             "Turns illustrations into print-ready paper miniatures.<br><br>"
             "The default background-removal model, BRIA RMBG-1.4, is licensed for "
-            "<b>non-commercial use only</b>. The BiRefNet models are MIT-licensed.<br><br>"
+            "<b>non-commercial use only</b>: you are responsible for not using it "
+            "commercially, for example to make minis you sell. The BiRefNet models are "
+            "MIT-licensed, also for commercial use.<br><br>"
             "Projects are saved as batch YAML files, so you can also run them from the "
             "command line: <code>papermini batch project.yaml</code>")
         text.setWordWrap(True)

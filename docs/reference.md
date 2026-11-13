@@ -141,7 +141,10 @@ the desktop app in depth, and how the pipeline works.
   this computer yet, the app asks first: it shows the model, its download size,
   where it comes from, where it will be kept and its licence. *Download* shows
   the progress and can be cancelled; *Not now* leaves the figure with a note,
-  and the app does not ask again until you pick another model.
+  and the app does not ask again until you pick another model. For rmbg-1.4,
+  which is for non-commercial use only, you first tick *I will only use BRIA
+  RMBG-1.4 non-commercially*; *Download* stays disabled until you do (also
+  from Cache management). See [Model licence](#model-licence).
 - **Cache management…** (☰ menu) shows what papermini keeps on this computer,
   in the cache folder (*Open folder*). *Clear cache…* deletes all of it,
   downloaded models included, after asking. Below that:
@@ -202,7 +205,9 @@ How the figure is cut out of its background.
 
 *Auto* uses the image's own transparency when it has some, and rmbg-1.4
 otherwise; a box under it says *Chosen method:* and which one it used for the
-selected figure. *Mask image file* uses a mask you painted yourself (see *Mask image
+selected figure. While rmbg-1.4 is the model in use (picked, or chosen by
+*Auto*), a red box under it says it is for non-commercial use only. *Mask image
+file* uses a mask you painted yourself (see *Mask image
 file*). The first time a model is needed, the app asks before downloading it;
 after that, papermini works offline. **Cache management…** in the ☰ menu shows
 which models are downloaded, and where.
@@ -767,9 +772,19 @@ papermini batch examples/dragons/samples-machine.yaml
 ## Model licence
 
 The default model, [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4), is
-licensed for **non-commercial use only** (see its model card). For commercial
-use, pick one of the [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) models
-([MIT licence](https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE)), use
+licensed for **non-commercial use only** (see its model card). papermini itself
+is MIT-licensed, but that does not cover the model: **if you use RMBG-1.4, you
+are responsible for not using it commercially**, for example to make minis you
+sell. It is the default because it is fast and works well on most artwork, and
+most people make minis for their own table.
+
+- In the desktop app you accept this before RMBG-1.4 downloads (a tick box in the
+  download dialog), its licence is marked in Cache management, and a box under
+  *Model* says so while it is the model in use.
+- The command line prints the same notice when it downloads RMBG-1.4.
+
+For commercial use, pick one of the [BiRefNet](https://github.com/ZhengPeng7/BiRefNet)
+models ([MIT licence](https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE)), use
 images with transparency (`alpha`), paint your own mask, or bring your own ONNX
 model. Every model downloads once, without an account.
 
