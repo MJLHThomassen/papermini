@@ -238,7 +238,10 @@ def test_report_a_problem_in_the_menu_names_the_newest_log(app, opened):
     s = log.start()
     w = MainWindow()
     try:
-        assert w.a_open_logs.isEnabled() and w.a_detailed_log.isEnabled()
+        assert w.a_open_logs.isEnabled()
+        from papermini.gui.preferences import PreferencesDialog
+
+        assert PreferencesDialog(w, "logging").detailed_log.isEnabled()
         w.a_report.trigger()
         issue, folder = opened["urls"]
         assert issue.startswith(log.ISSUE_URL) and "traceback=" not in issue
@@ -328,20 +331,24 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(app, tmp_path,
         w.add_images([_image(tmp_path / "hero.png")])
         fig = w.figures[0]
         w._settings_changed(replace(fig.entry.settings, height_mm=50))  # not detailed yet
-        w.a_detailed_log.trigger()
+        from papermini.gui.preferences import PreferencesDialog
+
+        prefs_dlg = PreferencesDialog(w, "logging")  # (Preferences → Logging → Detailed log)
+        assert not prefs_dlg.detailed_log.isChecked()
+        prefs_dlg.detailed_log.setChecked(True)
         assert log.detailed()
         for h in (51, 52, 53):  # like dragging a spin box
             w._settings_changed(replace(fig.entry.settings, height_mm=h))
         w._sheet_changed(replace(w.project.sheet, paper="letter"))
         assert _wait(app, lambda: "height_mm 50 → 53" in _log_text(), 10)
         text = _log_text()
-        assert "hero.png: height_mm 50 → 53" in text and "42 → 50" not in text
+        assert "hero.png: height_mm 50 → 53" in text and "32 → 50" not in text
         assert "sheet: paper 'a4' → 'letter'" in text
         assert text.count("height_mm 5") == 1  # one line for the three changes
         w._warn("Could not open x:\nbroken")
         assert "WARNING papermini.ui: Could not open x:; broken" in _log_text()
     finally:
-        w.a_detailed_log.trigger()
+        log.set_detailed(False)
         w._modified = False  # (no "Save changes?" question)
         w.close()
     assert logging.getLogger("papermini").level == logging.INFO

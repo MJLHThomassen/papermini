@@ -1,5 +1,5 @@
-"""Model downloads and the cache: the approve-and-download dialog and the Cache
-Management window."""
+"""Model downloads and the cache: the approve-and-download dialog and the Models and
+cache page of the Preferences window."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import logging
 import threading
 import urllib.parse
 
-from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QGuiApplication
+from PySide6.QtCore import QObject, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QLayout,
                                QMessageBox, QProgressBar, QPushButton, QScrollArea,
                                QVBoxLayout, QWidget)
@@ -19,7 +19,6 @@ from .. import remote, segment
 ui_log = logging.getLogger("papermini.ui")
 
 MB = 1024 * 1024
-CONTENT_WIDTH = 644  # the Cache Management window's content opens this wide
 
 
 def _size(files) -> str:
@@ -104,7 +103,7 @@ class DownloadDialog(QDialog):
         v.addWidget(self.body)
         self.accept_licence = self.licence_note = None  # (for a non-commercial model)
         if restricted:
-            ask = True  # (also from Cache management: the licence must be accepted)
+            ask = True  # (also from Models and cache: the licence must be accepted)
             rest = segment.licence_notice(model).split(". ", 1)[1]
             note = _label(f"<b>Licence: <a href=\"{html.escape(spec['licence_url'])}\">"
                           f"non-commercial use only</a>.</b> {html.escape(rest)}",
@@ -227,10 +226,10 @@ class DownloadDialog(QDialog):
 
 
 class ModelCard(QFrame):
-    """One built-in model in the Cache Management window: what it is, where it is,
+    """One built-in model on the Models and cache page: what it is, where it is,
     actions."""
 
-    def __init__(self, model: str, dialog: "CacheDialog"):
+    def __init__(self, model: str, dialog: "CachePage"):
         super().__init__()
         self.setObjectName("ModelCard")
         self.model, self.dialog = model, dialog
@@ -278,8 +277,8 @@ class ModelCard(QFrame):
 
 
 class CacheCard(QFrame):
-    """A kind of cached file in the Cache Management window: what it is, how much
-    there is, and Clear."""
+    """A kind of cached file on the Models and cache page: what it is, how much there
+    is, and Clear."""
 
     def __init__(self, title: str, about: str, clear):
         super().__init__()
@@ -304,23 +303,20 @@ class CacheCard(QFrame):
         self.btn_clear.setEnabled(can_clear)
 
 
-class CacheDialog(QDialog):
-    """The Cache Management window: the cache folder, which background-removal models
-    are downloaded (with actions on them), and papermini's other cached files (masks,
-    images from links), which it can clear. Resizable: the content scrolls when the
-    window is too small for it. ``in_use()`` gives the image files of the open
-    figures, which clearing keeps."""
+class CachePage(QWidget):
+    """The Models and cache page of the Preferences window: the cache folder, which
+    background-removal models are downloaded (with actions on them), and papermini's
+    other cached files (masks, images from links), which it can clear. The content
+    scrolls when the window is too small for it. ``in_use()`` gives the image files of
+    the open figures, which clearing keeps."""
 
     changed = Signal(str)  # a model was downloaded or deleted
 
     def __init__(self, parent=None, in_use=lambda: ()):
         super().__init__(parent)
-        self.setObjectName("CacheDialog")
-        self.setWindowTitle("Cache Management")
-        self.setSizeGripEnabled(True)
         self.in_use = in_use
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 18)
+        outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
         self.scroll = QScrollArea()
         self.scroll.setObjectName("CacheScroll")
@@ -329,10 +325,10 @@ class CacheDialog(QDialog):
         content = QWidget()
         content.setObjectName("CacheContent")
         v = QVBoxLayout(content)
-        v.setContentsMargins(22, 20, 22, 6)
+        v.setContentsMargins(0, 0, 12, 6)  # (room for the scroll bar)
         v.setSpacing(10)
 
-        v.addWidget(_label("Cache", "DialogTitle", wrap=False))
+        v.addWidget(_label("Models and cache", "DialogTitle", wrap=False))
         about = _label("papermini keeps its downloaded models and other cached files in "
                        "one folder.", "Muted")
         v.addWidget(about)
@@ -353,7 +349,7 @@ class CacheDialog(QDialog):
         v.addLayout(top)
 
         v.addSpacing(10)
-        v.addWidget(_label("Background-removal models", "DialogTitle", wrap=False))
+        v.addWidget(_label("Background-removal models", "PageSection", wrap=False))
         v.addWidget(_label(
             "Models are downloaded once and kept on this computer. Delete one to free disk "
             "space: papermini asks before downloading it again when you next use it.",
@@ -364,7 +360,7 @@ class CacheDialog(QDialog):
             v.addWidget(card)
 
         v.addSpacing(10)
-        v.addWidget(_label("Other cached files", "DialogTitle", wrap=False))
+        v.addWidget(_label("Other cached files", "PageSection", wrap=False))
         v.addWidget(_label("papermini keeps these to open figures quickly. Clear them to "
                            "free disk space: papermini makes or downloads them again "
                            "when it needs them.", "Muted"))
@@ -379,33 +375,7 @@ class CacheDialog(QDialog):
         v.addStretch(1)
         self.scroll.setWidget(content)
         outer.addWidget(self.scroll, 1)
-
-        row = QHBoxLayout()  # (outside the scrolling part: always in view)
-        row.setContentsMargins(22, 12, 22, 0)
-        row.addStretch(1)
-        close = QPushButton("Close")
-        close.setDefault(True)
-        close.clicked.connect(self.accept)
-        row.addWidget(close)
-        outer.addLayout(row)
         self.refresh_cache()
-        self._fit(content)
-
-    def _fit(self, content: QWidget):
-        """Open as large as the content, but no larger than the screen allows."""
-        inner = max(CONTENT_WIDTH, content.minimumSizeHint().width())
-        width = inner + self.scroll.verticalScrollBar().sizeHint().width()
-        lay = content.layout()
-        height = (lay.totalHeightForWidth(inner) if lay.hasHeightForWidth()
-                  else content.sizeHint().height())
-        want = QSize(width, height + self.layout().sizeHint().height()
-                     - self.scroll.sizeHint().height() + 2)  # (+ the Close row)
-        screen = (self.parent().screen() if self.parent() is not None
-                  else QGuiApplication.primaryScreen())
-        if screen is not None:
-            room = screen.availableGeometry().size() * 0.9
-            want = want.boundedTo(QSize(int(room.width()), int(room.height())))
-        self.resize(want)
 
     def download(self, model: str):
         DownloadDialog(model, self, ask=False,

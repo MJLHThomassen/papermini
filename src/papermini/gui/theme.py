@@ -314,7 +314,7 @@ QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #WorkTitle {{ color: {t.text}; font-weight: 600; }}
 #StepHint {{ color: {t.muted}; font-size: 9pt; padding: 8px 10px; background: {t.surface2}; border-radius: 8px; }}
 #MethodBox {{ color: {t.text}; font-size: 9pt; padding: 6px 9px; background: {t.surface2}; border: 1px solid {t.border}; border-radius: 6px; }}
-#LicenceBox {{ color: {t.text}; font-size: 9pt; padding: 7px 10px; background: {t.accent_soft}; border: 1px solid {t.accent}; border-radius: 6px; }}
+#LicenceBox, #WarnBox {{ color: {t.text}; font-size: 9pt; padding: 7px 10px; background: {t.accent_soft}; border: 1px solid {t.accent}; border-radius: 6px; }}
 #LicenceNote {{ color: {t.accent}; font-weight: 600; }}
 #SizeLink {{ border: none; background: transparent; padding: 4px; border-radius: 6px; }}
 #SizeLink:hover {{ background: {t.surface2}; }}
@@ -343,8 +343,16 @@ QMenu::item {{ padding: 6px 22px 6px 12px; border-radius: 5px; }}
 QMenu::item:selected {{ background: {t.accent_soft}; color: {t.text}; }}
 QMenu::item:disabled {{ color: {t.muted}; }}
 QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 6px; }}
-QProgressDialog, QMessageBox, #DownloadDialog, #CacheDialog {{ background: {t.surface}; }}
+QProgressDialog, QMessageBox, #DownloadDialog, #PreferencesDialog {{ background: {t.surface}; }}
 #CacheScroll, #CacheContent {{ background: transparent; }}
+QListWidget#PrefNav, QListWidget#PresetList {{ background: {t.surface2}; border: 1px solid {t.border};
+    border-radius: 8px; padding: 4px; outline: none; }}
+QListWidget#PrefNav::item {{ padding: 7px 10px; border-radius: 5px; color: {t.text}; }}
+QListWidget#PresetList::item {{ border-radius: 5px; }}
+QListWidget#PrefNav::item:selected, QListWidget#PresetList::item:selected {{
+    background: {t.accent_soft}; color: {t.text}; }}
+#EntryName {{ color: {t.text}; }}
+#PageSection {{ font-size: 10.5pt; font-weight: 600; }}
 #DialogTitle {{ font-size: 11pt; font-weight: 600; }}
 #ModelCard {{ background: {t.surface2}; border: 1px solid {t.border}; border-radius: 10px; }}
 #DownloadDialog QProgressBar {{ background: {t.surface2}; border: 1px solid {t.border};

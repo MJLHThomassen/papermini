@@ -35,6 +35,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 - **Cut line**: a smooth vector outline with a margin, for scissors or a knife.
 - **[Cutting machines](docs/reference.md#cutting-by-machine)**: a sheet with
   alignment marks, plus a cut file with the cut lines and the same marks.
+- **[Creature sizes](docs/reference.md#creature-sizes)**: Tiny to Gargantuan
+  fill in the height and the base, from a size table for your grid.
 - **[Stand tab](docs/reference.md#stands-and-bases)**: square to slot into a
   stand, or round to fold out into a base.
 - **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank
@@ -64,8 +66,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
    2. In **1 Source**, drag a box around the figure. Its outline is drawn on
       the image.
    3. In **2 Miniature**, type the label for the tab, such as `Red dragon`.
-   4. Still in **2 Miniature**, set the figure height under *Size*, such as
-      42 mm. Set how many to print with the − and + on its card in the list.
+   4. Still in **2 Miniature**, pick the creature size under *Size*, such as
+      Large. Set how many to print with the − and + on its card in the list.
    5. In **3 Print sheet**, click **Print…** and print at 100%. Cut along the
       solid line, fold along the dashed lines and glue the two halves back to
       back.
@@ -148,7 +150,7 @@ Linux).
 Make one SVG per image:
 
 ```bash
-papermini make dragon.png --height-mm 42 --label "Red dragon"
+papermini make dragon.png --size large --label "Red dragon"
 ```
 
 Lay SVGs out on a printable PDF sheet:

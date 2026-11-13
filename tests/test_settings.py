@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from papermini import __version__
+from papermini import __version__, sizes
 from papermini.settings import (FigureEntry, FigureSettings, Project, SheetSettings,
                                 load_project, save_project)
 
@@ -17,9 +17,15 @@ def test_from_dict_accepts_dashes_and_rejects_unknown():
 
 
 def test_to_dict_only_non_defaults():
-    assert FigureSettings().to_dict() == {}
-    assert FigureSettings(label="X", crop=[0, 0, 1, 0.5]).to_dict() == {
+    """Only options not at their default, but always the creature size and the values
+    it fills in (left out with ``with_size=False``, as the log does)."""
+    medium = {"size": "medium", "height_mm": 32.0, "tab_radius_mm": 12.5,
+              "tab_width_mm": 25.0, "tab_height_mm": 12.5}
+    assert FigureSettings().to_dict() == medium
+    assert FigureSettings().to_dict(with_size=False) == {}
+    assert FigureSettings(label="X", crop=[0, 0, 1, 0.5]).to_dict(with_size=False) == {
         "label": "X", "crop": [0, 0, 1, 0.5]}
+    assert FigureSettings(label="X").to_dict() == {**medium, "label": "X"}
 
 
 def test_sheet_settings_cut_by_machine():
@@ -43,8 +49,9 @@ def test_project_roundtrip(tmp_path):
         sheet=SheetSettings(paper="letter", title="Crypt"),
         figures=[
             FigureEntry(a, FigureSettings(label="Red dragon", copies=2)),
-            FigureEntry(b, FigureSettings(height_mm=56, crop=[0.08, 0, 0.92, 0.62],
-                                          double_sided=True), name="boss"),
+            FigureEntry(b, FigureSettings(size="custom", height_mm=56,
+                                          crop=[0.08, 0, 0.92, 0.62], double_sided=True),
+                        name="boss"),
         ],
     )
     path = save_project(p, tmp_path / "proj.yaml")
@@ -67,9 +74,13 @@ def test_frozen_1_0_project():
                                     copies=2, title="Dragon collection")
     assert [f.image for f in p.figures] == [
         p.base / "images/dragon.png", p.base / "images/knight.png"]
+    # (no sizes: the built-in table; its own heights make each figure custom)
+    assert p.sizes == sizes.BUILTIN
     assert [f.settings for f in p.figures] == [
-        FigureSettings(height_mm=45, strength=55, label="Red dragon", copies=3),
-        FigureSettings(height_mm=38, strength=55, double_sided=False, copies=2),
+        FigureSettings(size="custom", height_mm=45, strength=55, label="Red dragon",
+                       copies=3),
+        FigureSettings(size="custom", height_mm=38, strength=55, double_sided=False,
+                       copies=2),
     ]
     assert p.figures[1].name == "blue-knight"
 
@@ -129,7 +140,8 @@ def test_sheet_copies_are_the_default_for_figures(tmp_path):
 def test_minis_are_double_sided_by_default():
     assert FigureSettings().double_sided and FigureSettings().params().double_sided
     s = FigureSettings.from_dict({"double_sided": False})
-    assert not s.params().double_sided and s.to_dict() == {"double_sided": False}
+    assert not s.params().double_sided
+    assert s.to_dict(with_size=False) == {"double_sided": False}
 
 
 def test_back_option_validated():
@@ -159,9 +171,10 @@ def test_size_by_height_width_or_both(tmp_path):
             FigureSettings.from_dict(bad)
     # stretched to the default height: the height is saved too, or reloading the
     # file would read "width alone"
-    stretched = FigureSettings(width_mm=30)
-    assert stretched.to_dict() == {"width_mm": 30, "height_mm": 42.0}
-    by_width = FigureSettings(height_mm=None, width_mm=30)
+    stretched = FigureSettings(size="custom", width_mm=30)
+    assert stretched.to_dict(with_size=False) == {"size": "custom", "width_mm": 30,
+                                                  "height_mm": 32.0}
+    by_width = FigureSettings(size="custom", height_mm=None, width_mm=30)
     p = Project(figures=[FigureEntry(tmp_path / "a.png", stretched),
                          FigureEntry(tmp_path / "b.png", by_width)])
     loaded = load_project(save_project(p, tmp_path / "p.yaml"))

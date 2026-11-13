@@ -153,7 +153,7 @@ def test_refused_download_explains_and_downloads_nothing(monkeypatch, tmp_path, 
     got = fake_downloads(monkeypatch, tmp_path)
     asked = []
     monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", lambda m: asked.append(m) or False)
-    with pytest.raises(ModelError, match="not downloaded.*Cache management"):
+    with pytest.raises(ModelError, match="not downloaded.*Models and cache"):
         segment.get_segmenter("rmbg-1.4")
     assert asked == ["rmbg-1.4"] and got == []
     # an approved download goes ahead; a model that is already there is never asked about

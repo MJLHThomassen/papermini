@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import __version__, remote
+from . import __version__, remote, sizes
 from .segment import ModelError
 from .settings import (FIGURE_OPTIONS, FigureSettings, Project, SheetSettings, build_mini,
-                       load_project, safe_name)
+                       load_project, safe_name, settings_with_size)
 from .sheet import CUT_MODES, MARKS
 
 D = FigureSettings()  # defaults shown in --help
@@ -20,8 +20,16 @@ DS = SheetSettings()
 
 def add_figure_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("size and shape")
+    g.add_argument("--size", choices=sizes.SIZE_CHOICES,
+                   help="creature size: fills in the height and the tabs from the size "
+                        "table (medium). --height-mm or a tab size given as well wins "
+                        "and makes it custom")
+    g.add_argument("--grid-mm", type=float,
+                   help="grid square for --size: the bases and heights scale with it "
+                        f"({sizes.GRID_MM:g}, one inch)")
     g.add_argument("--height-mm", type=float,
-                   help="height of the drawn figure, without margin and tab (42)")
+                   help=f"height of the drawn figure, without margin and tab "
+                        f"({D.height_mm:g}, Medium)")
     g.add_argument("--width-mm", type=float,
                    help="width of the drawn figure; alone it scales by width, with "
                         "--height-mm the figure is stretched to both")
@@ -38,12 +46,13 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--tab-color", default=D.tab_color,
                    help="tab color behind the label, independent of the margin; "
                         "use --label '' for a plain tab (#ffffff)")
-    g.add_argument("--tab-width-mm", type=float, default=D.tab_width_mm,
-                   help="square tab width (22)")
-    g.add_argument("--tab-radius-mm", type=float, default=D.tab_radius_mm,
-                   help="round tab radius; 12.5 makes a 25 mm base (12.5)")
-    g.add_argument("--tab-height-mm", type=float, default=D.tab_height_mm,
-                   help="square tab height below the fold (12)")
+    g.add_argument("--tab-width-mm", type=float,
+                   help=f"square tab width ({D.tab_width_mm:g}, Medium)")
+    g.add_argument("--tab-radius-mm", type=float,
+                   help=f"round tab radius; 12.5 makes a 25 mm base ({D.tab_radius_mm:g}, "
+                        "Medium)")
+    g.add_argument("--tab-height-mm", type=float,
+                   help=f"square tab height below the fold ({D.tab_height_mm:g}, Medium)")
     g.add_argument("--tab-overlap-mm", type=float, default=D.tab_overlap_mm, help="tab reach above the fold, adds paper beside narrow feet (0)")
     g.add_argument("--fold-mm", type=float, default=D.fold_mm, help="fold line above the lowest point of the outline (0)")
     g.add_argument("--no-tab", action="store_true", help="no fold tab")
@@ -104,8 +113,11 @@ def cmd_make(a: argparse.Namespace) -> int:
     images = _expand(a.images)
     if a.output and len(images) > 1 and a.output.lower().endswith(".svg"):
         raise SystemExit("-o NAME.svg only works with a single image; use -o DIR")
-    s = FigureSettings.from_dict(
-        {k: v for k, v in vars(a).items() if k in FIGURE_OPTIONS and v is not None})
+    if a.grid_mm is not None and a.grid_mm <= 0:
+        raise SystemExit("--grid-mm must be above 0")
+    table = sizes.for_grid(a.grid_mm) if a.grid_mm else sizes.BUILTIN
+    s = settings_with_size(
+        {k: v for k, v in vars(a).items() if k in FIGURE_OPTIONS and v is not None}, table)
     for src in images:
         img = remote.fetch_image(src) if remote.is_url(src) else remote.local_path(src)
         out_svg = Path(a.output) if a.output and a.output.lower().endswith(".svg") else None
@@ -116,6 +128,7 @@ def cmd_make(a: argparse.Namespace) -> int:
                        debug_dir=out_dir / "debug" if a.debug else None)
         out = write_svg(m, out_svg or out_dir / (safe_name(m.name) + ".svg"))
         print(f"  -> {out}")
+        _warn_width(img.name, s, m, table)
     return 0
 
 
@@ -146,6 +159,13 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
     return 0
 
 
+def _warn_width(name: str, s: FigureSettings, m, table: sizes.SizeTable) -> None:
+    """Say so when a figure is wider than its creature size's squares."""
+    warning = sizes.width_warning(s.size, m.figure_width_mm, table)
+    if warning:
+        print(f"  ! {name}: {warning}", file=sys.stderr)
+
+
 def run_project(proj: Project, debug: bool = False, preview: bool = False,
                 use_cache: bool = True) -> int:
     from .svg import write_svg
@@ -159,6 +179,7 @@ def run_project(proj: Project, debug: bool = False, preview: bool = False,
         m = build_mini(f.image, f.settings, bleed_mm=sh.figure_bleed, use_cache=use_cache,
                        debug_dir=out_dir / "debug" if debug or proj.debug else None)
         print(f"  -> {write_svg(m, out_dir / f.svg_name())}")
+        _warn_width(f.image.name, f.settings, m, proj.sizes)
         minis.append((m, f.settings.copies))
     if sh.enabled:
         write_sheet(minis, proj.sheet_path, sh, preview or sh.preview)

@@ -17,12 +17,12 @@ saved them and the project format)::
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import geometry as geo
-from . import remote
+from . import remote, sizes
 from .adjust import RANGES as ADJUST_RANGES
 from .adjust import Adjustments
 from .mini import Mini, Style, make_mini
@@ -33,16 +33,24 @@ from .sheet import CUT_MODES, MARKS, PAPER
 _PROJECT_FORMAT = 1
 
 
+_MEDIUM = sizes.BUILTIN.row(sizes.DEFAULT_SIZE)
+# what a figure's size fills in; saved projects always write these, so a project says
+# both the size and its values
+SIZE_KEYS = ("size", "height_mm", "tab_radius_mm", "tab_width_mm", "tab_height_mm")
+
+
 @dataclass
 class FigureSettings:
-    # size and shape: height or width keeps the proportions, both stretch the figure
-    height_mm: Optional[float] = 42.0
+    # size and shape: a creature size fills in the height and the tabs (see sizes.py);
+    # height or width keeps the proportions, both stretch the figure
+    size: str = sizes.DEFAULT_SIZE   # tiny ... gargantuan, or custom
+    height_mm: Optional[float] = _MEDIUM.height_mm
     width_mm: Optional[float] = None
     margin_mm: float = 1.6
     smooth_mm: float = 0.6
-    tab_width_mm: float = 22.0       # square tab
-    tab_radius_mm: float = 12.5      # round tab
-    tab_height_mm: float = 12.0
+    tab_width_mm: float = _MEDIUM.tab_width_mm    # square tab (a stand)
+    tab_radius_mm: float = _MEDIUM.base_mm / 2    # round tab (folds out to a base)
+    tab_height_mm: float = _MEDIUM.tab_height_mm
     tab_overlap_mm: float = 0.0
     fold_mm: float = 0.0
     no_tab: bool = False
@@ -86,6 +94,9 @@ class FigureSettings:
         unknown = set(d) - FIGURE_OPTIONS
         if unknown:
             raise ValueError(f"unknown option(s) {', '.join(sorted(unknown))}")
+        if "size" in d and d["size"] not in sizes.SIZE_CHOICES:
+            raise ValueError(f"size must be one of {', '.join(sizes.SIZE_CHOICES)}, "
+                             f"not {d['size']!r}")
         if d.get("width_mm") is not None and "height_mm" not in d:
             d["height_mm"] = None  # a width alone: scale by width, keep the proportions
         for key in ("height_mm", "width_mm"):
@@ -110,10 +121,14 @@ class FigureSettings:
                 geo.hex_rgb(str(d[key]))  # raises a clear error for a bad color
         return cls(**d)
 
-    def to_dict(self, base: Optional["FigureSettings"] = None) -> Dict[str, Any]:
-        """Options that differ from ``base`` (default: the built-in defaults)."""
+    def to_dict(self, base: Optional["FigureSettings"] = None,
+                with_size: bool = True) -> Dict[str, Any]:
+        """Options that differ from ``base`` (default: the built-in defaults) and, with
+        ``with_size`` (as a project saves them), always the size with the values it
+        fills in."""
         ref = asdict(base or FigureSettings())
-        d = {k: v for k, v in asdict(self).items() if v != ref[k]}
+        d = {k: v for k, v in asdict(self).items()
+             if v != ref[k] or (with_size and k in SIZE_KEYS)}
         if self.width_mm is not None:  # a width alone would mean "scale by width"
             d.setdefault("height_mm", self.height_mm)
         return d
@@ -143,6 +158,23 @@ class FigureSettings:
 
 
 FIGURE_OPTIONS = {f.name for f in fields(FigureSettings)}
+
+
+def settings_with_size(options: Dict[str, Any],
+                       table: sizes.SizeTable = sizes.BUILTIN) -> FigureSettings:
+    """Figure settings from ``options`` (a project's figure, or command-line flags): the
+    figure's size fills in the values not given, from ``table``; a given value that
+    differs from the size's makes the figure custom."""
+    o = norm_keys(options)
+    size = o.get("size", sizes.DEFAULT_SIZE)
+    if size in sizes.SIZES:
+        fills = table.row(size).values()
+        if o.get("width_mm") is not None and "height_mm" not in o:
+            del fills["height_mm"]  # (a width alone scales by width: no height to fill in)
+        for k, v in fills.items():
+            o.setdefault(k, v)
+    s = FigureSettings.from_dict(o)
+    return s if sizes.matches(s, table) else replace(s, size=sizes.CUSTOM)
 
 
 def norm_keys(d: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -238,6 +270,7 @@ class Project:
     sheet: SheetSettings = field(default_factory=SheetSettings)
     figures: List[FigureEntry] = field(default_factory=list)
     debug: bool = False
+    sizes: sizes.SizeTable = sizes.BUILTIN  # the project's creature size table
 
     @property
     def base(self) -> Path:
@@ -261,6 +294,7 @@ def load_project(path: Path) -> Project:
     base = path.parent
     try:
         sheet = SheetSettings.from_dict(cfg.get("sheet") or {})
+        table = sizes.SizeTable.from_dict(cfg.get("sizes"))
     except ValueError as e:
         raise ValueError(f"{path.name}: {e}{newer}") from None
     defaults = norm_keys(cfg.get("defaults"))
@@ -281,11 +315,12 @@ def load_project(path: Path) -> Project:
         if str(o.get("model", "")).endswith(".onnx"):
             o["model"] = str((base / o["model"]).resolve())
         try:
-            s = FigureSettings.from_dict(o)
+            s = settings_with_size(o, table)
         except ValueError as e:
             raise ValueError(f"{path.name}: {image.name}: {e}{newer}") from None
         figures.append(FigureEntry(image, s, name, source))
-    return Project(path, str(cfg.get("output", "minis")), sheet, figures, bool(cfg.get("debug", False)))
+    return Project(path, str(cfg.get("output", "minis")), sheet, figures,
+                   bool(cfg.get("debug", False)), table)
 
 
 def _release(version: Any) -> Optional[Tuple[int, int, int]]:
@@ -314,6 +349,24 @@ def _check_format(cfg: Dict[str, Any], name: str) -> str:
     return ""
 
 
+class _Flow(dict):
+    """A mapping written on one line in a saved project."""
+
+
+def _dumper():
+    import yaml
+
+    class Dumper(yaml.SafeDumper):
+        pass
+
+    Dumper.add_representer(_Flow, lambda d, data: d.represent_mapping(
+        "tag:yaml.org,2002:map", data, flow_style=True))
+    return Dumper
+
+
+_Dumper = None
+
+
 def save_project(p: Project, path: Path) -> Path:
     """Write ``p`` as a batch YAML, with the papermini version that saved it and the
     project format. Paths are stored relative to the file."""
@@ -321,6 +374,8 @@ def save_project(p: Project, path: Path) -> Path:
 
     import yaml
 
+    global _Dumper
+    _Dumper = _Dumper or _dumper()
     path = Path(path).resolve()
     base = path.parent
 
@@ -351,7 +406,10 @@ def save_project(p: Project, path: Path) -> Path:
                            "output": p.output}
     if sheet:
         cfg["sheet"] = sheet
+    cfg["sizes"] = {k: _Flow(v) if isinstance(v, dict) else v  # (a size per line)
+                    for k, v in p.sizes.to_dict().items()}
     cfg["figures"] = figures
-    path.write_text(yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    path.write_text(yaml.dump(cfg, Dumper=_Dumper, sort_keys=False, allow_unicode=True),
+                    encoding="utf-8")
     p.path = path
     return path

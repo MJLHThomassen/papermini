@@ -319,8 +319,21 @@ def main() -> None:
 
 def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     """One image per setting in the settings guide: the same piece with different values."""
+    from papermini import sizes
+
     red, fly = "dragon.webp", "dragon-flying.webp"
     one = dict(double_sided=False, label="")  # one side, no label: the setting stands out
+
+    # step 2, Size: the creature size fills in the height and the base (a round tab shows it)
+    def sized(size):
+        return mini(red, size=size, tab_shape="round", tab_color=GREEN,
+                    **sizes.BUILTIN.row(size).values(), **one)
+
+    compare("creature-size", [
+        (sized(s), None, sizes.label(s),
+         f"{sizes.BUILTIN.row(s).height_mm:g} mm tall, {sizes.BUILTIN.row(s).base_mm:g} mm base")
+        for s in ("small", "medium", "large")
+    ], mm=3.4)
 
     # step 2, Back side
     compare("back", [

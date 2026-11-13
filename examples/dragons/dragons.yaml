@@ -15,17 +15,18 @@ figures:
   # a stat block: the crop keeps the dragon and leaves out the text and the ornament
   - image: statblock-with-dragon.webp
     label: Dragon whelp
+    size: small
     model: birefnet
     crop: [0.03, 0.15, 0.565, 0.8]
 
-  # a busy landscape behind the figure; printed in black with a round base, as in
+  # a busy landscape behind the figure, Large; printed in black with a round base, as in
   # dragon-flying-photo.jpg. The tab reaches up to the claws, so it holds on to
   # more than the tip of the tail.
   - image: dragon-flying.webp
     name: Flying dragon
     label: ""
     model: birefnet
-    height_mm: 36
+    size: large
     margin_color: "#000000"
     tab_shape: round
     tab_color: "#000000"
@@ -34,4 +35,5 @@ figures:
   # an image with a soft transparent edge
   - image: dragon.webp
     label: Red dragon
+    size: huge
     model: birefnet
