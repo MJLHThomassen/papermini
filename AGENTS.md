@@ -53,9 +53,12 @@ src/papermini/
   svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
   update.py     the app's updates: check GitHub, download, verify the release
                 signature, install when the app closes
+  log.py        the desktop app's log (one file per session), crash files and
+                the prefilled link of Report a problem
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
                 prefs, about, export, models: download dialog and Cache
-                Management window)
+                Management window; errors: the error dialog, crash offer and
+                Report a problem)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
                 sign_release.py (release signing); fake_update.py and

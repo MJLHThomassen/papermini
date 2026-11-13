@@ -65,7 +65,7 @@ body:
     attributes:
       label: Log file
       description: |
-        If your papermini writes a log, drag the newest log file in here (or the `.crash` file papermini names). The logs stay on your computer until you attach one:
+        If your papermini writes a log, drag the newest log file in here (or the `.crash.log` file papermini names, after a crash). The logs stay on your computer until you attach one:
         - Windows: `%LOCALAPPDATA%\papermini\logs`
         - macOS: `~/Library/Logs/papermini`
         - Linux: `~/.local/state/papermini`

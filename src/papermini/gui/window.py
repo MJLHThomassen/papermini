@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import html
 import itertools
+import logging
 import re
-import sys
 import threading
 import time
 import traceback
@@ -22,14 +22,14 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
                                QPushButton, QSplitter, QStackedWidget, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from .. import __version__, remote, segment
+from .. import __version__, log, remote, segment
 from ..mini import Mini
 from ..segment import Cancelled, ModelError
 from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_project,
                         save_project)
 from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
 from ..svg import write_svg
-from . import prefs, theme
+from . import errors, prefs, theme
 from .models import CacheDialog, DownloadDialog
 from .export import ExportDialog
 from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
@@ -81,6 +81,28 @@ class Figure:
 
 # --------------------------------------------------------------------------- worker
 
+logger = logging.getLogger("papermini.build")
+update_log = logging.getLogger("papermini.update")
+ui_log = logging.getLogger("papermini.ui")  # what the user does
+
+
+def _log_update(state: str, data) -> None:
+    """Write a step of an update check, download or install to the log."""
+    if state == "latest":
+        update_log.info("papermini is up to date (latest: %s)", data.version)
+    elif state == "available":
+        rel, why = data
+        update_log.info("papermini %s is available%s", rel.version, f" ({why})" if why else "")
+    elif state == "downloading":
+        update_log.info("Downloading papermini %s", data.version)
+    elif state in ("verifying", "unpacking"):
+        update_log.info("%s papermini %s", state.capitalize(), data.version)
+    elif state == "ready":
+        update_log.info("papermini %s is downloaded and verified: %s", data[0].version, data[1])
+    elif state == "error":
+        update_log.warning("Update failed: %s", data)
+
+
 class Signals(QObject):
     update = Signal(str, object, str)      # update check: state, data, who asked (see check_updates)
     done = Signal(int, int, str, object)   # uid, gen, key, Mini
@@ -105,6 +127,8 @@ class BuildJob(QRunnable):
         if not self.is_current(self.uid, self.key):
             return  # settings changed while queued, or the user cancelled it
         self.sig.status.emit(f"Building {self.image.name}…")
+        logger.debug("Building %s", self.image.name)
+        t0 = time.perf_counter()
         try:
             with segment.cancellable():  # Cancel also stops it while the model loads
                 m = build_mini(self.image, self.settings, bleed_mm=self.bleed_mm,
@@ -115,10 +139,17 @@ class BuildJob(QRunnable):
             self.sig.cancelled.emit(self.uid, self.gen, self.key)
         except (Exception, SystemExit) as e:  # noqa: BLE001 - always report back, never die silently
             expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
-            msg = str(e) if isinstance(e, expected) else \
-                f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"
+            if isinstance(e, expected):
+                msg = str(e)
+                logger.warning("Building %s failed: %s (%s)", self.image.name, e,
+                               log.settings_text(self.settings.to_dict()))
+            else:
+                msg = f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"
+                logger.error("Building %s failed unexpectedly (%s)", self.image.name,
+                             log.settings_text(self.settings.to_dict()), exc_info=True)
             self.sig.failed.emit(self.uid, self.gen, self.key, msg)
         else:
+            logger.debug("Built %s in %.1f s", self.image.name, time.perf_counter() - t0)
             self.sig.done.emit(self.uid, self.gen, self.key, m)
 
 
@@ -161,6 +192,10 @@ class MainWindow(QMainWindow):
         segment.CANCEL.clear()
 
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
+        # settings changes go to the detailed log once they settle, as old -> new
+        self._settings_log: Dict[object, tuple] = {}  # uid or "sheet" -> (name, old settings)
+        self._settings_log_timer = QTimer(self, singleShot=True, interval=250,
+                                          timeout=self._flush_settings_log)
         self._sheet_timer = QTimer(self, singleShot=True, interval=150, timeout=self._refresh_sheet)
         # the Source view's picture follows the color sliders, a moment after they move
         self._picture_timer = QTimer(self, singleShot=True, interval=60,
@@ -534,6 +569,17 @@ class MainWindow(QMainWindow):
                                   "background and install it when papermini closes")
         self.a_auto_updates.setCheckable(True)
         self.a_auto_updates.setChecked(prefs.store().value("updates/auto", True, type=bool))
+        self.a_report = act("Report a problem…", lambda: errors.report_problem(self), None,
+                            "Open a new issue on GitHub with your papermini version and "
+                            "system filled in, and the log folder to attach the log from")
+        self.a_open_logs = act("Open log folder", errors.open_log_folder, None,
+                               "Show papermini's logs (they stay on your computer)")
+        self.a_open_logs.setEnabled(log.session() is not None)
+        self.a_detailed_log = act("Detailed log", log.set_detailed, None,
+                                  "Write more to the log, until papermini closes")
+        self.a_detailed_log.setCheckable(True)
+        self.a_detailed_log.setChecked(log.detailed())
+        self.a_detailed_log.setEnabled(log.session() is not None)
 
         m = self.menu = QMenu(self)
         for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None,
@@ -558,6 +604,11 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(self.a_check_updates)
         m.addAction(self.a_auto_updates)
+        m.addSeparator()
+        m.addAction(self.a_report)
+        lm = m.addMenu("Log")
+        lm.addAction(self.a_open_logs)
+        lm.addAction(self.a_detailed_log)
         m.addAction("About papermini", self.show_about)
         m.addAction(self.a_quit)
         self.menu_btn.setMenu(m)
@@ -700,6 +751,9 @@ class MainWindow(QMainWindow):
             self._append(FigureEntry(p, self._new_settings(base)))
             added += 1
         if added:
+            names = [f.entry.image.name for f in self.figures[-added:]]
+            ui_log.info("Added %d image(s): %s", added,
+                        ", ".join(names[:10]) + (", …" if added > 10 else ""))
             self.list.setCurrentRow(len(self.figures) - 1)
             self._set_modified()
         if links:
@@ -731,9 +785,10 @@ class MainWindow(QMainWindow):
             return
         if path is None:
             self._status("Could not add the image")
-            QMessageBox.warning(self, "papermini", f"Could not add the image.\n\n{err}")
+            self._warn(f"Could not add the image.\n\n{err}")
             return
         self._append(FigureEntry(Path(path), self._new_settings(base), source=url))
+        ui_log.info("Added %s from %s", Path(path).name, log.link_text(url))
         self.list.setCurrentRow(len(self.figures) - 1)
         self._set_modified()
         self._status(f"Added {Path(path).name}")
@@ -825,6 +880,7 @@ class MainWindow(QMainWindow):
         r = self.list.currentRow()
         if r < 0:
             return
+        ui_log.info("Removed %s", self.figures[r].entry.image.name)
         self.figures.pop(r)
         self.list.takeItem(r)
         self.count_label.setText(str(len(self.figures)))
@@ -852,6 +908,7 @@ class MainWindow(QMainWindow):
         fig = self._figure(uid)
         if fig is None or n == fig.entry.settings.copies:
             return
+        self._note_settings(fig.uid, fig.entry.image.name, fig.entry.settings)
         fig.entry.settings = replace(fig.entry.settings, copies=n)
         self._refresh_card(fig)
         self._set_modified()
@@ -870,8 +927,10 @@ class MainWindow(QMainWindow):
             del self._crop_undo[:-50]
         if s.model != old.model:
             self._declined.clear()  # a new model choice may ask again
+            ui_log.info("%s: model %s → %s", fig.entry.image.name, old.model, s.model)
         seg = self._segmenting
         old_mask = fig.mask_key()
+        self._note_settings(fig.uid, fig.entry.image.name, old)
         fig.entry.settings = s
         if seg and seg[0] == fig.uid and seg[1] == old_mask != fig.mask_key():
             segment.cancel_runs()  # its mask is no longer wanted: start the new one now
@@ -885,6 +944,23 @@ class MainWindow(QMainWindow):
         self._set_modified()
         self._build_timer.start()
         self._sheet_timer.start()  # e.g. copies: no rebuild, but the sheet changes
+
+    def _note_settings(self, key, name: str, old) -> None:
+        """Remember a figure's (or the sheet's) settings before a change, for the line
+        the detailed log gets once the changes settle."""
+        if ui_log.isEnabledFor(logging.DEBUG):
+            self._settings_log.setdefault(key, (name, old))
+            self._settings_log_timer.start()
+
+    def _flush_settings_log(self) -> None:
+        """Write the settled settings changes to the detailed log, as old -> new."""
+        pending, self._settings_log = self._settings_log, {}
+        for key, (name, old) in pending.items():
+            fig = None if key == "sheet" else self._figure(key)
+            new = self.project.sheet if key == "sheet" else (fig.entry.settings if fig else None)
+            diff = log.settings_diff(old, new) if new is not None else ""
+            if diff:
+                ui_log.debug("%s: %s", name, diff)
 
     def _apply_to_all(self, names=None):
         """Copy the current figure's settings (``names``, default all but the per-image
@@ -901,10 +977,13 @@ class MainWindow(QMainWindow):
             f.gen += 1
             f.error = f.queued = None
         self._set_modified()
+        ui_log.info("Applied %s of %s to %d other figure(s)", ", ".join(sorted(names)),
+                    cur.entry.image.name, len(self.figures) - 1)
         self._status(f"Applied settings to {len(self.figures) - 1} other figure(s)")
         self._sheet_timer.start()
 
     def _sheet_changed(self, s):
+        self._note_settings("sheet", "sheet", self.project.sheet)
         self.project.sheet = s
         if any(f.bleed_mm != s.figure_bleed for f in self.figures):
             for f in self.figures:  # cut by machine (or not): every piece gets its bleed
@@ -1335,7 +1414,7 @@ class MainWindow(QMainWindow):
             self._export = None
             dlg.close()
             f = failed[0]
-            QMessageBox.warning(self, "papermini", f"{f.entry.image.name}: {f.error.splitlines()[0]}")
+            self._warn(f"{f.entry.image.name}: {f.error.splitlines()[0]}")
         elif not left:
             self._export = None
             dlg.close()
@@ -1359,6 +1438,7 @@ class MainWindow(QMainWindow):
                                            "SVG (*.svg)")
         if f:
             write_svg(fig.mini, Path(f))
+            ui_log.info("Exported %s", f)
             self._status(f"Saved {f}")
 
     def export_all_svgs(self):
@@ -1370,6 +1450,7 @@ class MainWindow(QMainWindow):
         if d:
             for f in self.figures:
                 write_svg(f.mini, Path(d) / f.entry.svg_name())
+            ui_log.info("Exported %d SVG(s) to %s", len(self.figures), d)
             self._status(f"Saved {len(self.figures)} SVG(s) to {d}")
 
     def export_pdf(self):
@@ -1383,7 +1464,7 @@ class MainWindow(QMainWindow):
         try:
             lay = self._pack(self.figures)
         except ValueError as e:
-            QMessageBox.warning(self, "papermini", str(e))
+            self._warn(str(e))
             return
         dlg = ExportDialog(folder, sh.title, lay.pages, lay.machine, self)
         if not self._run_export_dialog(dlg):
@@ -1397,8 +1478,10 @@ class MainWindow(QMainWindow):
                 write_cut_files(lay, default_cut_file(dlg.pdf_path()), sh.cut_folds, sh.title)
                 if cut else [])
         except OSError as e:
-            QMessageBox.warning(self, "papermini", str(e))
+            self._warn(str(e))
             return
+        ui_log.info("Exported the sheet: %s (%d pieces, %d page(s))",
+                    ", ".join(str(f) for f in files), len(lay.placements), lay.pages)
         self._status(f"Saved {', '.join(f.name for f in files)} in {files[0].parent} "
                      f"({len(lay.placements)} pieces, {lay.pages} page(s))")
 
@@ -1417,7 +1500,7 @@ class MainWindow(QMainWindow):
         try:
             lay = self._pack(self.figures)
         except ValueError as e:
-            QMessageBox.warning(self, "papermini", str(e))
+            self._warn(str(e))
             return
         printer = QPrinter(QPrinter.HighResolution)
         size = QPageSize.A4 if sh.paper == "a4" else QPageSize.Letter
@@ -1437,10 +1520,12 @@ class MainWindow(QMainWindow):
                 != QMessageBox.Yes:
             return
         n = print_sheet(printer, lay, sh.title)
+        ui_log.info("Printed %d of %d page(s) on %s", n, lay.pages,
+                    printer.printerName() or "the printer")
         if n:
             self._status(f"Sent {n} page(s) to {printer.printerName() or 'the printer'}")
         else:
-            QMessageBox.warning(self, "papermini", "Could not print: the printer did not start.")
+            self._warn("Could not print: the printer did not start.")
 
     def _print_dialog(self, printer, pages: int) -> bool:
         from PySide6.QtPrintSupport import QAbstractPrintDialog, QPrintDialog
@@ -1469,13 +1554,14 @@ class MainWindow(QMainWindow):
             proj = load_project(path)
         except Exception as e:  # noqa: BLE001
             QApplication.restoreOverrideCursor()
-            QMessageBox.warning(self, "papermini", f"Could not open {path}:\n{e}")
+            self._warn(f"Could not open {path}:\n{e}")
             return
         QApplication.restoreOverrideCursor()
+        ui_log.info("Opened project %s (%d figure(s))", path, len(proj.figures))
         self._reset(proj)
         missing = [f.image.name for f in proj.figures if not f.image.exists()]
         if missing:
-            QMessageBox.warning(self, "papermini", "Missing images:\n" + "\n".join(missing))
+            self._warn("Missing images:\n" + "\n".join(missing))
 
     def _reset(self, proj: Project):
         self.project = proj
@@ -1495,6 +1581,7 @@ class MainWindow(QMainWindow):
 
     def new_project(self):
         if self._maybe_save():
+            ui_log.info("New project")
             self._reset(Project())
 
     def open_dialog(self):
@@ -1516,10 +1603,11 @@ class MainWindow(QMainWindow):
         try:
             save_project(self.project, self.project.path)
         except OSError as e:
-            QMessageBox.warning(self, "papermini", str(e))
+            self._warn(str(e))
             return False
         self._modified = False
         self._update_title()
+        ui_log.info("Saved project %s (%d figure(s))", self.project.path, len(self.figures))
         self._status(f"Saved {self.project.path}")
         return True
 
@@ -1550,6 +1638,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{name}{' *' if self._modified else ''} — papermini")
         self.project_label.setText(f"{name}{'  •  unsaved changes' if self._modified else ''}")
         self._balance_header()
+
+    def _warn(self, text: str) -> None:
+        """Show a problem to the user, and write it to the log."""
+        ui_log.warning("%s", text.replace("\n\n", ": ").replace("\n", "; "))
+        QMessageBox.warning(self, "papermini", text)
 
     def show_about(self):
         """Open the About window and start an update check for it, unless an update is
@@ -1632,6 +1725,7 @@ class MainWindow(QMainWindow):
         if self._checking_updates:
             return
         self._checking_updates = True
+        update_log.info("Checking for updates (%s)", source)
         download = source == "menu" or (source == "auto" and self.a_auto_updates.isChecked())
         if source == "menu":
             self._status("Checking for updates…")
@@ -1685,6 +1779,7 @@ class MainWindow(QMainWindow):
 
         if state not in ("downloading", "progress", "verifying", "unpacking"):
             self._checking_updates = False
+        _log_update(state, data)
         if state in ("latest", "available", "ready", "downloading"):
             prefs.store().setValue("updates/last_check", time.time())
         asked = source == "menu"
@@ -1774,13 +1869,16 @@ class MainWindow(QMainWindow):
             return
         from .. import update
 
+        update_log.info("Installing papermini %s when papermini has closed%s",
+                        self._update_ready[0], ", then restarting" if self._restart_after_update else "")
         try:
             update.install_on_exit(self._update_ready[1], restart=self._restart_after_update)
-        except Exception as e:  # noqa: BLE001 - never block quitting
-            print(f"papermini: could not install the update: {e}", file=sys.stderr)
+        except Exception:  # noqa: BLE001 - never block quitting
+            update_log.exception("Could not install the update")
 
     def closeEvent(self, e):
         if self._maybe_save():
+            self._flush_settings_log()
             self._closing.set()             # link downloads stop and are not added
             for t in (self._build_timer, self._sheet_timer, self._work_timer,
                       self._picture_timer):

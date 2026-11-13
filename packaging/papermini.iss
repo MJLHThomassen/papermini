@@ -7,7 +7,7 @@
 ; app can update itself: an installed papermini updates by running the installer of
 ; the new version silently (see papermini.update). The uninstaller asks to close a
 ; running papermini, offers to delete papermini's cache (downloaded models, masks and
-; images) and lists any files it could not remove.
+; images), always deletes its logs and lists any files it could not remove.
 ;
 ; Defines (iscc /DName=value):
 ;   AppVersion           the version shown in Apps & features (required)
@@ -67,6 +67,11 @@ Name: "path"; Description: "Add papermini to PATH, to use its command line in a 
 [InstallDelete]
 ; the files of the version being replaced (an update may drop or rename some)
 Type: filesandordirs; Name: "{app}\_internal"
+
+[UninstallDelete]
+; the desktop app's logs and crash files (see papermini.log), and their folder when empty
+Type: filesandordirs; Name: "{localappdata}\papermini\logs"
+Type: dirifempty; Name: "{localappdata}\papermini"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
