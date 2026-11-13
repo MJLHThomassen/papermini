@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
                                QPushButton, QScrollArea, QSlider, QSpinBox, QStyle,
                                QStyleOptionSlider, QToolButton, QVBoxLayout, QWidget)
 
-from .. import remote, segment
+from .. import remote, segment, sizes
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
 from .widgets import ElidedLabel
@@ -62,7 +62,8 @@ SECTIONS = [
          ("greyscale", "brightness", "contrast", "saturation", "hue")),
     ]),
     (MINIATURE, "Size", [  # first: how big the figure prints
-        ("size", "Size", "size", None),
+        ("size", "Creature size", "c", [(s, sizes.label(s)) for s in sizes.SIZE_CHOICES]),
+        ("dimensions", "Size", "size", None),
         ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
     ]),
     (MINIATURE, "Back side", [  # it decides what the rest of the piece is
@@ -107,8 +108,10 @@ SECTIONS = [
 SUBSECTIONS = {"Label": "Tab"}
 SUB_INDENT = 14
 
-# the settings each field sets ("size" sets two, "no_label" is the label "")
-FIELD_SETTINGS = {"size": ("height_mm", "width_mm"), "no_label": ("label",)}
+# the settings each field sets ("dimensions" sets two, "no_label" is the label ""), and
+# the creature size also fills in the height and the tabs
+FIELD_SETTINGS = {"dimensions": ("height_mm", "width_mm"), "no_label": ("label",),
+                  "size": sizes.FILLS}
 
 
 # kept per figure by "Apply to all"
@@ -123,6 +126,9 @@ def step_settings(step: int) -> set:
 
 
 TIPS = {
+    "size": "The D&D creature size: fills in the figure height and the tabs (round base\n"
+            "and stand tab) from the project's size table (☰ menu > Creature sizes…).\n"
+            "Changing the height or a tab size by hand makes it Custom.",
     "height_mm": "Height of the drawn figure on paper, without margin and tab.",
     "width_mm": "Width of the drawn figure on paper, without margin.",
     "size_link": "Linked: the figure keeps its proportions, so setting the height sets the\n"
@@ -737,6 +743,17 @@ class FigurePanel(QScrollArea):
                     form.labelForField(w).setObjectName("FormLabel")
                     if title in SUBSECTIONS:
                         sub_labels.append(form.labelForField(w))
+                if name == "size":
+                    # the size's squares and base, and a warning for a wide figure
+                    self.size_hint = QLabel()
+                    self.size_hint.setObjectName("Hint")
+                    self.size_hint.setWordWrap(True)
+                    form.addRow(self.size_hint)
+                    self.size_warning = QLabel()
+                    self.size_warning.setObjectName("WarnBox")
+                    self.size_warning.setWordWrap(True)
+                    self.size_warning.setVisible(False)
+                    form.addRow(self.size_warning)
                 if name == "model":
                     self.auto_hint = QLabel()
                     self.auto_hint.setWordWrap(True)
@@ -769,7 +786,7 @@ class FigurePanel(QScrollArea):
         for lab in labels:  # one column of fields, also inside the indented sub-groups
             lab.setMinimumWidth(widest - (SUB_INDENT if lab in sub_labels else 0))
         self.sections = sections
-        self.size_field = self._w["size"][1]
+        self.size_field = self._w["dimensions"][1]
         lay.addSpacing(12)
         self.apply_all = QPushButton("Apply to all figures")
         self.apply_all.clicked.connect(lambda: self.applyToAll.emit(self.step_settings()))
@@ -1062,6 +1079,50 @@ class FigurePanel(QScrollArea):
             self.auto_hint.setText(self.auto_method_text(method))
         self._sync_auto_hint()
 
+    def set_size_table(self, table: "sizes.SizeTable", label: str = ""):
+        """The project's creature size table and its name (its preset, or that it is the
+        project's own), for the hint under Creature size."""
+        self._size_table = table
+        self._size_label = label
+        self._sync_size_hint()
+
+    def set_figure_width(self, width_mm: Optional[float]):
+        """The width the selected figure was built at (None while not known), for the
+        warning when it is wider than its creature size's squares."""
+        self._figure_width = width_mm
+        self._sync_size_hint()
+
+    def show_size(self, s: FigureSettings):
+        """Show the settings after the window matched them to the creature size: a picked
+        size's filled-in values, or Custom after a hand edit. Emits nothing."""
+        self._loading = True
+        try:
+            self._s = s
+            w = self._w["size"][1]
+            w.setCurrentIndex(max(0, w.findData(s.size)))
+            if s.size != sizes.CUSTOM:  # (Custom: leave the field being edited alone)
+                self._w["dimensions"][1].set_value(s.height_mm, s.width_mm)
+                for name in ("tab_radius_mm", "tab_width_mm", "tab_height_mm"):
+                    if name in self._w:
+                        self._w[name][1].setValue(getattr(s, name))
+            self._sync_visible()
+            self._shown = self._read()
+        finally:
+            self._loading = False
+
+    def _sync_size_hint(self):
+        if not hasattr(self, "size_hint"):
+            return
+        table = getattr(self, "_size_table", sizes.BUILTIN)
+        size = self._w["size"][1].currentData() or sizes.CUSTOM
+        text = sizes.footprint_text(size, table)
+        label = getattr(self, "_size_label", "")
+        self.size_hint.setText(f"{text} · {label}" if text and label else text)
+        self.size_hint.setVisible(bool(text))
+        warning = sizes.width_warning(size, getattr(self, "_figure_width", None) or 0, table)
+        self.size_warning.setText(warning)
+        self.size_warning.setVisible(bool(warning))
+
     def _sync_auto_hint(self):
         model = self._w["model"][1].currentText().strip()
         method = getattr(self, "_auto_method", None)
@@ -1138,6 +1199,7 @@ class FigurePanel(QScrollArea):
         if not tab:
             self.overlap_hint.setVisible(False)
         self._sync_auto_hint()
+        self._sync_size_hint()
 
     def _reset(self, names):
         """Put ``names`` back to their defaults, as one change."""

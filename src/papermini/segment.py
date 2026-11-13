@@ -368,8 +368,9 @@ def get_segmenter(model: str):
         path = model_path(model)
         if not path.exists():
             if CONFIRM_DOWNLOAD is not None and not CONFIRM_DOWNLOAD(model):
-                raise ModelError(f"the {model} model is not downloaded. Download it from "
-                                 "Cache management… in the menu, or pick another model.")
+                raise ModelError(f"the {model} model is not downloaded. Download it in "
+                                 "Preferences… > Models and cache in the menu, or pick "
+                                 "another model.")
             if CONFIRM_DOWNLOAD is None and non_commercial(model) and sys.stderr is not None:
                 print(f"Note: {licence_notice(model)}", file=sys.stderr)  # (the command line)
             fetch_model(model)

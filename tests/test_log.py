@@ -194,9 +194,9 @@ def test_issue_url_adds_the_traceback_shortened_from_the_start():
 
 def test_settings_for_the_log():
     a, b = FigureSettings(), FigureSettings(height_mm=45, crop=[0.1, 0.25, 0.9, 1.0])
-    assert log.settings_diff(a, b) == "height_mm 42 → 45, crop None → [0.1, 0.25, 0.9, 1]"
+    assert log.settings_diff(a, b) == "height_mm 32 → 45, crop None → [0.1, 0.25, 0.9, 1]"
     assert log.settings_diff(a, a) == ""
-    assert log.settings_text(b.to_dict()) == "height_mm=45, crop=[0.1, 0.25, 0.9, 1]"
+    assert log.settings_text(b.to_dict(with_size=False)) == "height_mm=45, crop=[0.1, 0.25, 0.9, 1]"
     assert log.settings_text({}) == "default settings"
     sheet = SheetSettings()
     assert "paper" in log.settings_diff(sheet, SheetSettings(paper="letter"))

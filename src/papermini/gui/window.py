@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QIcon, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QListView, QListWidget, QListWidgetItem,
                                QMainWindow,
@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
                                QPushButton, QSplitter, QStackedWidget, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from .. import __version__, log, remote, segment
+from .. import __version__, log, remote, segment, sizes
 from ..mini import Mini
 from ..segment import Cancelled, ModelError
 from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_project,
@@ -30,7 +30,7 @@ from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_p
 from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
 from ..svg import write_svg
 from . import errors, prefs, theme
-from .models import CacheDialog, DownloadDialog
+from .models import DownloadDialog
 from .export import ExportDialog
 from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
 from .views import (CropView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
@@ -142,11 +142,11 @@ class BuildJob(QRunnable):
             if isinstance(e, expected):
                 msg = str(e)
                 logger.warning("Building %s failed: %s (%s)", self.image.name, e,
-                               log.settings_text(self.settings.to_dict()))
+                               log.settings_text(self.settings.to_dict(with_size=False)))
             else:
                 msg = f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"
                 logger.error("Building %s failed unexpectedly (%s)", self.image.name,
-                             log.settings_text(self.settings.to_dict()), exc_info=True)
+                             log.settings_text(self.settings.to_dict(with_size=False)), exc_info=True)
             self.sig.failed.emit(self.uid, self.gen, self.key, msg)
         else:
             logger.debug("Built %s in %.1f s", self.image.name, time.perf_counter() - t0)
@@ -160,7 +160,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.resize(1440, 900)
         self.setAcceptDrops(True)
-        self.project = Project()
+        self.project = self._fresh_project()
         self.figures: List[Figure] = []
         self._uids = itertools.count(1)
         self._export = None  # (figures, callback, progress dialog, count) while exporting
@@ -212,6 +212,7 @@ class MainWindow(QMainWindow):
             app.styleHints().colorSchemeChanged.connect(self._system_scheme_changed)
         self.tabs.currentChanged.connect(self.views.set_index)
         self.sheet_panel.set_settings(self.project.sheet)
+        self._sync_size_label()
         self._update_title()
         self._show_current()
         QTimer.singleShot(2000, self._startup_updates)  # (after the window is up)
@@ -559,27 +560,17 @@ class MainWindow(QMainWindow):
         for a in (self.a_left, self.a_right):
             a.setCheckable(True)
             a.setChecked(True)
-        self.a_models = act("Cache management…", self.show_models, None,
-                            "See, download or delete the background-removal models, "
-                            "and clear papermini's other cached files")
+        self.a_prefs = act("Preferences…", lambda: self.show_preferences(), "Ctrl+,",
+                           "Creature size presets, the theme, automatic updates, the log, "
+                           "and the background-removal models and cache")
         self.a_check_updates = act("Check for updates…", self.show_about, None,
                                    "See whether there is a newer papermini, and update")
-        self.a_auto_updates = act("Update automatically", self._set_auto_updates, None,
-                                  "Look for a new version once a day, download it in the "
-                                  "background and install it when papermini closes")
-        self.a_auto_updates.setCheckable(True)
-        self.a_auto_updates.setChecked(prefs.store().value("updates/auto", True, type=bool))
         self.a_report = act("Report a problem…", lambda: errors.report_problem(self), None,
                             "Open a new issue on GitHub with your papermini version and "
                             "system filled in, and the log folder to attach the log from")
         self.a_open_logs = act("Open log folder", errors.open_log_folder, None,
                                "Show papermini's logs (they stay on your computer)")
         self.a_open_logs.setEnabled(log.session() is not None)
-        self.a_detailed_log = act("Detailed log", log.set_detailed, None,
-                                  "Write more to the log, until papermini closes")
-        self.a_detailed_log.setCheckable(True)
-        self.a_detailed_log.setChecked(log.detailed())
-        self.a_detailed_log.setEnabled(log.session() is not None)
 
         m = self.menu = QMenu(self)
         for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None,
@@ -590,25 +581,12 @@ class MainWindow(QMainWindow):
         vm = m.addMenu("View")
         for a in (self.a_left, self.a_right, None, self.a_fit, self.a_actual):
             vm.addSeparator() if a is None else vm.addAction(a)
-        tm = m.addMenu("Theme")
-        group = QActionGroup(self)
-        self.theme_actions = {}
-        for mode, text in (("system", "Follow system"), ("light", "Light"), ("dark", "Dark")):
-            a = tm.addAction(text)
-            a.setCheckable(True)
-            a.setChecked(mode == self._theme_mode)
-            a.triggered.connect(lambda _=False, mode=mode: self.set_theme(mode))
-            group.addAction(a)
-            self.theme_actions[mode] = a
-        m.addAction(self.a_models)
+        m.addSeparator()
+        m.addAction(self.a_prefs)
         m.addSeparator()
         m.addAction(self.a_check_updates)
-        m.addAction(self.a_auto_updates)
-        m.addSeparator()
         m.addAction(self.a_report)
-        lm = m.addMenu("Log")
-        lm.addAction(self.a_open_logs)
-        lm.addAction(self.a_detailed_log)
+        m.addAction(self.a_open_logs)
         m.addAction("About papermini", self.show_about)
         m.addAction(self.a_quit)
         self.menu_btn.setMenu(m)
@@ -733,9 +711,17 @@ class MainWindow(QMainWindow):
         """New figures start from the selected figure's settings (or ``settings``)."""
         return self.current().entry.settings if (settings is None and self.current()) else settings
 
+    def _new_settings(self, base: Optional[FigureSettings]) -> FigureSettings:
+        if base is None:  # Medium, from the project's size table
+            return sizes.apply(FigureSettings(), sizes.DEFAULT_SIZE, self.project.sizes)
+        return replace(base, label=None, crop=None, mask=None)
+
     @staticmethod
-    def _new_settings(base: Optional[FigureSettings]) -> FigureSettings:
-        return FigureSettings() if base is None else replace(base, label=None, crop=None, mask=None)
+    def _fresh_project() -> Project:
+        """A new project, with the user's default creature size preset."""
+        from .preferences import default_table
+
+        return Project(sizes=default_table())
 
     def add_images(self, paths, settings: Optional[FigureSettings] = None):
         """Add image files; links among ``paths`` are downloaded first (in the background)."""
@@ -920,6 +906,10 @@ class MainWindow(QMainWindow):
             return
         old = fig.entry.settings
         s = replace(s, copies=old.copies)  # (the copies are set on the card, not the panel)
+        matched = sizes.reconcile(old, s, self.project.sizes)
+        if matched != s:  # a picked size filled in its values, or a hand edit made it custom
+            s = matched
+            self.panel.show_size(s)
         if s.adjustments() != old.adjustments():
             self._picture_timer.start()  # (the model is not involved: no rebuild of the mask)
         if s.crop != old.crop and not self._undoing:  # a crop change can be undone
@@ -1173,7 +1163,7 @@ class MainWindow(QMainWindow):
         try:
             if answer.get("gone"):  # the build stopped waiting (window closed): do not ask
                 return
-            if segment.model_path(model).exists():  # downloaded meanwhile (Cache Management)
+            if segment.model_path(model).exists():  # downloaded meanwhile (Models and cache)
                 answer["ok"] = True
                 return
             ok = DownloadDialog(model, self).exec() == QDialog.Accepted
@@ -1182,11 +1172,6 @@ class MainWindow(QMainWindow):
                 self._declined.add(model)
         finally:
             done.set()
-
-    def show_models(self):
-        dlg = CacheDialog(self, in_use=lambda: [f.entry.image for f in self.figures])
-        dlg.changed.connect(self._models_changed)
-        dlg.exec()
 
     def _models_changed(self, model: str):
         """Retry figures that failed, e.g. because a model was not downloaded."""
@@ -1247,6 +1232,7 @@ class MainWindow(QMainWindow):
         # how "auto" found the figure: it depends only on the image and mask, so a stale
         # piece of this figure still tells
         self.panel.set_auto_method(fig.mini.method if fig.mini is not None else None)
+        self.panel.set_figure_width(fig.mini.figure_width_mm if fig.mini is not None else None)
         if fig.error and not fig.up_to_date:
             sc.clear()
             self.crop_view.set_outline(None)
@@ -1572,6 +1558,7 @@ class MainWindow(QMainWindow):
             if e.image.exists():
                 self._append(e)
         self.sheet_panel.set_settings(proj.sheet)
+        self._sync_size_label()
         self._modified = False
         if self.figures:
             self.list.setCurrentRow(0)
@@ -1582,7 +1569,7 @@ class MainWindow(QMainWindow):
     def new_project(self):
         if self._maybe_save():
             ui_log.info("New project")
-            self._reset(Project())
+            self._reset(self._fresh_project())
 
     def open_dialog(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -1638,6 +1625,49 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{name}{' *' if self._modified else ''} — papermini")
         self.project_label.setText(f"{name}{'  •  unsaved changes' if self._modified else ''}")
         self._balance_header()
+
+    def show_preferences(self, page: str = "sizes"):
+        """Open the Preferences window at ``page``. When it closes, the project takes the
+        size table picked or edited there; figures with a size follow it."""
+        from .preferences import PreferencesDialog
+
+        dlg = PreferencesDialog(self, page)
+        dlg.exec()
+        table = dlg.sizes.project_table()
+        if table != self.project.sizes:
+            self.set_size_table(table)
+        else:
+            self._sync_size_label()  # (a preset may have been renamed or deleted)
+
+    def _sync_size_label(self) -> None:
+        from .preferences import table_label
+
+        self.panel.set_size_table(self.project.sizes, table_label(self.project.sizes))
+
+    def set_size_table(self, table: "sizes.SizeTable") -> None:
+        """Use ``table`` for this project: every figure with a creature size takes its
+        values from it."""
+        self.project.sizes = table
+        self._sync_size_label()
+        changed = 0
+        for f in self.figures:
+            s = f.entry.settings
+            if s.size == sizes.CUSTOM:
+                continue
+            new = sizes.apply(s, s.size, table)
+            if new != s:
+                f.entry.settings = new
+                f.gen += 1
+                f.error = f.queued = None
+                self._refresh_card(f)
+                changed += 1
+        ui_log.info("Changed the creature size table (%s, grid %g mm, Medium %g mm); %d "
+                    "figure(s) follow it", table.name or "no preset", table.grid_mm,
+                    table.medium_mm, changed)
+        self._set_modified()
+        self._show_current()
+        self._build_timer.start()
+        self._sheet_timer.start()
 
     def _warn(self, text: str) -> None:
         """Show a problem to the user, and write it to the log."""
@@ -1712,7 +1742,7 @@ class MainWindow(QMainWindow):
             self._show_update_ready(ready[0], ready[1], "")
             return
         last = prefs.store().value("updates/last_check", 0.0, type=float)
-        if self.a_auto_updates.isChecked() and time.time() - last > 24 * 3600:
+        if self.auto_updates() and time.time() - last > 24 * 3600:
             self.check_updates(False)
 
     def check_updates(self, asked: bool = False, source: str = ""):
@@ -1726,7 +1756,7 @@ class MainWindow(QMainWindow):
             return
         self._checking_updates = True
         update_log.info("Checking for updates (%s)", source)
-        download = source == "menu" or (source == "auto" and self.a_auto_updates.isChecked())
+        download = source == "menu" or (source == "auto" and self.auto_updates())
         if source == "menu":
             self._status("Checking for updates…")
         threading.Thread(target=self._update_job, args=(source, download), daemon=True).start()
@@ -1858,8 +1888,14 @@ class MainWindow(QMainWindow):
         if not self.close():  # (the user kept the window open, e.g. to save first)
             self._restart_after_update = False
 
-    def _set_auto_updates(self, on: bool):
+    @staticmethod
+    def auto_updates() -> bool:
+        """Whether papermini looks for, downloads and installs updates by itself."""
+        return prefs.store().value("updates/auto", True, type=bool)
+
+    def set_auto_updates(self, on: bool):
         prefs.store().setValue("updates/auto", bool(on))
+        ui_log.info("Automatic updates %s", "on" if on else "off")
         if on:
             QTimer.singleShot(0, self._startup_updates)
 

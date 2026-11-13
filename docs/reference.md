@@ -28,12 +28,12 @@ the desktop app in depth, and how the pipeline works.
   belong to: **Export SVG…** at the bottom of the Miniature settings, **Print…**
   and **Export…** at the bottom of the Print sheet settings. The ☰ menu has
   them too, and holds everything else: new project, save as, export all SVGs, **View**
-  (show or hide the side panels, zoom), the **theme** (follow the system, light
-  or dark), **Cache management…**, **Report a problem…**, the **Log** (open the log
-  folder, detailed log) and about. Keyboard shortcuts work without opening the menu: Ctrl+O
-  open, Ctrl+I add images, Ctrl+L add an image from a link, Ctrl+V paste images, Ctrl+S save,
-  Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export the sheet,
-  Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings.
+  (show or hide the side panels, zoom), **Preferences…**, **Check for updates…**,
+  **Report a problem…**, **Open log folder** and about. Keyboard shortcuts work without
+  opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+L add an image from a link,
+  Ctrl+V paste images, Ctrl+S save, Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export
+  the sheet, Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings,
+  Ctrl+, preferences.
 - **Images.** PNG, JPG, WebP, BMP and TIFF. Besides files, an image can come
   from the web: paste its link (URL) into the bar at the top of the figure list
   and press Enter; you can also drag a picture from a browser onto
@@ -144,23 +144,28 @@ the desktop app in depth, and how the pipeline works.
   and the app does not ask again until you pick another model. For rmbg-1.4,
   which is for non-commercial use only, you first tick *I will only use BRIA
   RMBG-1.4 non-commercially*; *Download* stays disabled until you do (also
-  from Cache management). See [Model licence](#model-licence).
-- **Cache management…** (☰ menu) shows what papermini keeps on this computer,
-  in the cache folder (*Open folder*). *Clear cache…* deletes all of it,
-  downloaded models included, after asking. Below that:
-  - every built-in model with its licence, whether it is downloaded, its size and
-    file name: *Download* or *Download again* (to replace a damaged file), and
-    *Delete* to free disk space;
-  - the other cached files, with how many there are and their size: the
-    **masks** (the background removal of each image) and the **images from
-    links**. *Clear* deletes them; papermini makes or downloads them again when it
-    needs them. Images that open figures use are kept.
-
-  The window can be resized; its content scrolls when it does not fit.
+  on the *Models and cache* page). See [Model licence](#model-licence).
+- **Preferences…** (☰ menu, Ctrl+,) holds the app's settings, on pages. Changes
+  take effect at once; the window can be resized.
+  - **Creature sizes:** the size table presets. See
+    [Creature sizes](#creature-sizes).
+  - **Appearance:** the theme: follow the system, light or dark.
+  - **Updates:** **Update automatically** turns the daily check and background
+    download on or off. See [Updates](#updates).
+  - **Logging:** **Detailed log**, and *Open log folder*. See
+    [Logs and reporting a problem](#logs-and-reporting-a-problem).
+  - **Models and cache:** what papermini keeps on this computer, in the cache folder
+    (*Open folder*). *Clear cache…* deletes all of it, downloaded models included,
+    after asking. Below that:
+    - every built-in model with its licence, whether it is downloaded, its size and
+      file name: *Download* or *Download again* (to replace a damaged file), and
+      *Delete* to free disk space;
+    - the other cached files, with how many there are and their size: the
+      **masks** (the background removal of each image) and the **images from
+      links**. *Clear* deletes them; papermini makes or downloads them again when
+      it needs them. Images that open figures use are kept.
 - **Check for updates…** and **About papermini** (☰ menu) open the About window,
-  which shows the version and checks for a newer one; **Update automatically**
-  turns the daily check and background download on or off. See
-  [Updates](#updates).
+  which shows the version and checks for a newer one. See [Updates](#updates).
 - **Report a problem…** (☰ menu) opens a new bug report on GitHub with your
   papermini version and system filled in, and the log folder to attach the log
   from. See [Logs and reporting a problem](#logs-and-reporting-a-problem).
@@ -209,8 +214,8 @@ selected figure. While rmbg-1.4 is the model in use (picked, or chosen by
 *Auto*), a red box under it says it is for non-commercial use only. *Mask image
 file* uses a mask you painted yourself (see *Mask image
 file*). The first time a model is needed, the app asks before downloading it;
-after that, papermini works offline. **Cache management…** in the ☰ menu shows
-which models are downloaded, and where.
+after that, papermini works offline. **Preferences… → Models and cache** in the ☰ menu
+shows which models are downloaded, and where.
 
 | Model | Download | Loading | Per image | Licence |
 |---|---|---|---|---|
@@ -316,8 +321,21 @@ green, as in the picture above.
 
 #### Size
 
+##### Creature size
+`--size tiny|small|medium|large|huge|gargantuan|custom` [Medium]\
+The D&D size of the creature: it fills in the figure height and the tab.
+
+Picking a size fills in *Figure height*, the tab's *Width*, *Height* and
+*Radius* from the project's size table, for example 48 mm tall on a 50 mm
+base for *Large*. The values stay editable: changing one by hand makes the
+figure *Custom*. A hint under it shows the size's squares and base, and which
+table they come from; a warning shows when the figure is wider than its
+squares. See [Creature sizes](#creature-sizes).
+
+![The red dragon as Small, Medium and Large, on green round bases](screenshots/settings/creature-size.png)
+
 ##### Figure height
-`--height-mm` [42 mm]\
+`--height-mm` [32 mm, from the creature size]\
 The height of the drawing itself, without the margin and the tab.
 
 With the link button beside the size on (the default), the figure keeps its
@@ -462,20 +480,22 @@ two half discs fold out to opposite sides and make a full circle.
 ![A square tab with the label, and a green round tab](screenshots/settings/tab-shape.png)
 
 ##### Width
-`--tab-width-mm` [22 mm]\
+`--tab-width-mm` [25 mm, from the creature size]\
 The width of a square tab.
 
-Match it to the slot of your stand.
+Match it to the slot of your stand. The creature size makes it as wide as the
+size's round base.
 
 ##### Radius
-`--tab-radius-mm` [12.5 mm]\
+`--tab-radius-mm` [12.5 mm, from the creature size]\
 The radius of a round tab.
 
 Shown when *Shape* is *Round*. 12.5 mm makes a 25 mm (one-inch) base; 25 mm
-makes a 50 mm base for a large creature.
+makes a 50 mm base for a large creature. The creature size sets it to half its
+round base.
 
 ##### Height
-`--tab-height-mm` [12 mm]\
+`--tab-height-mm` [12.5 mm, from the creature size]\
 How far a square tab reaches below the fold.
 
 A taller tab holds better in a deep slot or gives more room to glue.
@@ -637,7 +657,7 @@ Makes one SVG per image, saved next to the image or in `-o DIR` (or
 once and cached, and its SVG is saved in the current folder.
 
 ```bash
-papermini make dragon.png --height-mm 42 --label "Red dragon"
+papermini make dragon.png --size large --label "Red dragon"
 ```
 
 ```bash
@@ -650,13 +670,15 @@ papermini make *.png -o minis --debug
 
 | option | default | meaning |
 |---|---|---|
-| `--height-mm` | 42 | height of the drawn figure, without margin and tab |
+| `--size` | medium | D&D creature size (`tiny`, `small`, `medium`, `large`, `huge`, `gargantuan` or `custom`): fills in `--height-mm` and the tab sizes from the built-in size table. An explicit height or tab flag wins and makes the figure `custom`. Prints a warning when the figure is wider than its squares |
+| `--grid-mm` | 25.4 | grid square for `--size`: the size table is calculated for this grid, bases and heights alike (Medium 32 × grid / 25.4 mm) |
+| `--height-mm` | 32 (Medium) | height of the drawn figure, without margin and tab |
 | `--width-mm` | | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
 | `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
 | `--smooth-mm` | 0.6 | how much the outline is rounded |
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
-| `--tab-width-mm` / `--tab-height-mm` | 22 / 12 | square tab size (height measured below the fold) |
-| `--tab-radius-mm` | 12.5 | round tab radius (12.5 makes a 25 mm base) |
+| `--tab-width-mm` / `--tab-height-mm` | 25 / 12.5 (Medium) | square tab size (height measured below the fold) |
+| `--tab-radius-mm` | 12.5 (Medium) | round tab radius (12.5 makes a 25 mm base) |
 | `--tab-color` | #ffffff | tab color (everything below the fold), behind the label; independent of the margin color |
 | `--tab-overlap-mm` | 0 | how far the tab reaches up past the fold. It only adds paper where the figure's bottom is narrower than the tab (feet, a tail), to strengthen the joint; on a wide bottom it has no effect, and the app says so |
 | `--fold-mm` | 0 | fold line distance above the silhouette's lowest point |
@@ -750,6 +772,25 @@ proportions; both stretch it to that height and width. A figure that gives only
 `width_mm` is sized by width, but `defaults` count too: with `height_mm` in
 `defaults`, write `height_mm: null` in a figure to size it by width only.
 
+A figure's `size` (`tiny` … `gargantuan`, or `custom`) fills in `height_mm`,
+`tab_radius_mm`, `tab_width_mm` and `tab_height_mm` from the project's size
+table, for the values the figure does not give itself; a figure whose values
+differ from its size's is `custom`. Saved projects always write a figure's
+`size` and those four values, and the project's table under `sizes`: the preset
+it came from, the grid, Medium's height, and each size's height, round base and
+stand tab. A project without `sizes` uses the built-in table; a figure without
+`size` is Medium. See [Creature sizes](#creature-sizes).
+
+```yaml
+sizes:
+  preset: Standard 1-inch
+  grid_mm: 25.4
+  medium_mm: 32.0
+  tiny: {height_mm: 16.0, base_mm: 12.5, tab_width_mm: 12.5, tab_height_mm: 6.25}
+  # ... small, medium, large, huge
+  gargantuan: {height_mm: 80.0, base_mm: 100.0, tab_width_mm: 100.0, tab_height_mm: 50.0}
+```
+
 [examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
 sample outputs in [examples/dragons/samples](../examples/dragons/samples), four
 ways to print the same dragon: a default (double-sided) mini, a single-sided
@@ -779,7 +820,8 @@ sell. It is the default because it is fast and works well on most artwork, and
 most people make minis for their own table.
 
 - In the desktop app you accept this before RMBG-1.4 downloads (a tick box in the
-  download dialog), its licence is marked in Cache management, and a box under
+  download dialog), its licence is marked on the *Models and cache* page of
+  Preferences, and a box under
   *Model* says so while it is the model in use.
 - The command line prints the same notice when it downloads RMBG-1.4.
 
@@ -799,6 +841,61 @@ model. Every model downloads once, without an account.
 
 You can also skip segmentation and pass a mask you painted yourself:
 `--mask hero_mask.png` (white = figure).
+
+## Creature sizes
+
+D&D sizes follow the grid: Medium takes one square, Large 2 × 2, Huge 3 × 3 and
+Gargantuan 4 × 4. A figure's *Creature size* fills in its height and its tab from a
+size table. The built-in table is for a 1-inch grid (25.4 mm) and a 32 mm
+("heroic" scale) Medium figure:
+
+| Size | Squares | Height | Round base | Stand tab (w × h) |
+|---|---|---|---|---|
+| Tiny | ½ | 16 mm | 12.5 mm | 12.5 × 6.25 mm |
+| Small | 1 | 24 mm | 25 mm | 25 × 12.5 mm |
+| Medium | 1 | 32 mm | 25 mm | 25 × 12.5 mm |
+| Large | 2 | 48 mm | 50 mm | 50 × 25 mm |
+| Huge | 3 | 64 mm | 75 mm | 75 × 37.5 mm |
+| Gargantuan | 4 | 80 mm | 100 mm | 100 × 50 mm |
+
+The height is the drawn figure (*Figure height*). The round base sets the round
+tab (its radius is half the base); the stand tab is the square tab.
+
+**Calculating a table.** From a grid square and Medium's height:
+
+- heights: Medium × 0.5, 0.75, 1, 1.5, 2 and 2.5 (Tiny to Gargantuan);
+- round base: squares × grid × 25/25.4, a little under the grid so bases fit
+  side by side (Tiny half a square);
+- stand tab: as wide as the base and half as deep.
+
+**Width.** The width follows the height. A figure wider than its squares
+(squares × grid) gets a warning: give it a width, or a bigger size.
+
+**Presets.** In the desktop app, **Preferences… → Creature sizes** manages size
+table presets:
+
+- the list on the left shows the built-in preset (*Standard 1-inch*, read-only:
+  *Copy* it to make your own) and your own, with *New*, *Copy*, *Rename* and
+  *Delete*. Under each name it says which one the open project uses and which one
+  is the default for new projects;
+- the selected preset's table is on the right: the grid square (with inches),
+  Medium's height, *Calculate* (fills in every row, replacing values you
+  changed) and every row editable, for example to fit the stand tab to your
+  3D-printed bases. Changes are saved at once;
+- *Use in this project* gives the open project the selected table; *Make default
+  for new projects* sets the one new projects start with;
+- editing the preset the open project uses changes the project too. Other saved
+  projects keep their own copy until you open them and pick the preset again;
+- a project table that matches none of your presets (from another computer, or
+  changed since) shows as *This project's table*, with *Save as preset*.
+
+When the window closes, every figure with a size takes its values from the
+project's table. The project file keeps a copy of the table, so a project
+opens the same on any computer.
+
+**Command line.** `papermini make --size large` uses the built-in table;
+`--grid-mm 30` calculates it for a 30 mm grid instead, heights included
+(Medium 32 × 30/25.4 ≈ 37.8 mm). `papermini batch` uses the project's table.
 
 ## Stands and bases
 
@@ -974,7 +1071,8 @@ The downloaded app keeps itself up to date:
   a request for the latest release, named papermini and its version. Offline,
   the check fails quietly. **Check for updates…** (or **About papermini**) in the
   ☰ menu checks right away and shows the result in the About window.
-- **Downloading.** With **Update automatically** on (the default), a new version
+- **Downloading.** With **Update automatically** on (the default; **Preferences… →
+  Updates**), a new version
   is downloaded in the background. Otherwise the bar under the header says a new
   version is available, and **Update** in the About window downloads it, with
   its progress.
@@ -1009,18 +1107,21 @@ reported. Nothing is sent anywhere: you decide what to attach to a report.
   - macOS: `~/Library/Logs/papermini`
   - Linux: `$XDG_STATE_HOME/papermini` (`~/.local/state/papermini` by default)
 
-  **Open log folder** (☰ menu → **Log**) opens it, and the About window shows
+  **Open log folder** (☰ menu, or **Preferences… → Logging**) opens it, and the
+  About window shows
   where it is. Logs older than 30 days are deleted when papermini starts, and the
   [Windows uninstaller](#installing-on-windows) deletes the folder. Clearing the
   cache keeps the logs. Copies of papermini running at the same time each write
   their own file.
 - **What is in it.** The papermini version, your system, Python and Qt; what you
   do (opening, saving and exporting, adding and removing images, the model you
-  pick, Cache management actions); model downloads and loads; update checks,
+  pick, changes in Preferences, models and cache actions); model downloads and
+  loads; update checks,
   downloads and installs; warnings papermini shows you; and every error, with the
   settings of the figure it happened to (those not at their default). Your home
   folder is written as `~`. Image files are named but their contents are never
-  logged. With **Detailed log** on (☰ menu → **Log**, until papermini closes) it
+  logged. With **Detailed log** on (**Preferences… → Logging**, until papermini
+  closes) it
   also logs every settings change, as old → new values once the change settles,
   and each build with its time.
 - **When something goes wrong.** An unexpected error shows *Something went
@@ -1047,7 +1148,7 @@ a few seconds on a CPU. AI model masks are cached on disk per image, crop and
 model, so re-running with a different `--strength` or `--height-mm` skips the
 model entirely (`--no-cache` turns this off). Images from links are kept in
 `images/` in the same folder, so each link is downloaded only once. In the
-desktop app, **Cache management…** in the ☰ menu shows how much space the models,
+desktop app, **Preferences… → Models and cache** shows how much space the models,
 masks and images take, and clears them.
 
 Within one run (and in the desktop app), every stage is also cached in memory:

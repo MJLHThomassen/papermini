@@ -285,11 +285,21 @@ def main() -> None:
         from papermini.settings import load_project
         from papermini.sheet import cut_file_svg, pack
 
+        from papermini import sizes
+
         proj = load_project(args.project)
         sh = replace(proj.sheet, cut="machine")
-        lay = pack([(build_mini(f.image, f.settings, bleed_mm=sh.figure_bleed,
+
+        def smaller(s):  # one creature size down, so all three dragons fit on one page
+            if s.size not in sizes.SIZES:
+                return s
+            down = sizes.SIZES[max(sizes.SIZES.index(s.size) - 1, 0)]
+            return sizes.apply(s, down, proj.sizes)
+
+        lay = pack([(build_mini(f.image, smaller(f.settings), bleed_mm=sh.figure_bleed,
                                 log=lambda *_: None), 1) for f in proj.figures],
                    sh.paper, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+        assert lay.pages == 1, "the machine sheet picture should fit on one page"
         k = 2.2 * ratio  # device pixels per mm
         pw, ph = lay.paper
 
@@ -319,8 +329,21 @@ def main() -> None:
 
 def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     """One image per setting in the settings guide: the same piece with different values."""
+    from papermini import sizes
+
     red, fly = "dragon.webp", "dragon-flying.webp"
     one = dict(double_sided=False, label="")  # one side, no label: the setting stands out
+
+    # step 2, Size: the creature size fills in the height and the base (a round tab shows it)
+    def sized(size):
+        return mini(red, size=size, tab_shape="round", tab_color=GREEN,
+                    **sizes.BUILTIN.row(size).values(), **one)
+
+    compare("creature-size", [
+        (sized(s), None, sizes.label(s),
+         f"{sizes.BUILTIN.row(s).height_mm:g} mm tall, {sizes.BUILTIN.row(s).base_mm:g} mm base")
+        for s in ("small", "medium", "large")
+    ], mm=3.4)
 
     # step 2, Back side
     compare("back", [

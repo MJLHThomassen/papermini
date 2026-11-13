@@ -127,7 +127,7 @@ def test_webp_file_works_like_any_other(tmp_path):
 
     (tmp_path / "ogre.webp").write_bytes(figure_bytes("WEBP"))
     m = build_mini(tmp_path / "ogre.webp", FigureSettings())
-    assert m.name == "ogre" and abs(m.figure_height_mm - 42) < 0.5
+    assert m.name == "ogre" and abs(m.figure_height_mm - 32) < 0.5
     assert main(["make", (tmp_path / "ogre.webp").as_uri()]) == 0  # a file:// URI is a path
     assert (tmp_path / "ogre.svg").is_file()
 

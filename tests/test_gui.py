@@ -82,7 +82,7 @@ def test_build_edit_and_save(app, tmp_path):
         w.add_images([tmp_path / "hero.png"], FigureSettings(mask=str(tmp_path / "m.png")))
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
-        assert fig.mini.figure_height_mm == pytest.approx(42, abs=0.05)
+        assert fig.mini.figure_height_mm == pytest.approx(32, abs=0.05)  # Medium
         assert fig.mini.source_outline and w.crop_view._outline_items  # on the source
         # defaults (fold and overlap 0) on a wide joint: no note under the overlap field
         assert fig.mini.tab_overlap_used and fig.mini.tab_joint_mm > 10
@@ -702,14 +702,15 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         fig = w.current()
         assert wait(app, lambda: fig.error is not None, 30)
         assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
-        assert "Cache management" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
+        assert "Models and cache" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
         assert model_cache == []
         assert w._confirm_download("birefnet-lite") is False   # declined: not asked again
         assert asked == ["birefnet-lite"]
 
-        # the Cache Management window lists every model, downloads one, and the figure is retried
-        dlg = models.CacheDialog(w)
-        dlg.changed.connect(w._models_changed)
+        # the Models and cache page lists every model, downloads one, and the figure is retried
+        from papermini.gui.preferences import PreferencesDialog
+
+        dlg = PreferencesDialog(w, "cache").cache
         assert set(dlg.cards) == set(segment.ONNX_MODELS)
         card = dlg.cards["birefnet-lite"]
         assert "Not downloaded" in card.state.text() and not card.btn_del.isEnabled()
@@ -729,18 +730,28 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         w.close()
 
 
-def test_models_menu_entry(app):
+def test_preferences_menu_entry(app):
+    """Preferences… is in the menu (Ctrl+,) and holds the settings that used to be menu
+    items: the theme, automatic updates, the detailed log and cache management."""
+    from PySide6.QtGui import QKeySequence
+
     from papermini.gui.window import MainWindow
 
     w = MainWindow()
     try:
-        assert w.a_models in w.menu.actions()
+        assert w.a_prefs in w.menu.actions()
+        assert w.a_prefs.shortcut() == QKeySequence("Ctrl+,")
+        texts = [a.text() for a in w.menu.actions()]
+        for gone in ("Theme", "Cache management…", "Creature sizes…", "Log",
+                     "Update automatically"):
+            assert gone not in texts
+        assert "Open log folder" in texts
     finally:
         w.close()
 
 
 def test_cache_management_clears_masks_images_and_everything(app, model_cache, monkeypatch):
-    """The Cache Management window counts the masks and images from links, clears each,
+    """The Models and cache page counts the masks and images from links, clears each,
     keeps the images open figures use, and Clear cache also deletes the models."""
     from papermini import remote, segment
     from papermini.gui import models
@@ -757,8 +768,7 @@ def test_cache_management_clears_masks_images_and_everything(app, model_cache, m
     model = segment.model_path(segment.DEFAULT_MODEL)
     model.write_bytes(b"model")
 
-    dlg = models.CacheDialog(in_use=lambda: [images[0]])
-    assert dlg.windowTitle() == "Cache Management"
+    dlg = models.CachePage(in_use=lambda: [images[0]])
     assert str(segment.cache_dir()) in dlg.folder.text()
     assert dlg.masks.state.text().startswith("3 masks")
     assert dlg.images.state.text().startswith("2 images")
@@ -782,31 +792,35 @@ def test_cache_management_clears_masks_images_and_everything(app, model_cache, m
     assert "Not downloaded" in dlg.cards[segment.DEFAULT_MODEL].state.text()
 
 
-def test_cache_management_scrolls_when_short(app, model_cache):
-    """The window can be resized smaller than its content, which then scrolls, and
-    Close stays in view."""
+def test_cache_page_scrolls_when_short(app, model_cache):
+    """The Preferences window can be resized smaller than the Models and cache page,
+    which then scrolls, and Close stays in view."""
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QPushButton
 
-    from papermini.gui.models import CacheDialog
+    from papermini.gui.preferences import PreferencesDialog
+    from papermini.gui.window import MainWindow
 
-    dlg = CacheDialog()
-    dlg.setAttribute(Qt.WA_DontShowOnScreen)
-    dlg.show()
-    app.processEvents()
-    room = dlg.screen().availableGeometry()  # opens no larger than the screen allows
-    assert dlg.height() <= room.height() * 0.9 + 1 and dlg.width() <= room.width() * 0.9 + 1
-    dlg.resize(dlg.width(), 300)
-    app.processEvents()
-    assert dlg.height() == 300 and dlg.scroll.verticalScrollBar().isVisible()
-    close = [b for b in dlg.findChildren(QPushButton) if b.text() == "Close"][0]
-    assert not dlg.scroll.isAncestorOf(close)
-    dlg.close()
+    w = MainWindow()
+    try:
+        dlg = PreferencesDialog(w, "cache")
+        assert dlg.isSizeGripEnabled() and dlg.stack.currentWidget() is dlg.cache
+        dlg.setAttribute(Qt.WA_DontShowOnScreen)
+        dlg.show()
+        app.processEvents()
+        dlg.resize(dlg.width(), 300)  # (as short as the other pages allow)
+        app.processEvents()
+        assert dlg.height() < 450 and dlg.cache.scroll.verticalScrollBar().isVisible()
+        close = [b for b in dlg.findChildren(QPushButton) if b.text() == "Close"][0]
+        assert not dlg.cache.scroll.isAncestorOf(close)
+        dlg.close()
+    finally:
+        w.close()
 
 
 def test_licences_are_links(app, model_cache):
     from papermini import segment
-    from papermini.gui.models import CacheDialog, DownloadDialog
+    from papermini.gui.models import CachePage, DownloadDialog
 
     for model, spec in segment.ONNX_MODELS.items():
         assert spec["licence_url"].startswith("https://")
@@ -814,7 +828,7 @@ def test_licences_are_links(app, model_cache):
         label = d.licence_note if segment.non_commercial(model) else d.body
         assert f'<a href="{spec["licence_url"]}">' in label.text()
         assert label.openExternalLinks()
-    dlg = CacheDialog()
+    dlg = CachePage()
     card = dlg.cards["birefnet"]
     assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
     assert card.licence.openExternalLinks()
@@ -822,12 +836,13 @@ def test_licences_are_links(app, model_cache):
 
 def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cache):
     """RMBG-1.4 only downloads once the user accepts it is for non-commercial use, also
-    from Cache management (which otherwise downloads at once); BiRefNet just downloads."""
+    from the Models and cache page (which otherwise downloads at once); BiRefNet just
+    downloads."""
     from PySide6.QtWidgets import QDialog
 
-    from papermini.gui.models import CacheDialog, DownloadDialog
+    from papermini.gui.models import CachePage, DownloadDialog
 
-    d = DownloadDialog("rmbg-1.4", ask=False)          # Cache management's Download
+    d = DownloadDialog("rmbg-1.4", ask=False)          # the Models and cache page's Download
     assert d.accept_licence is not None and not d.btn_go.isEnabled()
     assert model_cache == [] and d.bar.isHidden()
     d.accept_licence.setChecked(True)
@@ -835,10 +850,10 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cac
     assert wait(app, lambda: d.result() == QDialog.Accepted, 10)
     d = DownloadDialog("birefnet-lite")
     assert d.accept_licence is None and d.licence_note is None and d.btn_go.isEnabled()
-    card = CacheDialog().cards["rmbg-1.4"]
+    card = CachePage().cards["rmbg-1.4"]
     assert card.licence.objectName() == "LicenceNote"
     assert "responsible for not using it commercially" in card.licence.toolTip()
-    assert CacheDialog().cards["birefnet"].licence.objectName() == "Muted"
+    assert CachePage().cards["birefnet"].licence.objectName() == "Muted"
 
 
 def test_the_settings_show_the_licence_of_the_model_in_use(app, tmp_path, model_cache):
@@ -1531,14 +1546,15 @@ def test_stretched_figure_gets_both_sizes(app, tmp_path):
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         f = w.panel.size_field
-        assert f.w.value() == pytest.approx(42 * 401 / 601, abs=0.1)  # follows the figure
+        assert f.w.value() == pytest.approx(32 * 401 / 601, abs=0.1)  # follows the figure
         f.link.click()
         f.w.setValue(40)
-        assert (fig.entry.settings.height_mm, fig.entry.settings.width_mm) == (42, 40)
+        assert (fig.entry.settings.height_mm, fig.entry.settings.width_mm) == (32, 40)
+        assert fig.entry.settings.size == "custom"  # (a width of its own: not Medium's)
         assert wait(app, lambda: fig.up_to_date), fig.error
         assert fig.mini.figure_width_mm == pytest.approx(40, abs=0.05)
-        assert fig.mini.figure_height_mm == pytest.approx(42, abs=0.05)
-        assert "figure 40.0 × 42.0 mm" in w.info.text()
+        assert fig.mini.figure_height_mm == pytest.approx(32, abs=0.05)
+        assert "figure 40.0 × 32.0 mm" in w.info.text()
     finally:
         w._modified = False
         w.close()
@@ -2137,7 +2153,7 @@ def test_daily_update_check(app, fake_updates, monkeypatch, tmp_path):
         w._startup_updates()
         assert len(asked) == 1
         # automatic updating off: the daily check announces, and downloads nothing
-        w.a_auto_updates.setChecked(False)
+        w.set_auto_updates(False)
         real_check(source="auto")
         assert wait(app, lambda: w.update_bar.isVisibleTo(w), 20)
         assert "available" in w.update_text.text() and w.update_restart.text() == "Update…"
@@ -2149,13 +2165,22 @@ def test_daily_update_check(app, fake_updates, monkeypatch, tmp_path):
 
 
 def test_update_menu_items(app):
+    """Check for updates is in the menu; Update automatically is in Preferences, on by
+    default, and its tick box sets the preference."""
+    from papermini.gui import prefs
+    from papermini.gui.preferences import PreferencesDialog
     from papermini.gui.window import MainWindow
 
     w = MainWindow()
     try:
         texts = [a.text() for a in w.menu.actions()]
-        assert "Check for updates…" in texts and "Update automatically" in texts
-        assert w.a_auto_updates.isCheckable() and w.a_auto_updates.isChecked()  # on by default
+        assert "Check for updates…" in texts
+        assert w.auto_updates()  # on by default
+        dlg = PreferencesDialog(w, "updates")
+        assert dlg.auto_updates.isChecked()
+        dlg.auto_updates.setChecked(False)
+        assert not w.auto_updates() and prefs.store().value("updates/auto", type=bool) is False
+        dlg.close()
     finally:
         w._modified = False
         w.close()

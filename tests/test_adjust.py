@@ -60,7 +60,7 @@ def test_transparent_pixels_keep_their_coverage():
 def test_settings_validate_and_round_trip():
     s = FigureSettings.from_dict({"greyscale": True, "brightness": 20, "hue": -45})
     assert s.adjustments() == Adjustments(brightness=20, hue=-45, greyscale=True)
-    assert s.to_dict() == {"greyscale": True, "brightness": 20, "hue": -45}
+    assert s.to_dict(with_size=False) == {"greyscale": True, "brightness": 20, "hue": -45}
     for key, bad in (("brightness", 101), ("hue", 181), ("contrast", 1.5),
                      ("saturation", True)):
         with pytest.raises(ValueError, match=key):

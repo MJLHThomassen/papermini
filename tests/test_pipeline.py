@@ -164,7 +164,7 @@ def test_mask_model_choice(figure):
 
     img, mask = figure
     m = build_mini(img, FigureSettings(model="mask", mask=str(mask)), log=lambda *_: None)
-    assert m.figure_height_mm == pytest.approx(42, abs=0.05)
+    assert m.figure_height_mm == pytest.approx(32, abs=0.05)  # Medium
     with pytest.raises(ValueError, match="needs a mask image"):
         build_mini(img, FigureSettings(model="mask"), log=lambda *_: None)
 
@@ -211,7 +211,9 @@ def test_cut_line_in_source_pixels(tmp_path, size, double_sided):
     Image.fromarray(im).save(tmp_path / "a.png")
     Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(tmp_path / "m.png")
     m = build_mini(tmp_path / "a.png", FigureSettings(model="mask", mask=str(tmp_path / "m.png"),
-                                                      double_sided=double_sided), log=lambda *_: None)
+                                                      double_sided=double_sided,
+                                                      tab_width_mm=10),  # (narrower than the drawing)
+                   log=lambda *_: None)
     p = m.source_cut.points
     margin = 1.6 * (2 * ay + 1) / m.figure_height_mm    # default margin, in source pixels
     tol = 0.25 * margin
@@ -287,15 +289,18 @@ def test_cli_makes_double_sided_minis_unless_told_not_to(figure, tmp_path):
 
 
 def test_cli_width_alone_scales_by_width(figure, tmp_path):
+    from papermini.settings import FigureSettings
+
     img, mask = figure
     out = tmp_path / "w.svg"
     assert main(["make", str(img), "--mask", str(mask), "--width-mm", "25",
                  "--no-double-sided", "-o", str(out)]) == 0
     r = read_svg(out)
-    by_h = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
-    # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not the
-    # default 42 mm (margin and tab stay the same, so compare the difference)
-    assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 42, abs=0.5)
+    by_h = make_mini(img, FigureSettings(double_sided=False).params(), mask_path=mask,
+                     log=lambda *_: None)
+    # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not
+    # Medium's 32 mm (margin and tab stay the same, so compare the difference)
+    assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 32, abs=0.5)
 
 
 def _square_mini(name="sq", w=30.0, h=40.0):

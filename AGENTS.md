@@ -44,6 +44,8 @@ src/papermini/
   cli.py        command line: make | sheet | batch | gui
   settings.py   FigureSettings / Project: the one definition of every option,
                 shared by the CLI, batch YAML and the GUI
+  sizes.py      creature sizes: the size tables (built-in, calculated) and how a
+                size fills in a figure's height and tab
   segment.py    background removal (RMBG-1.4 / BiRefNet ONNX, alpha, masks)
                 and the on-disk mask cache
   geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
@@ -56,9 +58,10 @@ src/papermini/
   log.py        the desktop app's log (one file per session), crash files and
                 the prefilled link of Report a problem
   gui/          PySide6 desktop app (window, panels, views, widgets, theme,
-                prefs, about, export, models: download dialog and Cache
-                Management window; errors: the error dialog, crash offer and
-                Report a problem)
+                prefs, about, export, models: download dialog and the Models
+                and cache page; preferences: the Preferences window and the
+                creature size presets; errors: the error dialog, crash offer
+                and Report a problem)
 tests/          pytest; synthetic masks, no model download; GUI tests offscreen
 scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
                 sign_release.py (release signing); fake_update.py and
