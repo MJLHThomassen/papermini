@@ -536,8 +536,9 @@ class SizesPage(QWidget):
 class PreferencesDialog(QDialog):
     """The Preferences window for ``window`` (the main window), opened at ``page``."""
 
-    PAGES = (("sizes", "Creature sizes"), ("appearance", "Appearance"),
-             ("updates", "Updates"), ("logging", "Logging"), ("cache", "Models and cache"))
+    PAGES = (("sizes", "Creature sizes"), ("adding", "Adding images"),
+             ("appearance", "Appearance"), ("updates", "Updates"), ("logging", "Logging"),
+             ("cache", "Models and cache"))
 
     def __init__(self, window, page: str = "sizes"):
         super().__init__(window)
@@ -557,9 +558,9 @@ class PreferencesDialog(QDialog):
         self.sizes = SizesPage(window.project.sizes)
         self.cache = CachePage(in_use=lambda: [f.entry.image for f in window.figures])
         self.cache.changed.connect(window._models_changed)
-        for (key, text), w in zip(self.PAGES, (self.sizes, self._appearance(),
-                                               self._updates(), self._logging(),
-                                               self.cache)):
+        pages = (self.sizes, self._adding(), self._appearance(), self._updates(),
+                 self._logging(), self.cache)
+        for (key, text), w in zip(self.PAGES, pages):
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, key)
             item.setSizeHint(QSize(0, 32))
@@ -592,6 +593,18 @@ class PreferencesDialog(QDialog):
         v.setSpacing(10)
         v.addWidget(_page_title(title))
         return w, v
+
+    def _adding(self) -> QWidget:
+        w, v = self._page("Adding images")
+        self.subfolders = QCheckBox("Also add the images in subfolders")
+        self.subfolders.setChecked(prefs.add_subfolders())
+        self.subfolders.toggled.connect(prefs.set_add_subfolders)
+        v.addWidget(self.subfolders)
+        v.addWidget(_hint("When you add a folder (Add folder\u2026 in the menu, or by dropping "
+                          "it on the window), also add the images in its subfolders. The "
+                          "command line always does, unless you give --no-subfolders."))
+        v.addStretch(1)
+        return w
 
     def _appearance(self) -> QWidget:
         w, v = self._page("Appearance")

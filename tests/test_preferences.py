@@ -247,8 +247,9 @@ def test_the_other_pages(window):
 
     dlg = PreferencesDialog(window, "appearance")
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
-        "Creature sizes", "Appearance", "Updates", "Logging", "Models and cache"]
-    assert dlg.stack.currentIndex() == 1
+        "Creature sizes", "Adding images", "Appearance", "Updates", "Logging",
+        "Models and cache"]
+    assert dlg.stack.currentIndex() == 2
     dark = [b for b in dlg.theme_group.buttons() if b.text() == "Dark"][0]
     dark.setChecked(True)
     assert window._theme_mode == "dark" and prefs.store().value("theme") == "dark"

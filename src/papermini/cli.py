@@ -123,7 +123,18 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
 def cmd_make(a: argparse.Namespace) -> int:
     from .svg import write_svgs
 
-    images = _expand(a.images)
+    images, folders = [], {}  # an image from a folder: the folder it came from
+    for src in _expand(a.images):
+        if not remote.is_url(src) and Path(src).is_dir():
+            found, skipped = remote.folder_images(src, not a.no_subfolders)
+            print(f"  {src}: {len(found)} image{'s' * (len(found) != 1)}"
+                  + (f" ({skipped} other file{'s' * (skipped != 1)} skipped)" if skipped else ""))
+            images += [str(p) for p in found]
+            folders.update({str(p): Path(src) for p in found})
+        else:
+            images.append(src)
+    if not images:
+        raise SystemExit("no images to make")
     if a.output and len(images) > 1 and a.output.lower().endswith(".svg"):
         raise SystemExit("-o NAME.svg only works with a single image; use -o DIR")
     if a.grid_mm is not None and a.grid_mm <= 0:
@@ -137,6 +148,8 @@ def cmd_make(a: argparse.Namespace) -> int:
         # next to the image, or for a link (its copy lives in the cache) here
         here = Path.cwd() if remote.is_url(src) else img.parent
         out_dir = out_svg.parent if out_svg else Path(a.output) if a.output else here
+        if a.output and not out_svg and src in folders:  # (its subfolder, inside -o DIR)
+            out_dir = out_dir / img.resolve().parent.relative_to(folders[src].resolve())
         m = build_mini(img, s, bleed_mm=a.bleed_mm, use_cache=not a.no_cache,
                        debug_dir=out_dir / "debug" if a.debug else None)
         for out in write_svgs(m, out_svg or out_dir / (safe_name(m.name) + ".svg"), a.copies):
@@ -252,7 +265,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     mk = sub.add_parser("make", help="image(s) -> one SVG per figure")
     mk.add_argument("images", nargs="+", metavar="IMAGE",
-                    help=f"image files ({remote.READABLE}) or http(s) links to images")
+                    help=f"image files ({remote.READABLE}), folders of them, or http(s) "
+                         "links to images")
+    mk.add_argument("--no-subfolders", action="store_true",
+                    help="a folder: only its own images, not those in its subfolders")
     mk.add_argument("-o", "--output", help="output .svg (single image) or directory "
                                            "(default: next to the image; for a link, here)")
     mk.add_argument("--bleed-mm", type=float, default=0.0,
