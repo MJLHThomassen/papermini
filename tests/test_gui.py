@@ -2234,3 +2234,27 @@ def test_number_fields_follow_the_back_side(app):
     p._w["double_sided"][1].setChecked(False)
     assert p.is_shown("tab_front") and not p.is_shown("tab_back")  # (no back tab)
     assert p.settings().tab_front == "number"
+
+
+def test_about_names_the_font_licence(app, monkeypatch):
+    """About lists the bundled fonts and their licence, with a link to their folder."""
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QLabel
+
+    from papermini import fonts
+    from papermini.gui.about import AboutDialog
+    from papermini.gui.window import MainWindow
+
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
+    w = MainWindow()
+    try:
+        d = AboutDialog(w)
+        label = next(lb for lb in d.findChildren(QLabel) if "Open Font License" in lb.text())
+        assert all(name in label.text() for name in fonts.BUNDLED)
+        label.linkActivated.emit("fonts")
+        assert [u.toLocalFile() for u in opened] == [fonts.HERE.as_posix()]
+        assert (fonts.HERE / "kalam" / "OFL.txt").is_file()
+    finally:
+        w._modified = False
+        w.close()

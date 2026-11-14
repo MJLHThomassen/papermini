@@ -603,7 +603,9 @@ The font of all the piece's text: the label, the numbers and the back text.
 The list has Times first, then the fonts that come with papermini: Fira Sans,
 Crimson Text, Almendra, MedievalSharp, Uncial Antiqua and Kalam. These work on
 every computer. After them come the TrueType fonts installed on this computer;
-each name is shown in its own font. Numbers use the font's bold; MedievalSharp
+each name is shown in its own font. The bundled fonts are free under the SIL Open
+Font License; *About papermini* (☰ menu) names them and opens their folder,
+where each font's licence is. Numbers use the font's bold; MedievalSharp
 and Uncial Antiqua have no bold, so their numbers are regular.
 
 The PDF sheet contains the font, so it prints the same anywhere. An SVG file

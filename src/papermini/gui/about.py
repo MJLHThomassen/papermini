@@ -5,12 +5,27 @@ from __future__ import annotations
 
 import html
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLayout, QProgressBar,
                                QPushButton, QVBoxLayout)
 
-from .. import __version__
+from .. import __version__, fonts
 from . import theme
+
+
+def _font_note() -> str:
+    """The fonts that come with papermini, their licence, and a link to their folder."""
+    names = [f.name for f in fonts.bundled() if f.regular is not None]
+    listed = ", ".join(names[:-1]) + " and " + names[-1]
+    return (f"The fonts {html.escape(listed)} come with papermini. They are free fonts "
+            "under the SIL Open Font License, also for commercial use. Each font's "
+            "licence (OFL.txt) is in its folder: <a href='fonts'>open the font folder</a>.")
+
+
+def open_font_folder(_link: str = "") -> None:
+    """Open the folder of the fonts that come with papermini (and their licences)."""
+    QDesktopServices.openUrl(QUrl.fromLocalFile(str(fonts.HERE)))
 
 
 class AboutDialog(QDialog):
@@ -56,11 +71,13 @@ class AboutDialog(QDialog):
             "<b>non-commercial use only</b>: you are responsible for not using it "
             "commercially, for example to make minis you sell. The BiRefNet models are "
             "MIT-licensed, also for commercial use.<br><br>"
+            f"{_font_note()}<br><br>"
             "Projects are saved as batch YAML files, so you can also run them from the "
             "command line: <code>papermini batch project.yaml</code>")
         text.setWordWrap(True)
         text.setTextFormat(Qt.RichText)
         text.setFixedWidth(400)
+        text.linkActivated.connect(open_font_folder)
         col.addSpacing(4)
         col.addWidget(text)
         col.addWidget(self._log_label())
