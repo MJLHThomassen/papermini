@@ -2258,3 +2258,121 @@ def test_about_names_the_font_licence(app, monkeypatch):
     finally:
         w._modified = False
         w.close()
+
+
+def test_sheet_panel_paper_orientation_and_custom_size(app):
+    """Orientation for a named paper, a width and height for Custom (starting at the
+    paper chosen before); the mat only when cut by machine, with its warning."""
+    from papermini.gui.panels import SheetPanel
+    from papermini.settings import SheetSettings
+
+    p = SheetPanel()
+    got = []
+    p.changed.connect(got.append)
+    p.set_settings(SheetSettings())
+    assert [p.paper.itemText(i) for i in range(p.paper.count())] == [
+        "A3 (297 \u00d7 420 mm)", "A4 (210 \u00d7 297 mm)", "A5 (148 \u00d7 210 mm)",
+        "Letter (8.5 \u00d7 11 in)", "Legal (8.5 \u00d7 14 in)", "Tabloid (11 \u00d7 17 in)",
+        "Custom"]
+    assert p.paper.currentData() == "a4" and p.is_shown(p.orientation)
+    assert not p.is_shown(p.paper_w) and not p.is_shown(p.mat)
+    p.paper.setCurrentIndex(p.paper.findData("a3"))
+    p.orientation.setCurrentIndex(p.orientation.findData("landscape"))
+    assert (got[-1].paper, got[-1].orientation) == ("a3", "landscape")
+    assert got[-1].paper_width_mm is None
+    p.paper.setCurrentIndex(p.paper.findData("custom"))   # starts at A3 landscape
+    assert (got[-1].paper_width_mm, got[-1].paper_height_mm) == (420, 297)
+    assert p.is_shown(p.paper_w) and p.is_shown(p.paper_h) and not p.is_shown(p.orientation)
+    p.paper_h.setValue(350)
+    assert got[-1].page == (420, 350)
+    p.paper.setCurrentIndex(p.paper.findData("letter"))
+    assert got[-1].paper_width_mm is None and got[-1].paper_height_mm is None
+    # the mat: cut by machine only, and a warning when the paper is bigger
+    p.set_settings(SheetSettings(paper="tabloid", cut="machine"))
+    assert p.is_shown(p.mat) and not p.is_shown(p.mat_warning)
+    p.mat.setCurrentIndex(p.mat.findData("12x12"))
+    assert got[-1].mat == "12x12" and p.is_shown(p.mat_warning)
+    assert p.mat_warning.text().startswith("Tabloid (279 \u00d7 432 mm) is bigger than")
+    p.mat.setCurrentIndex(p.mat.findData("12x24"))
+    assert not p.is_shown(p.mat_warning)
+    p.cut.setCurrentIndex(p.cut.findData("hand"))         # hidden, but kept
+    assert not p.is_shown(p.mat) and got[-1].mat == "12x24"
+    p.set_settings(SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=450))
+    assert (p.paper_w.value(), p.paper_h.value()) == (300, 450) and p.is_shown(p.paper_w)
+
+
+def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
+    """The sheet stays empty with a message, a list of the figures under Paper, and
+    Print asks before leaving them off."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from papermini.gui.window import MainWindow
+    from papermini.settings import SheetSettings
+
+    im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
+    from PIL import ImageDraw
+    ImageDraw.Draw(im).ellipse((30, 30, 270, 420), fill=(200, 40, 30, 255))
+    im.save(tmp_path / "hero.png")
+    im.save(tmp_path / "imp.png")
+    asked, printed = [], []
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: asked.append(a[2]) or QMessageBox.No)
+    monkeypatch.setattr(MainWindow, "_print_dialog",
+                        lambda self, printer, pages: printed.append(pages) or False)
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "hero.png", tmp_path / "imp.png"])
+        hero, imp = w.figures
+        hero.entry.settings = replace(hero.entry.settings, height_mm=150, label="Hero")
+        w.tabs.setCurrentIndex(w.SHEET)
+        w._refresh_sheet()                                 # (builds what is missing)
+        assert wait(app, lambda: all(f.mini is not None and f.up_to_date for f in w.figures))
+        w._sheet_changed(SheetSettings(paper="a5", orientation="landscape"))
+        w._refresh_sheet()
+        sp = w.sheet_panel
+        assert w.sheet_banner_box.isVisibleTo(w) and w.sheet_view.scene().items() == []
+        assert sp.is_shown(sp.fit_warning)
+        text = sp.fit_warning.text()
+        assert text.startswith("The following figure is too large to fit on the selected paper:")
+        assert "<li>Hero</li>" in text and "imp" not in text
+        assert "Pick bigger paper" in text
+        w._print()                                         # asks; No: does not print
+        assert len(asked) == 1 and "\u2022 Hero" in asked[0] and "left off" in asked[0]
+        assert printed == []
+        w._sheet_changed(SheetSettings(paper="a3"))  # everything fits again
+        w._refresh_sheet()
+        assert not w.sheet_banner_box.isVisibleTo(w) and not sp.is_shown(sp.fit_warning)
+        assert w.sheet_view.scene().items()
+    finally:
+        w._modified = False
+        w.close()
+
+
+def test_print_sets_the_paper_size_and_orientation(app, tmp_path, monkeypatch):
+    from PySide6.QtGui import QPageLayout
+
+    from papermini.gui.window import MainWindow
+    from papermini.settings import SheetSettings
+
+    Image.new("RGBA", (300, 450), (200, 40, 30, 255)).save(tmp_path / "hero.png")
+    seen = []
+
+    def fake_dialog(self, printer, pages):
+        r = printer.pageLayout().fullRect(QPageLayout.Millimeter)
+        seen.append((round(r.width()), round(r.height())))
+        return False
+
+    monkeypatch.setattr(MainWindow, "_print_dialog", fake_dialog)
+    w = MainWindow()
+    try:
+        w.add_images([tmp_path / "hero.png"])
+        assert wait(app, lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
+        for sheet in (SheetSettings(paper="a3", orientation="landscape"),
+                      SheetSettings(paper="tabloid"),
+                      SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=200)):
+            w._sheet_changed(sheet)
+            w._print()
+        assert seen == [(420, 297), (279, 432), (300, 200)]
+    finally:
+        w._modified = False
+        w.close()

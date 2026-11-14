@@ -298,7 +298,8 @@ def main() -> None:
 
         lay = pack([(build_mini(f.image, smaller(f.settings), bleed_mm=sh.figure_bleed,
                                 log=lambda *_: None), 1) for f in proj.figures],
-                   sh.paper, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+                   sh.page, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks,
+                   orientation=sh.orientation)
         assert lay.pages == 1, "the machine sheet picture should fit on one page"
         k = 2.2 * ratio  # device pixels per mm
         pw, ph = lay.paper
@@ -325,6 +326,22 @@ def main() -> None:
                      (page(svg.render), "The cut file (SVG)",
                       "cut lines (red), fold lines (blue) and the same marks")], "light"),
              "settings/machine")
+
+        # Orientation: the same pieces on A4, upright and on its side (the first page);
+        # two red dragons, so landscape fits on one page what portrait needs two for
+        hand = [(build_mini(f.image, smaller(f.settings), log=lambda *_: None), n)
+                for f, n in zip(proj.figures, (1, 1, 2))]
+        shots = []
+        for orientation, caption in (("portrait", "2 pages: the first shown"),
+                                     ("landscape", "the same pieces on 1 page")):
+            lay = pack(hand, "a4", sh.margin_mm, sh.gap_mm, orientation=orientation)
+            assert lay.pages == int(caption.split(" page")[0][-1]), (orientation, lay.pages)
+            pw, ph = lay.paper
+            sc = QGraphicsScene()
+            draw_sheet(sc, lay, sh.title)
+            shots.append((page(lambda p, r, sc=sc, pw=pw, ph=ph: sc.render(
+                p, r, QRectF(0, 0, pw, ph))), orientation.title(), caption))
+        save(panels(shots, "light"), "settings/orientation")
 
 
 def settings_images(mini, piece, bottom, compare, QRectF) -> None:

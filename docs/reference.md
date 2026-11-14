@@ -631,10 +631,41 @@ leaves the figure off the sheet. In a project file it is `copies`.
 #### Paper and layout
 
 ##### Paper
-`papermini sheet --paper a4|letter` [A4]\
+`papermini sheet --paper a3|a4|a5|letter|legal|tabloid|custom` [A4]\
 The paper size of the sheet.
 
-The app warns when you print to a printer set to another paper size.
+The list shows each size: A3 (297 × 420 mm), A4 (210 × 297 mm), A5 (148 × 210
+mm), Letter (8.5 × 11 in), Legal (8.5 × 14 in), Tabloid (11 × 17 in), and
+*Custom* for a size of your own. **Print…** sets the printer to the sheet's
+paper size and orientation, and the app warns when you pick another paper in
+the print dialog.
+
+A figure too big for the paper leaves the sheet empty. A red box under *Paper*
+and a message on the sheet list the figures that do not fit, and say what to
+do: pick bigger paper (or the other orientation, when that is enough), or make
+the figure smaller in step 2. **Print…** and **Export…** ask first, and leave
+those figures off the sheet. The command line stops with an error that names
+the figure.
+
+##### Orientation
+`papermini sheet --orientation portrait|landscape` [Portrait]\
+Whether the page is upright or on its side.
+
+Shown for a named paper size. Landscape fits wide figures and longer rows. A
+custom size is used as you type it, so it has no orientation: type it wider
+than tall for a landscape page.
+
+![The same dragons on A4 in portrait and in landscape](screenshots/settings/orientation.png)
+
+##### Width and Height
+`papermini sheet --paper-width-mm`, `--paper-height-mm`\
+The width and height of a custom paper size, as it prints (50 to 1200 mm).
+
+Shown when *Paper* is *Custom*, for example for a print shop or a plotter.
+They start at the size of the paper chosen before, so from A4 landscape Custom
+starts at 297 × 210 mm. On the command line, giving them is enough: the paper
+is then custom. In a project file it is `paper: custom` with `paper_width_mm`
+and `paper_height_mm`.
 
 ##### Title
 `papermini sheet --title` [Paper miniatures]\
@@ -697,6 +728,17 @@ Also puts the fold lines in the cut file.
 Shown when *Cut by* is *Machine*. The fold lines go in their own group, in
 blue, so the cutting software can score or draw them, or leave them out. They
 are always printed on the sheet.
+
+##### Mat
+`papermini sheet --mat 12x12|12x24` [Any size]\
+The cutting mat you put the sheet on, to check that the paper fits it.
+
+Shown when *Cut by* is *Machine*. A 12 × 12 in mat (305 × 305 mm) takes A4,
+A5 and Letter; a 12 × 24 in mat (305 × 610 mm) also takes A3, Legal and
+Tabloid. The paper may lie either way round on the mat. When the paper is
+bigger than the mat, a red box says so (the command line prints a note); the
+sheet is still made. *Any size* checks nothing. In a project file it is `mat`,
+and it is kept when *Cut by* goes back to *By hand*.
 
 ## Commands
 
@@ -771,8 +813,9 @@ margins, and extra pages are added as needed.
 papermini sheet "minis/*.svg" --copies 2 --paper letter -o minis.pdf --preview
 ```
 
-Options: `--copies`, `--paper a4|letter`, `--margin-mm`, `--gap-mm`, `--title`, and
-`--preview` (also writes a PNG per page). The sheet only reads SVGs written by
+Options: `--copies`, `--paper a3|a4|a5|letter|legal|tabloid|custom` (a custom size
+with `--paper-width-mm` and `--paper-height-mm`), `--orientation portrait|landscape`,
+`--margin-mm`, `--gap-mm`, `--title`, and `--preview` (also writes a PNG per page). The sheet only reads SVGs written by
 papermini. An SVG that was re-saved in another editor may not load. An SVG of a
 numbered copy keeps its number: `--copies 2` of `goblin-3.svg` prints two 3s.
 Give the sheet every copy's file instead (see
@@ -781,7 +824,8 @@ Give the sheet every copy's file instead (see
 For a cutting machine, `--cut machine` leaves the cut lines off the PDF, adds
 alignment marks (`--marks corners|silhouette`) and writes a cut file per page
 next to it (`minis-cut.svg`, `minis-cut-2.svg` and so on); `--cut-folds` also
-puts the fold lines in it. Make the SVGs with `papermini make --bleed-mm 1` for
+puts the fold lines in it, and `--mat 12x12|12x24` notes when the paper is bigger
+than your cutting mat. Make the SVGs with `papermini make --bleed-mm 1` for
 a bleed. See [Cutting by machine](#cutting-by-machine).
 
 ```bash
@@ -809,9 +853,14 @@ figures:
     crop: [0.08, 0, 0.92, 0.62]
 ```
 
-The `sheet` also takes `title`, `margin_mm`, `gap_mm` and, for a
-[cutting machine](#cutting-by-machine), `cut: machine` with `bleed_mm`,
-`marks` and `cut_folds`; every figure is then built with the bleed.
+The `sheet` also takes `orientation`, `title`, `margin_mm`, `gap_mm`, a custom
+paper size (`paper: custom` with `paper_width_mm` and `paper_height_mm`) and, for
+a [cutting machine](#cutting-by-machine), `cut: machine` with `bleed_mm`,
+`marks`, `cut_folds` and `mat`; every figure is then built with the bleed.
+
+```yaml
+sheet: {paper: a3, orientation: landscape, cut: machine, mat: 12x24}
+```
 
 Projects saved by papermini start with the papermini version that saved them and
 the project format, such as `papermini: 1.0.0` and `format: 1`. A file without
@@ -1111,6 +1160,10 @@ its marks with the printed ones. How depends on the machine:
 - **Cricut**: Print Then Cut only reads the marks that Cricut Design Space
   prints itself, so it cannot use these. Upload the pieces' images to Design
   Space instead, or cut by hand.
+
+Pick paper that fits your cutting mat: a 12 × 12 in mat takes A4, A5 and
+Letter, and a 12 × 24 in mat also takes A3, Legal and Tabloid. With *Mat* set,
+papermini warns when the paper is bigger than the mat.
 
 ## How it works
 
