@@ -179,3 +179,16 @@ def test_size_by_height_width_or_both(tmp_path):
                          FigureEntry(tmp_path / "b.png", by_width)])
     loaded = load_project(save_project(p, tmp_path / "p.yaml"))
     assert [f.settings for f in loaded.figures] == [stretched, by_width]
+
+
+def test_the_readme_dragon_matches_its_photo():
+    """Regression: the flying dragon of the README screenshots became Large (48 mm tall on
+    a 50 mm base) while the photo under them shows it printed 36 mm tall on a 25 mm round
+    base. The project must build the mini in the photo."""
+    root = Path(__file__).resolve().parent.parent / "examples" / "dragons"
+    assert (root / "dragon-flying-photo.jpg").is_file()
+    fly = {f.image.name: f for f in load_project(root / "dragons.yaml").figures}[
+        "dragon-flying.webp"]
+    s = fly.settings
+    assert (s.height_mm, s.tab_shape, s.tab_radius_mm) == (36, "round", 12.5)
+    assert (s.margin_color, s.tab_color, s.tab_overlap_mm) == ("#000000", "#000000", 4)
