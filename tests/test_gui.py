@@ -1297,7 +1297,8 @@ def test_settings_panel_follows_the_step(app, tmp_path):
         p = w.panel
         titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]  # noqa: E731
         expected = [["Crop", "Background removal", "Image adjustments"],
-                    ["Size", "Back side", "Outline and cut line", "Tab", "Label"],
+                    ["Size", "Back side", "Outline and cut line", "Tab", "Label", "Text",
+                         "Number"],
                     []]
         for i, want in enumerate(expected):
             w.views.group.button(i).click()               # the step buttons in the header
@@ -2185,3 +2186,75 @@ def test_update_menu_items(app):
         w._modified = False
         w.close()
 
+
+def test_the_font_field(app):
+    """The bundled fonts first, the installed ones once found; a font this computer does
+    not have is kept, marked and warned about."""
+    from papermini import fonts
+    from papermini.gui.panels import FigurePanel
+
+    p = FigurePanel()
+    w = p._w["font"][1]
+    names = lambda: [w.itemData(i) for i in range(w.count()) if w.itemData(i)]  # noqa: E731
+    assert names() == [f.name for f in fonts.bundled()]
+    s = FigureSettings(font="Kalam")
+    p.set_settings(s, "x", "x")
+    assert w.currentText() == "Kalam" and p.settings() == s
+    got = []
+    p.changed.connect(got.append)
+    w.setCurrentIndex(w.findData("Almendra"))
+    assert got[-1].font == "Almendra"
+    # before the installed fonts are known, an unknown font is shown as it is
+    p.set_settings(FigureSettings(font="Georgia"), "x", "x")
+    assert w.currentText() == "Georgia" and p.font_warning.isHidden()
+    p.set_installed_fonts(["Arial", "Georgia"])
+    assert names()[-2:] == ["Arial", "Georgia"] and w.currentText() == "Georgia"
+    assert p.font_warning.isHidden() and p.settings().font == "Georgia"
+    # once they are known, a missing one is marked, and kept in the settings
+    p.set_settings(FigureSettings(font="No Such Font"), "x", "x")
+    assert w.currentText() == "No Such Font (not on this computer)"
+    assert not p.font_warning.isHidden() and "prints in Times" in p.font_warning.text()
+    assert p.settings().font == "No Such Font"
+    p.set_settings(FigureSettings(font="Arial"), "x", "x")
+    assert p.font_warning.isHidden()
+
+
+def test_number_fields_follow_the_back_side(app):
+    from papermini.gui.panels import FigurePanel
+
+    p = FigurePanel()
+    p.set_settings(FigureSettings(double_sided=True, back="number", tab_front="number"), "x", "x")
+    assert p._w["tab_front"][1].currentData() == "number"
+    assert p.is_shown("tab_front") and p.is_shown("tab_back")
+    assert p.is_shown("back_text_color") and not p.is_shown("back_text")
+    p._w["back"][1].setCurrentIndex(p._w["back"][1].findData("text_number"))
+    assert p.is_shown("back_text") and p.is_shown("back_text_color")
+    p._w["back"][1].setCurrentIndex(p._w["back"][1].findData("mirror"))
+    assert not p.is_shown("back_text_color") and not p.is_shown("back_color")
+    p._w["double_sided"][1].setChecked(False)
+    assert p.is_shown("tab_front") and not p.is_shown("tab_back")  # (no back tab)
+    assert p.settings().tab_front == "number"
+
+
+def test_about_names_the_font_licence(app, monkeypatch):
+    """About lists the bundled fonts and their licence, with a link to their folder."""
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QLabel
+
+    from papermini import fonts
+    from papermini.gui.about import AboutDialog
+    from papermini.gui.window import MainWindow
+
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
+    w = MainWindow()
+    try:
+        d = AboutDialog(w)
+        label = next(lb for lb in d.findChildren(QLabel) if "Open Font License" in lb.text())
+        assert all(name in label.text() for name in fonts.BUNDLED)
+        label.linkActivated.emit("fonts")
+        assert [u.toLocalFile() for u in opened] == [fonts.HERE.as_posix()]
+        assert (fonts.HERE / "kalam" / "OFL.txt").is_file()
+    finally:
+        w._modified = False
+        w.close()

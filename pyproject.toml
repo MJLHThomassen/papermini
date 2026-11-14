@@ -36,6 +36,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "papermini.gui" = ["logo.svg"]
+"papermini" = ["fonts/*/*.ttf", "fonts/*/OFL.txt"]  # the bundled fonts (SIL OFL)
 
 [tool.setuptools_scm]
 # Semantic versioning from git tags: tag v1.2.3 builds version 1.2.3; commits after

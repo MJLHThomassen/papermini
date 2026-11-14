@@ -351,6 +351,8 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
         (mini(red, label="Red dragon", back="blank"), None, "Blank", "to draw or write on"),
         (mini(red, label="Red dragon", back="text", back_text="Ember"), None, "Text",
          "a name or a note"),
+        (replace(mini(red, label="Red dragon", back="number"), number=3), None, "Number",
+         "the copy's number, here 3"),
     ], mm=3.4)
 
     # Outline and cut line
@@ -390,6 +392,22 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     compare("tab-shape", [
         (m1, bottom(m1), "Square", "slots into a stand, with the label"),
         (m2, bottom(m2), "Round", "folds out into a base, here green"),
+    ], mm=6)
+    # Number: what the tab shows (here copy 3)
+    ms = [replace(mini(red, double_sided=False, label="Red dragon", tab_front=v), number=3)
+          for v in ("label", "number", "label_number")]
+    compare("tab-number", [
+        (ms[0], bottom(ms[0]), "Label", "the default"),
+        (ms[1], bottom(ms[1]), "Number", "as big as the tab allows"),
+        (ms[2], bottom(ms[2]), "Label and number", "the number above the label"),
+    ], mm=6)
+    # Text: one font for all of the piece's text
+    ms = [replace(mini(red, double_sided=False, label="Red dragon", tab_front="label_number",
+                       font=f), number=3) for f in ("Times", "Almendra", "Kalam")]
+    compare("font", [
+        (ms[0], bottom(ms[0]), "Times", "the default"),
+        (ms[1], bottom(ms[1]), "Almendra", "comes with papermini"),
+        (ms[2], bottom(ms[2]), "Kalam", "comes with papermini"),
     ], mm=6)
     ms = [mini(fly, height_mm=36, tab_overlap_mm=v, **one) for v in (0, 4)]
     compare("tab-overlap", [

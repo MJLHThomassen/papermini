@@ -7,12 +7,13 @@ the same marks, to line up in the cutting machine's software.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
+from . import fonts
 from .mini import Mini
 
 PAPER = {"a4": (210.0, 297.0), "letter": (215.9, 279.4)}
@@ -137,7 +138,9 @@ def pack(minis: Sequence[Tuple[Mini, int]], paper: str = "a4", margin_mm: float 
         band[0], band[1], pw / 2, header_mm, [k])])
     header_right = min([pw - margin_mm] + [k[0] for k in keep if k[0] > pw / 2 and _hits(
         pw / 2, band[1], pw / 2, header_mm, [k])])
-    items = [m for m, n in minis for _ in range(max(0, n))]
+    # each copy of a numbered figure shows its own number, 1 to n
+    items = [replace(m, number=i + 1) if m.numbered else m
+             for m, n in minis for i in range(max(0, n))]
     items.sort(key=lambda m: (-m.height_mm, m.name))
     avail_w = pw - 2 * margin_mm
     top = margin_mm + header_mm
@@ -237,29 +240,14 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
     for x0, x1, y in m.folds:
         c.line(X(p.x + x0), Y(p.y + y), X(p.x + x1), Y(p.y + y))
     c.restoreState()
-    # labels
-    if m.label:
+    # labels, numbers and the back text
+    for t in m.text_items():
         c.saveState()
-        c.setFillColor(HexColor(st.label_color))
-        c.setFont("Times-Roman", m.label_size_mm * mm)
-        for cx, cy, rot in m.labels:
-            c.saveState()
-            c.translate(X(p.x + cx), Y(p.y + cy))
-            c.rotate(-rot)
-            c.drawCentredString(0, -0.35 * m.label_size_mm * mm, m.label)
-            c.restoreState()
-        c.restoreState()
-    # extra text (e.g. the back of a double-sided mini)
-    if m.texts:
-        c.saveState()
-        c.setFillColor(HexColor(st.back_text_color))
-        for text, cx, cy, rot, size in m.texts:
-            c.saveState()
-            c.setFont("Times-Roman", size * mm)
-            c.translate(X(p.x + cx), Y(p.y + cy))
-            c.rotate(-rot)
-            c.drawCentredString(0, -0.35 * size * mm, text)
-            c.restoreState()
+        c.setFillColor(HexColor(t.color))
+        c.setFont(fonts.pdf_name(st.font, t.bold), t.size_mm * mm)
+        c.translate(X(p.x + t.cx), Y(p.y + t.cy))
+        c.rotate(-t.rot)
+        c.drawCentredString(0, -0.35 * t.size_mm * mm, t.text)
         c.restoreState()
     if not cut_line:
         return
@@ -345,8 +333,9 @@ def write_cut_files(layout: SheetLayout, svg: Path, folds: bool = False,
 
 # --------------------------------------------------------------------------- PNG preview
 
-def _font(size_px: int, serif: bool = False):
-    for name in (["times.ttf", "DejaVuSerif.ttf"] if serif else ["arial.ttf", "DejaVuSans.ttf"]):
+def _font(size_px: int, serif: bool = False, path=None):
+    names = ["times.ttf", "DejaVuSerif.ttf"] if serif else ["arial.ttf", "DejaVuSans.ttf"]
+    for name in ([str(path)] if path else []) + names:
         try:
             return ImageFont.truetype(name, size_px)
         except OSError:
@@ -383,13 +372,12 @@ def write_previews(layout: SheetLayout, out: Path, dpi: int = 100,
             im.paste(art, (round(ox), round(oy)), art)
             for x0, x1, y in m.folds:
                 d.line([(ox + x0 * s, oy + y * s), (ox + x1 * s, oy + y * s)], fill=m.style.fold_color)
-            if m.label:
-                f = _font(max(6, round(m.label_size_mm * s)), serif=True)
-                for cx, cy2, rot in m.labels:
-                    if rot:
-                        continue
-                    d.text((ox + cx * s, oy + cy2 * s), m.label, fill=m.style.label_color,
-                           font=f, anchor="mm")
+            for t in m.text_items():
+                if t.rot:  # (a quick look: upright text only)
+                    continue
+                d.text((ox + t.cx * s, oy + t.cy * s), t.text, fill=t.color,
+                       font=_font(max(6, round(t.size_mm * s)), serif=True,
+                                  path=fonts.file_for(m.style.font, t.bold)), anchor="mm")
             if not layout.machine:
                 pts = [(ox + x * s, oy + y * s) for x, y in m.cut.flatten(6)]
                 d.line(pts + pts[:1], fill=m.style.cut_color,

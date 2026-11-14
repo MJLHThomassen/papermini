@@ -40,3 +40,14 @@ def isolated_model_cache(monkeypatch, tmp_path_factory):
         raise AssertionError(f"tests must not use the network (tried {url})")
 
     monkeypatch.setattr(urllib.request, "urlopen", no_network)
+
+
+@pytest.fixture(autouse=True)
+def no_installed_fonts(monkeypatch):
+    """Tests see no installed fonts (only Times and the bundled ones): the system's font
+    folders are never scanned. Tests of the scan give ``fonts.font_dirs`` folders of their
+    own."""
+    from papermini import fonts
+
+    monkeypatch.setattr(fonts, "font_dirs", lambda: [])
+    monkeypatch.setattr(fonts, "_installed", None)

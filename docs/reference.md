@@ -9,6 +9,7 @@ the desktop app in depth, and how the pipeline works.
 - [Background removal models](#model-licence)
 - [Stands and bases](#stands-and-bases)
 - [Double-sided minis](#double-sided-minis)
+- [Numbered copies](#numbered-copies)
 - [Cutting by machine](#cutting-by-machine)
 - [Color adjustments](#color-adjustments)
 - [Installing on Windows](#installing-on-windows)
@@ -68,7 +69,8 @@ the desktop app in depth, and how the pipeline works.
     (*Print a back side*, *Print a tab*, *Print a label*); all three are on
     by default. A group that is off shows only its header and cannot be
     opened; turning the tab off also hides *Label*. **Export SVG…** at the
-    bottom saves this figure's piece as an SVG.
+    bottom saves this figure's piece as an SVG; a figure that shows numbers
+    gets one SVG per copy, each with its number.
   - **Print sheet:** instead of a figure's settings, the sheet's own: *Paper
     and layout* (paper, title, margin, gap) and *Cutting* (by hand, or by
     [cutting machine](#cutting-by-machine), with its bleed, marks and fold
@@ -356,7 +358,7 @@ The resolution of the printed picture.
 
 #### Back side
 
-![The three kinds of back: the mirrored drawing, a blank back and a back with text](screenshots/settings/back.png)
+![Four kinds of back: the mirrored drawing, a blank back, a back with text and a back with the copy's number](screenshots/settings/back.png)
 
 ##### Print a back side
 `--double-sided` / `--no-double-sided` [on]\
@@ -367,33 +369,36 @@ both sides. Off prints only the front. See
 [Double-sided minis](#double-sided-minis).
 
 ##### Shows
-`--back mirror|blank|text` [Mirrored drawing]\
+`--back mirror|blank|text|number|text_number` [Mirrored drawing]\
 What is on the back half.
 
 *Mirrored drawing* is the figure seen from behind. *Blank* is plain paper in
-*Color*, for example to draw on. *Text* is plain paper with *Text* on it. The
-cut line is mirrored either way, so the halves always line up.
+*Color*, for example to draw on. *Text* is plain paper with *Text* on it.
+*Number* is plain paper with the copy's number on it, as large as fits, so
+you can tell the goblins apart across the table. *Text and number* puts the
+number above the text. See [Numbered copies](#numbered-copies). The cut line
+is mirrored either way, so the halves always line up.
 
 ##### Color
 `--back-color` [#ffffff (white)]\
-The color of a blank or text back.
+The color of a back that is not the mirrored drawing.
 
-Shown when *Shows* is *Blank* or *Text*. The back's tab keeps the tab's fill
-color.
+Shown when *Shows* is not *Mirrored drawing*. The back's tab keeps the tab's
+fill color.
 
 ##### Text
 `--back-text` [the label]\
 The text on a text back.
 
-Shown when *Shows* is *Text*. It is centred on the body and sized as large as
-fits; a long text wraps. On the sheet it is upside down, and it reads the
-right way up once the piece is folded.
+Shown when *Shows* is *Text* or *Text and number*. It is centred on the body
+and sized as large as fits; a long text wraps. On the sheet it is upside down,
+and it reads the right way up once the piece is folded.
 
 ##### Text color
 `--back-text-color` [#2f5597 (blue)]\
-The color of the text on a text back.
+The color of the text and the number on the back.
 
-Shown when *Shows* is *Text*.
+Shown when *Shows* has text or a number.
 
 #### Outline and cut line
 
@@ -565,6 +570,52 @@ The color of the label.
 Pick one that shows on the tab's fill color: a dark label on a dark tab
 disappears.
 
+#### Number
+
+The copy's number on the tabs, in a sub-group at the end of *Tab*. Each copy
+on the sheet gets its own number: 1, 2, 3 and so on. The preview shows `#`
+where the number goes. See [Numbered copies](#numbered-copies).
+
+![The front tab with the label, with the number and with both](screenshots/settings/tab-number.png)
+
+##### Front tab
+`--tab-front label|number|label_number` [Label]\
+What the front tab shows.
+
+*Label* is the label alone. *Number* is the copy's number, as large as the tab
+allows. *Label and number* puts the number above the label, at least as large
+as the label. The number is bold and in the label's color.
+
+##### Back tab
+`--tab-back label|number|label_number` [Label]\
+What the back tab shows.
+
+Shown on a double-sided mini. The choices are those of *Front tab*.
+
+#### Text
+
+![The label and number in Times, Almendra and Kalam](screenshots/settings/font.png)
+
+##### Font
+`--font` [Times]\
+The font of all the piece's text: the label, the numbers and the back text.
+
+The list has Times first, then the fonts that come with papermini: Fira Sans,
+Crimson Text, Almendra, MedievalSharp, Uncial Antiqua and Kalam. These work on
+every computer. After them come the TrueType fonts installed on this computer;
+each name is shown in its own font. The bundled fonts are free under the SIL Open
+Font License; *About papermini* (☰ menu) names them and opens their folder,
+where each font's licence is. Numbers use the font's bold; MedievalSharp
+and Uncial Antiqua have no bold, so their numbers are regular.
+
+The PDF sheet contains the font, so it prints the same anywhere. An SVG file
+names the font but does not contain it, so other programs show it only where
+it is installed.
+
+A project keeps the font's name. On a computer without the font, the app
+marks it *(not on this computer)* and the figure prints in Times; the command
+line prints a note.
+
 ### Step 3, Print sheet
 
 The settings panel holds the sheet's own settings on this step. How many of a
@@ -684,10 +735,10 @@ papermini make *.png -o minis --debug
 | `--fold-mm` | 0 | fold line distance above the silhouette's lowest point |
 | `--no-tab` | | no tab |
 | `--double-sided` / `--no-double-sided` | on | front plus back, joined at a top fold, with a tab at both ends; `--no-double-sided` prints the front only |
-| `--back` | mirror | double-sided back: `mirror` (the drawing seen from behind), `blank` (white paper) or `text` |
-| `--back-text` | label | text for `--back text`; auto-sized and wrapped to fit the figure |
-| `--back-color` | #ffffff | color of a `blank` or `text` back |
-| `--back-text-color` | #2f5597 | color of the back text |
+| `--back` | mirror | double-sided back: `mirror` (the drawing seen from behind), `blank` (white paper), `text`, `number` (the copy's number) or `text_number` (the number above the text) |
+| `--back-text` | label | text for `--back text` or `text_number`; auto-sized and wrapped to fit the figure |
+| `--back-color` | #ffffff | color of a back that is not `mirror` |
+| `--back-text-color` | #2f5597 | color of the text and the number on the back |
 | `--crop x0,y0,x1,y1` | | region the model looks at, as fractions (0–1) or pixels |
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
 | `--fill-gaps` | auto | fill gaps and notches in the outline up to this many px; 0 = off (auto ≈ 9 px at a 1400 px image) |
@@ -700,6 +751,9 @@ papermini make *.png -o minis --debug
 | `--saturation` | 0 | −100 (grey) to 100 (twice as colorful) |
 | `--hue` | 0 | turn every color around the color wheel, −180 to 180 degrees (red → yellow → green for positive values) |
 | `--label` | file name | text on the tab; `--label ""` for none |
+| `--tab-front` / `--tab-back` | label / label | what the front and back tab show: `label`, `number` (the copy's number) or `label_number` (the number above the label) |
+| `--font` | Times | font of all the text: Times, a bundled font (Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua, Kalam) or an installed one; a font that is not found prints in Times |
+| `--copies` | 1 | a figure with numbers: one SVG per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
 | `--dpi` | 300 | resolution of the embedded artwork |
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
 | `--no-smooth` | | straight segments only (by default the cut line uses Bézier curves) |
@@ -719,7 +773,10 @@ papermini sheet "minis/*.svg" --copies 2 --paper letter -o minis.pdf --preview
 
 Options: `--copies`, `--paper a4|letter`, `--margin-mm`, `--gap-mm`, `--title`, and
 `--preview` (also writes a PNG per page). The sheet only reads SVGs written by
-papermini. An SVG that was re-saved in another editor may not load.
+papermini. An SVG that was re-saved in another editor may not load. An SVG of a
+numbered copy keeps its number: `--copies 2` of `goblin-3.svg` prints two 3s.
+Give the sheet every copy's file instead (see
+[Numbered copies](#numbered-copies)).
 
 For a cutting machine, `--cut machine` leaves the cut lines off the PDF, adds
 alignment marks (`--marks corners|silhouette`) and writes a cut file per page
@@ -763,6 +820,11 @@ does not open, and the error names the papermini that saved it, so you know whic
 version to update to. A project from a newer papermini of the same format opens,
 unless it uses an option this papermini does not know yet.
 
+A figure takes every option of `papermini make` under its own name, with
+underscores: for example `tab_front: number`, `back: text_number` and
+`font: Almendra`. A figure that shows numbers writes one SVG per copy
+(`goblin-1.svg` to `goblin-4.svg` for `copies: 4`), each with its number.
+
 An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
 It is downloaded once (later runs use the cached copy) and saved projects keep
 the link.
@@ -792,10 +854,10 @@ sizes:
 ```
 
 [examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
-sample outputs in [examples/dragons/samples](../examples/dragons/samples), four
+sample outputs in [examples/dragons/samples](../examples/dragons/samples), five
 ways to print the same dragon: a default (double-sided) mini, a single-sided
-mini on a round colored base, a mini with back text, and a mini with a dark
-margin and a green tab. Their sheet is
+mini on a round colored base, a mini with back text, a mini with a dark margin
+and a green tab, and two numbered copies in Kalam. Their sheet is
 [samples-sheet.pdf](../examples/dragons/samples/samples-sheet.pdf).
 [samples-machine.yaml](../examples/dragons/samples-machine.yaml) makes a sheet
 cut by machine:
@@ -941,6 +1003,37 @@ the back is up to you:
 
   Without `--back-text`, it uses the label. On the sheet the back text is upside
   down; it reads the right way up once the piece is folded.
+- `--back number` shows the copy's number, as large as fits, and
+  `--back text_number` the number above the text. See
+  [Numbered copies](#numbered-copies).
+
+## Numbered copies
+
+Six goblins that look the same are easier to tell apart with a number on each
+("the third goblin is down"). Each figure's copies are numbered 1, 2, 3 and so
+on, and another figure starts again at 1. The number is printed only where you
+choose. By default no number is printed, also when there are several copies.
+
+- **On the tabs:** `--tab-front` and `--tab-back` (in the app, *Front tab* and
+  *Back tab* under *Number*) show the label, the number, or both, with the
+  number above the label.
+- **On the back:** `--back number` or `--back text_number` (in the app, *Shows*
+  under *Back side*).
+
+Once a figure shows its number, it is printed on every copy, also on a single
+copy ("1"). Numbers are bold, in the font and color of the label; on the back,
+in the back text's color. A sheet cut by machine prints them too; the cut lines
+stay the same.
+
+```bash
+papermini make goblin.png --tab-front label_number --back number --copies 6 -o minis
+```
+
+This writes `goblin-1.svg` to `goblin-6.svg`, one per copy, each with its number.
+The number is written into the SVG file, so `papermini sheet "minis/goblin-*.svg"`
+prints copies 1 to 6. A project numbers its figures' copies itself:
+`papermini batch` and the app's sheet print each figure's `copies` with the
+numbers 1 to `copies`, and saving SVGs writes one file per copy.
 
 ## Color adjustments
 

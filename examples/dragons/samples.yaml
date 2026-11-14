@@ -1,6 +1,6 @@
 # Rebuilds the sample outputs in samples/:
 #   papermini batch examples/dragons/samples.yaml
-# Four ways to print the same dragon (samples-machine.yaml: a sheet for a cutting machine). BiRefNet removes its background best (see
+# Five ways to print the same dragon (samples-machine.yaml: a sheet for a cutting machine). BiRefNet removes its background best (see
 # "Background removal models" in the README); it is downloaded on first use.
 
 output: samples
@@ -42,3 +42,12 @@ figures:
     label: ""
     margin_color: "#1d1d2b"
     tab_color: "#3b6e2a"
+
+  # two numbered copies in Kalam: the number above the label, and big on the back
+  - image: dragon.webp
+    name: dragon-numbered
+    label: Red dragon
+    tab_front: label_number
+    back: number
+    font: Kalam
+    copies: 2
