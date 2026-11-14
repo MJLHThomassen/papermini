@@ -22,13 +22,13 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
                                QPushButton, QSplitter, QStackedWidget, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from .. import __version__, log, remote, segment, sizes
+from .. import __version__, fonts, log, remote, segment, sizes
 from ..mini import Mini
 from ..segment import Cancelled, ModelError
 from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_project,
                         save_project)
 from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
-from ..svg import write_svg
+from ..svg import write_svgs
 from . import errors, prefs, theme
 from .models import DownloadDialog
 from .export import ExportDialog
@@ -112,6 +112,7 @@ class Signals(QObject):
     status = Signal(str)
     ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
     link_done = Signal(str, object, str, object)  # link, downloaded path or None, error, settings
+    fonts_found = Signal(object)  # the names of the fonts installed on this computer
 
 
 class BuildJob(QRunnable):
@@ -216,6 +217,8 @@ class MainWindow(QMainWindow):
         self._update_title()
         self._show_current()
         QTimer.singleShot(2000, self._startup_updates)  # (after the window is up)
+        self.sig.fonts_found.connect(self.panel.set_installed_fonts)
+        threading.Thread(target=self._find_fonts, daemon=True).start()
 
     # ----------------------------------------------------------------- ui
     # the workflow, one view per step; any step can be opened at any time
@@ -1348,7 +1351,7 @@ class MainWindow(QMainWindow):
             self.sheet_panel.info.setText(str(e))
             return
         first = sc.itemsBoundingRect().isEmpty()
-        draw_sheet(sc, lay, sh.title, {id(f.mini): f.pixmap for f in ready})
+        draw_sheet(sc, lay, sh.title, {id(f.mini.art): f.pixmap for f in ready})
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.sheet_view.fit()
@@ -1423,9 +1426,10 @@ class MainWindow(QMainWindow):
                                            str(self._out_dir() / fig.entry.svg_name()),
                                            "SVG (*.svg)")
         if f:
-            write_svg(fig.mini, Path(f))
-            ui_log.info("Exported %s", f)
-            self._status(f"Saved {f}")
+            paths = write_svgs(fig.mini, Path(f), fig.entry.settings.copies)
+            ui_log.info("Exported %s", ", ".join(map(str, paths)))
+            self._status(f"Saved {paths[0]}" if len(paths) == 1 else
+                         f"Saved {len(paths)} SVGs, one per numbered copy, to {paths[0].parent}")
 
     def export_all_svgs(self):
         if self.figures:
@@ -1434,10 +1438,10 @@ class MainWindow(QMainWindow):
     def _save_all_svgs(self):
         d = QFileDialog.getExistingDirectory(self, "Export all SVGs to", str(self._out_dir()))
         if d:
-            for f in self.figures:
-                write_svg(f.mini, Path(d) / f.entry.svg_name())
-            ui_log.info("Exported %d SVG(s) to %s", len(self.figures), d)
-            self._status(f"Saved {len(self.figures)} SVG(s) to {d}")
+            n = sum(len(write_svgs(f.mini, Path(d) / f.entry.svg_name(), f.entry.settings.copies))
+                    for f in self.figures)
+            ui_log.info("Exported %d SVG(s) to %s", n, d)
+            self._status(f"Saved {n} SVG(s) to {d}")
 
     def export_pdf(self):
         if self.figures:
@@ -1892,6 +1896,15 @@ class MainWindow(QMainWindow):
     def auto_updates() -> bool:
         """Whether papermini looks for, downloads and installs updates by itself."""
         return prefs.store().value("updates/auto", True, type=bool)
+
+    def _find_fonts(self):
+        """Look for the fonts installed on this computer (a worker thread)."""
+        try:
+            names = list(fonts.installed())
+        except Exception:  # noqa: BLE001 - without them, the bundled fonts still work
+            ui_log.exception("Could not look for the installed fonts")
+            names = []
+        self.sig.fonts_found.emit(names)
 
     def set_auto_updates(self, on: bool):
         prefs.store().setValue("updates/auto", bool(on))

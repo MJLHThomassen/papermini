@@ -207,7 +207,8 @@ class Params:
     tab_shape: str = "square"     # "square" (slots into a stand) or "round" (folds out to a base)
     tab_color: str = "#ffffff"    # tab background, independent of the margin color
     double_sided: bool = False
-    back: str = "mirror"          # double-sided back: "mirror" (image), "blank" or "text"
+    back: str = "mirror"          # double-sided back: "mirror" (image), "blank", "text",
+    #                               "number" or "text_number"
     back_color: str = "#ffffff"   # color of a blank/text back
     max_px_per_mm: float = 24.0   # working resolution cap (~600 dpi; output is 300 dpi)
     top_bridge_width_mm: float = 12.0  # double-sided: joint at the top fold
@@ -227,7 +228,7 @@ class Layout:
     tab_width_px: float = 0.0
     tab_height_px: float = 0.0
     figure_height_px: int = 0     # one side, also for double-sided layouts
-    # double-sided with back="text": where the text may go (cx, cy, max_w, max_h), px
+    # double-sided with a back of text or a number: where it may go (cx, cy, max_w, max_h), px
     back_box: Optional[Tuple[float, float, float, float]] = None
     # False when the tab's overlap lies entirely inside the silhouette (a figure whose
     # bottom is wider than the tab), i.e. tab_overlap_mm has no visible effect
@@ -549,7 +550,7 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
     return lay
 
 
-BACK_MODES = ("mirror", "blank", "text")
+BACK_MODES = ("mirror", "blank", "text", "number", "text_number")
 
 
 def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
@@ -559,8 +560,9 @@ def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
     The fold line runs across all the paper that joins the halves there (the top
     bridge, and a wing or head that reaches the fold beside it).
     The cut shape is always mirrored (so the halves line up when glued); with
-    ``back`` "blank" or "text" the back half shows white paper instead of the
-    mirrored drawing, and "text" also reports where text fits (``back_box``).
+    any other ``back`` the back half shows white paper instead of the mirrored
+    drawing, and "text", "number" and "text_number" also report where they fit
+    (``back_box``).
     """
     if back not in BACK_MODES:
         raise ValueError(f"back must be one of {', '.join(BACK_MODES)}, not {back!r}")
@@ -589,7 +591,7 @@ def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
     figure = stack(lay.figure)
     return Layout(stack(lay.rgb, blank=back != "mirror"), stack(lay.cut), figure, lay.px_per_mm,
                   folds, labels, lay.tab_width_px, lay.tab_height_px, lay.figure_height_px,
-                  _text_box(figure[:h]) if back == "text" else None,
+                  _text_box(figure[:h]) if back in ("text", "number", "text_number") else None,
                   tab_overlap_used=lay.tab_overlap_used, tab_joint_px=lay.tab_joint_px,
                   tab_circles=[c for x, y, r, d in lay.tab_circles
                                for c in ((x, h + (y - y_top), r, d), (x, h - (y - y_top), r, -d))],

@@ -6,14 +6,15 @@ from typing import List, Optional
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import (QBrush, QColor, QFont, QImage, QImageReader, QPainter, QPainterPath,
-                           QPen, QPixmap, QTransform)
+from PySide6.QtGui import (QBrush, QColor, QFont, QFontDatabase, QImage, QImageReader,
+                           QPainter, QPainterPath, QPen, QPixmap, QTransform)
 from PySide6.QtWidgets import (QFrame, QGraphicsPathItem, QGraphicsPixmapItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView, QGridLayout, QLabel)
 
 from . import theme
 
+from .. import fonts
 from ..geometry import CutPath
 from ..mini import Mini
 from ..sheet import SheetLayout
@@ -179,6 +180,26 @@ class ZoomView(QGraphicsView):
             self.fit()
 
 
+_qt_families: dict = {}
+
+
+def qt_family(name: str) -> str:
+    """The font family Qt draws a miniature's font with: Times New Roman for Times, else
+    the font's own files (registered once), so the app shows what the PDF prints."""
+    if name not in _qt_families:
+        font, _ = fonts.resolve(name)
+        family = "Times New Roman"
+        if font.regular is not None:
+            found = []
+            for path in (font.regular, font.bold):
+                if path is not None:
+                    fid = QFontDatabase.addApplicationFont(str(path))
+                    found += QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
+            family = found[0] if found else font.name
+        _qt_families[name] = family
+    return _qt_families[name]
+
+
 def _text(scene: QGraphicsScene, text: str, size_mm: float, color: str, family: str,
           x: float, y: float, rot: float = 0.0, anchor: str = "center", bold=False):
     """Add text ``size_mm`` high at (x, y) in mm. anchor: center (middle) or left (baseline-ish)."""
@@ -240,12 +261,9 @@ def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
     pen.setDashPattern([1.2 / st.fold_width_mm, 0.8 / st.fold_width_mm])
     for x0, x1, fy in m.folds:
         scene.addLine(x + x0, y + fy, x + x1, y + fy, pen)
-    if m.label:
-        for cx, cy, rot in m.labels:
-            _text(scene, m.label, m.label_size_mm, st.label_color, "Times New Roman",
-                  x + cx, y + cy, rot)
-    for text, cx, cy, rot, size in m.texts:
-        _text(scene, text, size, st.back_text_color, "Times New Roman", x + cx, y + cy, rot)
+    family = qt_family(st.font)
+    for t in m.text_items():  # labels, numbers and the back text
+        _text(scene, t.text, t.size_mm, t.color, family, x + t.cx, y + t.cy, t.rot, bold=t.bold)
     if not cut_line:
         return
     cut = QGraphicsPathItem(cut_painter_path(m, x, y))
@@ -352,7 +370,7 @@ def draw_sheet(scene: QGraphicsScene, lay: SheetLayout, title: str,
             scene.addLine(hx + t, cy - h, hx + t, cy + h, thin)
         _text(scene, "50 mm", 2.4, "#000", "Arial", hx + 52, cy + 1, anchor="left")
     for p in lay.placements:
-        pm = (pixmaps or {}).get(id(p.mini))
+        pm = (pixmaps or {}).get(id(p.mini.art))  # (numbered copies share their art)
         draw_mini(scene, p.mini, p.x, p.page * (ph + PAGE_GAP_MM) + p.y, pm,
                   cut_line=not lay.machine)
     return pages

@@ -7,14 +7,14 @@ from dataclasses import replace
 from typing import Any, Dict, Optional
 
 from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                                QLineEdit,
                                QPushButton, QScrollArea, QSlider, QSpinBox, QStyle,
                                QStyleOptionSlider, QToolButton, QVBoxLayout, QWidget)
 
-from .. import remote, segment, sizes
+from .. import fonts, remote, segment, sizes
 from ..settings import FigureSettings, SheetSettings
 from . import prefs, theme
 from .widgets import ElidedLabel
@@ -34,6 +34,7 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 # reset=a button that puts the listed fields back to their defaults (not a setting)
 STEPS = ["Source", "Miniature", "Print sheet"]
 SOURCE, MINIATURE, PRINT = range(3)
+TAB_CHOICES = [("label", "Label"), ("number", "Number"), ("label_number", "Label and number")]
 STEP_HINTS = [
     "Crop the picture first: background removal only looks inside the box.",
     "How big the figure prints, and the paper piece around it: back side, margin, cut "
@@ -69,7 +70,8 @@ SECTIONS = [
     (MINIATURE, "Back side", [  # it decides what the rest of the piece is
         ("double_sided", "Print a back side", "switch", None),
         ("back", "Shows", "c", [("mirror", "Mirrored drawing"), ("blank", "Blank"),
-                                ("text", "Text")]),
+                                ("text", "Text"), ("number", "Number"),
+                                ("text_number", "Text and number")]),
         ("back_color", "Color", "col", None),
         ("back_text", "Text", "s", None),
         ("back_text_color", "Text color", "col", None),
@@ -102,10 +104,17 @@ SECTIONS = [
         ("label_size_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
         ("label_color", "Color", "col", None),
     ]),
+    (MINIATURE, "Text", [  # one font for all of the piece's text
+        ("font", "Font", "font", None),
+    ]),
+    (MINIATURE, "Number", [  # the copy numbers on the tabs: a sub-group of Tab
+        ("tab_front", "Front tab", "c", TAB_CHOICES),
+        ("tab_back", "Back tab", "c", TAB_CHOICES),
+    ]),
 ]
 
 # groups shown inside another group (indented, at its end): sub-group -> group
-SUBSECTIONS = {"Label": "Tab"}
+SUBSECTIONS = {"Label": "Tab", "Number": "Tab"}
 SUB_INDENT = 14
 
 # the settings each field sets ("dimensions" sets two, "no_label" is the label ""), and
@@ -127,7 +136,8 @@ def step_settings(step: int) -> set:
 
 TIPS = {
     "size": "The D&D creature size: fills in the figure height and the tabs (round base\n"
-            "and stand tab) from the project's size table (☰ menu > Creature sizes…).\n"
+            "and stand tab) from the project's size table (☰ menu > Preferences… >\n"
+            "Creature sizes).\n"
             "Changing the height or a tab size by hand makes it Custom.",
     "height_mm": "Height of the drawn figure on paper, without margin and tab.",
     "width_mm": "Width of the drawn figure on paper, without margin.",
@@ -201,10 +211,20 @@ TIPS = {
     "double_sided": "Print a back side: front and back joined at a fold above the head,\n"
                     "glued back to back. Off for the front only.",
     "back": "mirror: the drawing seen from behind; blank: plain paper; "
-            "text: plain paper with text (a name or stats).",
+            "text: plain paper with text (a name or stats); number: the copy's number,\n"
+            "large; text and number: the number above the text.",
     "back_text": "Text for the back (empty = the tab label). It is sized to fit the body.",
-    "back_color": "Color of a blank or text back (the back tab keeps the tab's fill color).",
-    "back_text_color": "Color of the back text.",
+    "back_color": "Color of a back that is not the mirrored drawing (the back tab keeps the\n"
+                  "tab's fill color).",
+    "font": "The font of all the piece's text: the label, the numbers and the back text.\n"
+            "Times and the fonts that come with papermini work on every computer; a font\n"
+            "installed only on this computer prints in Times elsewhere.",
+    "tab_front": "What the front tab shows: the label, the copy's number, or both (the\n"
+                 "number above the label). Each copy on the sheet gets its own number,\n"
+                 "1, 2, 3…; this preview shows # where it goes.",
+    "tab_back": "What the back tab of a double-sided mini shows: the label, the copy's\n"
+                "number, or both (the number above the label).",
+    "back_text_color": "Color of the text and the number on the back.",
 }
 
 
@@ -743,6 +763,12 @@ class FigurePanel(QScrollArea):
                     form.labelForField(w).setObjectName("FormLabel")
                     if title in SUBSECTIONS:
                         sub_labels.append(form.labelForField(w))
+                if name == "font":  # a font this computer does not have
+                    self.font_warning = QLabel()
+                    self.font_warning.setObjectName("WarnBox")
+                    self.font_warning.setWordWrap(True)
+                    self.font_warning.setVisible(False)
+                    form.addRow(self.font_warning)
                 if name == "size":
                     # the size's squares and base, and a warning for a wide figure
                     self.size_hint = QLabel()
@@ -908,6 +934,12 @@ class FigurePanel(QScrollArea):
                 value, text = item if isinstance(item, tuple) else (item, item)
                 w.addItem(text, value)
             w.currentIndexChanged.connect(self._emit)
+        elif kind == "font":
+            w = ComboBox()
+            w.setMaxVisibleItems(16)
+            for f in fonts.bundled():
+                self._add_font(w, f.name)
+            w.currentIndexChanged.connect(self._emit)
         elif kind == "s":
             w = QLineEdit()
             w.setPlaceholderText("the label (or file name)")
@@ -989,6 +1021,8 @@ class FigurePanel(QScrollArea):
                     w.setChecked(bool(v) != (name in self._invert))
                 elif kind == "c":
                     w.setCurrentIndex(max(0, w.findData(v)))
+                elif kind == "font":
+                    self._show_font(v)
                 elif kind == "s":
                     w.setText(v or "")
                 elif kind == "col":
@@ -1029,7 +1063,7 @@ class FigurePanel(QScrollArea):
                 vals[name] = w.isChecked()
             elif kind == "switch":
                 vals[name] = w.isChecked() != (name in self._invert)
-            elif kind == "c":
+            elif kind in ("c", "font"):
                 vals[name] = w.currentData()
             elif kind == "s":
                 vals[name] = w.text().strip() or None
@@ -1078,6 +1112,50 @@ class FigurePanel(QScrollArea):
         if method:
             self.auto_hint.setText(self.auto_method_text(method))
         self._sync_auto_hint()
+
+    # ----------------------------------------------------------------- fonts
+    def _add_font(self, w: QComboBox, name: str, missing: bool = False) -> None:
+        w.addItem(f"{name} (not on this computer)" if missing else name, name)
+        if not missing:  # (each font shown in itself)
+            from .views import qt_family
+
+            w.setItemData(w.count() - 1, QFont(qt_family(name)), Qt.FontRole)
+
+    def set_installed_fonts(self, names) -> None:
+        """List the fonts installed on this computer (found in the background) after the
+        bundled ones."""
+        w = self._w["font"][1]
+        current = w.currentData()
+        self._loading, loading = True, self._loading
+        try:
+            bundled = [f.name for f in fonts.bundled()]
+            while w.count() > len(bundled):  # (anything after them: listed again below)
+                w.removeItem(w.count() - 1)
+            new = [n for n in names if n not in bundled]
+            if new:
+                w.insertSeparator(w.count())
+                for n in new:
+                    self._add_font(w, n)
+            self._installed_fonts = set(names)
+            self._show_font(current)
+        finally:
+            self._loading = loading
+
+    def _show_font(self, name: str) -> None:
+        w = self._w["font"][1]
+        i = w.findData(name)
+        known = getattr(self, "_installed_fonts", None)
+        if i < 0 and known is not None:  # (only once the installed fonts are known)
+            self._add_font(w, name, missing=True)
+            i = w.count() - 1
+        elif i < 0:
+            self._add_font(w, name)  # (shown as is until the scan says otherwise)
+            i = w.count() - 1
+        w.setCurrentIndex(i)
+        missing = w.itemText(i).endswith("(not on this computer)")
+        self.font_warning.setText(f"{name} is not on this computer: this figure prints in "
+                                  f"{fonts.DEFAULT}." if missing else "")
+        self.font_warning.setVisible(missing)
 
     def set_size_table(self, table: "sizes.SizeTable", label: str = ""):
         """The project's creature size table and its name (its preset, or that it is the
@@ -1184,9 +1262,10 @@ class FigurePanel(QScrollArea):
             "label_size_mm": label,
             "label_color": label,
             "back": double,
-            "back_color": double and val("back") in ("blank", "text"),
-            "back_text": double and val("back") == "text",
-            "back_text_color": double and val("back") == "text",
+            "back_color": double and val("back") != "mirror",
+            "back_text": double and val("back") in ("text", "text_number"),
+            "back_text_color": double and val("back") in ("text", "number", "text_number"),
+            "tab_back": double,
         }
         grey = self._w["greyscale"][1].isChecked()
         show["saturation"] = show["hue"] = not grey

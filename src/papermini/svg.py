@@ -6,6 +6,7 @@ import base64
 import io
 import re
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from pathlib import Path
 from typing import List
 from xml.sax.saxutils import escape, quoteattr
@@ -13,8 +14,9 @@ from xml.sax.saxutils import escape, quoteattr
 import numpy as np
 from PIL import Image
 
+from . import fonts
 from .geometry import CutPath
-from .mini import Mini, Style
+from .mini import Mini, Style, TextItem
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -58,20 +60,16 @@ def to_svg(m: Mini) -> str:
             f'<line id="fold{i}" class="fold" x1="{_f(x0)}" y1="{_f(y)}" x2="{_f(x1)}" y2="{_f(y)}" '
             f'stroke="{st.fold_color}" stroke-width="{_f(st.fold_width_mm)}" stroke-dasharray="1.2,0.8"/>'
         )
-    if m.label:
-        for i, (cx, cy, rot) in enumerate(m.labels):
-            tr = f' transform="rotate({_f(rot)},{_f(cx)},{_f(cy)})"' if rot else ""
-            out.append(
-                f'<text id="label{i}" class="label" x="{_f(cx)}" y="{_f(cy + 0.35 * m.label_size_mm)}" '
-                f'font-family={quoteattr(st.font_family)} font-size="{_f(m.label_size_mm)}" '
-                f'text-anchor="middle" fill="{st.label_color}"{tr}>{escape(m.label)}</text>'
-            )
-    for i, (text, cx, cy, rot, size) in enumerate(m.texts):
-        tr = f' transform="rotate({_f(rot)},{_f(cx)},{_f(cy)})"' if rot else ""
+    count: dict = {}
+    for t in m.text_items():  # labels, numbers and the back text
+        i = count[t.kind] = count.get(t.kind, -1) + 1
+        ident = {"label": "label", "number": "number", "backtext": "text"}[t.kind]
+        tr = f' transform="rotate({_f(t.rot)},{_f(t.cx)},{_f(t.cy)})"' if t.rot else ""
+        weight = ' font-weight="bold"' if t.bold else ""
         out.append(
-            f'<text id="text{i}" class="backtext" x="{_f(cx)}" y="{_f(cy + 0.35 * size)}" '
-            f'font-family={quoteattr(st.font_family)} font-size="{_f(size)}" '
-            f'text-anchor="middle" fill="{st.back_text_color}"{tr}>{escape(text)}</text>'
+            f'<text id="{ident}{i}" class="{t.kind}" x="{_f(t.cx)}" y="{_f(t.cy + 0.35 * t.size_mm)}" '
+            f'font-family={quoteattr(fonts.svg_family(st.font))} font-size="{_f(t.size_mm)}"{weight} '
+            f'text-anchor="middle" fill="{t.color}"{tr}>{escape(t.text)}</text>'
         )
     out.append(
         f'<path id="cut" d="{path_d(m.cut)}" fill="none" stroke="{st.cut_color}" '
@@ -86,6 +84,16 @@ def write_svg(m: Mini, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(to_svg(m), encoding="utf-8")
     return path
+
+
+def write_svgs(m: Mini, path: Path, copies: int = 1) -> List[Path]:
+    """The SVG file of a miniature at ``path``; a numbered one gets a file per copy, each
+    with its number: ``goblin-1.svg`` to ``goblin-6.svg`` (one copy: ``goblin-1.svg``)."""
+    path = Path(path)
+    if not m.numbered:
+        return [write_svg(m, path)]
+    return [write_svg(replace(m, number=i), path.with_name(f"{path.stem}-{i}{path.suffix}"))
+            for i in range(1, max(1, copies) + 1)]
 
 
 # --------------------------------------------------------------------------- reading
@@ -179,6 +187,9 @@ def read_svg(path: Path) -> Mini:
         style.fold_color = ln.get("stroke", style.fold_color)
         style.fold_width_mm = float(ln.get("stroke-width", style.fold_width_mm)) * sx
         folds.append((float(ln.get("x1")) * sx, float(ln.get("x2")) * sx, float(ln.get("y1")) * sx))
+    first = next(iter(root.iter(f"{{{SVG_NS}}}text")), None)
+    if first is not None:  # (one font for all of a piece's text)
+        style.font = fonts.from_svg_family(first.get("font-family", ""))
     labels, text, size = [], "", style.label_size_mm
     for t in el("text", cls="label"):
         text = "".join(t.itertext())
@@ -198,8 +209,16 @@ def read_svg(path: Path) -> Mini:
         m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
         texts.append(("".join(t.itertext()), float(t.get("x")) * sx,
                       float(t.get("y")) * sx - 0.35 * size_t, float(m.group(1)) if m else 0.0, size_t))
+    numbers = []  # (written into the file: kept as they are)
+    for t in el("text", cls="number"):
+        size_t = float(t.get("font-size", 3.4)) * sx
+        m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
+        numbers.append(TextItem("number", "".join(t.itertext()), float(t.get("x")) * sx,
+                                float(t.get("y")) * sx - 0.35 * size_t,
+                                float(m.group(1)) if m else 0.0, size_t,
+                                t.get("fill", style.label_color), t.get("font-weight") == "bold"))
     return Mini(
-        name=path.stem, width_mm=W, height_mm=H, art=art, texts=texts,
+        name=path.stem, width_mm=W, height_mm=H, art=art, texts=texts, extra=numbers,
         cut=parse_path_d(cut.get("d")).transformed(sx),
         folds=folds, labels=labels, label=text, label_size_mm=size, style=style,
     )

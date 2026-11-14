@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import __version__, remote, sizes
+from . import fonts
+from . import geometry as geo
+from .mini import TAB_SHOWS
 from .segment import ModelError
 from .settings import (FIGURE_OPTIONS, FigureSettings, Project, SheetSettings, build_mini,
                        load_project, safe_name, settings_with_size)
@@ -59,11 +62,13 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--double-sided", action=argparse.BooleanOptionalAction, default=None,
                    help="front + back joined at a top fold, tabs at both ends; "
                         "--no-double-sided prints the front only (on)")
-    g.add_argument("--back", choices=["mirror", "blank", "text"], default=D.back,
-                   help="double-sided back: mirrored image (default), blank, or text")
-    g.add_argument("--back-text", help="text on the back with --back text (default: the label)")
+    g.add_argument("--back", choices=geo.BACK_MODES, default=D.back,
+                   help="double-sided back: mirrored image (default), blank, text, the copy "
+                        "number (large), or text_number (the number above the text)")
+    g.add_argument("--back-text", help="text on the back with --back text or text_number "
+                                       "(default: the label)")
     g.add_argument("--back-color", default=D.back_color,
-                   help="color of a blank or text back (#ffffff)")
+                   help="color of a back that is not the mirrored image (#ffffff)")
     g.add_argument("--back-text-color", default=D.back_text_color,
                    help="color of the back text (#2f5597)")
     g = p.add_argument_group("picture (colors of what is printed; the mask is unaffected)")
@@ -93,6 +98,11 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--no-cache", action="store_true", help="do not reuse cached model masks")
     g = p.add_argument_group("output")
     g.add_argument("--label", help="text on the tab (default: file name; '' for none)")
+    g.add_argument("--tab-front", choices=TAB_SHOWS, default=D.tab_front,
+                   help="what the front tab shows: the label (default), the copy number, or "
+                        "label_number (the number above the label)")
+    g.add_argument("--tab-back", choices=TAB_SHOWS, default=D.tab_back,
+                   help="what the back tab of a double-sided mini shows (as --tab-front)")
     g.add_argument("--dpi", type=int, default=D.dpi, help="embedded image resolution (300)")
     g.add_argument("--simplify-mm", type=float, default=D.simplify_mm, help="cut line simplification (0.15)")
     g.add_argument("--no-smooth", action="store_true", help="straight-segment cut line, no Béziers")
@@ -102,13 +112,16 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                    help="cut line width, for cutting by hand (0.3)")
     g.add_argument("--label-color", default=D.label_color)
     g.add_argument("--label-size-mm", type=float, default=D.label_size_mm)
+    g.add_argument("--font", default=D.font,
+                   help="font of all the text: labels, numbers, back text. Times (default), a bundled font (" + ", ".join(f.name for f in fonts.bundled()[1:]) + ") "
+                        "or a TrueType font installed on this computer")
     g.add_argument("--debug", action="store_true", help="write intermediate masks and a red overlay")
 
 
 # --------------------------------------------------------------------------- commands
 
 def cmd_make(a: argparse.Namespace) -> int:
-    from .svg import write_svg
+    from .svg import write_svgs
 
     images = _expand(a.images)
     if a.output and len(images) > 1 and a.output.lower().endswith(".svg"):
@@ -126,8 +139,8 @@ def cmd_make(a: argparse.Namespace) -> int:
         out_dir = out_svg.parent if out_svg else Path(a.output) if a.output else here
         m = build_mini(img, s, bleed_mm=a.bleed_mm, use_cache=not a.no_cache,
                        debug_dir=out_dir / "debug" if a.debug else None)
-        out = write_svg(m, out_svg or out_dir / (safe_name(m.name) + ".svg"))
-        print(f"  -> {out}")
+        for out in write_svgs(m, out_svg or out_dir / (safe_name(m.name) + ".svg"), a.copies):
+            print(f"  -> {out}")
         _warn_width(img.name, s, m, table)
     return 0
 
@@ -168,7 +181,7 @@ def _warn_width(name: str, s: FigureSettings, m, table: sizes.SizeTable) -> None
 
 def run_project(proj: Project, debug: bool = False, preview: bool = False,
                 use_cache: bool = True) -> int:
-    from .svg import write_svg
+    from .svg import write_svgs
 
     if not proj.figures:
         raise SystemExit(f"{proj.path}: no 'figures' listed")
@@ -178,7 +191,8 @@ def run_project(proj: Project, debug: bool = False, preview: bool = False,
     for f in proj.figures:
         m = build_mini(f.image, f.settings, bleed_mm=sh.figure_bleed, use_cache=use_cache,
                        debug_dir=out_dir / "debug" if debug or proj.debug else None)
-        print(f"  -> {write_svg(m, out_dir / f.svg_name())}")
+        for out in write_svgs(m, out_dir / f.svg_name(), f.settings.copies):
+            print(f"  -> {out}")
         _warn_width(f.image.name, f.settings, m, proj.sizes)
         minis.append((m, f.settings.copies))
     if sh.enabled:
@@ -231,6 +245,9 @@ def build_parser() -> argparse.ArgumentParser:
     mk.add_argument("--bleed-mm", type=float, default=0.0,
                     help="print the edge colors this far beyond the cut line, for a sheet cut "
                          "by machine (papermini sheet --cut machine); 0 = none (0)")
+    mk.add_argument("--copies", type=int, default=1,
+                    help="a figure with numbers (--tab-front, --tab-back or --back): write "
+                         "one SVG per copy, each with its number (1)")
     add_figure_args(mk)
     mk.set_defaults(func=cmd_make)
 

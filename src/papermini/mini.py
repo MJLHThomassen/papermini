@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
-from . import cache
+from . import cache, fonts
 from . import geometry as geo
 from . import adjust as adj_mod
 from .segment import DEFAULT_MODEL, check_cancel, compute_mask, has_alpha, parse_crop
@@ -26,7 +26,32 @@ class Style:
     label_color: str = "#2f5597"
     back_text_color: str = "#2f5597"
     label_size_mm: float = 3.4
-    font_family: str = "Times New Roman, Times, serif"
+    font: str = "Times"  # all of the piece's text (see fonts.py)
+
+
+TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
+NUMBER_PLACEHOLDER = "#"  # a figure's number where no copy number is known (the preview)
+
+
+@dataclass
+class TextItem:
+    """One piece of text on a miniature, as every output draws it: centred on (cx, cy) mm,
+    rotated ``rot`` degrees, ``size_mm`` high. ``kind``: "label", "number" or "backtext"."""
+
+    kind: str
+    text: str
+    cx: float
+    cy: float
+    rot: float
+    size_mm: float
+    color: str
+    bold: bool = False
+
+
+def fit_number_size(text: str, max_w: float, max_h: float, font: str = fonts.DEFAULT) -> float:
+    """The largest bold font size at which ``text`` fits ``max_w`` x ``max_h`` (mm)."""
+    w = fonts.text_width(text, font, 1.0, bold=True)
+    return max(0.0, min(max_h, max_w / w if w else max_h))
 
 
 @dataclass
@@ -62,6 +87,56 @@ class Mini:
     # how the figure was found: "alpha" (the image's own transparency), "mask" (a mask
     # image file) or the model that ran; for model "auto", the one it picked
     method: str = ""
+    # numbers: what each tab shows (one per entry of ``labels``: "label", "number" or
+    # "label_number"), the room for text on a tab (w, h mm), where the back side's number
+    # goes (cx, cy, w, h mm), and this copy's number (None: the placeholder)
+    tab_shows: List[str] = field(default_factory=list)
+    tab_room: Tuple[float, float] = (0.0, 0.0)
+    number_box: Optional[Tuple[float, float, float, float]] = None
+    number: Optional[int] = None
+    # text read from an SVG file, drawn as it is (numbers already written into it)
+    extra: List[TextItem] = field(default_factory=list)
+
+    @property
+    def numbered(self) -> bool:
+        """Whether the miniature shows its copy number anywhere."""
+        return self.number_box is not None or any(s != "label" for s in self.tab_shows)
+
+    def text_items(self) -> List[TextItem]:
+        """Every text on the miniature: the tab labels and numbers, the back text and the
+        back side's number. On a tab showing both, the number goes above the label (on
+        the fold's side), as large as fits."""
+        st = self.style
+        num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
+        room_w, room_h = self.tab_room
+        items: List[TextItem] = []
+        shows = self.tab_shows or ["label"] * len(self.labels)
+        for (cx, cy, rot), what in zip(self.labels, shows):
+            label = self.label if what in ("label", "label_number") else ""
+            number = what in ("number", "label_number")
+            if label and not number:
+                items.append(TextItem("label", label, cx, cy, rot, self.label_size_mm,
+                                      st.label_color))
+            elif number and not label:
+                items.append(TextItem("number", num, cx, cy, rot,
+                                      fit_number_size(num, room_w, room_h, st.font),
+                                      st.label_color, True))
+            elif number:
+                ls, gap = self.label_size_mm, 0.15 * self.label_size_mm
+                ns = max(ls, fit_number_size(num, room_w, room_h - ls - gap, st.font))
+                block = ns + gap + ls
+                up = -1.0 if rot == 0 else 1.0  # towards the fold (the back tab is upside down)
+                items.append(TextItem("number", num, cx, cy + up * (block - ns) / 2, rot, ns,
+                                      st.label_color, True))
+                items.append(TextItem("label", label, cx, cy - up * (block - ls) / 2, rot, ls,
+                                      st.label_color))
+        items += [TextItem("backtext", text, cx, cy, rot, size, st.back_text_color)
+                  for text, cx, cy, rot, size in self.texts]
+        if self.number_box is not None:
+            cx, cy, w, h = self.number_box
+            items.append(TextItem("number", num, cx, cy, 180.0,
+                                  fit_number_size(num, w, h, st.font), st.back_text_color, True))
+        return items + list(self.extra)
 
     def png_bytes(self) -> bytes:
         buf = io.BytesIO()
@@ -104,29 +179,26 @@ def _frozen(a: np.ndarray) -> np.ndarray:
     return a
 
 
-def fit_label_size(text: str, max_width_mm: float, size_mm: float) -> float:
+def fit_label_size(text: str, max_width_mm: float, size_mm: float,
+                   font: str = fonts.DEFAULT) -> float:
     """Shrink the label font so the text fits ``max_width_mm``."""
     if not text:
         return size_mm
-    from reportlab.pdfbase.pdfmetrics import stringWidth
-
-    w = stringWidth(text, "Times-Roman", size_mm)
+    w = fonts.text_width(text, font, size_mm)
     return size_mm if w <= max_width_mm else size_mm * max_width_mm / w
 
 
 def fit_text_block(text: str, max_w: float, max_h: float, max_size: float,
-                   max_lines: int = 4) -> Tuple[float, List[str]]:
+                   max_lines: int = 4, font: str = fonts.DEFAULT) -> Tuple[float, List[str]]:
     """Largest font size (and line split) that fits ``text`` into max_w x max_h.
 
     Tries 1..max_lines lines; words are balanced over the lines. Line pitch is
     1.15 x the font size. Units are whatever max_w/max_h use (mm here).
     """
-    from reportlab.pdfbase.pdfmetrics import stringWidth
-
     words = text.split()
     if not words:
         return 0.0, []
-    width = lambda t: stringWidth(t, "Times-Roman", 1.0)  # noqa: E731 - width at size 1
+    width = lambda t: fonts.text_width(t, font, 1.0)  # noqa: E731 - width at size 1
     best = (0.0, [text])
     for n in range(1, min(max_lines, len(words)) + 1):
         target = width(" ".join(words)) / n
@@ -150,6 +222,8 @@ def make_mini(
     *,
     label: Optional[str] = None,
     back_text: Optional[str] = None,
+    tab_front: str = "label",
+    tab_back: str = "label",
     threshold: int = 40,
     close_px: Optional[int] = None,
     min_area: int = 1000,
@@ -173,6 +247,10 @@ def make_mini(
     image_path = Path(image_path)
     stage = on_stage or (lambda *_: None)
     style = style or Style()
+    if not fonts.resolve(style.font)[1]:
+        log(f"  {image_path.name}: note: the font {style.font} is not on this computer: "
+            f"printing in {fonts.DEFAULT}")
+        style = replace(style, font=fonts.DEFAULT)
     fkey = cache.file_key(image_path)
     im, data, rgb, transparent = cache.images.get_or_make(fkey, lambda: _load_for_pipeline(image_path))
     W, H = im.size
@@ -288,7 +366,8 @@ def make_mini(
         labels=[((x - X0) * s, (y - Y0) * s, r) for x, y, r in lay.labels] if prm.tab else [],
         label=label,
         label_size_mm=fit_label_size(label, max_w, min(style.label_size_mm,
-                                                        lay.label_max_h_px * s or style.label_size_mm)),
+                                                        lay.label_max_h_px * s or style.label_size_mm),
+                                     style.font),
         style=style,
         figure_height_mm=lay.figure_height_px * s,
         figure_width_mm=height_mm * bw * stretch / bh,
@@ -299,16 +378,27 @@ def make_mini(
         tab_joint_mm=lay.tab_joint_px * s if prm.tab else 0.0,
         tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
         close_px=close_used,
+        # (the front tab's label is upright, the back tab's upside down)
+        tab_shows=[tab_front if r == 0 else tab_back for _, _, r in lay.labels] if prm.tab else [],
+        tab_room=(max_w, lay.label_max_h_px * s) if prm.tab else (0.0, 0.0),
     )
     if lay.back_box is not None:
-        text = back_text if back_text else (label or image_path.stem)
         bcx, bcy, bw, bh = lay.back_box
-        size, lines = fit_text_block(text, bw * s, bh * s, max_size=10.0)
-        pitch = 1.15 * size
-        for i, line in enumerate(lines):
-            # the back half is upside down on the sheet: rotate 180 and reverse line order
-            off = ((len(lines) - 1) / 2 - i) * pitch
-            mini.texts.append((line, (bcx - X0) * s, (bcy - Y0) * s + off, 180.0, size))
+        bcx, bcy, bw, bh = (bcx - X0) * s, (bcy - Y0) * s, bw * s, bh * s
+        if prm.back in ("number", "text_number"):
+            # the number above the text: the back half is upside down on the sheet, so its
+            # top is further down the sheet
+            nh = bh if prm.back == "number" else 0.45 * bh
+            mini.number_box = (bcx, bcy + (bh - nh) / 2, bw, nh)
+            bcy, bh = bcy - nh / 2, bh - nh
+        if prm.back in ("text", "text_number"):
+            text = back_text if back_text else (label or image_path.stem)
+            size, lines = fit_text_block(text, bw, bh, max_size=10.0, font=style.font)
+            pitch = 1.15 * size
+            for i, line in enumerate(lines):
+                # the back half is upside down on the sheet: rotate 180 and reverse line order
+                off = ((len(lines) - 1) / 2 - i) * pitch
+                mini.texts.append((line, bcx, bcy + off, 180.0, size))
 
     if prm.tab and not lay.tab_overlap_used and prm.tab_overlap_mm != geo.Params().tab_overlap_mm:
         log(f"  {image_path.name}: note: the tab overlap has no effect here - the figure's "

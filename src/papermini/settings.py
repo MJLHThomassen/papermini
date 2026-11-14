@@ -25,7 +25,7 @@ from . import geometry as geo
 from . import remote, sizes
 from .adjust import RANGES as ADJUST_RANGES
 from .adjust import Adjustments
-from .mini import Mini, Style, make_mini
+from .mini import TAB_SHOWS, Mini, Style, make_mini
 from .sheet import CUT_MODES, MARKS, PAPER
 
 # Saved projects carry this format and the papermini version that saved them. The format
@@ -57,9 +57,10 @@ class FigureSettings:
     tab_shape: str = "square"        # "square" (for a stand) or "round" (folds out to a base)
     tab_color: str = "#ffffff"       # tab background, independent of the margin color
     double_sided: bool = True        # front and back, joined at a fold above the head
-    back: str = "mirror"             # double-sided back: "mirror", "blank" or "text"
-    back_text: Optional[str] = None  # back="text": None = the label (or file name)
-    back_color: str = "#ffffff"      # color of a blank/text back
+    back: str = "mirror"             # double-sided back: "mirror", "blank", "text",
+    #                                  "number" (large) or "text_number" (number above text)
+    back_text: Optional[str] = None  # back with text: None = the label (or file name)
+    back_color: str = "#ffffff"      # color of a back that is not the mirrored drawing
     back_text_color: str = "#2f5597"
     # mask
     model: str = "auto"
@@ -79,6 +80,8 @@ class FigureSettings:
     hue: int = 0                     # -180..180 degrees
     # output
     label: Optional[str] = None      # None = file name, "" = no label
+    tab_front: str = "label"         # what the front tab shows: "label", "number" or
+    tab_back: str = "label"          # "label_number" (the copy number above the label)
     dpi: int = 300
     simplify_mm: float = 0.15
     no_smooth: bool = False
@@ -86,6 +89,7 @@ class FigureSettings:
     cut_width_mm: float = 0.3
     label_color: str = "#2f5597"
     label_size_mm: float = 3.4
+    font: str = "Times"              # all text: labels, numbers, back text (see fonts.py)
     copies: int = 1
 
     @classmethod
@@ -107,7 +111,8 @@ class FigureSettings:
         if d.get("height_mm", 1) is None and d.get("width_mm") is None:
             raise ValueError("give height_mm, width_mm or both")
         for key, allowed in (("back", geo.BACK_MODES), ("margin_fill", geo.MARGIN_FILLS),
-                             ("tab_shape", geo.TAB_SHAPES)):
+                             ("tab_shape", geo.TAB_SHAPES), ("tab_front", TAB_SHOWS),
+                             ("tab_back", TAB_SHOWS)):
             if key in d and d[key] not in allowed:
                 raise ValueError(f"{key} must be one of {', '.join(allowed)}, not {d[key]!r}")
         for key, (lo, hi) in ADJUST_RANGES.items():
@@ -115,6 +120,8 @@ class FigureSettings:
             if v is not None and (isinstance(v, bool) or not isinstance(v, int)
                                   or not lo <= v <= hi):
                 raise ValueError(f"{key} must be a whole number from {lo} to {hi}, not {v!r}")
+        if "font" in d and (not isinstance(d["font"], str) or not d["font"].strip()):
+            raise ValueError(f"font must be the name of a font, not {d['font']!r}")
         for key in ("margin_color", "tab_color", "back_color", "back_text_color", "cut_color",
                     "label_color"):
             if key in d:
@@ -154,7 +161,7 @@ class FigureSettings:
     def style(self) -> Style:
         return Style(cut_color=self.cut_color, cut_width_mm=self.cut_width_mm,
                      label_color=self.label_color, label_size_mm=self.label_size_mm,
-                     back_text_color=self.back_text_color)
+                     back_text_color=self.back_text_color, font=self.font)
 
 
 FIGURE_OPTIONS = {f.name for f in fields(FigureSettings)}
@@ -192,7 +199,8 @@ def build_mini(image: Path, s: FigureSettings, *, bleed_mm: float = 0.0, use_cac
         raise ValueError("model 'mask' needs a mask image file - choose one")
     return make_mini(
         Path(image), s.params(),
-        label=s.label, back_text=s.back_text, threshold=s.strength, close_px=s.fill_gaps, min_area=s.min_area,
+        label=s.label, back_text=s.back_text, tab_front=s.tab_front, tab_back=s.tab_back,
+        threshold=s.strength, close_px=s.fill_gaps, min_area=s.min_area,
         crop=s.crop, model="auto" if s.model == "mask" else s.model,
         mask_path=Path(s.mask) if use_mask else None,
         dpi=s.dpi, simplify_mm=s.simplify_mm, smooth_path=not s.no_smooth,

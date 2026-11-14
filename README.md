@@ -41,6 +41,10 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   stand, or round to fold out into a base.
 - **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank
   or text back, folded over the head.
+- **[Numbered copies](docs/reference.md#numbered-copies)**: a number on the
+  tabs or the back of each copy, to tell six goblins apart.
+- **[Fonts](docs/reference.md#font)**: Times, six free fonts that come with
+  papermini, or any TrueType font on your computer.
 - **[Color adjustments](docs/reference.md#color-adjustments)**: greyscale,
   brightness, contrast, saturation and hue.
 - **Print sheets**: A4 or Letter PDF pages at real size, or an SVG per figure.
