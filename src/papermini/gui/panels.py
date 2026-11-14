@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBo
 
 from .. import fonts, remote, segment, sizes
 from ..settings import FigureSettings, SheetSettings
+from ..sheet import CUSTOM_PAPER_MM, MAT_LABELS, PAPER_CHOICES, PAPER_LABELS, paper_size
 from . import prefs, theme
 from .widgets import ElidedLabel
 
@@ -229,7 +230,13 @@ TIPS = {
 
 
 SHEET_TIPS = {
-    "Paper": "The paper size of the sheet.",
+    "Paper": "The paper size of the sheet. Custom: a width and height of your own.",
+    "Orientation": "Portrait: the page upright. Landscape: the page on its side, for wide\n"
+                   "figures and rows.",
+    "Width": "The width of a custom paper size, as it prints (50 to 1200 mm).",
+    "Height": "The height of a custom paper size, as it prints (50 to 1200 mm).",
+    "Mat": "The cutting mat you put the sheet on. papermini warns when the paper is\n"
+           "bigger than the mat (turned either way). Any size: no warning.",
     "Title": "Printed at the top of each page, above the instructions.",
     "Margin": "The empty border around each page. Cut by machine, the alignment marks sit\n"
               "here, this far from the paper edges.",
@@ -1358,7 +1365,20 @@ class SheetPanel(QScrollArea):
         lay.addSpacing(8)
 
         self.paper = ComboBox()
-        self.paper.addItems(["a4", "letter"])
+        for value in PAPER_CHOICES:
+            self.paper.addItem(PAPER_LABELS[value], value)
+        self.orientation = ComboBox()
+        for text, value in (("Portrait", "portrait"), ("Landscape", "landscape")):
+            self.orientation.addItem(text, value)
+        self.fit_warning = QLabel()  # a figure too big for the paper
+        self.fit_warning.setObjectName("WarnBox")
+        self.fit_warning.setWordWrap(True)
+        self.fit_warning.setTextFormat(Qt.RichText)
+        self.paper_w, self.paper_h = DoubleSpinBox(), DoubleSpinBox()
+        for w in (self.paper_w, self.paper_h):
+            w.setRange(*CUSTOM_PAPER_MM)
+            w.setDecimals(1)
+            w.setSuffix(" mm")
         self.title = QLineEdit()
         self.margin = DoubleSpinBox()
         self.margin.setRange(0, 50)
@@ -1379,15 +1399,27 @@ class SheetPanel(QScrollArea):
                             ("None", "none")):
             self.marks.addItem(text, value)
         self.cut_folds = QCheckBox("Fold lines in cut file")
+        self.mat = ComboBox()
+        self.mat.addItem("Any size", "")
+        for value, text in MAT_LABELS.items():
+            self.mat.addItem(text, value)
+        self.mat_warning = QLabel()  # the paper is bigger than the mat
+        self.mat_warning.setObjectName("WarnBox")
+        self.mat_warning.setWordWrap(True)
 
         self._rows = {}  # widget -> its form, to show or hide the row
         labels = []
         for heading, fields in (("Paper and layout", (("Paper", self.paper),
+                                                     ("Orientation", self.orientation),
+                                                     ("Width", self.paper_w),
+                                                     ("Height", self.paper_h),
+                                                     ("", self.fit_warning),
                                                      ("Title", self.title),
                                                      ("Margin", self.margin),
                                                      ("Gap", self.gap))),
                                 ("Cutting", (("Cut by", self.cut), ("Bleed", self.bleed),
-                                             ("Marks", self.marks), ("", self.cut_folds)))):
+                                             ("Marks", self.marks), ("", self.cut_folds),
+                                             ("Mat", self.mat), ("", self.mat_warning)))):
             box = Section(heading)
             form = QFormLayout(box.body)
             form.setContentsMargins(2, 0, 0, 0)
@@ -1396,7 +1428,8 @@ class SheetPanel(QScrollArea):
             form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
             for label, w in fields:
-                w.setToolTip(SHEET_TIPS.get(label or "cut_folds", ""))
+                if w not in (self.mat_warning, self.fit_warning):
+                    w.setToolTip(SHEET_TIPS.get(label or "cut_folds", ""))
                 if label:
                     form.addRow(label, w)
                     lab = form.labelForField(w)
@@ -1434,7 +1467,11 @@ class SheetPanel(QScrollArea):
         lay.addStretch()
         self.setWidget(body)
 
-        self.paper.currentTextChanged.connect(self._emit)
+        self.paper.currentIndexChanged.connect(self._emit)
+        self.orientation.currentIndexChanged.connect(self._emit)
+        self.paper_w.valueChanged.connect(self._emit)
+        self.paper_h.valueChanged.connect(self._emit)
+        self.mat.currentIndexChanged.connect(self._emit)
         self.title.editingFinished.connect(self._emit)
         self.margin.valueChanged.connect(self._emit)
         self.gap.valueChanged.connect(self._emit)
@@ -1444,7 +1481,14 @@ class SheetPanel(QScrollArea):
         self.cut_folds.toggled.connect(self._emit)
         self._s = SheetSettings()
         self._loading = False
-        self._sync_visible()
+        self._sync_visible(self._s)
+        self.set_fit_warning("")
+
+    def set_fit_warning(self, text: str) -> None:
+        """Say which figures are too big for the paper, under Paper (rich text; "": they
+        all fit)."""
+        self.fit_warning.setText(text)
+        self._rows[self.fit_warning].setRowVisible(self.fit_warning, bool(text))
 
     def is_shown(self, w: QWidget) -> bool:
         return self._rows[w].isRowVisible(w)
@@ -1452,7 +1496,10 @@ class SheetPanel(QScrollArea):
     def set_settings(self, s: SheetSettings):
         self._loading = True
         self._s = s
-        self.paper.setCurrentText(s.paper)
+        self.paper.setCurrentIndex(max(0, self.paper.findData(s.paper)))
+        self.orientation.setCurrentIndex(max(0, self.orientation.findData(s.orientation)))
+        self._show_size(s)
+        self.mat.setCurrentIndex(max(0, self.mat.findData(s.mat or "")))
         self.title.setText(s.title)
         self.margin.setValue(s.margin_mm)
         self.gap.setValue(s.gap_mm)
@@ -1461,22 +1508,51 @@ class SheetPanel(QScrollArea):
         self.marks.setCurrentIndex(self.marks.findData(s.marks))
         self.cut_folds.setChecked(s.cut_folds)
         self._loading = False
-        self._sync_visible()
+        self._sync_visible(s)
 
-    def _sync_visible(self):
-        """Bleed, marks and the cut file only matter when cut by machine."""
-        machine = self.cut.currentData() == "machine"
-        for w in (self.bleed, self.marks, self.cut_folds):
-            self._rows[w].setRowVisible(w, machine)
+    def _show_size(self, s: SheetSettings):
+        """The custom size fields: the custom size, or the size of the paper chosen (in
+        its orientation), where a switch to Custom starts."""
+        w, h = paper_size(s.page, s.orientation)
+        self._loading, loading = True, self._loading
+        try:
+            self.paper_w.setValue(w)
+            self.paper_h.setValue(h)
+        finally:
+            self._loading = loading
+
+    def _sync_visible(self, s: SheetSettings):
+        """Orientation for a named paper, the size fields for a custom one; bleed, marks,
+        the cut file and the mat only when cut by machine, with the mat's warning."""
+        custom = s.paper == "custom"
+        machine = s.machine
+        for w, shown in ((self.orientation, not custom), (self.paper_w, custom),
+                         (self.paper_h, custom), (self.bleed, machine), (self.marks, machine),
+                         (self.cut_folds, machine), (self.mat, machine)):
+            self._rows[w].setRowVisible(w, shown)
+        warning = s.mat_warning()
+        self.mat_warning.setText(f"{warning} Use a bigger mat or smaller paper." if warning
+                                 else "")
+        self._rows[self.mat_warning].setRowVisible(self.mat_warning, bool(warning))
 
     def _emit(self, *_):
         if self._loading:
             return
-        self._sync_visible()
-        new = replace(self._s, paper=self.paper.currentText(), title=self.title.text(),
+        paper = self.paper.currentData()
+        custom = paper == "custom"
+        if custom and self._s.paper != "custom":
+            self._show_size(self._s)  # (Custom starts at the paper chosen before)
+        new = replace(self._s, paper=paper, orientation=self.orientation.currentData(),
+                      paper_width_mm=self.paper_w.value() if custom else None,
+                      paper_height_mm=self.paper_h.value() if custom else None,
+                      title=self.title.text(),
                       margin_mm=self.margin.value(), gap_mm=self.gap.value(),
                       cut=self.cut.currentData(), bleed_mm=self.bleed.value(),
-                      marks=self.marks.currentData(), cut_folds=self.cut_folds.isChecked())
+                      marks=self.marks.currentData(), cut_folds=self.cut_folds.isChecked(),
+                      mat=self.mat.currentData() or None)
+        if not custom:
+            self._show_size(new)  # (where a later switch to Custom starts)
+        self._sync_visible(new)
         if new != self._s:
             self._s = new
             self.changed.emit(new)

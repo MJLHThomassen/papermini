@@ -15,7 +15,7 @@ from .mini import TAB_SHOWS
 from .segment import ModelError
 from .settings import (FIGURE_OPTIONS, FigureSettings, Project, SheetSettings, build_mini,
                        load_project, safe_name, settings_with_size)
-from .sheet import CUT_MODES, MARKS
+from .sheet import CUSTOM_PAPER_MM, CUT_MODES, MARKS, MATS, ORIENTATIONS, PAPER_CHOICES
 
 D = FigureSettings()  # defaults shown in --help
 DS = SheetSettings()
@@ -149,8 +149,18 @@ def cmd_sheet(a: argparse.Namespace) -> int:
     from .svg import read_svg
 
     minis = [(read_svg(Path(p)), a.copies) for p in _expand(a.svgs)]
-    sh = SheetSettings(paper=a.paper, title=a.title, margin_mm=a.margin_mm, gap_mm=a.gap_mm,
-                       cut=a.cut, marks=a.marks, cut_folds=a.cut_folds)
+    custom = {k: v for k, v in (("paper_width_mm", a.paper_width_mm),
+                                ("paper_height_mm", a.paper_height_mm)) if v is not None}
+    if custom and a.paper not in (None, "custom"):
+        raise SystemExit("--paper-width-mm and --paper-height-mm are a custom paper size: "
+                         f"leave out --paper {a.paper}")
+    try:
+        sh = SheetSettings.from_dict(dict(
+            custom, paper=a.paper or ("custom" if custom else DS.paper),
+            orientation=a.orientation, title=a.title, margin_mm=a.margin_mm, gap_mm=a.gap_mm,
+            cut=a.cut, marks=a.marks, cut_folds=a.cut_folds, mat=a.mat))
+    except ValueError as e:
+        raise SystemExit(str(e).replace("sheet ", "--").replace("_", "-")) from None
     return write_sheet(minis, Path(a.output), sh, a.preview)
 
 
@@ -158,11 +168,14 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
     """The PDF sheet, its PNG previews, and cut by machine its cut files."""
     from .sheet import default_cut_file, pack, write_cut_files, write_pdf, write_previews
 
-    lay = pack(minis, sh.paper, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+    lay = pack(minis, sh.page, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks,
+               orientation=sh.orientation)
     write_pdf(lay, output, sh.title)
     n = len(lay.placements)
     print(f"  -> {output} ({n} piece{'s' * (n != 1)}, {lay.pages} page{'s' * (lay.pages != 1)}, "
-          f"{sh.paper.upper()})")
+          f"{sh.paper_text()})")
+    if sh.mat_warning():
+        print(f"  ! note: {sh.mat_warning()}")
     if lay.machine:
         for p in write_cut_files(lay, default_cut_file(output), sh.cut_folds, sh.title):
             print(f"  -> {p} (cut file)")
@@ -255,7 +268,14 @@ def build_parser() -> argparse.ArgumentParser:
     sh.add_argument("svgs", nargs="+")
     sh.add_argument("-o", "--output", default="minis.pdf")
     sh.add_argument("--copies", type=int, default=1, help="copies of each figure (1)")
-    sh.add_argument("--paper", choices=["a4", "letter"], default="a4")
+    sh.add_argument("--paper", choices=PAPER_CHOICES,
+                    help="paper size; custom: give --paper-width-mm and --paper-height-mm (a4)")
+    sh.add_argument("--paper-width-mm", type=float,
+                    help=f"a custom paper's width, {CUSTOM_PAPER_MM[0]:g} to "
+                         f"{CUSTOM_PAPER_MM[1]:g} mm (with --paper-height-mm)")
+    sh.add_argument("--paper-height-mm", type=float, help="a custom paper's height")
+    sh.add_argument("--orientation", choices=ORIENTATIONS, default=DS.orientation,
+                    help="portrait or landscape, for a named paper size (portrait)")
     sh.add_argument("--margin-mm", type=float, default=DS.margin_mm,
                     help="page margin; --cut machine: where the alignment marks are (12)")
     sh.add_argument("--gap-mm", type=float, default=7.0, help="gap between pieces (7)")
@@ -269,6 +289,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "Type 1, or none (corners)")
     sh.add_argument("--cut-folds", action="store_true",
                     help="--cut machine: also put the fold lines in the cut file")
+    sh.add_argument("--mat", choices=tuple(MATS),
+                    help="--cut machine: the cutting mat (12x12 or 12x24 inches); a note when "
+                         "the paper is bigger")
     sh.set_defaults(func=cmd_sheet)
 
     bt = sub.add_parser("batch", help="YAML config: images + per-image options -> SVGs + sheet")

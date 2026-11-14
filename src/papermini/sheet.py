@@ -1,4 +1,5 @@
-"""Print sheet: shelf-pack miniatures onto A4/Letter pages, write PDF (+ PNG preview).
+"""Print sheet: shelf-pack miniatures onto pages (A3 to A5, Letter, Legal, Tabloid or a
+custom size, portrait or landscape), write PDF (+ PNG preview).
 
 Cut by hand, the PDF has the cut lines. Cut by machine, the PDF has none: it gets
 alignment marks instead, and a cut file (SVG, one per page) holds the cut lines and
@@ -7,16 +8,72 @@ the same marks, to line up in the cutting machine's software.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Union
 
 from PIL import Image, ImageDraw, ImageFont
 
 from . import fonts
 from .mini import Mini
 
-PAPER = {"a4": (210.0, 297.0), "letter": (215.9, 279.4)}
+# paper sizes, portrait (width, height mm), and their names in the app
+PAPER = {"a3": (297.0, 420.0), "a4": (210.0, 297.0), "a5": (148.0, 210.0),
+         "letter": (215.9, 279.4), "legal": (215.9, 355.6), "tabloid": (279.4, 431.8)}
+PAPER_LABELS = {"a3": "A3 (297 \u00d7 420 mm)", "a4": "A4 (210 \u00d7 297 mm)",
+                "a5": "A5 (148 \u00d7 210 mm)", "letter": "Letter (8.5 \u00d7 11 in)",
+                "legal": "Legal (8.5 \u00d7 14 in)", "tabloid": "Tabloid (11 \u00d7 17 in)",
+                "custom": "Custom"}
+PAPER_CHOICES = tuple(PAPER) + ("custom",)  # "custom": a width and height of its own
+CUSTOM_PAPER_MM = (50.0, 1200.0)  # the smallest and largest side of a custom paper size
+ORIENTATIONS = ("portrait", "landscape")
+# cutting mats (width, height mm): a page fits one either way round
+MATS = {"12x12": (304.8, 304.8), "12x24": (304.8, 609.6)}
+MAT_LABELS = {"12x12": "12 \u00d7 12 in (305 \u00d7 305 mm)",
+              "12x24": "12 \u00d7 24 in (305 \u00d7 610 mm)"}
+
+Paper = Union[str, Tuple[float, float]]  # a paper name, or a custom (width, height) in mm
+
+
+def paper_size(paper: Paper, orientation: str = "portrait") -> Tuple[float, float]:
+    """The page's (width, height) in mm. A named paper turns for landscape; a custom
+    (width, height) is used as it is."""
+    if not isinstance(paper, str):
+        return float(paper[0]), float(paper[1])
+    if paper.lower() not in PAPER:
+        raise ValueError(f"paper must be one of {', '.join(PAPER)} or a custom size, "
+                         f"not {paper!r}")
+    if orientation not in ORIENTATIONS:
+        raise ValueError(f"orientation must be one of {', '.join(ORIENTATIONS)}, "
+                         f"not {orientation!r}")
+    w, h = PAPER[paper.lower()]
+    return (h, w) if orientation == "landscape" else (w, h)
+
+
+def paper_text(paper: Paper, orientation: str = "portrait") -> str:
+    """The paper as messages name it: "A4", "A3 landscape" or "300 x 450 mm"."""
+    if not isinstance(paper, str):
+        return f"{paper[0]:g} x {paper[1]:g} mm"
+    name = PAPER_LABELS.get(paper.lower(), paper).split(" (")[0]
+    return name + (" landscape" if orientation == "landscape" else "")
+
+
+def fits_mat(size: Tuple[float, float], mat: str) -> bool:
+    """Whether a page of ``size`` (mm) fits the cutting mat, either way round."""
+    mw, mh = MATS[mat]
+    w, h = sorted(size)
+    return w <= min(mw, mh) + 0.5 and h <= max(mw, mh) + 0.5
+
+
+def mat_warning(paper: Paper, orientation: str, mat: Optional[str]) -> str:
+    """Why the paper does not fit the cutting mat ("" when it fits, or without a mat)."""
+    if not mat:
+        return ""
+    w, h = paper_size(paper, orientation)
+    if fits_mat((w, h), mat):
+        return ""
+    return (f"{paper_text(paper, orientation)} ({w:.0f} \u00d7 {h:.0f} mm) is bigger than "
+            f"the {MAT_LABELS[mat].replace(' (', ' mat (')}.")
 
 TITLE = "Paper miniatures"
 INSTRUCTIONS = [
@@ -94,6 +151,14 @@ class SheetLayout:
     mark_inset: float = 0.0          # distance of the marks from the paper edges
     header_x: float = 0.0            # left of the header (right of a top-left mark)
     header_right: float = 0.0        # right end of the header (left of a top-right mark)
+    paper_name: str = ""             # the paper as messages name it, e.g. "A3 landscape"
+    left_out: List[Mini] = field(default_factory=list)  # too big for the paper (one each)
+
+    def too_big_names(self, names: Optional[dict] = None) -> List[str]:
+        """The names of the figures too big for the paper. ``names``: the figures' names
+        by ``id(mini.art)`` (default: the minis' own)."""
+        names = names or {}
+        return [names.get(id(m.art), m.name) for m in self.left_out]
 
     @property
     def machine(self) -> bool:
@@ -117,10 +182,14 @@ def _hits(x: float, y: float, w: float, h: float, keep) -> Optional[Tuple]:
     return None
 
 
-def pack(minis: Sequence[Tuple[Mini, int]], paper: str = "a4", margin_mm: float = 12.0,
+def pack(minis: Sequence[Tuple[Mini, int]], paper: Paper = "a4", margin_mm: float = 12.0,
          gap_mm: float = 7.0, header_mm: float = 24.0, cut: str = "hand",
-         marks: str = "corners") -> SheetLayout:
-    """Simple shelf packing: rows left to right, tallest pieces first.
+         marks: str = "corners", orientation: str = "portrait",
+         leave_out: bool = False) -> SheetLayout:
+    """Simple shelf packing: rows left to right, tallest pieces first. ``paper``: a name
+    in ``PAPER`` (turned for ``orientation`` "landscape") or a custom (width, height) mm.
+    A piece too big for the paper is an error, or with ``leave_out`` left off the sheet
+    and listed in the layout's ``left_out``.
 
     Cut by machine, the alignment marks sit in the corners, ``margin_mm`` from the paper
     edges. The pieces keep ``MARK_CLEAR_MM`` away from them (a piece that would come too
@@ -128,7 +197,8 @@ def pack(minis: Sequence[Tuple[Mini, int]], paper: str = "a4", margin_mm: float 
     """
     if cut not in CUT_MODES:
         raise ValueError(f"cut must be one of {', '.join(CUT_MODES)}, not {cut!r}")
-    pw, ph = PAPER[paper.lower()]
+    pw, ph = paper_size(paper, orientation)
+    name = paper_text(paper, orientation)
     machine = cut == "machine"
     rects = registration_marks((pw, ph), marks, margin_mm) if machine else []  # (checks kind)
     c = MARK_CLEAR_MM
@@ -145,34 +215,48 @@ def pack(minis: Sequence[Tuple[Mini, int]], paper: str = "a4", margin_mm: float 
     avail_w = pw - 2 * margin_mm
     top = margin_mm + header_mm
     bottom = ph - margin_mm
+    left_out: List[Mini] = []
+
+    def too_big(m: Mini, why: str) -> None:
+        if not leave_out:
+            raise ValueError(why)
+        if not any(o.art is m.art for o in left_out):  # (one entry for all its copies)
+            left_out.append(m)
+
+    fitting = []
     for m in items:
         if m.width_mm > avail_w or m.height_mm > bottom - top:
-            raise ValueError(
-                f"{m.name} ({m.width_mm:.0f} x {m.height_mm:.0f} mm) does not fit on "
-                f"{paper.upper()} with {margin_mm:g} mm margins; make it smaller (--height-mm)"
-            )
+            too_big(m, f"{m.name} ({m.width_mm:.0f} x {m.height_mm:.0f} mm) does not fit on "
+                       f"{name} with {margin_mm:g} mm margins; make it smaller (--height-mm)")
+        else:
+            fitting.append(m)
     placements: List[Placement] = []
     page, x, y, row_h = 0, margin_mm, top, 0.0
-    for m in items:
+    for m in fitting:
         on_page = sum(p.page == page for p in placements)
+        placed = True
         while True:
             if x > margin_mm and x + m.width_mm > pw - margin_mm:  # next row
                 x, y, row_h = margin_mm, y + row_h + gap_mm, 0.0
             if y + m.height_mm > bottom:  # next page
                 if not on_page:  # (an empty page and still no room: the marks are in the way)
-                    raise ValueError(f"{m.name} does not fit on {paper.upper()} between the "
-                                     "alignment marks; make it smaller (--height-mm)")
+                    too_big(m, f"{m.name} does not fit on {name} between the alignment "
+                               "marks; make it smaller (--height-mm)")
+                    placed = False
+                    break
                 page, x, y, row_h, on_page = page + 1, margin_mm, top, 0.0, 0
             hit = _hits(x, y, m.width_mm, m.height_mm, keep)
             if hit is None:
                 break
             x = hit[2]  # past the mark, on this row (or the next, if it no longer fits)
+        if not placed:
+            continue
         placements.append(Placement(m, page, x, y))
         x += m.width_mm + gap_mm
         row_h = max(row_h, m.height_mm)
-    return SheetLayout((pw, ph), placements, page + 1 if items else 0, header_mm, margin_mm,
-                       cut, marks if machine else None, margin_mm if machine else 0.0,
-                       header_x, header_right)
+    return SheetLayout((pw, ph), placements, page + 1 if placements else 0, header_mm,
+                       margin_mm, cut, marks if machine else None,
+                       margin_mm if machine else 0.0, header_x, header_right, name, left_out)
 
 
 # --------------------------------------------------------------------------- PDF

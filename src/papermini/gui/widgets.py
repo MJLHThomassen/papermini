@@ -432,7 +432,7 @@ class Banner(QFrame):
 
     def show_message(self, title: str, body: str):
         self.icon.setPixmap(theme.pixmap("warning", theme.current.danger, 20))
-        self.text.setText(f"<b>{title}</b><br>{body}")
+        self.text.setText(f"<p style='margin:0'><b>{title}</b></p>{body}")  # (a list may follow)
         self.show()
 
 

@@ -35,7 +35,7 @@ def test_sheet_settings_cut_by_machine():
     s = SheetSettings.from_dict({"cut": "machine", "bleed-mm": 1.5, "marks": "silhouette"})
     assert s.machine and s.figure_bleed == 1.5 and s.marks == "silhouette"
     for bad, match in (({"cut": "laser"}, "cut must be"), ({"marks": "dots"}, "marks must be"),
-                       ({"bleed_mm": 9}, "bleed_mm"), ({"paper": "a3"}, "paper must be"),
+                       ({"bleed_mm": 9}, "bleed_mm"), ({"paper": "a2"}, "paper must be"),
                        ({"cutter": True}, "unknown sheet option")):
         with pytest.raises(ValueError, match=match):
             SheetSettings.from_dict(bad)

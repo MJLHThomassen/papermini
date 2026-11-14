@@ -11,7 +11,7 @@ import time
 import traceback
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
@@ -442,11 +442,15 @@ class MainWindow(QMainWindow):
         self.crop_view = CropView()
         self.crop_view.cropChanged.connect(self.panel.set_crop)
         sheet_page = QWidget()
-        sv = QVBoxLayout(sheet_page)
+        sv = QGridLayout(sheet_page)
         sv.setContentsMargins(0, 0, 0, 0)
         sv.setSpacing(0)
         self.sheet_view = ZoomView()
-        sv.addWidget(self.sheet_view)
+        sv.addWidget(self.sheet_view, 0, 0)
+        self.sheet_banner = Banner()  # why the sheet is empty: a figure too big for the paper
+        self.sheet_banner_box = overlay_wrap(self.sheet_banner)
+        self.sheet_banner_box.hide()
+        sv.addWidget(self.sheet_banner_box, 0, 0, Qt.AlignCenter)
         for view, (label, tip) in zip((self.crop_view, self.mini_view, sheet_page),
                                       self.VIEWS):
             self.tabs.addTab(view, label)
@@ -988,10 +992,65 @@ class MainWindow(QMainWindow):
         self._sheet_timer.start()
 
     def _pack(self, figs: List[Figure]):
-        """The sheet layout of ``figs`` (built) with the project's sheet settings."""
+        """The sheet layout of ``figs`` (built) with the project's sheet settings; a
+        figure too big for the paper is left off it (see the layout's ``left_out``)."""
         sh = self.project.sheet
-        return pack([(f.mini, f.entry.settings.copies) for f in figs], sh.paper,
-                    sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks)
+        return pack([(f.mini, f.entry.settings.copies) for f in figs], sh.page,
+                    sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks,
+                    orientation=sh.orientation, leave_out=True)
+
+    def _too_big(self, lay) -> Tuple[str, List[str], str]:
+        """The figures too big for the paper: a line saying so, their names, and what to
+        do about it."""
+        sh = self.project.sheet
+        one = len(lay.left_out) == 1
+        what = "the figure" if one else "the figures"
+        advice = f"Pick bigger paper, or make {what} smaller in step 2 (Miniature)."
+        if sh.paper == "custom":
+            advice = f"Make the paper bigger, or make {what} smaller in step 2 (Miniature)."
+        else:
+            other = "landscape" if sh.orientation == "portrait" else "portrait"
+            turned = pack([(m, 1) for m in lay.left_out], sh.page, sh.margin_mm, sh.gap_mm,
+                          cut=sh.cut, marks=sh.marks, orientation=other, leave_out=True)
+            if not turned.left_out:
+                advice = (f"{'It fits' if one else 'They fit'} on {turned.paper_name}: set "
+                          f"Orientation to {other.title()}. Or pick bigger paper, or make "
+                          f"{what} smaller in step 2 (Miniature).")
+        intro = ("The following figure is too large to fit on the selected paper:" if one else
+                 "The following figures are too large to fit on the selected paper:")
+        return intro, lay.too_big_names(self._names()), advice
+
+    @staticmethod
+    def _too_big_plain(intro: str, names: List[str], advice: str = "") -> str:
+        """The too-big message as plain text (a bullet per figure), for a dialog."""
+        lines = "\n".join(f"\u2022 {n}" for n in names)
+        return f"{intro}\n{lines}" + (f"\n\n{advice}" if advice else "")
+
+    @staticmethod
+    def _too_big_list(names: List[str]) -> str:
+        """The figures too big for the paper as a bulleted list (rich text)."""
+        items = "".join(f"<li>{html.escape(n)}</li>" for n in names)
+        return ("<ul style='margin-top:4px; margin-bottom:6px; margin-left:0px; "
+                f"-qt-list-indent:1;'>{items}</ul>")
+
+    def _names(self) -> dict:
+        """The figures' names, by ``id(mini.art)`` (as the sheet's minis share it)."""
+        return {id(f.mini.art): f.entry.display_name for f in self.figures if f.mini}
+
+    def _all_fit(self, lay, verb: str) -> bool:
+        """Before printing or exporting: whether to go on when figures are too big for the
+        paper (they are left off; asks first)."""
+        if not lay.left_out:
+            return True
+        intro, names, advice = self._too_big(lay)
+        if not lay.placements:
+            self._warn(f"{self._too_big_plain(intro, names, advice)}\n\nNothing fits on the "
+                       f"paper, so there is nothing to {verb.lower()}.")
+            return False
+        left = "It is" if len(names) == 1 else "They are"
+        return QMessageBox.question(
+            self, "papermini", f"{self._too_big_plain(intro, names)}\n\n{left} left off the "
+            f"sheet. {verb} the other figures anyway?") == QMessageBox.Yes
 
     # ----------------------------------------------------------------- building
     def _is_current(self, uid, key) -> bool:
@@ -1340,6 +1399,8 @@ class MainWindow(QMainWindow):
         sc = self.sheet_view.scene()
         for w in (self.sheet_panel.print_btn, self.sheet_panel.export_btn, self.a_print):
             w.setEnabled(bool(self.figures))
+        self.sheet_banner_box.hide()
+        self.sheet_panel.set_fit_warning("")
         if not ready:
             sc.clear()
             self.sheet_panel.info.setText("Building…" if missing else "No miniatures yet")
@@ -1349,6 +1410,15 @@ class MainWindow(QMainWindow):
         except ValueError as e:
             sc.clear()
             self.sheet_panel.info.setText(str(e))
+            return
+        if lay.left_out:  # nothing on the sheet until every figure fits
+            sc.clear()
+            intro, names, advice = self._too_big(lay)
+            body = self._too_big_list(names) + html.escape(advice)
+            self.sheet_banner.show_message(html.escape(intro), body)
+            self.sheet_banner_box.show()
+            self.sheet_panel.set_fit_warning(f"{html.escape(intro)}{body}")
+            self.sheet_panel.info.setText("The sheet shows nothing until every figure fits.")
             return
         first = sc.itemsBoundingRect().isEmpty()
         draw_sheet(sc, lay, sh.title, {id(f.mini.art): f.pixmap for f in ready})
@@ -1456,6 +1526,8 @@ class MainWindow(QMainWindow):
         except ValueError as e:
             self._warn(str(e))
             return
+        if not self._all_fit(lay, "Export"):
+            return
         dlg = ExportDialog(folder, sh.title, lay.pages, lay.machine, self)
         if not self._run_export_dialog(dlg):
             return
@@ -1483,6 +1555,7 @@ class MainWindow(QMainWindow):
             self._when_built(list(self.figures), self._print)
 
     def _print(self):
+        from PySide6.QtCore import QSizeF
         from PySide6.QtGui import QPageLayout, QPageSize
         from PySide6.QtPrintSupport import QPrinter
 
@@ -1492,21 +1565,33 @@ class MainWindow(QMainWindow):
         except ValueError as e:
             self._warn(str(e))
             return
+        if not self._all_fit(lay, "Print"):
+            return
         printer = QPrinter(QPrinter.HighResolution)
-        size = QPageSize.A4 if sh.paper == "a4" else QPageSize.Letter
-        printer.setPageSize(QPageSize(size))
-        printer.setPageOrientation(QPageLayout.Portrait)
+        pw, ph = lay.paper
+        named = {"a3": QPageSize.A3, "a4": QPageSize.A4, "a5": QPageSize.A5,
+                 "letter": QPageSize.Letter, "legal": QPageSize.Legal,
+                 "tabloid": QPageSize.Tabloid}
+        if sh.paper in named:
+            page = QPageSize(named[sh.paper])
+        else:  # a custom size: given upright, turned with the orientation
+            page = QPageSize(QSizeF(min(pw, ph), max(pw, ph)), QPageSize.Millimeter, "Custom",
+                             QPageSize.ExactMatch)
+        printer.setPageSize(page)
+        printer.setPageOrientation(QPageLayout.Landscape if pw > ph else QPageLayout.Portrait)
         printer.setFullPage(True)  # true size: no scaling to the printable area
         printer.setDocName(self.project.path.stem if self.project.path else "papermini sheet")
         printer.setFromTo(0, 0)
         if not self._print_dialog(printer, lay.pages):
             return
-        chosen = printer.pageLayout().pageSize().id()
-        if chosen != size and QMessageBox.question(
+        chosen = printer.pageLayout().fullRect(QPageLayout.Millimeter)
+        turned = " landscape" if chosen.width() > chosen.height() else ""
+        other = abs(chosen.width() - pw) > 1 or abs(chosen.height() - ph) > 1
+        if other and QMessageBox.question(
                 self, "papermini",
-                f"The sheet is laid out for {sh.paper.upper()} paper, but the printer is set to "
-                f"{printer.pageLayout().pageSize().name()}. The minis still print at their real "
-                "size, but parts of the sheet may be cut off.\n\nPrint anyway?") \
+                f"The sheet is laid out for {sh.paper_text()} paper, but the printer is set to "
+                f"{printer.pageLayout().pageSize().name()}{turned}. The minis still print at "
+                "their real size, but parts of the sheet may be cut off.\n\nPrint anyway?") \
                 != QMessageBox.Yes:
             return
         n = print_sheet(printer, lay, sh.title)

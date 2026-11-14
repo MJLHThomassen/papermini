@@ -47,7 +47,9 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   papermini, or any TrueType font on your computer.
 - **[Color adjustments](docs/reference.md#color-adjustments)**: greyscale,
   brightness, contrast, saturation and hue.
-- **Print sheets**: A4 or Letter PDF pages at real size, or an SVG per figure.
+- **[Print sheets](docs/reference.md#paper)**: PDF pages at real size on A3,
+  A4, A5, Letter, Legal, Tabloid or your own paper size, portrait or landscape;
+  or an SVG per figure.
 - **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web.
 - **[Updates](docs/reference.md#updates)**: checks once a day, and installs a
   new version when you close papermini.
