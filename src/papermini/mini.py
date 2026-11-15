@@ -27,6 +27,7 @@ class Style:
     back_text_color: str = "#2f5597"
     label_size_mm: float = 3.4
     font: str = "Times"  # all of the piece's text (see fonts.py)
+    cut_line: bool = True  # print the cut line (a token's ring edge can do instead)
 
 
 TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
@@ -96,10 +97,16 @@ class Mini:
     number: Optional[int] = None
     # text read from an SVG file, drawn as it is (numbers already written into it)
     extra: List[TextItem] = field(default_factory=list)
+    # "mini" (a standing miniature) or "token" (a flat round token); a token's circle,
+    # ring, text and framing (token.TokenInfo)
+    kind: str = "mini"
+    token: Optional[object] = None
 
     @property
     def numbered(self) -> bool:
         """Whether the miniature shows its copy number anywhere."""
+        if self.token is not None:
+            return self.token.text in ("number", "label_number")
         return self.number_box is not None or any(s != "label" for s in self.tab_shows)
 
     def text_items(self) -> List[TextItem]:
@@ -107,6 +114,10 @@ class Mini:
         back side's number. On a tab showing both, the number goes above the label (on
         the fold's side), as large as fits."""
         st = self.style
+        if self.token is not None:
+            from .token import token_text_items
+
+            return token_text_items(self.token, self.label, self.number, st.font) + list(self.extra)
         num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
         room_w, room_h = self.tab_room
         items: List[TextItem] = []
@@ -216,41 +227,32 @@ def fit_text_block(text: str, max_w: float, max_h: float, max_size: float,
     return best
 
 
-def make_mini(
-    image_path: Path,
-    prm: geo.Params,
-    *,
-    label: Optional[str] = None,
-    back_text: Optional[str] = None,
-    tab_front: str = "label",
-    tab_back: str = "label",
-    threshold: int = 40,
-    close_px: Optional[int] = None,
-    min_area: int = 1000,
-    crop=None,
-    model: str = "auto",
-    mask_path: Optional[Path] = None,
-    dpi: int = 300,
-    simplify_mm: float = 0.15,
-    smooth_path: bool = True,
-    bleed_mm: float = 0.0,
-    adjust: Optional[adj_mod.Adjustments] = None,
-    use_cache: bool = True,
-    style: Optional[Style] = None,
-    debug_dir: Optional[Path] = None,
-    log=print,
-    on_stage=None,
-) -> Mini:
-    """Build one miniature. ``on_stage(name, data)``, if given, hears about progress:
-    ``("segment", model)`` just before a model runs (it may take a while) and
-    ``("outline", (contours, close_px))`` once the figure is found, before the layout."""
+@dataclass
+class FigureMask:
+    """What background removal found in an image, for a mini or a token: the image, its
+    pixels (RGB, or premultiplied RGBA), the clean 0/255 figure mask at the image's size,
+    its outline, and how it was found."""
+
+    image: Image.Image
+    rgb: np.ndarray
+    clean: np.ndarray
+    contours: List[np.ndarray]
+    close_px: int                 # the closing radius used
+    method: str                   # "alpha", "mask" or the model that ran
+    key: tuple                    # identifies the clean mask in the caches
+    stages: Optional[Dict[str, np.ndarray]] = None  # debug: the intermediate masks
+
+
+def figure_mask(image_path: Path, *, threshold: int = 40, close_px: Optional[int] = None,
+                keep_all: bool = False, min_area: int = 1000, crop=None, model: str = "auto",
+                mask_path: Optional[Path] = None, use_cache: bool = True, debug: bool = False,
+                log=print, on_stage=None) -> FigureMask:
+    """Find the figure in an image (steps 1 and 2 of a build): the raw mask from a model,
+    the image's transparency or a mask file, then the clean-up. ``on_stage`` hears
+    ``("segment", model)`` before a model runs and ``("outline", (contours, close_px))``
+    once the figure is found."""
     image_path = Path(image_path)
     stage = on_stage or (lambda *_: None)
-    style = style or Style()
-    if not fonts.resolve(style.font)[1]:
-        log(f"  {image_path.name}: note: the font {style.font} is not on this computer: "
-            f"printing in {fonts.DEFAULT}")
-        style = replace(style, font=fonts.DEFAULT)
     fkey = cache.file_key(image_path)
     im, data, rgb, transparent = cache.images.get_or_make(fkey, lambda: _load_for_pipeline(image_path))
     W, H = im.size
@@ -288,18 +290,58 @@ def make_mini(
     check_cancel()
 
     # 2. clean-up
-    clean_key = (raw_key, threshold, close_px, prm.keep_all, min_area if prm.keep_all else None)
-    if debug_dir:
+    clean_key = (raw_key, threshold, close_px, keep_all, min_area if keep_all else None)
+    if debug:
         stages: Optional[Dict[str, np.ndarray]] = {"0_raw": raw}
-        clean = geo.clean_mask(raw, threshold, close_px, prm.keep_all, min_area, stages)
+        clean = geo.clean_mask(raw, threshold, close_px, keep_all, min_area, stages)
     else:
         stages = None
         clean = cache.clean_masks.get_or_make(clean_key, lambda: _frozen(
-            geo.clean_mask(raw, threshold, close_px, prm.keep_all, min_area)))
+            geo.clean_mask(raw, threshold, close_px, keep_all, min_area)))
 
     close_used = geo.default_close_px(raw.shape[1], raw.shape[0]) if close_px is None else close_px
     contours = geo.outline(clean)
     stage("outline", (contours, close_used))
+    return FigureMask(im, rgb, clean, contours, close_used, method, clean_key, stages)
+
+
+def make_mini(
+    image_path: Path,
+    prm: geo.Params,
+    *,
+    label: Optional[str] = None,
+    back_text: Optional[str] = None,
+    tab_front: str = "label",
+    tab_back: str = "label",
+    threshold: int = 40,
+    close_px: Optional[int] = None,
+    min_area: int = 1000,
+    crop=None,
+    model: str = "auto",
+    mask_path: Optional[Path] = None,
+    dpi: int = 300,
+    simplify_mm: float = 0.15,
+    smooth_path: bool = True,
+    bleed_mm: float = 0.0,
+    adjust: Optional[adj_mod.Adjustments] = None,
+    use_cache: bool = True,
+    style: Optional[Style] = None,
+    debug_dir: Optional[Path] = None,
+    log=print,
+    on_stage=None,
+) -> Mini:
+    """Build one miniature. ``on_stage(name, data)``, if given, hears about progress:
+    ``("segment", model)`` just before a model runs (it may take a while) and
+    ``("outline", (contours, close_px))`` once the figure is found, before the layout."""
+    image_path = Path(image_path)
+    style = check_font(style or Style(), image_path.name, log)
+    fm = figure_mask(image_path, threshold=threshold, close_px=close_px,
+                     keep_all=prm.keep_all, min_area=min_area, crop=crop, model=model,
+                     mask_path=mask_path, use_cache=use_cache, debug=bool(debug_dir),
+                     log=log, on_stage=on_stage)
+    im, rgb, clean, clean_key, stages = fm.image, fm.rgb, fm.clean, fm.key, fm.stages
+    W, H = im.size
+    contours, close_used, method = fm.contours, fm.close_px, fm.method
 
     # 2b. size (by height, by width, or both: stretched sideways), then a bounded
     # working resolution for that size
@@ -419,6 +461,15 @@ def make_mini(
     if debug_dir is not None:
         write_debug(Path(debug_dir), image_path.stem, stages, lay, path_px)
     return mini
+
+
+def check_font(style: Style, name: str, log=print) -> Style:
+    """``style``, printing in the default font when its font is not on this computer."""
+    if fonts.resolve(style.font)[1]:
+        return style
+    log(f"  {name}: note: the font {style.font} is not on this computer: "
+        f"printing in {fonts.DEFAULT}")
+    return replace(style, font=fonts.DEFAULT)
 
 
 def write_debug(out: Path, stem: str, stages, lay: geo.Layout, path_px: geo.CutPath) -> None:

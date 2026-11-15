@@ -333,7 +333,7 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
         c.rotate(-t.rot)
         c.drawCentredString(0, -0.35 * t.size_mm * mm, t.text)
         c.restoreState()
-    if not cut_line:
+    if not cut_line or not st.cut_line:
         return
     # cut line
     pts = m.cut.points
@@ -462,7 +462,7 @@ def write_previews(layout: SheetLayout, out: Path, dpi: int = 100,
                 d.text((ox + t.cx * s, oy + t.cy * s), t.text, fill=t.color,
                        font=_font(max(6, round(t.size_mm * s)), serif=True,
                                   path=fonts.file_for(m.style.font, t.bold)), anchor="mm")
-            if not layout.machine:
+            if not layout.machine and m.style.cut_line:
                 pts = [(ox + x * s, oy + y * s) for x, y in m.cut.flatten(6)]
                 d.line(pts + pts[:1], fill=m.style.cut_color,
                        width=max(1, round(m.style.cut_width_mm * s)))

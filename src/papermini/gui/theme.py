@@ -280,6 +280,13 @@ QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 5px;
     border: 1px solid {t.border}; background: {t.surface2}; }}
 QCheckBox::indicator:hover {{ border-color: {t.accent}; }}
 QCheckBox::indicator:checked {{ background: {t.accent}; border-color: {t.accent}; image: url({check}); }}
+QRadioButton {{ spacing: 8px; }}
+QRadioButton::indicator {{ width: 16px; height: 16px; border-radius: 9px;
+    border: 1px solid {t.border}; background: {t.surface2}; }}
+QRadioButton::indicator:hover {{ border-color: {t.accent}; }}
+QRadioButton::indicator:checked {{ border-color: {t.accent}; background: qradialgradient(
+    cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 #ffffff, stop:0.38 #ffffff,
+    stop:0.48 {t.accent}, stop:1 {t.accent}); }}
 
 /* side panels */
 #Side {{ background: {t.surface}; }}

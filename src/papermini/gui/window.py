@@ -29,12 +29,13 @@ from ..segment import Cancelled, ModelError
 from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_project,
                         save_project)
 from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
+from ..png import write_pngs
 from ..svg import write_svgs
 from . import errors, prefs, theme
 from .models import DownloadDialog
 from .export import ExportDialog
 from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
-from .views import (CropView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
+from .views import (CropView, MiniView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
                     draw_sheet, load_qimage, print_sheet, pil_to_qimage)
 from .widgets import (COPIES_ROLE, SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, WorkCard,
                       ZoomBar,
@@ -223,12 +224,9 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- ui
     # the workflow, one view per step; any step can be opened at any time
-    VIEWS = [("Source", "Step 1: crop the picture and remove the background. Drag a box on "
-                        "the image to limit what the model looks at; drag its handles to "
-                        "resize, inside to move, Delete to clear"),
-             ("Miniature", "Step 2: the paper piece as it will print: margin, cut line, "
-                           "tab and back"),
-             ("Print sheet", "Step 3: size and copies of each figure, and the PDF pages")]
+    VIEWS = [("Source", "Step 1: the picture, and the figure found in it"),
+             ("Miniature", "Step 2: the piece as it will print"),
+             ("Print sheet", "Step 3: the pages to print")]
     SOURCE, MINI, SHEET = range(3)
 
     def _make_ui(self):
@@ -246,7 +244,7 @@ class MainWindow(QMainWindow):
         self.sheet_panel.changed.connect(self._sheet_changed)
         self.sheet_panel.printClicked.connect(self.print_sheet)
         self.sheet_panel.exportClicked.connect(self.export_pdf)
-        self.panel.exportSvg.connect(self.export_current_svg)
+        self.panel.exportPiece.connect(self.export_current)
         canvas = self._make_canvas()
         root.addWidget(self._make_header())
         root.addWidget(self._make_update_bar())
@@ -331,10 +329,10 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(0, 0, 0, 0)
         h.addStretch(1)
         # (Export SVG is on the Miniature step's panel, Print and Export on the sheet's)
-        self._tinted += [(self.panel.export_svg, "export", "text", 16),
+        self._tinted += [(self.panel.export_piece, "export", "text", 16),
                          (self.sheet_panel.print_btn, "printer", "text", 16),
                          (self.sheet_panel.export_btn, "pdf", "accent_text", 16)]
-        for btn in (self.panel.export_svg, self.sheet_panel.print_btn,
+        for btn in (self.panel.export_piece, self.sheet_panel.print_btn,
                     self.sheet_panel.export_btn):
             btn.setIconSize(QSize(16, 16))
         self.menu_btn = QToolButton()
@@ -441,7 +439,8 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.tabBar().hide()
         self.tabs.setDocumentMode(True)
-        self.mini_view = ZoomView()
+        self.mini_view = MiniView()
+        self.mini_view.areaChanged.connect(self.panel.set_token_area)
         self.crop_view = CropView()
         self.crop_view.cropChanged.connect(self.panel.set_crop)
         sheet_page = QWidget()
@@ -553,9 +552,11 @@ class MainWindow(QMainWindow):
                            "Add copied image files, or an image or its link copied in a browser")
         self.a_save = act("Save project", self.save, QKeySequence.Save)
         self.a_save_as = act("Save project as…", self.save_as, QKeySequence.SaveAs)
-        self.a_svg = act("Export SVG…", self.export_current_svg, "Ctrl+E",
-                         "Save the selected miniature as SVG")
-        self.a_svgs = act("Export all SVGs…", self.export_all_svgs, "Ctrl+Shift+E")
+        self.a_svg = act("Export…", self.export_current, "Ctrl+E",
+                         "Save the selected figure as an SVG (to print or cut) or a PNG (for "
+                         "a virtual tabletop)")
+        self.a_svgs = act("Export all…", self.export_all, "Ctrl+Shift+E",
+                          "Save every figure as an SVG, a PNG or both")
         self.a_pdf = act("Export sheet…", self.export_pdf, "Ctrl+P",
                          "Save the sheet to print (PDF) and, cut by machine, the cut file")
         self.a_print = act("Print sheet…", self.print_sheet, "Ctrl+Shift+P",
@@ -878,7 +879,9 @@ class MainWindow(QMainWindow):
         elif fig.mini is None:
             item.setData(SUBTITLE_ROLE, "Building…")
         else:
-            item.setData(SUBTITLE_ROLE, f"{fig.mini.figure_height_mm:.0f} mm")
+            m = fig.mini
+            item.setData(SUBTITLE_ROLE, f"\u2300 {m.figure_height_mm:.0f} mm" if m.kind == "token"
+                         else f"{m.figure_height_mm:.0f} mm")
             if fig.pixmap is not None:
                 item.setIcon(QIcon(fig.pixmap.scaled(112, 112, Qt.KeepAspectRatio,
                                                      Qt.SmoothTransformation)))
@@ -1272,7 +1275,7 @@ class MainWindow(QMainWindow):
     def _show_current(self):
         fig = self.current()
         has = fig is not None
-        for w in (self.a_svg, self.panel.export_svg, self.btn_remove):
+        for w in (self.a_svg, self.panel.export_piece, self.btn_remove):
             w.setEnabled(has)
         for w in (self.sheet_panel.print_btn, self.sheet_panel.export_btn):
             w.setEnabled(bool(self.figures))
@@ -1284,6 +1287,7 @@ class MainWindow(QMainWindow):
             self.panel.set_empty(True, "Select a figure in the list to see its settings here."
                                  if self.figures else "Add images to see their settings here.")
             self.mini_view.scene().clear()
+            self.mini_view.set_token(None)
             self.crop_view.set_image(None)
             self.banner_box.hide()
             self.busy_box.hide()
@@ -1311,6 +1315,7 @@ class MainWindow(QMainWindow):
         self.panel.set_figure_width(fig.mini.figure_width_mm if fig.mini is not None else None)
         if fig.error and not fig.up_to_date:
             sc.clear()
+            self.mini_view.set_token(None)
             self.crop_view.set_outline(None)
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
@@ -1327,11 +1332,19 @@ class MainWindow(QMainWindow):
                                  and not self.work_box.isVisibleTo(self))
         if m is None:
             sc.clear()
+            self.mini_view.set_token(None)
             self.crop_view.set_outline(None)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
         draw_mini_page(sc, m)
         sc.setSceneRect(sc.itemsBoundingRect())
+        # a token's framing handles (only on a piece built from the settings shown)
+        if m.kind == "token" and fig.up_to_date:
+            s = fig.entry.settings
+            self.mini_view.set_token(m.token, *self._source_picture(fig), m.source_outline,
+                                     (s.token_fill, s.token_fill_color))
+        else:
+            self.mini_view.set_token(None)
         if first:
             self.mini_view.fit()
         if fig.up_to_date:  # (a stale piece's outline would hide the new one)
@@ -1343,6 +1356,10 @@ class MainWindow(QMainWindow):
         elif m.tab_width_mm and m.tab_joint_mm < min(10.0, 0.6 * m.tab_width_mm):
             self.panel.set_overlap_hint("narrow", m.tab_joint_mm)
         stale = "" if fig.up_to_date else "  (updating…)"
+        if m.kind == "token":
+            self.info.setText(f"token \u2300 {m.figure_height_mm:.1f} mm · ring "
+                              f"{m.token.radius_mm - m.token.inner_mm:.1f} mm{stale}")
+            return
         self.info.setText(f"figure {m.figure_width_mm:.1f} × {m.figure_height_mm:.1f} mm · "
                           f"piece {m.width_mm:.1f} × "
                           f"{m.height_mm:.1f} mm · {len(m.cut.points)} cut nodes{stale}")
@@ -1500,32 +1517,76 @@ class MainWindow(QMainWindow):
         return self.project.output_dir if self.project.path else (
             self.figures[0].entry.image.parent if self.figures else Path.home())
 
-    def export_current_svg(self):
+    SVG_FILTER = "SVG, to print or cut (*.svg)"
+    PNG_FILTER = "PNG, for a virtual tabletop (*.png)"
+
+    def export_current(self):
         fig = self.current()
         if fig is not None:
-            self._when_built([fig], lambda: self._save_svg(fig))
+            self._when_built([fig], lambda: self._save_piece(fig))
 
-    def _save_svg(self, fig: Figure):
-        f, _ = QFileDialog.getSaveFileName(self, "Export SVG",
-                                           str(self._out_dir() / fig.entry.svg_name()),
-                                           "SVG (*.svg)")
-        if f:
-            paths = write_svgs(fig.mini, Path(f), fig.entry.settings.copies)
-            ui_log.info("Exported %s", ", ".join(map(str, paths)))
-            self._status(f"Saved {paths[0]}" if len(paths) == 1 else
-                         f"Saved {len(paths)} SVGs, one per numbered copy, to {paths[0].parent}")
+    def _png_scale(self) -> float:
+        """Pixels per mm of an exported PNG, as the preferences set it (pixels per grid
+        square on the project's grid, or a dpi)."""
+        return prefs.png_px_per_mm(self.project.sizes.grid_mm)
 
-    def export_all_svgs(self):
+    def _write(self, fig: Figure, path: Path, fmt: str) -> List[Path]:
+        """Write a figure as ``fmt`` ("svg" or "png") at ``path`` (one file per numbered copy)."""
+        copies = fig.entry.settings.copies
+        if fmt == "png":
+            return write_pngs(fig.mini, path.with_suffix(".png"), self._png_scale(), copies)
+        return write_svgs(fig.mini, path.with_suffix(".svg"), copies)
+
+    def _save_piece(self, fig: Figure):
+        f, chosen = QFileDialog.getSaveFileName(
+            self, "Export", str(self._out_dir() / fig.entry.svg_name()),
+            ";;".join((self.SVG_FILTER, self.PNG_FILTER)))
+        if not f:
+            return
+        path = Path(f)
+        fmt = "png" if path.suffix.lower() == ".png" or (
+            path.suffix.lower() != ".svg" and chosen == self.PNG_FILTER) else "svg"
+        try:
+            paths = self._write(fig, path, fmt)
+        except OSError as e:
+            self._warn(str(e))
+            return
+        ui_log.info("Exported %s", ", ".join(map(str, paths)))
+        self._status(f"Saved {paths[0]}" if len(paths) == 1 else
+                     f"Saved {len(paths)} {fmt.upper()}s, one per numbered copy, to "
+                     f"{paths[0].parent}")
+
+    def export_all(self):
         if self.figures:
-            self._when_built(list(self.figures), self._save_all_svgs)
+            self._when_built(list(self.figures), self._save_all)
 
-    def _save_all_svgs(self):
-        d = QFileDialog.getExistingDirectory(self, "Export all SVGs to", str(self._out_dir()))
-        if d:
-            n = sum(len(write_svgs(f.mini, Path(d) / f.entry.svg_name(), f.entry.settings.copies))
-                    for f in self.figures)
-            ui_log.info("Exported %d SVG(s) to %s", n, d)
-            self._status(f"Saved {n} SVG(s) to {d}")
+    def _ask_format(self) -> Optional[str]:
+        """Which files Export all writes: "svg", "png", "both", or None (cancelled)."""
+        box = QMessageBox(QMessageBox.Question, "Export all",
+                          "Save every figure as an SVG (to print or cut), a PNG (for a "
+                          "virtual tabletop) or both?", parent=self)
+        buttons = {box.addButton(text, QMessageBox.AcceptRole): fmt
+                   for text, fmt in (("SVG", "svg"), ("PNG", "png"), ("Both", "both"))}
+        box.addButton(QMessageBox.Cancel)
+        box.exec()
+        return buttons.get(box.clickedButton())
+
+    def _save_all(self):
+        fmt = self._ask_format()
+        if fmt is None:
+            return
+        d = QFileDialog.getExistingDirectory(self, "Export all to", str(self._out_dir()))
+        if not d:
+            return
+        kinds = ("svg", "png") if fmt == "both" else (fmt,)
+        try:
+            n = sum(len(self._write(f, Path(d) / f.entry.svg_name(), k))
+                    for f in self.figures for k in kinds)
+        except OSError as e:
+            self._warn(str(e))
+            return
+        ui_log.info("Exported %d file(s) to %s", n, d)
+        self._status(f"Saved {n} file{'s' * (n != 1)} to {d}")
 
     def export_pdf(self):
         if self.figures:

@@ -11,6 +11,7 @@ from typing import List, Optional
 from . import __version__, remote, sizes
 from . import fonts
 from . import geometry as geo
+from . import token as tok
 from .mini import TAB_SHOWS
 from .segment import ModelError
 from .settings import (FIGURE_OPTIONS, FigureSettings, Project, SheetSettings, build_mini,
@@ -22,6 +23,10 @@ DS = SheetSettings()
 
 
 def add_figure_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("kind")
+    g.add_argument("--kind", choices=("mini", "token"), default=D.kind,
+                   help="mini: a standing paper miniature (default); token: a flat round "
+                        "token (see the token options)")
     g = p.add_argument_group("size and shape")
     g.add_argument("--size", choices=sizes.SIZE_CHOICES,
                    help="creature size: fills in the height and the tabs from the size "
@@ -71,6 +76,40 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
                    help="color of a back that is not the mirrored image (#ffffff)")
     g.add_argument("--back-text-color", default=D.back_text_color,
                    help="color of the back text (#2f5597)")
+    g = p.add_argument_group("token (--kind token)")
+    g.add_argument("--token-diameter-mm", type=float,
+                   help=f"the token's diameter ({D.token_diameter_mm:g}, Medium: the creature "
+                        "size's base)")
+    g.add_argument("--token-area",
+                   help="x0,y0,x1,y1: the square of the picture that fills the circle, as "
+                        "fractions of the picture (default: the whole figure, fitted)")
+    g.add_argument("--token-fill", choices=tok.TOKEN_FILLS, default=D.token_fill,
+                   help="behind the figure: --token-fill-color (default) or the original image")
+    g.add_argument("--token-fill-color", default=D.token_fill_color,
+                   help=f"color behind the figure ({D.token_fill_color})")
+    g.add_argument("--token-border-mm", type=float, default=D.token_border_mm,
+                   help=f"width of the ring; 0 = none ({D.token_border_mm:g})")
+    g.add_argument("--token-border-color", default=D.token_border_color,
+                   help=f"color of the ring ({D.token_border_color})")
+    g.add_argument("--token-cut-line", action="store_true",
+                   help="print the cut line around the token (by default the ring's edge "
+                        "shows where to cut)")
+    g.add_argument("--token-outline", action="store_true",
+                   help="an outline around the figure, made like a mini's margin "
+                        "(--margin-mm, --margin-fill, --margin-color)")
+    g.add_argument("--token-text", choices=tok.TOKEN_TEXTS, default=D.token_text,
+                   help="what the token shows: none (default), the label, the copy number, or "
+                        "label_number")
+    g.add_argument("--token-text-style", choices=tok.TOKEN_TEXT_STYLES,
+                   default=D.token_text_style,
+                   help="nameplate: the label on a band across the bottom, the number on a "
+                        "badge (default); curved: along the ring, which is then at least as "
+                        "wide as the text needs")
+    g.add_argument("--token-text-color", default=D.token_text_color,
+                   help=f"color of the token's text ({D.token_text_color})")
+    g.add_argument("--token-text-mm", type=float, default=D.token_text_mm,
+                   help="size of the token's text: the nameplate is a little taller, and "
+                        f"curved text needs a ring 1.4 times as wide ({D.token_text_mm:g})")
     g = p.add_argument_group("picture (colors of what is printed; the mask is unaffected)")
     g.add_argument("--greyscale", action="store_true", help="print in black and white")
     g.add_argument("--brightness", type=int, default=D.brightness,
@@ -121,6 +160,7 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
 # --------------------------------------------------------------------------- commands
 
 def cmd_make(a: argparse.Namespace) -> int:
+    from .png import PX_PER_SQUARE, px_per_mm, write_pngs
     from .svg import write_svgs
 
     images, folders = [], {}  # an image from a folder: the folder it came from
@@ -135,24 +175,39 @@ def cmd_make(a: argparse.Namespace) -> int:
             images.append(src)
     if not images:
         raise SystemExit("no images to make")
-    if a.output and len(images) > 1 and a.output.lower().endswith(".svg"):
-        raise SystemExit("-o NAME.svg only works with a single image; use -o DIR")
+    single = bool(a.output) and a.output.lower().endswith((".svg", ".png"))
+    if single and len(images) > 1:
+        raise SystemExit(f"-o NAME{Path(a.output).suffix} only works with a single image; "
+                         "use -o DIR")
+    if a.png_px is not None and a.png_dpi is not None:
+        raise SystemExit("give --png-px or --png-dpi, not both")
+    for flag, v in (("--png-px", a.png_px), ("--png-dpi", a.png_dpi)):
+        if v is not None and v <= 0:
+            raise SystemExit(f"{flag} must be above 0")
     if a.grid_mm is not None and a.grid_mm <= 0:
         raise SystemExit("--grid-mm must be above 0")
     table = sizes.for_grid(a.grid_mm) if a.grid_mm else sizes.BUILTIN
     s = settings_with_size(
         {k: v for k, v in vars(a).items() if k in FIGURE_OPTIONS and v is not None}, table)
+    scale = a.png_dpi / 25.4 if a.png_dpi else px_per_mm(a.png_px or PX_PER_SQUARE,
+                                                         table.grid_mm)
     for src in images:
         img = remote.fetch_image(src) if remote.is_url(src) else remote.local_path(src)
-        out_svg = Path(a.output) if a.output and a.output.lower().endswith(".svg") else None
+        out_file = Path(a.output) if single else None
         # next to the image, or for a link (its copy lives in the cache) here
         here = Path.cwd() if remote.is_url(src) else img.parent
-        out_dir = out_svg.parent if out_svg else Path(a.output) if a.output else here
-        if a.output and not out_svg and src in folders:  # (its subfolder, inside -o DIR)
+        out_dir = out_file.parent if out_file else Path(a.output) if a.output else here
+        if a.output and not out_file and src in folders:  # (its subfolder, inside -o DIR)
             out_dir = out_dir / img.resolve().parent.relative_to(folders[src].resolve())
         m = build_mini(img, s, bleed_mm=a.bleed_mm, use_cache=not a.no_cache,
                        debug_dir=out_dir / "debug" if a.debug else None)
-        for out in write_svgs(m, out_svg or out_dir / (safe_name(m.name) + ".svg"), a.copies):
+        stem = out_file.with_suffix("") if out_file else out_dir / safe_name(m.name)
+        outs = []
+        if a.format in ("svg", "both"):
+            outs += write_svgs(m, stem.with_suffix(".svg"), a.copies)
+        if a.format in ("png", "both"):
+            outs += write_pngs(m, stem.with_suffix(".png"), scale, a.copies)
+        for out in outs:
             print(f"  -> {out}")
         _warn_width(img.name, s, m, table)
     return 0
@@ -199,8 +254,8 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
 
 
 def _warn_width(name: str, s: FigureSettings, m, table: sizes.SizeTable) -> None:
-    """Say so when a figure is wider than its creature size's squares."""
-    warning = sizes.width_warning(s.size, m.figure_width_mm, table)
+    """Say so when a mini is wider than its creature size's squares."""
+    warning = "" if s.kind == "token" else sizes.width_warning(s.size, m.figure_width_mm, table)
     if warning:
         print(f"  ! {name}: {warning}", file=sys.stderr)
 
@@ -269,14 +324,24 @@ def build_parser() -> argparse.ArgumentParser:
                          "links to images")
     mk.add_argument("--no-subfolders", action="store_true",
                     help="a folder: only its own images, not those in its subfolders")
-    mk.add_argument("-o", "--output", help="output .svg (single image) or directory "
+    mk.add_argument("-o", "--output", help="output .svg or .png (single image) or directory "
                                            "(default: next to the image; for a link, here)")
+    mk.add_argument("--format", choices=("svg", "png", "both"), default="svg",
+                    help="svg: the piece with its cut line, for printing and cutting machines "
+                         "(default); png: a picture of the whole piece, transparent around it, "
+                         "for a virtual tabletop; both")
+    mk.add_argument("--png-px", type=float,
+                    help="PNG size: pixels per grid square (--grid-mm), so a Medium figure "
+                         "fits one square of a virtual tabletop (256)")
+    mk.add_argument("--png-dpi", type=float,
+                    help="PNG size as a resolution instead: the piece at the size it prints, "
+                         "this many pixels per inch")
     mk.add_argument("--bleed-mm", type=float, default=0.0,
                     help="print the edge colors this far beyond the cut line, for a sheet cut "
                          "by machine (papermini sheet --cut machine); 0 = none (0)")
     mk.add_argument("--copies", type=int, default=1,
-                    help="a figure with numbers (--tab-front, --tab-back or --back): write "
-                         "one SVG per copy, each with its number (1)")
+                    help="a figure with numbers (--tab-front, --tab-back, --back or "
+                         "--token-text): write one file per copy, each with its number (1)")
     add_figure_args(mk)
     mk.set_defaults(func=cmd_make)
 

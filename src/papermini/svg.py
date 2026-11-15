@@ -61,9 +61,10 @@ def to_svg(m: Mini) -> str:
             f'stroke="{st.fold_color}" stroke-width="{_f(st.fold_width_mm)}" stroke-dasharray="1.2,0.8"/>'
         )
     count: dict = {}
-    for t in m.text_items():  # labels, numbers and the back text
+    for t in m.text_items():  # labels, numbers, the back text and a token's text
         i = count[t.kind] = count.get(t.kind, -1) + 1
-        ident = {"label": "label", "number": "number", "backtext": "text"}[t.kind]
+        ident = {"label": "label", "number": "number", "backtext": "text",
+                 "tokentext": "tokentext"}[t.kind]
         tr = f' transform="rotate({_f(t.rot)},{_f(t.cx)},{_f(t.cy)})"' if t.rot else ""
         weight = ' font-weight="bold"' if t.bold else ""
         out.append(
@@ -72,7 +73,8 @@ def to_svg(m: Mini) -> str:
             f'text-anchor="middle" fill="{t.color}"{tr}>{escape(t.text)}</text>'
         )
     out.append(
-        f'<path id="cut" d="{path_d(m.cut)}" fill="none" stroke="{st.cut_color}" '
+        f'<path id="cut" d="{path_d(m.cut)}" fill="none" '
+        f'stroke="{st.cut_color if st.cut_line else "none"}" '
         f'stroke-width="{_f(st.cut_width_mm)}" stroke-linejoin="round"/>'
     )
     out.append("</svg>")
@@ -180,7 +182,11 @@ def read_svg(path: Path) -> Mini:
     art = Image.open(io.BytesIO(base64.b64decode(href.split(",", 1)[1]))).convert("RGBA")
 
     style = Style()
-    style.cut_color = cut.get("stroke", style.cut_color)
+    stroke = cut.get("stroke", style.cut_color)
+    if stroke == "none":  # (a piece printed without its cut line)
+        style.cut_line = False
+    else:
+        style.cut_color = stroke
     style.cut_width_mm = float(cut.get("stroke-width", style.cut_width_mm)) * sx
     folds = []
     for ln in el("line", cls="fold"):
@@ -209,11 +215,11 @@ def read_svg(path: Path) -> Mini:
         m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
         texts.append(("".join(t.itertext()), float(t.get("x")) * sx,
                       float(t.get("y")) * sx - 0.35 * size_t, float(m.group(1)) if m else 0.0, size_t))
-    numbers = []  # (written into the file: kept as they are)
-    for t in el("text", cls="number"):
+    numbers = []  # (written into the file: kept as they are, also a token's text)
+    for t in [*el("text", cls="number"), *el("text", cls="tokentext")]:
         size_t = float(t.get("font-size", 3.4)) * sx
         m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
-        numbers.append(TextItem("number", "".join(t.itertext()), float(t.get("x")) * sx,
+        numbers.append(TextItem(t.get("class"), "".join(t.itertext()), float(t.get("x")) * sx,
                                 float(t.get("y")) * sx - 0.35 * size_t,
                                 float(m.group(1)) if m else 0.0, size_t,
                                 t.get("fill", style.label_color), t.get("font-weight") == "bold"))

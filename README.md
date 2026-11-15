@@ -41,6 +41,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   stand, or round to fold out into a base.
 - **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank
   or text back, folded over the head.
+- **[Round tokens](docs/reference.md#tokens)**: the figure in a circle with a
+  ring, a nameplate or curved text, for the table or a virtual tabletop.
 - **[Numbered copies](docs/reference.md#numbered-copies)**: a number on the
   tabs or the back of each copy, to tell six goblins apart.
 - **[Fonts](docs/reference.md#font)**: Times, six free fonts that come with
@@ -49,7 +51,7 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   brightness, contrast, saturation and hue.
 - **[Print sheets](docs/reference.md#paper)**: PDF pages at real size on A3,
   A4, A5, Letter, Legal, Tabloid or your own paper size, portrait or landscape;
-  or an SVG per figure.
+  or an SVG or PNG per figure.
 - **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web;
   or [a whole folder](docs/reference.md#adding-a-folder) of them at once.
 - **Recent projects**: on the start screen and in the menu, one click away.
@@ -115,7 +117,9 @@ The downloads are not code-signed, so the first start can need one extra step:
    [All Miniature settings](docs/reference.md#step-2-miniature), including
    the tab's [overlap](docs/reference.md#overlap-into-figure) and
    [fold](docs/reference.md#fold-above-lowest-point).
-   **Export SVG…** at the bottom saves the piece as an SVG.
+   For a flat round token instead, set **Kind** to *Token* at the top.
+   **Export…** at the bottom saves the piece as an SVG, or as a PNG for a
+   virtual tabletop.
 4. **Step 3, Print sheet.** Set the paper and how the pieces are cut (by hand,
    or by cutting machine), and see all figures laid out on pages. Click
    **Print…** to print them straight away at real size, or **Export…** to save

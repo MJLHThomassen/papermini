@@ -309,10 +309,10 @@ def test_start_screen_rows_open_from_anywhere(app, tmp_path):
     e.close()
 
 
-def test_preferences_adding_images_page(window, prefs):
+def test_preferences_images_page(window, prefs):
     from papermini.gui.preferences import PreferencesDialog
 
-    dlg = PreferencesDialog(window, "adding")
+    dlg = PreferencesDialog(window, "images")
     assert dlg.subfolders.isChecked()
     dlg.subfolders.setChecked(False)
     assert prefs.add_subfolders() is False
