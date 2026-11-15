@@ -15,7 +15,7 @@ from typing import Dict, Optional
 from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication, QStyleFactory
+from PySide6.QtWidgets import QApplication
 
 
 @dataclass(frozen=True)
@@ -174,7 +174,10 @@ def resolve(mode: str) -> Theme:
 def apply(app: QApplication, mode: str = "system") -> Theme:
     global current
     t = current = resolve(mode)
-    app.setStyle(QStyleFactory.create("Fusion"))
+    # (by name: a style object from QStyleFactory.create can come back from PySide6 as
+    # the wrong type when it reuses the memory of a deleted object, and setStyle
+    # then raises a TypeError)
+    app.setStyle("Fusion")
 
     families = QFontDatabase.families()
     for fam in ("Segoe UI Variable Text", "Segoe UI", "SF Pro Text", "Inter", "Cantarell"):
