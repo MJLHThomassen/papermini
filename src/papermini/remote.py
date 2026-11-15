@@ -16,7 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from PIL import Image
 
@@ -36,6 +36,51 @@ def is_url(s: Union[str, Path]) -> bool:
 
 def is_image_file(p: Union[str, Path]) -> bool:
     return Path(p).suffix.lower() in IMAGE_EXT
+
+
+def natural_key(name: str) -> list:
+    """Sort key that counts numbers as numbers: "goblin 2" before "goblin 10"."""
+    return [(0, int(s), "") if s.isdigit() else (1, 0, s)
+            for s in re.split(r"(\d+)", name.lower()) if s]
+
+
+def folder_images(folder: Union[str, Path], subfolders: bool = True) -> Tuple[List[Path], int]:
+    """The images papermini reads in ``folder``, in natural order: the folder's own first,
+    then (with ``subfolders``) each subfolder's the same way. Also how many other files
+    were skipped. Hidden files and folders (a name starting with ".") are left out."""
+    folder = Path(folder)
+    images: List[Path] = []
+    skipped = 0
+    entries = sorted((e for e in folder.iterdir() if not e.name.startswith(".")),
+                     key=lambda e: natural_key(e.name))
+    for e in entries:
+        if e.is_file():
+            if is_image_file(e):
+                images.append(e)
+            else:
+                skipped += 1
+    if subfolders:
+        for e in entries:
+            if e.is_dir():
+                more, other = folder_images(e, True)
+                images += more
+                skipped += other
+    return images, skipped
+
+
+def figure_names(images: List[Path], folder: Union[str, Path]) -> List[Optional[str]]:
+    """Names for figures from a folder's ``images``: None (named after the file, as
+    usual), but for files that share a name, the subfolder in front, e.g. goblins-leader
+    and orcs-leader (an image directly in ``folder`` keeps its own name)."""
+    stems: dict = {}
+    for p in images:
+        stems.setdefault(p.stem.lower(), []).append(p)
+    out: List[Optional[str]] = []
+    for p in images:
+        rel = p.parent.relative_to(folder).parts
+        out.append("-".join(rel + (p.stem,)) if len(stems[p.stem.lower()]) > 1 and rel
+                   else None)
+    return out
 
 
 def local_path(s: Union[str, Path]) -> Path:

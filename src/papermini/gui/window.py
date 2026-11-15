@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import os
 import itertools
 import logging
 import re
@@ -383,6 +384,8 @@ class MainWindow(QMainWindow):
         head.addWidget(self.count_label)
         head.addStretch(1)
         head.addWidget(self._tool("add", "Add images  (Ctrl+I)", self.add_images_dialog, 16))
+        head.addWidget(self._tool("add_folder", "Add a folder of images  (Ctrl+Shift+I)",
+                                  self.add_folder_dialog, 16))
         self.btn_remove = self._tool("trash", "Remove the selected figure  (Del)", self.remove_current, 16)
         head.addWidget(self.btn_remove)
         v.addLayout(head)
@@ -401,7 +404,7 @@ class MainWindow(QMainWindow):
         self.list.currentRowChanged.connect(lambda _: self._show_current())
         self.list.model().rowsMoved.connect(self._rows_moved)
         v.addWidget(self.list, 1)
-        hint = QLabel("Drop images, image links or a project file anywhere in the window. "
+        hint = QLabel("Drop images, folders, image links or a project file anywhere in the window. "
                       "Drag to reorder.")
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
@@ -461,6 +464,9 @@ class MainWindow(QMainWindow):
         self.empty.addClicked.connect(self.add_images_dialog)
         self.empty.openClicked.connect(self.open_dialog)
         self.empty.linkClicked.connect(self.focus_link_bar)
+        self.empty.folderClicked.connect(self.add_folder_dialog)
+        self.empty.recentClicked.connect(self._open_recent)
+        self.empty.set_recent(prefs.recent_projects())
         grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
         self.banner = Banner()
         self.banner_box = overlay_wrap(self.banner)
@@ -538,6 +544,9 @@ class MainWindow(QMainWindow):
         self.a_open = act("Open…", self.open_dialog, QKeySequence.Open,
                           "Open a project (.yaml) or images")
         self.a_add = act("Add images…", self.add_images_dialog, "Ctrl+I")
+        self.a_add_folder = act("Add folder…", self.add_folder_dialog, "Ctrl+Shift+I",
+                                "Add every image in a folder (and, as set in Preferences, "
+                                "its subfolders)")
         self.a_add_link = act("Add image from a link…", self.focus_link_bar, "Ctrl+L",
                               "Download an image from the web by its link (URL)")
         self.a_paste = act("Paste images", self.paste, QKeySequence.Paste,
@@ -580,7 +589,11 @@ class MainWindow(QMainWindow):
         self.a_open_logs.setEnabled(log.session() is not None)
 
         m = self.menu = QMenu(self)
-        for a in (self.a_new, self.a_open, self.a_add, self.a_add_link, None,
+        self.recent_menu = QMenu("Open recent", self)
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
+        m.aboutToShow.connect(self._sync_recent_menu)
+        for a in (self.a_new, self.a_open, self.recent_menu.menuAction(), self.a_add,
+                  self.a_add_folder, self.a_add_link, None,
                   self.a_undo_crop, None, self.a_save,
                   self.a_save_as, None,
                   self.a_svg, self.a_svgs, self.a_pdf, self.a_print, None):
@@ -730,18 +743,19 @@ class MainWindow(QMainWindow):
 
         return Project(sizes=default_table())
 
-    def add_images(self, paths, settings: Optional[FigureSettings] = None):
-        """Add image files; links among ``paths`` are downloaded first (in the background)."""
+    def add_images(self, paths, settings: Optional[FigureSettings] = None, names=None):
+        """Add image files; links among ``paths`` are downloaded first (in the background).
+        ``names``: a figure name for each path (None: named after the file)."""
         base = self._base_settings(settings)
         links = [str(p).strip() for p in paths if remote.is_url(p)]
         added = 0
-        for p in paths:
+        for p, name in zip(paths, names or [None] * len(paths)):
             if remote.is_url(p):
                 continue
             p = remote.local_path(p).resolve()
             if not remote.is_image_file(p):
                 continue
-            self._append(FigureEntry(p, self._new_settings(base)))
+            self._append(FigureEntry(p, self._new_settings(base), name))
             added += 1
         if added:
             names = [f.entry.image.name for f in self.figures[-added:]]
@@ -1620,6 +1634,46 @@ class MainWindow(QMainWindow):
         if projects:
             self.load(projects[0])
         self.add_images([p for p in paths if remote.is_image_file(p)] + links)
+        for folder in (p for p in paths if p.is_dir()):
+            self.add_folder(folder)
+
+    # ----------------------------------------------------------------- recent projects
+    def _remember(self, path: Path) -> None:
+        """Put the project at the top of Open recent and the start screen's list."""
+        prefs.add_recent(path)
+        self.empty.set_recent(prefs.recent_projects())
+
+    def _sync_recent_menu(self) -> None:
+        self.recent_menu.menuAction().setEnabled(bool(prefs.recent_projects()))
+
+    def _fill_recent_menu(self) -> None:
+        """Open recent: each project's name and its folder (shortened in the middle),
+        newest first, and Clear list."""
+        m = self.recent_menu
+        m.clear()
+        fm = m.fontMetrics()
+        for p in prefs.recent_projects():
+            folder = fm.elidedText(str(p.parent), Qt.ElideMiddle, 320)
+            a = m.addAction(f"{p.name}\t{folder}".replace("&", "&&"))
+            a.setToolTip(str(p))
+            a.setData(str(p))
+            a.triggered.connect(self._open_recent_action)
+        m.addSeparator()
+        m.addAction("Clear list", self._clear_recent)
+
+    def _open_recent_action(self) -> None:
+        self._open_recent(self.sender().data())
+
+    def _open_recent(self, path: str) -> None:
+        if not Path(path).is_file():  # (gone since the list was shown)
+            self._warn(f"{path} is no longer there.")
+            self.empty.set_recent(prefs.recent_projects())
+            return
+        self.load(Path(path))
+
+    def _clear_recent(self) -> None:
+        prefs.clear_recent()
+        self.empty.set_recent([])
 
     def load(self, path: Path):
         if not self._maybe_save():
@@ -1633,6 +1687,7 @@ class MainWindow(QMainWindow):
             return
         QApplication.restoreOverrideCursor()
         ui_log.info("Opened project %s (%d figure(s))", path, len(proj.figures))
+        self._remember(path)
         self._reset(proj)
         missing = [f.image.name for f in proj.figures if not f.image.exists()]
         if missing:
@@ -1672,6 +1727,44 @@ class MainWindow(QMainWindow):
         if files:
             self.add_images(files)
 
+    def add_folder_dialog(self):
+        folder = QFileDialog.getExistingDirectory(self, "Add a folder of images",
+                                                  str(self._out_dir()))
+        if folder:
+            self.add_folder(Path(folder))
+
+    def add_folder(self, folder: Path) -> int:
+        """Add every image in ``folder`` (and its subfolders, as set in Preferences), in
+        natural order; asks about images already in the project. Returns how many."""
+        folder = Path(folder).resolve()
+        images, skipped = remote.folder_images(folder, prefs.add_subfolders())
+        if not images:
+            QMessageBox.information(
+                self, "papermini", f"{folder.name} has no images papermini can read "
+                f"({remote.READABLE}).")
+            return 0
+        names = remote.figure_names(images, folder)
+        have = {os.path.normcase(str(f.entry.image)) for f in self.figures}
+        dup = [i for i, p in enumerate(images) if os.path.normcase(str(p.resolve())) in have]
+        left = 0  # images already in the project, not added again
+        if dup:
+            one = len(dup) == 1
+            again = QMessageBox.question(
+                self, "papermini",
+                f"{len(dup)} of the images in {folder.name} {'is' if one else 'are'} already "
+                f"in the project. Add {'it' if one else 'them'} again?") == QMessageBox.Yes
+            if not again:
+                left = len(dup)
+                images = [p for i, p in enumerate(images) if i not in dup]
+                names = [n for i, n in enumerate(names) if i not in dup]
+        added = self.add_images(images, names=names) if images else 0
+        notes = ([f"{skipped} other file{'s' * (skipped != 1)} skipped"] if skipped else []) + (
+            [f"{left} already in the project"] if left else [])
+        done = (f"Added {added} image{'s' * (added != 1)} from {folder.name}" if added
+                else f"No images added from {folder.name}")
+        self._status(done + (f" ({', '.join(notes)})" if notes else ""))
+        return added
+
     def save(self) -> bool:
         if self.project.path is None:
             return self.save_as()
@@ -1683,6 +1776,7 @@ class MainWindow(QMainWindow):
             return False
         self._modified = False
         self._update_title()
+        self._remember(self.project.path)
         ui_log.info("Saved project %s (%d figure(s))", self.project.path, len(self.figures))
         self._status(f"Saved {self.project.path}")
         return True

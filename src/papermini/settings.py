@@ -350,6 +350,9 @@ def load_project(path: Path) -> Project:
         src = o.pop("image")
         source = str(src).strip() if remote.is_url(src) else None
         image = remote.fetch_image(source) if source else (base / remote.local_path(src)).resolve()
+        if image.is_dir():
+            raise ValueError(f"{path.name}: {src} is a folder: list its images one by one, "
+                             "or add the folder in the app")
         name = o.pop("name", None)
         o.setdefault("copies", sheet.copies)
         if o.get("mask"):

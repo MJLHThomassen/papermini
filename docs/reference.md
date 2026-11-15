@@ -28,13 +28,23 @@ the desktop app in depth, and how the pipeline works.
   can open any of them at any time. Export and print are in the step they
   belong to: **Export SVG…** at the bottom of the Miniature settings, **Print…**
   and **Export…** at the bottom of the Print sheet settings. The ☰ menu has
-  them too, and holds everything else: new project, save as, export all SVGs, **View**
+  them too, and holds everything else: new project, **Open recent**, **Add folder…**,
+  save as, export all SVGs, **View**
   (show or hide the side panels, zoom), **Preferences…**, **Check for updates…**,
   **Report a problem…**, **Open log folder** and about. Keyboard shortcuts work without
-  opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+L add an image from a link,
+  opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+Shift+I add a folder, Ctrl+L add
+  an image from a link,
   Ctrl+V paste images, Ctrl+S save, Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export
   the sheet, Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings,
   Ctrl+, preferences.
+- **Start screen.** A new window shows how to begin: **Add images…**, **Open
+  project…**, *or add from a link…* and *or add a folder…*. Under them,
+  **Recent projects** lists the five projects opened or saved last, each with its
+  folder; click one to open it.
+- **Open recent** (☰ menu) lists the ten projects opened or saved last, newest
+  first, each with its folder. Opening a project (from the menu, by dropping it or
+  from the command line) or saving one puts it on top. A project whose file is gone
+  is left out. **Clear list** empties it.
 - **Images.** PNG, JPG, WebP, BMP and TIFF. Besides files, an image can come
   from the web: paste its link (URL) into the bar at the top of the figure list
   and press Enter; you can also drag a picture from a browser onto
@@ -50,8 +60,9 @@ the desktop app in depth, and how the pipeline works.
   Click − or + to change the amount, or click the number and type one; 0 leaves
   the figure off the sheet. In a narrow list the height gives way first, then
   the word *Amount*. Add images with the add-image button
-  above the list, add one from the web by pasting its link into the link bar
-  under it, or drop files or a project anywhere in the window. Drag to reorder; **Delete**
+  above the list, add a folder of images with the folder button next to it, add one
+  from the web by pasting its link into the link bar under it, or drop files, folders
+  or a project anywhere in the window. Drag to reorder; **Delete**
   removes the selected one. A new figure starts with the settings of the one
   that is selected.
 - **Settings** (right). The options of the step you are on, in sections you
@@ -151,6 +162,9 @@ the desktop app in depth, and how the pipeline works.
   take effect at once; the window can be resized.
   - **Creature sizes:** the size table presets. See
     [Creature sizes](#creature-sizes).
+  - **Adding images:** **Also add the images in subfolders** (on by default): whether
+    adding a folder also adds the images in its subfolders. See
+    [Adding a folder](#adding-a-folder).
   - **Appearance:** the theme: follow the system, light or dark.
   - **Updates:** **Update automatically** turns the daily check and background
     download on or off. See [Updates](#updates).
@@ -175,6 +189,28 @@ the desktop app in depth, and how the pipeline works.
 Projects are saved as **batch YAML** files, the same format as
 `papermini batch`, so anything set up in the app can be rebuilt from the
 command line.
+
+### Adding a folder
+
+**Add folder…** (☰ menu, Ctrl+Shift+I), the folder button above the figure list,
+*or add a folder…* on the start screen, or dropping a folder on the window adds
+every image in it as a figure:
+
+- **Order:** the folder's own images first, then each subfolder's, in natural order
+  (*goblin 2* before *goblin 10*).
+- **Subfolders** are included unless you turn off **Also add the images in
+  subfolders** in **Preferences… → Adding images**. Hidden files and folders (a name
+  starting with a dot) are skipped, and so are files that are not images.
+- **Names:** a figure is named after its file, as usual. When files in different
+  subfolders share a name, the subfolder goes in front: `goblins/leader.png` and
+  `orcs/leader.png` become *goblins-leader* and *orcs-leader*. The label on the tab
+  stays the file's name.
+- **Images already in the project:** papermini asks whether to add them again.
+- The status bar says how many images were added and how many other files were
+  skipped. A folder without images papermini can read says so.
+
+The project keeps each image, never the folder: adding new images to the folder
+later does not add them to the project.
 
 ## Settings guide
 
@@ -749,6 +785,13 @@ Makes one SVG per image, saved next to the image or in `-o DIR` (or
 `https://` URL) to a PNG, JPG, WebP, BMP or TIFF on the web; it is downloaded
 once and cached, and its SVG is saved in the current folder.
 
+An image can also be a folder: every image in it and in its subfolders is made, in
+natural order (*goblin 2* before *goblin 10*), and papermini says how many it found.
+`--no-subfolders` takes only the folder's own images. With `-o DIR` the subfolders
+are made again inside `DIR` (`goblins/leader.png` → `DIR/goblins/leader.svg`);
+without it each SVG is saved next to its image. Hidden files and folders and files
+that are not images are skipped.
+
 ```bash
 papermini make dragon.png --size large --label "Red dragon"
 ```
@@ -759,6 +802,10 @@ papermini make boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --strength 60 --f
 
 ```bash
 papermini make *.png -o minis --debug
+```
+
+```bash
+papermini make Monsters -o minis
 ```
 
 | option | default | meaning |
@@ -802,6 +849,7 @@ papermini make *.png -o minis --debug
 | `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | cut line style |
 | `--bleed-mm` | 0 | print the edge colors this far beyond the cut line, for a sheet cut by machine (`papermini sheet --cut machine`) |
 | `--debug` | | write intermediate masks and a red overlay preview to `debug/` |
+| `--no-subfolders` | | a folder: only its own images, not those in its subfolders |
 
 ### `papermini sheet SVG... [-o minis.pdf]`
 
@@ -877,6 +925,9 @@ underscores: for example `tab_front: number`, `back: text_number` and
 An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
 It is downloaded once (later runs use the cached copy) and saved projects keep
 the link.
+
+An `image` cannot be a folder: list its images one by one. (In the desktop app,
+**Add folder…** does that for you.)
 
 The size is `height_mm`, `width_mm` or both. One of them keeps the figure's
 proportions; both stretch it to that height and width. A figure that gives only

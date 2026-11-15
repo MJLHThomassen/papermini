@@ -50,7 +50,9 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
 - **[Print sheets](docs/reference.md#paper)**: PDF pages at real size on A3,
   A4, A5, Letter, Legal, Tabloid or your own paper size, portrait or landscape;
   or an SVG per figure.
-- **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web.
+- **Any image**: PNG, JPG, WebP, BMP, TIFF, or a link to an image on the web;
+  or [a whole folder](docs/reference.md#adding-a-folder) of them at once.
+- **Recent projects**: on the start screen and in the menu, one click away.
 - **[Updates](docs/reference.md#updates)**: checks once a day, and installs a
   new version when you close papermini.
 - **[App](#usage-via-gui) and [command line](#usage-via-cli)**: live previews
@@ -95,8 +97,9 @@ The downloads are not code-signed, so the first start can need one extra step:
 
 # Usage via GUI
 
-1. **Add images.** Drop images onto the window, or use the add-image button
-   above the figure list. You can also drag a picture from your browser, paste
+1. **Add images.** Drop images or a folder of them onto the window, or use the
+   add-image and add-folder buttons above the figure list. You can also drag a
+   picture from your browser, paste
    one with Ctrl+V, or paste its link into the link bar. Each image becomes a
    figure in the list on the left; the − and + on its card set how many of it
    go on the sheet.
@@ -157,6 +160,12 @@ Make one SVG per image:
 
 ```bash
 papermini make dragon.png --size large --label "Red dragon"
+```
+
+or for every image in a folder and its subfolders:
+
+```bash
+papermini make Monsters -o minis
 ```
 
 Lay SVGs out on a printable PDF sheet:

@@ -15,7 +15,7 @@ from typing import Dict, Optional
 from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication, QStyleFactory
+from PySide6.QtWidgets import QApplication
 
 
 @dataclass(frozen=True)
@@ -54,6 +54,8 @@ current: Theme = LIGHT
 # 24x24 line icons, drawn for papermini (stroke = currentColor)
 ICONS: Dict[str, str] = {
     "open": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
+    "add_folder": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>'
+                  '<path d="M12 10.5v5M9.5 13h5"/>',
     "add": '<path d="M13.5 4.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-7.5"/>'
            '<path d="M4.5 15.5l4-4 3.5 3.5 2-2 5.5 5.5"/><path d="M18.5 2.5v6M15.5 5.5h6"/>',
     "save": '<path d="M5.5 4.5h10l4 4v10a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/>'
@@ -172,7 +174,10 @@ def resolve(mode: str) -> Theme:
 def apply(app: QApplication, mode: str = "system") -> Theme:
     global current
     t = current = resolve(mode)
-    app.setStyle(QStyleFactory.create("Fusion"))
+    # (by name: a style object from QStyleFactory.create can come back from PySide6 as
+    # the wrong type when it reuses the memory of a deleted object, and setStyle
+    # then raises a TypeError)
+    app.setStyle("Fusion")
 
     families = QFontDatabase.families()
     for fam in ("Segoe UI Variable Text", "Segoe UI", "SF Pro Text", "Inter", "Cantarell"):

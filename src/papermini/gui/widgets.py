@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import html
+
 from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel,
@@ -360,12 +362,63 @@ class ZoomBar(QFrame):
         self.label.setText(f"{z * 100:.0f}%")
 
 
+class RecentProject(QLabel):
+    """One of the start screen's recent projects: its name in the accent color and its
+    folder, dimmed and shortened in the middle to fit. The whole row opens it; the name is
+    underlined under the mouse."""
+
+    clicked = Signal(str)  # the project's path
+
+    def __init__(self, path, parent=None):
+        super().__init__(parent)
+        self.path = path
+        self._hover = False
+        self.setTextFormat(Qt.RichText)
+        self.setToolTip(str(path))
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumWidth(1)  # (the folder shrinks; the row never widens the card)
+        self._show(False)
+
+    def _show(self, hover: bool) -> None:
+        self._hover = hover
+        t = theme.current
+        fm = self.fontMetrics()
+        room = self.width() - fm.horizontalAdvance(self.path.name + "\u00a0\u00a0") - 8
+        folder = fm.elidedText(str(self.path.parent), Qt.ElideMiddle, max(40, room))
+        line = "underline" if hover else "none"
+        self.setText(f"<span style='color:{t.accent}; text-decoration:{line}'>"
+                     f"{html.escape(self.path.name)}</span>&nbsp;&nbsp;"
+                     f"<span style='color:{t.muted}'>{html.escape(folder)}</span>")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._show(self._hover)
+
+    def enterEvent(self, event):
+        self._show(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._show(False)
+        super().leaveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit(str(self.path))
+        super().mouseReleaseEvent(event)
+
+
 class EmptyState(QFrame):
-    """Shown on the canvas when there is nothing to preview yet."""
+    """Shown on the canvas when there is nothing to preview yet: how to add images or
+    open a project, and the projects opened last."""
+
+    RECENT_SHOWN = 5
 
     addClicked = Signal()
     openClicked = Signal()
     linkClicked = Signal()
+    folderClicked = Signal()
+    recentClicked = Signal(str)  # the project's path
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -378,7 +431,7 @@ class EmptyState(QFrame):
         title = QLabel("Start with a drawing")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignCenter)
-        text = QLabel("Drop images, image links or a project (.yaml) anywhere in this "
+        text = QLabel("Drop images, folders, image links or a project (.yaml) anywhere in this "
                       "window, or pick them from your computer.")
         text.setObjectName("Muted")
         text.setAlignment(Qt.AlignCenter)
@@ -401,15 +454,52 @@ class EmptyState(QFrame):
         self.link_button.setObjectName("LinkButton")
         self.link_button.setCursor(Qt.PointingHandCursor)
         self.link_button.clicked.connect(self.linkClicked)
+        self.folder_button = QPushButton("or add a folder…")
+        self.folder_button.setObjectName("LinkButton")
+        self.folder_button.setCursor(Qt.PointingHandCursor)
+        self.folder_button.clicked.connect(self.folderClicked)
+        links = QHBoxLayout()
+        links.setSpacing(4)
+        links.addStretch(1)
+        links.addWidget(self.link_button)
+        links.addWidget(self.folder_button)
+        links.addStretch(1)
+        # the projects opened or saved last: one click opens one
+        self.recent_box = QWidget()
+        rv = QVBoxLayout(self.recent_box)
+        rv.setContentsMargins(0, 10, 0, 0)
+        rv.setSpacing(4)
+        head = QLabel("Recent projects")
+        head.setObjectName("SubHeading")
+        rv.addWidget(head)
+        self.recent_list = QVBoxLayout()
+        self.recent_list.setSpacing(2)
+        rv.addLayout(self.recent_list)
+        self.recent_box.hide()
         v.addWidget(self.icon)
         v.addWidget(title)
         v.addWidget(text)
         v.addSpacing(6)
         v.addLayout(buttons)
-        v.addWidget(self.link_button, 0, Qt.AlignCenter)
+        v.addLayout(links)
+        v.addWidget(self.recent_box)
+
+    def set_recent(self, paths) -> None:
+        """Show up to ``RECENT_SHOWN`` recent projects (newest first), or none: each its
+        name and its folder, shortened in the middle to fit."""
+        self._recent = list(paths)[:self.RECENT_SHOWN]
+        while self.recent_list.count():
+            w = self.recent_list.takeAt(0).widget()
+            w.deleteLater()
+        for p in self._recent:
+            row = RecentProject(p)
+            row.clicked.connect(self.recentClicked)
+            self.recent_list.addWidget(row)
+        self.recent_box.setVisible(self.recent_list.count() > 0)
 
     def refresh_icons(self):
         self.icon.setPixmap(theme.logo_pixmap(104))
+        self.set_recent(getattr(self, "_recent", []))  # (in the new theme's colors)
 
 
 class Banner(QFrame):
