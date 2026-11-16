@@ -44,8 +44,13 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=ROOT / "docs" / "screenshots")
     ap.add_argument("--project", type=Path, default=DRAGONS / "dragons.yaml")
     ap.add_argument("--scale", default="1.5", help="Qt scale factor (default 1.5)")
-    ap.add_argument("--only", nargs="+", choices=GROUPS, default=GROUPS,
-                    help="make only these groups of images (default: all)")
+    ap.add_argument(
+        "--only",
+        nargs="+",
+        choices=GROUPS,
+        default=GROUPS,
+        help="make only these groups of images (default: all)",
+    )
     args = ap.parse_args()
 
     os.environ["QT_SCALE_FACTOR"] = args.scale
@@ -55,7 +60,9 @@ def main() -> None:
 
     QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
     QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, tempfile.mkdtemp("papermini"))
+    QSettings.setPath(
+        QSettings.IniFormat, QSettings.UserScope, tempfile.mkdtemp("papermini")
+    )
 
     sys.path.insert(0, str(ROOT / "src"))
     import cv2
@@ -103,8 +110,11 @@ def main() -> None:
 
     def change(w: MainWindow, **kw) -> None:
         fig = w.current()
-        w.panel.set_settings(replace(fig.entry.settings, **kw), fig.entry.display_name,
-                             fig.entry.image.stem)
+        w.panel.set_settings(
+            replace(fig.entry.settings, **kw),
+            fig.entry.display_name,
+            fig.entry.image.stem,
+        )
         w._settings_changed(w.panel.settings())
         settle(lambda: fig.up_to_date)
         w._fit()
@@ -133,7 +143,9 @@ def main() -> None:
         sizes = [p.deviceIndependentSize() for p, *_ in items]
         ph = max(z.height() for z in sizes)
         total = pad + sum(max(z.width(), 260) + pad for z in sizes)
-        out = QImage(int(total * ratio), int((head + ph + pad) * ratio), QImage.Format_ARGB32)
+        out = QImage(
+            int(total * ratio), int((head + ph + pad) * ratio), QImage.Format_ARGB32
+        )
         out.setDevicePixelRatio(ratio)
         out.fill(QColor(t.bg))
         p = QPainter(out)
@@ -150,9 +162,13 @@ def main() -> None:
             p.drawText(QRectF(x, 6, pw, 24), Qt.AlignHCenter | Qt.AlignVCenter, title)
             p.setPen(QColor(t.muted))
             p.setFont(small)
-            p.drawText(QRectF(x, 28, pw, 20), Qt.AlignHCenter | Qt.AlignVCenter, caption)
-            p.drawPixmap(QPointF(x + (pw - size.width()) / 2,
-                                 head + (ph - size.height()) / 2), pix)  # centred
+            p.drawText(
+                QRectF(x, 28, pw, 20), Qt.AlignHCenter | Qt.AlignVCenter, caption
+            )
+            p.drawPixmap(
+                QPointF(x + (pw - size.width()) / 2, head + (ph - size.height()) / 2),
+                pix,
+            )  # centred
             x += pw + pad
         p.end()
         return out
@@ -180,7 +196,9 @@ def main() -> None:
         extra = ((mask > 128) & (ref < 64)).astype(np.uint8)
         extra = cv2.morphologyEx(extra, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
         n, labels, stats, _ = cv2.connectedComponentsWithStats(extra)
-        keep = [i for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] > 0.002 * extra.size]
+        keep = [
+            i for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] > 0.002 * extra.size
+        ]
         return np.isin(labels, keep)
 
     def piece(m, rect: QRectF = None, mm: float = 3.6):
@@ -190,8 +208,11 @@ def main() -> None:
         draw_mini(sc, m)
         r = rect or QRectF(0, 0, m.width_mm, m.height_mm)
         r = r.adjusted(-2.5, -2.5, 2.5, 2.5)
-        img = QImage(int(r.width() * mm * ratio), int(r.height() * mm * ratio),
-                     QImage.Format_ARGB32)
+        img = QImage(
+            int(r.width() * mm * ratio),
+            int(r.height() * mm * ratio),
+            QImage.Format_ARGB32,
+        )
         img.fill(QColor("white"))
         p = QPainter(img)
         p.setRenderHint(QPainter.Antialiasing)
@@ -205,8 +226,12 @@ def main() -> None:
     def mini(image: str, bleed_mm: float = 0.0, **kw):
         """A miniature of one of the dragons, with BiRefNet unless ``kw`` says otherwise."""
         kw.setdefault("model", "birefnet")
-        return build_mini(DRAGONS / image, FigureSettings(**kw), bleed_mm=bleed_mm,
-                          log=lambda *_: None)
+        return build_mini(
+            DRAGONS / image,
+            FigureSettings(**kw),
+            bleed_mm=bleed_mm,
+            log=lambda *_: None,
+        )
 
     def bottom(m, above: float = 14.0) -> QRectF:
         """The tab of a single-sided miniature and ``above`` mm of figure over its fold."""
@@ -215,8 +240,13 @@ def main() -> None:
 
     def compare(name: str, items, **kw) -> None:
         """``items``: (miniature, rect or None, title, caption) side by side."""
-        save(panels([(piece(m, r, **kw), title, caption) for m, r, title, caption in items],
-                    "light"), f"settings/{name}")
+        save(
+            panels(
+                [(piece(m, r, **kw), title, caption) for m, r, title, caption in items],
+                "light",
+            ),
+            f"settings/{name}",
+        )
 
     def want(group: str) -> bool:
         return group in args.only
@@ -238,9 +268,16 @@ def main() -> None:
         settle()
         cropped = view_shot(w.mini_view, w.mini_view.scene().itemsBoundingRect(), pad=8)
         close(w)
-        save(panels([(crop_box, "Drag a box around the dragon", "in step 1, Source"),
-                     (cropped, "The miniature", "only what is inside the box")], "light"),
-             "crop")
+        save(
+            panels(
+                [
+                    (crop_box, "Drag a box around the dragon", "in step 1, Source"),
+                    (cropped, "The miniature", "only what is inside the box"),
+                ],
+                "light",
+            ),
+            "crop",
+        )
 
     # the models on one image; what one kept that BiRefNet removed is circled
     if want("models"):
@@ -269,8 +306,13 @@ def main() -> None:
                     p.setPen(QPen(QColor(HIGHLIGHT), 3))
                     p.drawEllipse(circle)
 
-            items.append((view_shot(w.crop_view, picture(w.crop_view), paint=ring), model,
-                          caption))
+            items.append(
+                (
+                    view_shot(w.crop_view, picture(w.crop_view), paint=ring),
+                    model,
+                    caption,
+                )
+            )
         close(w)
         save(panels(items, "light"), "models")
 
@@ -294,10 +336,26 @@ def main() -> None:
             down = sizes.SIZES[max(sizes.SIZES.index(s.size) - 1, 0)]
             return sizes.apply(s, down, proj.sizes)
 
-        lay = pack([(build_mini(f.image, smaller(f.settings), bleed_mm=sh.figure_bleed,
-                                log=lambda *_: None), 1) for f in proj.figures],
-                   sh.page, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks,
-                   orientation=sh.orientation)
+        lay = pack(
+            [
+                (
+                    build_mini(
+                        f.image,
+                        smaller(f.settings),
+                        bleed_mm=sh.figure_bleed,
+                        log=lambda *_: None,
+                    ),
+                    1,
+                )
+                for f in proj.figures
+            ],
+            sh.page,
+            sh.margin_mm,
+            sh.gap_mm,
+            cut=sh.cut,
+            marks=sh.marks,
+            orientation=sh.orientation,
+        )
         assert lay.pages == 1, "the machine sheet picture should fit on one page"
         k = 2.2 * ratio  # device pixels per mm
         pw, ph = lay.paper
@@ -318,27 +376,58 @@ def main() -> None:
 
         sc = QGraphicsScene()
         draw_sheet(sc, lay, sh.title)
-        svg = QSvgRenderer(bytearray(cut_file_svg(lay, 0, folds=True, title=sh.title), "utf-8"))
-        save(panels([(page(lambda p, r: sc.render(p, r, QRectF(0, 0, pw, ph))), "The PDF",
-                      "to print: no cut lines, with alignment marks"),
-                     (page(svg.render), "The cut file (SVG)",
-                      "cut lines (red), fold lines (blue) and the same marks")], "light"),
-             "settings/machine")
+        svg = QSvgRenderer(
+            bytearray(cut_file_svg(lay, 0, folds=True, title=sh.title), "utf-8")
+        )
+        save(
+            panels(
+                [
+                    (
+                        page(lambda p, r: sc.render(p, r, QRectF(0, 0, pw, ph))),
+                        "The PDF",
+                        "to print: no cut lines, with alignment marks",
+                    ),
+                    (
+                        page(svg.render),
+                        "The cut file (SVG)",
+                        "cut lines (red), fold lines (blue) and the same marks",
+                    ),
+                ],
+                "light",
+            ),
+            "settings/machine",
+        )
 
         # Orientation: the same pieces on A4, upright and on its side (the first page);
         # two red dragons, so landscape fits on one page what portrait needs two for
-        hand = [(build_mini(f.image, smaller(f.settings), log=lambda *_: None), n)
-                for f, n in zip(proj.figures, (1, 1, 2))]
+        hand = [
+            (build_mini(f.image, smaller(f.settings), log=lambda *_: None), n)
+            for f, n in zip(proj.figures, (1, 1, 2))
+        ]
         shots = []
-        for orientation, caption in (("portrait", "2 pages: the first shown"),
-                                     ("landscape", "the same pieces on 1 page")):
+        for orientation, caption in (
+            ("portrait", "2 pages: the first shown"),
+            ("landscape", "the same pieces on 1 page"),
+        ):
             lay = pack(hand, "a4", sh.margin_mm, sh.gap_mm, orientation=orientation)
-            assert lay.pages == int(caption.split(" page")[0][-1]), (orientation, lay.pages)
+            assert lay.pages == int(caption.split(" page")[0][-1]), (
+                orientation,
+                lay.pages,
+            )
             pw, ph = lay.paper
             sc = QGraphicsScene()
             draw_sheet(sc, lay, sh.title)
-            shots.append((page(lambda p, r, sc=sc, pw=pw, ph=ph: sc.render(
-                p, r, QRectF(0, 0, pw, ph))), orientation.title(), caption))
+            shots.append(
+                (
+                    page(
+                        lambda p, r, sc=sc, pw=pw, ph=ph: sc.render(
+                            p, r, QRectF(0, 0, pw, ph)
+                        )
+                    ),
+                    orientation.title(),
+                    caption,
+                )
+            )
         save(panels(shots, "light"), "settings/orientation")
 
 
@@ -347,122 +436,302 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     from papermini import sizes
 
     red, fly = "dragon.webp", "dragon-flying.webp"
-    one = {"double_sided": False, "label": ""}  # one side, no label: the setting stands out
+    one = {
+        "double_sided": False,
+        "label": "",
+    }  # one side, no label: the setting stands out
 
     # step 2, Size: the creature size fills in the height and the base (a round tab shows it)
     def sized(size):
-        return mini(red, size=size, tab_shape="round", tab_color=GREEN,
-                    **sizes.BUILTIN.row(size).values(), **one)
+        return mini(
+            red,
+            size=size,
+            tab_shape="round",
+            tab_color=GREEN,
+            **sizes.BUILTIN.row(size).values(),
+            **one,
+        )
 
-    compare("creature-size", [
-        (sized(s), None, sizes.label(s),
-         f"{sizes.BUILTIN.row(s).height_mm:g} mm tall, {sizes.BUILTIN.row(s).base_mm:g} mm base")
-        for s in ("small", "medium", "large")
-    ], mm=3.4)
+    compare(
+        "creature-size",
+        [
+            (
+                sized(s),
+                None,
+                sizes.label(s),
+                f"{sizes.BUILTIN.row(s).height_mm:g} mm tall, {sizes.BUILTIN.row(s).base_mm:g} mm base",
+            )
+            for s in ("small", "medium", "large")
+        ],
+        mm=3.4,
+    )
 
     # step 2, Back side
-    compare("back", [
-        (mini(red, label="Red dragon"), None, "Mirrored drawing", "the default"),
-        (mini(red, label="Red dragon", back="blank"), None, "Blank", "to draw or write on"),
-        (mini(red, label="Red dragon", back="text", back_text="Ember"), None, "Text",
-         "a name or a note"),
-        (replace(mini(red, label="Red dragon", back="number"), number=3), None, "Number",
-         "the copy's number, here 3"),
-    ], mm=3.4)
+    compare(
+        "back",
+        [
+            (mini(red, label="Red dragon"), None, "Mirrored drawing", "the default"),
+            (
+                mini(red, label="Red dragon", back="blank"),
+                None,
+                "Blank",
+                "to draw or write on",
+            ),
+            (
+                mini(red, label="Red dragon", back="text", back_text="Ember"),
+                None,
+                "Text",
+                "a name or a note",
+            ),
+            (
+                replace(mini(red, label="Red dragon", back="number"), number=3),
+                None,
+                "Number",
+                "the copy's number, here 3",
+            ),
+        ],
+        mm=3.4,
+    )
 
     # Outline and cut line
     cream = dict(one, no_tab=True, margin_color="#f3e6c8")
-    compare("margin", [
-        (mini(red, margin_mm=0.8, **cream), None, "Margin 0.8 mm", "close to the drawing"),
-        (mini(red, **cream), None, "Margin 1.6 mm", "the default"),
-        (mini(red, margin_mm=3.5, **cream), None, "Margin 3.5 mm", "easier to cut"),
-    ])
-    compare("margin-fill", [
-        (mini(fly, height_mm=36, margin_color="#24477a", no_tab=True, **one), None,
-         "Color", "any color, here blue"),
-        (mini(fly, height_mm=36, margin_fill="image", no_tab=True, **one), None,
-         "Original image", "the picture around the figure"),
-    ])
+    compare(
+        "margin",
+        [
+            (
+                mini(red, margin_mm=0.8, **cream),
+                None,
+                "Margin 0.8 mm",
+                "close to the drawing",
+            ),
+            (mini(red, **cream), None, "Margin 1.6 mm", "the default"),
+            (mini(red, margin_mm=3.5, **cream), None, "Margin 3.5 mm", "easier to cut"),
+        ],
+    )
+    compare(
+        "margin-fill",
+        [
+            (
+                mini(fly, height_mm=36, margin_color="#24477a", no_tab=True, **one),
+                None,
+                "Color",
+                "any color, here blue",
+            ),
+            (
+                mini(fly, height_mm=36, margin_fill="image", no_tab=True, **one),
+                None,
+                "Original image",
+                "the picture around the figure",
+            ),
+        ],
+    )
     wing = QRectF(36, 0, 36, 22)  # the flying dragon's right wing
-    compare("smoothing", [
-        (mini(fly, height_mm=36, no_tab=True, **one), wing, "Smoothing 0.6 mm",
-         "the default: follows the wing"),
-        (mini(fly, height_mm=36, smooth_mm=2.5, no_tab=True, **one), wing,
-         "Smoothing 2.5 mm", "fewer bends, but thin tips lose their margin"),
-    ], mm=7)
+    compare(
+        "smoothing",
+        [
+            (
+                mini(fly, height_mm=36, no_tab=True, **one),
+                wing,
+                "Smoothing 0.6 mm",
+                "the default: follows the wing",
+            ),
+            (
+                mini(fly, height_mm=36, smooth_mm=2.5, no_tab=True, **one),
+                wing,
+                "Smoothing 2.5 mm",
+                "fewer bends, but thin tips lose their margin",
+            ),
+        ],
+        mm=7,
+    )
 
     # step 3, Sheet: bleed (cut by machine); the red hairline shows where the machine cuts
     tip = QRectF(50, 2, 22, 14)
-    dark = dict(height_mm=36, margin_color="#1d1d2b", no_tab=True, cut_color="#ff0000",
-                cut_width_mm=0.1, **one)
-    compare("bleed", [
-        (mini(fly, **dark), tip, "No bleed", "a cut a little off leaves a white edge"),
-        (mini(fly, bleed_mm=1.0, **dark), tip, "Bleed 1 mm",
-         "the margin color goes on past the cut"),
-    ], mm=11)
+    dark = dict(
+        height_mm=36,
+        margin_color="#1d1d2b",
+        no_tab=True,
+        cut_color="#ff0000",
+        cut_width_mm=0.1,
+        **one,
+    )
+    compare(
+        "bleed",
+        [
+            (
+                mini(fly, **dark),
+                tip,
+                "No bleed",
+                "a cut a little off leaves a white edge",
+            ),
+            (
+                mini(fly, bleed_mm=1.0, **dark),
+                tip,
+                "Bleed 1 mm",
+                "the margin color goes on past the cut",
+            ),
+        ],
+        mm=11,
+    )
 
     # Tab
     m1 = mini(red, double_sided=False, label="Red dragon")
     m2 = mini(red, tab_shape="round", tab_color=GREEN, **one)
-    compare("tab-shape", [
-        (m1, bottom(m1), "Square", "slots into a stand, with the label"),
-        (m2, bottom(m2), "Round", "folds out into a base, here green"),
-    ], mm=6)
+    compare(
+        "tab-shape",
+        [
+            (m1, bottom(m1), "Square", "slots into a stand, with the label"),
+            (m2, bottom(m2), "Round", "folds out into a base, here green"),
+        ],
+        mm=6,
+    )
     # Number: what the tab shows (here copy 3)
-    ms = [replace(mini(red, double_sided=False, label="Red dragon", tab_front=v), number=3)
-          for v in ("label", "number", "label_number")]
-    compare("tab-number", [
-        (ms[0], bottom(ms[0]), "Label", "the default"),
-        (ms[1], bottom(ms[1]), "Number", "as big as the tab allows"),
-        (ms[2], bottom(ms[2]), "Label and number", "the number above the label"),
-    ], mm=6)
+    ms = [
+        replace(
+            mini(red, double_sided=False, label="Red dragon", tab_front=v), number=3
+        )
+        for v in ("label", "number", "label_number")
+    ]
+    compare(
+        "tab-number",
+        [
+            (ms[0], bottom(ms[0]), "Label", "the default"),
+            (ms[1], bottom(ms[1]), "Number", "as big as the tab allows"),
+            (ms[2], bottom(ms[2]), "Label and number", "the number above the label"),
+        ],
+        mm=6,
+    )
     # Text: one font for all of the piece's text
-    ms = [replace(mini(red, double_sided=False, label="Red dragon", tab_front="label_number",
-                       font=f), number=3) for f in ("Times", "Almendra", "Kalam")]
-    compare("font", [
-        (ms[0], bottom(ms[0]), "Times", "the default"),
-        (ms[1], bottom(ms[1]), "Almendra", "comes with papermini"),
-        (ms[2], bottom(ms[2]), "Kalam", "comes with papermini"),
-    ], mm=6)
+    ms = [
+        replace(
+            mini(
+                red,
+                double_sided=False,
+                label="Red dragon",
+                tab_front="label_number",
+                font=f,
+            ),
+            number=3,
+        )
+        for f in ("Times", "Almendra", "Kalam")
+    ]
+    compare(
+        "font",
+        [
+            (ms[0], bottom(ms[0]), "Times", "the default"),
+            (ms[1], bottom(ms[1]), "Almendra", "comes with papermini"),
+            (ms[2], bottom(ms[2]), "Kalam", "comes with papermini"),
+        ],
+        mm=6,
+    )
     ms = [mini(fly, height_mm=36, tab_overlap_mm=v, **one) for v in (0, 4)]
-    compare("tab-overlap", [
-        (ms[0], bottom(ms[0], 18), "Overlap 0 mm", "the tab hangs from the tail tip"),
-        (ms[1], bottom(ms[1], 18), "Overlap 4 mm", "the tab holds the tail and the claws"),
-    ], mm=6)
+    compare(
+        "tab-overlap",
+        [
+            (
+                ms[0],
+                bottom(ms[0], 18),
+                "Overlap 0 mm",
+                "the tab hangs from the tail tip",
+            ),
+            (
+                ms[1],
+                bottom(ms[1], 18),
+                "Overlap 4 mm",
+                "the tab holds the tail and the claws",
+            ),
+        ],
+        mm=6,
+    )
     ms = [mini(red, fold_mm=v, tab_color=GREEN, **one) for v in (0, 1.6, 4)]
-    compare("fold", [
-        (ms[0], bottom(ms[0]), "Fold 0 mm", "the feet float a margin above the ground"),
-        (ms[1], bottom(ms[1]), "Fold 1.6 mm", "the feet stand on the fold"),
-        (ms[2], bottom(ms[2]), "Fold 4 mm", "the claws fold under"),
-    ], mm=6)
+    compare(
+        "fold",
+        [
+            (
+                ms[0],
+                bottom(ms[0]),
+                "Fold 0 mm",
+                "the feet float a margin above the ground",
+            ),
+            (ms[1], bottom(ms[1]), "Fold 1.6 mm", "the feet stand on the fold"),
+            (ms[2], bottom(ms[2]), "Fold 4 mm", "the claws fold under"),
+        ],
+        mm=6,
+    )
 
     # step 1, Image adjustments
     plain = dict(one, no_tab=True)
-    compare("adjustments", [
-        (mini(red, **plain), None, "As drawn", "all at 0"),
-        (mini(red, greyscale=True, contrast=15, **plain), None, "Greyscale", "contrast +15"),
-        (mini(red, hue=120, **plain), None, "Hue +120°", "a green dragon"),
-    ])
+    compare(
+        "adjustments",
+        [
+            (mini(red, **plain), None, "As drawn", "all at 0"),
+            (
+                mini(red, greyscale=True, contrast=15, **plain),
+                None,
+                "Greyscale",
+                "contrast +15",
+            ),
+            (mini(red, hue=120, **plain), None, "Hue +120°", "a green dragon"),
+        ],
+    )
 
     # step 2, Token: what fills the circle, and the text on the ring
     tk = {"kind": "token"}
-    square = [1 / 6, 0.0, 5 / 6, 1.0]  # (the picture's middle, as tall as it is: it fills
+    square = [
+        1 / 6,
+        0.0,
+        5 / 6,
+        1.0,
+    ]  # (the picture's middle, as tall as it is: it fills
     #                                     the circle; the wide picture's own edges stay out)
-    compare("token-fill", [
-        (mini(fly, **tk), None, "Color", "white, the default"),
-        (mini(fly, token_fill="image", token_area=square, **tk), None, "Original image",
-         "the picture around the figure"),
-        (mini(fly, token_fill="image", token_area=square, token_outline=True, **tk), None,
-         "Image outline", "a white outline, on the picture"),
-    ], mm=8)
+    compare(
+        "token-fill",
+        [
+            (mini(fly, **tk), None, "Color", "white, the default"),
+            (
+                mini(fly, token_fill="image", token_area=square, **tk),
+                None,
+                "Original image",
+                "the picture around the figure",
+            ),
+            (
+                mini(
+                    fly, token_fill="image", token_area=square, token_outline=True, **tk
+                ),
+                None,
+                "Image outline",
+                "a white outline, on the picture",
+            ),
+        ],
+        mm=8,
+    )
     numbered = dict(tk, label="Red dragon", token_text="label_number")
-    compare("token-text", [
-        (replace(mini(red, **numbered), number=3), None, "Nameplate and badge",
-         "the label and copy 3"),
-        (replace(mini(red, token_text_style="curved", token_border_color="#7a1f1f",
-                      **numbered), number=3), None, "Curved along the ring",
-         "the ring as wide as the text needs"),
-    ], mm=8)
+    compare(
+        "token-text",
+        [
+            (
+                replace(mini(red, **numbered), number=3),
+                None,
+                "Nameplate and badge",
+                "the label and copy 3",
+            ),
+            (
+                replace(
+                    mini(
+                        red,
+                        token_text_style="curved",
+                        token_border_color="#7a1f1f",
+                        **numbered,
+                    ),
+                    number=3,
+                ),
+                None,
+                "Curved along the ring",
+                "the ring as wide as the text needs",
+            ),
+        ],
+        mm=8,
+    )
 
 
 if __name__ == "__main__":

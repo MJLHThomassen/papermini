@@ -34,8 +34,14 @@ def monsters(tmp_path) -> Path:
     """A folder with images directly in it and in subfolders, two files with the same
     name in different subfolders, a hidden folder and files that are not images."""
     root = tmp_path / "Monsters"
-    for rel in ("leader.png", "goblins/goblin 10.png", "goblins/goblin 2.png",
-                "goblins/leader.png", "orcs/leader.webp", ".hidden/x.png"):
+    for rel in (
+        "leader.png",
+        "goblins/goblin 10.png",
+        "goblins/goblin 2.png",
+        "goblins/leader.png",
+        "orcs/leader.webp",
+        ".hidden/x.png",
+    ):
         _image(root / rel)
     (root / "notes.txt").write_text("not an image")
     (root / "orcs" / "readme.md").write_text("not an image")
@@ -45,16 +51,26 @@ def monsters(tmp_path) -> Path:
 # ---------------------------------------------------------------- the folder's images
 def test_natural_order():
     names = ["goblin 10", "Goblin 2", "goblin 1b", "ape"]
-    assert sorted(names, key=remote.natural_key) == ["ape", "goblin 1b", "Goblin 2",
-                                                    "goblin 10"]
+    assert sorted(names, key=remote.natural_key) == [
+        "ape",
+        "goblin 1b",
+        "Goblin 2",
+        "goblin 10",
+    ]
 
 
 def test_folder_images_own_first_then_subfolders(monsters):
     images, skipped = remote.folder_images(monsters)
     assert [p.relative_to(monsters).as_posix() for p in images] == [
-        "leader.png", "goblins/goblin 2.png", "goblins/goblin 10.png", "goblins/leader.png",
-        "orcs/leader.webp"]
-    assert skipped == 2  # notes.txt and orcs/readme.md; the hidden folder is not looked at
+        "leader.png",
+        "goblins/goblin 2.png",
+        "goblins/goblin 10.png",
+        "goblins/leader.png",
+        "orcs/leader.webp",
+    ]
+    assert (
+        skipped == 2
+    )  # notes.txt and orcs/readme.md; the hidden folder is not looked at
     only, skipped = remote.folder_images(monsters, subfolders=False)
     assert only == [monsters / "leader.png"] and skipped == 1
 
@@ -62,8 +78,17 @@ def test_folder_images_own_first_then_subfolders(monsters):
 def test_same_names_get_their_subfolder(monsters):
     images, _ = remote.folder_images(monsters)
     assert remote.figure_names(images, monsters) == [
-        None, None, None, "goblins-leader", "orcs-leader"]  # leader.png keeps its name
-    deep = [monsters / "a" / "b" / "x.png", monsters / "c" / "x.png", monsters / "y.png"]
+        None,
+        None,
+        None,
+        "goblins-leader",
+        "orcs-leader",
+    ]  # leader.png keeps its name
+    deep = [
+        monsters / "a" / "b" / "x.png",
+        monsters / "c" / "x.png",
+        monsters / "y.png",
+    ]
     assert remote.figure_names(deep, monsters) == ["a-b-x", "c-x", None]
 
 
@@ -76,7 +101,9 @@ def made(monkeypatch):
     def fake_build(img, s, **k):
         built.append(Path(img))
         sq = CutPath(np.array([[0, 0], [20, 0], [20, 30], [0, 30]], float))
-        return Mini(Path(img).stem, 20.0, 30.0, Image.new("RGBA", (80, 120), (0, 0, 0, 255)), sq)
+        return Mini(
+            Path(img).stem, 20.0, 30.0, Image.new("RGBA", (80, 120), (0, 0, 0, 255)), sq
+        )
 
     monkeypatch.setattr(cli, "build_mini", fake_build)
     return built
@@ -88,8 +115,13 @@ def test_make_a_folder_into_an_output_folder(monsters, tmp_path, made, capsys):
     assert "Monsters: 5 images (2 other files skipped)" in capsys.readouterr().out
     assert len(made) == 5
     svgs = sorted(p.relative_to(out).as_posix() for p in out.rglob("*.svg"))
-    assert svgs == ["goblins/goblin 10.svg", "goblins/goblin 2.svg", "goblins/leader.svg",
-                    "leader.svg", "orcs/leader.svg"]  # the subfolders, inside -o DIR
+    assert svgs == [
+        "goblins/goblin 10.svg",
+        "goblins/goblin 2.svg",
+        "goblins/leader.svg",
+        "leader.svg",
+        "orcs/leader.svg",
+    ]  # the subfolders, inside -o DIR
 
 
 def test_make_a_folder_next_to_its_images(monsters, made):
@@ -116,8 +148,11 @@ def test_a_project_cannot_list_a_folder(monsters, tmp_path):
 def app(tmp_path_factory):
     # keep the tests away from the user's real preferences
     QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,
-                      str(tmp_path_factory.mktemp("settings")))
+    QSettings.setPath(
+        QSettings.IniFormat,
+        QSettings.UserScope,
+        str(tmp_path_factory.mktemp("settings")),
+    )
     return QApplication.instance() or QApplication([])
 
 
@@ -135,8 +170,11 @@ def window(prefs, monkeypatch):
     """The main window; figures fail to build at once (no model in these tests)."""
     from papermini.gui import window as window_mod
 
-    monkeypatch.setattr(window_mod, "build_mini", lambda *a, **k: (_ for _ in ()).throw(
-        ValueError("not built in this test")))
+    monkeypatch.setattr(
+        window_mod,
+        "build_mini",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
+    )
     w = window_mod.MainWindow()
     yield w
     w._modified = False  # (no "Save changes?" question)
@@ -157,7 +195,7 @@ def test_recent_projects_newest_first_at_most_ten(prefs, tmp_path):
     paths = _projects(tmp_path, *[f"p{i}.yaml" for i in range(12)])
     for p in paths:
         prefs.add_recent(p)
-    assert prefs.recent_projects() == list(reversed(paths))[:prefs.RECENT_MAX]
+    assert prefs.recent_projects() == list(reversed(paths))[: prefs.RECENT_MAX]
     prefs.add_recent(paths[5])  # opened again: back on top, not twice
     got = prefs.recent_projects()
     assert got[0] == paths[5] and got.count(paths[5]) == 1 and len(got) == 10
@@ -183,41 +221,59 @@ def test_subfolders_preference(prefs):
 
 def test_add_a_folder(window, monsters, monkeypatch):
     asked = []
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(
-        lambda *a, **k: asked.append(a[2]) or QMessageBox.No))
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: asked.append(a[2]) or QMessageBox.No),
+    )
     assert window.add_folder(monsters) == 5
     assert [f.entry.display_name for f in window.figures] == [
-        "leader", "goblin 2", "goblin 10", "goblins-leader", "orcs-leader"]
-    assert window.statusBar().currentMessage() == \
-        "Added 5 images from Monsters (2 other files skipped)"
+        "leader",
+        "goblin 2",
+        "goblin 10",
+        "goblins-leader",
+        "orcs-leader",
+    ]
+    assert (
+        window.statusBar().currentMessage()
+        == "Added 5 images from Monsters (2 other files skipped)"
+    )
     assert not asked
 
     # again: asks, and No leaves them out
     assert window.add_folder(monsters) == 0
-    assert asked == [("5 of the images in Monsters are already in the project. "
-                     "Add them again?")]
+    assert asked == [
+        ("5 of the images in Monsters are already in the project. Add them again?")
+    ]
     assert len(window.figures) == 5
-    assert window.statusBar().currentMessage() == \
-        "No images added from Monsters (2 other files skipped, 5 already in the project)"
+    assert (
+        window.statusBar().currentMessage()
+        == "No images added from Monsters (2 other files skipped, 5 already in the project)"
+    )
 
     # Yes adds them all again
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr(
+        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes)
+    )
     assert window.add_folder(monsters) == 5 and len(window.figures) == 10
 
 
 def test_add_a_folder_without_its_subfolders(window, monsters, prefs):
     prefs.set_add_subfolders(False)
     assert window.add_folder(monsters) == 1
-    assert window.statusBar().currentMessage() == \
-        "Added 1 image from Monsters (1 other file skipped)"
+    assert (
+        window.statusBar().currentMessage()
+        == "Added 1 image from Monsters (1 other file skipped)"
+    )
 
 
 def test_a_folder_without_images_says_so(window, tmp_path, monkeypatch):
     (tmp_path / "empty").mkdir()
     (tmp_path / "empty" / "notes.txt").write_text("x")
     told = []
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(
-        lambda *a, **k: told.append(a[2])))
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda *a, **k: told.append(a[2]))
+    )
     assert window.add_folder(tmp_path / "empty") == 0
     assert told and told[0].startswith("empty has no images papermini can read")
     assert not window.figures
@@ -251,8 +307,10 @@ def test_opening_and_saving_count_as_recent(window, tmp_path):
     assert window.save()
     assert prefs.recent_projects() == [b.resolve(), a.resolve()]
     # the start screen follows
-    rows = [window.empty.recent_list.itemAt(i).widget() for i in
-            range(window.empty.recent_list.count())]
+    rows = [
+        window.empty.recent_list.itemAt(i).widget()
+        for i in range(window.empty.recent_list.count())
+    ]
     assert [r.path for r in rows] == [b.resolve(), a.resolve()]
 
 
@@ -268,8 +326,11 @@ def test_open_recent_menu(window, tmp_path, monkeypatch):
     assert window.recent_menu.menuAction().isEnabled()
     window.recent_menu.aboutToShow.emit()
     acts = window.recent_menu.actions()
-    assert [x.text().split("\t")[0] for x in acts if x.text()] == ["b.yaml", "a.yaml",
-                                                                    "Clear list"]
+    assert [x.text().split("\t")[0] for x in acts if x.text()] == [
+        "b.yaml",
+        "a.yaml",
+        "Clear list",
+    ]
     assert "D&&D" in acts[1].text()  # (a single & would underline the next letter)
     opened = []
     monkeypatch.setattr(window, "load", opened.append)
@@ -303,7 +364,9 @@ def test_start_screen_rows_open_from_anywhere(app, tmp_path):
     row = e.recent_list.itemAt(0).widget()
     QTest.mouseClick(row, Qt.LeftButton, pos=QPoint(row.width() - 4, row.height() // 2))
     assert got == [str(paths[0])] and Path(got[0]).is_file()
-    assert row.sizeHint().width() <= e.maximumWidth()  # (the folder is shortened to fit)
+    assert (
+        row.sizeHint().width() <= e.maximumWidth()
+    )  # (the folder is shortened to fit)
     e.set_recent([])
     assert e.recent_box.isHidden()
     e.close()

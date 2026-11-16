@@ -43,7 +43,8 @@ def main() -> None:
 
     ico = HERE / "icon.ico"
     Image.open(out).convert("RGBA").save(
-        ico, sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
+        ico, sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)]
+    )
     print(f"wrote {ico}")
 
 

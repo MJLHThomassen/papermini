@@ -23,8 +23,11 @@ def app(tmp_path_factory):
 
     # keep the tests away from the user's real preferences
     QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,
-                      str(tmp_path_factory.mktemp("settings")))
+    QSettings.setPath(
+        QSettings.IniFormat,
+        QSettings.UserScope,
+        str(tmp_path_factory.mktemp("settings")),
+    )
     return QApplication.instance() or QApplication([])
 
 
@@ -59,7 +62,9 @@ def fake_default_model(monkeypatch, isolated_model_cache):
     path.write_bytes(b"not a real model")
 
 
-def wait(app, cond, timeout=180):  # generous: CI runners can be slow; returns as soon as cond()
+def wait(
+    app, cond, timeout=180
+):  # generous: CI runners can be slow; returns as soon as cond()
     end = time.time() + timeout
     while time.time() < end:
         app.processEvents()
@@ -75,11 +80,15 @@ def test_build_edit_and_save(app, tmp_path):
     im = np.full((900, 700, 3), 255, np.uint8)
     cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
     Image.fromarray(im).save(tmp_path / "hero.png")
-    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(tmp_path / "m.png")
+    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(
+        tmp_path / "m.png"
+    )
 
     w = MainWindow()
     try:
-        w.add_images([tmp_path / "hero.png"], FigureSettings(mask=str(tmp_path / "m.png")))
+        w.add_images(
+            [tmp_path / "hero.png"], FigureSettings(mask=str(tmp_path / "m.png"))
+        )
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         assert fig.mini.figure_height_mm == pytest.approx(32, abs=0.05)  # Medium
@@ -91,7 +100,9 @@ def test_build_edit_and_save(app, tmp_path):
         # edit through the panel -> rebuild with the new height
         w.panel.size_field.h.setValue(30)
         assert fig.entry.settings.height_mm == 30
-        assert wait(app, lambda: fig.up_to_date and fig.mini.figure_height_mm < 31), fig.error
+        assert wait(app, lambda: fig.up_to_date and fig.mini.figure_height_mm < 31), (
+            fig.error
+        )
         assert fig.mini.figure_height_mm == pytest.approx(30, abs=0.05)
 
         # crop from the source view lands in the settings
@@ -103,9 +114,11 @@ def test_build_edit_and_save(app, tmp_path):
         assert wait(app, lambda: "piece" in w.sheet_panel.info.text())
 
         from pathlib import Path
+
         w.project.path = Path(tmp_path / "proj.yaml")
         assert w.save()
         from papermini.settings import load_project
+
         p = load_project(tmp_path / "proj.yaml")
         assert p.figures[0].settings.height_mm == 30
         assert p.figures[0].settings.crop == [0.1, 0.1, 0.9, 0.9]
@@ -124,7 +137,9 @@ def test_bad_model_reports_error_and_recovers(app, tmp_path):
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.circle(im, (250, 300), 150, (60, 60, 60), -1)
     Image.fromarray(im).save(tmp_path / "hero.png")
-    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(tmp_path / "m.png")
+    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(
+        tmp_path / "m.png"
+    )
 
     w = MainWindow()
     try:
@@ -138,7 +153,9 @@ def test_bad_model_reports_error_and_recovers(app, tmp_path):
         assert wait(app, lambda: fig.error is not None) and "transparency" in fig.error
 
         # fixing the setting rebuilds
-        w._settings_changed(replace(fig.entry.settings, model="mask", mask=str(tmp_path / "m.png")))
+        w._settings_changed(
+            replace(fig.entry.settings, model="mask", mask=str(tmp_path / "m.png"))
+        )
         assert wait(app, lambda: fig.up_to_date), fig.error
         assert fig.error is None and "figure" in w.info.text()
     finally:
@@ -176,25 +193,27 @@ def test_crop_handles(app):
         QTest.mouseRelease(vp, Qt.LeftButton, Qt.NoModifier, b)
         app.processEvents()
 
-    drag(at(200, 200), at(600, 700))                       # draw
+    drag(at(200, 200), at(600, 700))  # draw
     assert got[-1] == pytest.approx([0.2, 0.2, 0.6, 0.7], abs=0.01)
     assert v._hit(at(600, 700)) == "br" and v._hit(at(400, 450)) == "move"
     assert v._hit(at(200, 450)) == "l" and v._hit(at(900, 900)) == "new"
 
-    drag(at(600, 700), at(800, 900))                       # resize by the bottom-right handle
+    drag(at(600, 700), at(800, 900))  # resize by the bottom-right handle
     assert got[-1] == pytest.approx([0.2, 0.2, 0.8, 0.9], abs=0.01)
 
-    drag(at(400, 400), at(300, 350))                       # move from inside
+    drag(at(400, 400), at(300, 350))  # move from inside
     assert got[-1] == pytest.approx([0.1, 0.15, 0.7, 0.85], abs=0.01)
 
-    drag(at(500, 500), at(2000, 2000))                     # move is clamped to the image
+    drag(at(500, 500), at(2000, 2000))  # move is clamped to the image
     assert got[-1][2] == pytest.approx(1.0) and got[-1][3] == pytest.approx(1.0)
 
     n = len(got)
-    QTest.mouseClick(vp, Qt.LeftButton, Qt.NoModifier, at(50, 50))  # a click keeps the box
+    QTest.mouseClick(
+        vp, Qt.LeftButton, Qt.NoModifier, at(50, 50)
+    )  # a click keeps the box
     assert len(got) == n and v.crop_box() is not None
 
-    QTest.keyClick(v, Qt.Key_Delete)                       # Delete clears it
+    QTest.keyClick(v, Qt.Key_Delete)  # Delete clears it
     assert got[-1] is None and v.crop_box() is None
     v.close()
 
@@ -212,12 +231,16 @@ def test_review_regressions(app, tmp_path):
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.circle(im, (250, 300), 150, (60, 60, 60), -1)
     Image.fromarray(im).save(tmp_path / "hero.png")
-    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(tmp_path / "m.png")
+    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(
+        tmp_path / "m.png"
+    )
 
     w = MainWindow()
     try:
-        w.add_images([tmp_path / "hero.png"],
-                     FigureSettings(mask=str(tmp_path / "m.png"), height_mm=42.25, dpi=3000))
+        w.add_images(
+            [tmp_path / "hero.png"],
+            FigureSettings(mask=str(tmp_path / "m.png"), height_mm=42.25, dpi=3000),
+        )
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         # 1. selecting a figure must not zero the debounce interval
@@ -227,8 +250,16 @@ def test_review_regressions(app, tmp_path):
         field = w.panel._w["strength"][1]
         before = field.value()
         for part in (field.slider, field.spin):  # nor over an unfocused slider
-            ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, 120),
-                             Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+            ev = QWheelEvent(
+                QPointF(5, 5),
+                QPointF(5, 5),
+                QPoint(0, 0),
+                QPoint(0, 120),
+                Qt.NoButton,
+                Qt.NoModifier,
+                Qt.NoScrollPhase,
+                False,
+            )
             app.sendEvent(part, ev)
         assert field.value() == before
 
@@ -256,22 +287,27 @@ def test_review_regressions(app, tmp_path):
         w.close()
 
 
-
 def test_panel_choices_round_trip(app):
     """Combo boxes show readable names but store the setting values."""
     from papermini.gui.panels import FigurePanel
 
     p = FigurePanel()
-    s = FigureSettings(tab_shape="round", label="", tab_color="#3b6e2a",
-                       margin_fill="image", double_sided=True, back="text")
+    s = FigureSettings(
+        tab_shape="round",
+        label="",
+        tab_color="#3b6e2a",
+        margin_fill="image",
+        double_sided=True,
+        back="text",
+    )
     p.set_settings(s, "x", "x")
     assert p._w["tab_shape"][1].currentText().startswith("Round")
     assert p.settings() == s
-    assert not p.is_shown("tab_height_mm")               # a half disc has no separate height
-    assert not p.is_shown("margin_color")                # the image fills the margin
+    assert not p.is_shown("tab_height_mm")  # a half disc has no separate height
+    assert not p.is_shown("margin_color")  # the image fills the margin
     assert p.is_shown("tab_color") and not p.is_shown("label_size_mm")
     assert p.is_shown("back_text") and p.is_shown("back_color")
-    assert not p.label_switch.isChecked()               # no label = a plain colored tab
+    assert not p.label_switch.isChecked()  # no label = a plain colored tab
     assert not p.is_shown("label") and p.is_shown("no_label")
     assert p.is_shown("tab_radius_mm") and not p.is_shown("tab_width_mm")
     got = []
@@ -288,8 +324,17 @@ def test_panel_choices_round_trip(app):
     # no tab: none of the tab options, and the label group cannot be turned on
     p._w["no_tab"][1].setChecked(False)
     assert p.settings().no_tab
-    assert not any(p.is_shown(n) for n in ("tab_shape", "tab_width_mm", "tab_color",
-                                           "no_label", "label", "label_color"))
+    assert not any(
+        p.is_shown(n)
+        for n in (
+            "tab_shape",
+            "tab_width_mm",
+            "tab_color",
+            "no_label",
+            "label",
+            "label_color",
+        )
+    )
 
 
 def test_groups_are_switched_on_and_off_in_their_header(app):
@@ -301,12 +346,15 @@ def test_groups_are_switched_on_and_off_in_their_header(app):
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
     heads = {s.header.text(): s for s in p.sections}
-    for title, name in (("Back side", "double_sided"), ("Tab", "no_tab"),
-                        ("Label", "no_label")):
+    for title, name in (
+        ("Back side", "double_sided"),
+        ("Tab", "no_tab"),
+        ("Label", "no_label"),
+    ):
         box = heads[title]
-        assert box.switch is not None and box.switch.isChecked()   # all on by default
+        assert box.switch is not None and box.switch.isChecked()  # all on by default
         assert box.switch.accessibleName().startswith("Print a ")
-        assert box.switch.parent() is box                          # in the header row
+        assert box.switch.parent() is box  # in the header row
         assert box.switch.toolTip().startswith("Print a ")
     # a mini always has its outline and cut line: their switches are a token's only
     for title in ("Image outline", "Cut line"):
@@ -327,11 +375,10 @@ def test_groups_are_switched_on_and_off_in_their_header(app):
     assert not t.body.isVisibleTo(t) and not t.header.isEnabled()
     t.header.click()
     assert not t.body.isVisibleTo(t)
-    tab.setChecked(True)                                   # on: open as it was
+    tab.setChecked(True)  # on: open as it was
     assert not p.settings().no_tab and t.body.isVisibleTo(t) and p.is_shown("label")
     p.set_settings(FigureSettings(no_tab=True, double_sided=False, label=""), "x", "x")
     assert not any(heads[t].switch.isChecked() for t in ("Back side", "Tab", "Label"))
-
 
 
 def test_settings_side_never_cuts_off_controls(app, tmp_path):
@@ -358,10 +405,12 @@ def test_settings_side_never_cuts_off_controls(app, tmp_path):
             for _ in range(3):  # (the scroll bar may appear, then the body follows)
                 app.processEvents()
             assert w.splitter.sizes()[2] >= p.minimumSizeHint().width()
-            assert p.widget().width() <= p.viewport().width(), step   # nothing clipped
+            assert p.widget().width() <= p.viewport().width(), step  # nothing clipped
             for box in p.sections:
                 if box.switch is not None and box.switch.isVisibleTo(p):
-                    right = box.switch.mapTo(p.widget(), box.switch.rect().topRight()).x()
+                    right = box.switch.mapTo(
+                        p.widget(), box.switch.rect().topRight()
+                    ).x()
                     assert right <= p.viewport().width(), box.header.text()
     finally:
         w._modified = False
@@ -377,9 +426,8 @@ def test_color_dialog_does_not_inherit_button_color(app):
     b = ColorButton()
     b.set_color("#3b6e2a")
     child = QWidget(b)
-    assert "QPushButton" in b.styleSheet()          # scoped to the button itself
+    assert "QPushButton" in b.styleSheet()  # scoped to the button itself
     assert child.palette().window().color().name() != "#3b6e2a"
-
 
 
 def test_mask_file_is_a_model_choice(app):
@@ -387,11 +435,13 @@ def test_mask_file_is_a_model_choice(app):
 
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
-    assert not p.is_shown("mask")                        # auto: no file field
+    assert not p.is_shown("mask")  # auto: no file field
     combo = p._w["model"][1]
-    combo.setCurrentText("alpha"); combo.activated.emit(0)
-    assert not p.is_shown("mask")                        # alpha uses the image itself
-    combo.setCurrentText("mask image file"); combo.activated.emit(0)
+    combo.setCurrentText("alpha")
+    combo.activated.emit(0)
+    assert not p.is_shown("mask")  # alpha uses the image itself
+    combo.setCurrentText("mask image file")
+    combo.activated.emit(0)
     assert p.is_shown("mask") and p.settings().model == "mask"
     # no label: the Label group's switch
     p.label_switch.setChecked(False)
@@ -424,7 +474,6 @@ def test_sheet_bar_cut_by_machine(app):
     assert got[-1].marks == "none"
 
 
-
 def test_new_window_shows_sheet_settings(app):
     """Regression: a new project's sheet bar showed 0 mm margins and an empty title
     (and editing it would have saved those)."""
@@ -434,10 +483,11 @@ def test_new_window_shows_sheet_settings(app):
     try:
         assert w.sheet_panel.margin.value() == 12 and w.sheet_panel.gap.value() == 7
         assert w.sheet_panel.title.text() == "Paper miniatures"
-        assert not any(sec.isVisibleTo(w.panel) for sec in w.panel.sections)  # empty state
+        assert not any(
+            sec.isVisibleTo(w.panel) for sec in w.panel.sections
+        )  # empty state
     finally:
         w.close()
-
 
 
 def test_side_panels_can_be_resized_freely(app):
@@ -455,7 +505,7 @@ def test_side_panels_can_be_resized_freely(app):
         app.processEvents()
         canvas = w.splitter.widget(1)
         assert canvas.minimumSizeHint().width() < 400
-        w.splitter.setSizes([520, 400, 520])                  # much wider side panels
+        w.splitter.setSizes([520, 400, 520])  # much wider side panels
         app.processEvents()
         sizes = w.splitter.sizes()
         assert sizes[0] > 480 and sizes[2] > 480
@@ -463,7 +513,6 @@ def test_side_panels_can_be_resized_freely(app):
         assert not w.splitter.isCollapsible(1)
     finally:
         w.close()
-
 
 
 def test_side_panel_toggles(app):
@@ -482,22 +531,22 @@ def test_side_panel_toggles(app):
         width = w.splitter.sizes()[0]
         assert w.side_visible(0) and w.side_visible(2) and w.a_left.isChecked()
 
-        w.btn_left.click()                                   # header button hides it
+        w.btn_left.click()  # header button hides it
         app.processEvents()
         assert w.splitter.sizes()[0] == 0 and not w.a_left.isChecked()
-        assert w.btn_left.isVisible()                        # still there to bring it back
+        assert w.btn_left.isVisible()  # still there to bring it back
         w.btn_left.click()
         app.processEvents()
         assert w.splitter.sizes()[0] == width and w.a_left.isChecked()
 
-        w.a_right.trigger()                                  # menu item hides it
+        w.a_right.trigger()  # menu item hides it
         app.processEvents()
         assert w.splitter.sizes()[2] == 0 and "Show" in w.btn_right.toolTip()
         w.a_right.trigger()
         app.processEvents()
         assert w.splitter.sizes()[2] >= w.splitter.widget(2).minimumWidth()
 
-        w.splitter.setSizes([0] + w.splitter.sizes()[1:])   # as if dragged shut
+        w.splitter.setSizes([0] + w.splitter.sizes()[1:])  # as if dragged shut
         w.splitter.splitterMoved.emit(0, 1)
         assert not w.a_left.isChecked()
         assert "View" in [a.text() for a in w.menu.actions()]
@@ -534,7 +583,7 @@ def test_source_image_lies_on_paper_with_a_shadow(app):
     v.set_image(img)
     paper = [it for it in v.scene().items() if isinstance(it, PaperItem)]
     assert len(paper) == 1 and paper[0].rect() == QRectF(0, 0, 400, 300)
-    assert paper[0].zValue() < 0                                  # under the image
+    assert paper[0].zValue() < 0  # under the image
     assert paper[0].boundingRect().contains(QRectF(-10, -10, 420, 320))
     assert all(it.graphicsEffect() is None for it in v.scene().items())
     v.set_image(None)
@@ -553,17 +602,16 @@ def test_drag_closed_panel_reopens_at_dragged_width(app):
         w.show()
         app.processEvents()
         s = w.splitter.sizes()
-        w.splitter.setSizes([420, s[1] - 160, s[2]])       # dragged wider...
+        w.splitter.setSizes([420, s[1] - 160, s[2]])  # dragged wider...
         w.splitter.splitterMoved.emit(420, 1)
         s = w.splitter.sizes()
-        w.splitter.setSizes([0, s[1] + s[0], s[2]])        # ...then dragged shut
+        w.splitter.setSizes([0, s[1] + s[0], s[2]])  # ...then dragged shut
         w.splitter.splitterMoved.emit(0, 1)
         w.set_side_visible(0, True)
         app.processEvents()
         assert abs(w.splitter.sizes()[0] - 420) <= 2
     finally:
         w.close()
-
 
 
 def test_panel_layout_is_remembered(app):
@@ -573,7 +621,7 @@ def test_panel_layout_is_remembered(app):
     from papermini.gui import prefs
     from papermini.gui.window import MainWindow
 
-    assert prefs.store().format() == QSettings.IniFormat   # not the real settings
+    assert prefs.store().format() == QSettings.IniFormat  # not the real settings
 
     def window():
         w = MainWindow()
@@ -638,16 +686,16 @@ def test_download_dialog_asks_then_downloads(app, model_cache):
     assert "non-commercial use only" in d.licence_note.text()
     assert "You are responsible for not using it commercially" in d.licence_note.text()
     assert d.btn_go.text() == "Download"
-    d.btn_no.click()                                   # "Not now"
+    d.btn_no.click()  # "Not now"
     assert d.result() == QDialog.Rejected and model_cache == []
 
     d = DownloadDialog("rmbg-1.4")
-    assert not d.btn_go.isEnabled()                    # the licence is not accepted yet
-    d.start()                                          # (Enter: still nothing happens)
+    assert not d.btn_go.isEnabled()  # the licence is not accepted yet
+    d.start()  # (Enter: still nothing happens)
     assert model_cache == [] and d.title.text().startswith("Download the")
     d.accept_licence.setChecked(True)
     assert d.btn_go.isEnabled()
-    d.btn_go.click()                                   # "Download"
+    d.btn_go.click()  # "Download"
     assert d.btn_no.text() == "Cancel" and not d.accept_licence.isEnabled()
     assert wait(app, lambda: d.result() == QDialog.Accepted, 10)
     assert d.bar.value() == 1000 and d.status.text() == "0 of 0 MB"  # 30 bytes
@@ -671,7 +719,7 @@ def test_download_dialog_cancel(app, model_cache, monkeypatch):
 
     monkeypatch.setattr(segment, "download", slow)
     d = DownloadDialog("birefnet-lite", ask=False)
-    d.reject()                                         # Cancel / Esc while downloading
+    d.reject()  # Cancel / Esc while downloading
     assert d.isVisible() is False and d.result() != QDialog.Accepted
     assert "Cancelling" in d.status.text()
     gate.set()
@@ -704,9 +752,14 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         fig = w.current()
         assert wait(app, lambda: fig.error is not None, 30)
         assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
-        assert "Models and cache" in w.banner.text.text() and "lower strength" not in w.banner.text.text()
+        assert (
+            "Models and cache" in w.banner.text.text()
+            and "lower strength" not in w.banner.text.text()
+        )
         assert model_cache == []
-        assert w._confirm_download("birefnet-lite") is False   # declined: not asked again
+        assert (
+            w._confirm_download("birefnet-lite") is False
+        )  # declined: not asked again
         assert asked == ["birefnet-lite"]
 
         # the Models and cache page lists every model, downloads one, and the figure is retried
@@ -716,14 +769,25 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         assert set(dlg.cards) == set(segment.ONNX_MODELS)
         card = dlg.cards["birefnet-lite"]
         assert "Not downloaded" in card.state.text() and not card.btn_del.isEnabled()
-        monkeypatch.setattr(models.DownloadDialog, "exec",
-                            lambda self: segment.fetch_model(self.model, self.force) and 1)
+        monkeypatch.setattr(
+            models.DownloadDialog,
+            "exec",
+            lambda self: segment.fetch_model(self.model, self.force) and 1,
+        )
         card.btn_get.click()
-        assert "Downloaded" in card.state.text() and card.btn_get.text() == "Download again"
-        assert "birefnet-lite.onnx" in card.state.text() and str(segment.cache_dir()) in dlg.folder.text()
+        assert (
+            "Downloaded" in card.state.text()
+            and card.btn_get.text() == "Download again"
+        )
+        assert (
+            "birefnet-lite.onnx" in card.state.text()
+            and str(segment.cache_dir()) in dlg.folder.text()
+        )
         assert "birefnet-lite" not in w._declined and fig.error is None
 
-        monkeypatch.setattr(models.QMessageBox, "question", lambda *a, **k: models.QMessageBox.Yes)
+        monkeypatch.setattr(
+            models.QMessageBox, "question", lambda *a, **k: models.QMessageBox.Yes
+        )
         card.btn_del.click()
         assert not segment.model_path("birefnet-lite").exists()
         assert "Not downloaded" in card.state.text()
@@ -744,15 +808,22 @@ def test_preferences_menu_entry(app):
         assert w.a_prefs in w.menu.actions()
         assert w.a_prefs.shortcut() == QKeySequence("Ctrl+,")
         texts = [a.text() for a in w.menu.actions()]
-        for gone in ("Theme", "Cache management…", "Creature sizes…", "Log",
-                     "Update automatically"):
+        for gone in (
+            "Theme",
+            "Cache management…",
+            "Creature sizes…",
+            "Log",
+            "Update automatically",
+        ):
             assert gone not in texts
         assert "Open log folder" in texts
     finally:
         w.close()
 
 
-def test_cache_management_clears_masks_images_and_everything(app, model_cache, monkeypatch):
+def test_cache_management_clears_masks_images_and_everything(
+    app, model_cache, monkeypatch
+):
     """The Models and cache page counts the masks and images from links, clears each,
     keeps the images open figures use, and Clear cache also deletes the models."""
     from papermini import remote, segment
@@ -785,8 +856,11 @@ def test_cache_management_clears_masks_images_and_everything(app, model_cache, m
     changed = []
     dlg.changed.connect(changed.append)
     asked = []
-    monkeypatch.setattr(models.QMessageBox, "question",
-                        lambda *a, **k: asked.append(a[2]) or models.QMessageBox.Yes)
+    monkeypatch.setattr(
+        models.QMessageBox,
+        "question",
+        lambda *a, **k: asked.append(a[2]) or models.QMessageBox.Yes,
+    )
     dlg.btn_all.click()
     assert "also deletes the downloaded models" in asked[0]
     assert not model.exists() and images[0].exists()
@@ -832,7 +906,10 @@ def test_licences_are_links(app, model_cache):
         assert label.openExternalLinks()
     dlg = CachePage()
     card = dlg.cards["birefnet"]
-    assert 'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"' in card.licence.text()
+    assert (
+        'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"'
+        in card.licence.text()
+    )
     assert card.licence.openExternalLinks()
 
 
@@ -844,7 +921,7 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cac
 
     from papermini.gui.models import CachePage, DownloadDialog
 
-    d = DownloadDialog("rmbg-1.4", ask=False)          # the Models and cache page's Download
+    d = DownloadDialog("rmbg-1.4", ask=False)  # the Models and cache page's Download
     assert d.accept_licence is not None and not d.btn_go.isEnabled()
     assert model_cache == [] and d.bar.isHidden()
     d.accept_licence.setChecked(True)
@@ -876,7 +953,10 @@ def test_the_settings_show_the_licence_of_the_model_in_use(app, tmp_path, model_
             app.processEvents()
 
         pick("rmbg-1.4")
-        assert p.licence_hint.isVisibleTo(p) and "Non-commercial use only" in p.licence_hint.text()
+        assert (
+            p.licence_hint.isVisibleTo(p)
+            and "Non-commercial use only" in p.licence_hint.text()
+        )
         pick("birefnet")
         assert not p.licence_hint.isVisibleTo(p)
         pick("auto")
@@ -902,12 +982,16 @@ def test_no_figure_hides_the_settings(app, tmp_path):
         assert len(p.sections) > 3
         assert shown(p.empty_box) and p.empty_title.text() == "No figure selected"
         assert "Add images" in p.empty_text.text()
-        assert not any(shown(s) for s in p.sections + [p.apply_all, p.title, p.subtitle])
+        assert not any(
+            shown(s) for s in p.sections + [p.apply_all, p.title, p.subtitle]
+        )
         assert p.isEnabled()  # a disabled panel would grey out the message too
 
         w.add_images([tmp_path / "a.png"])
         assert not shown(p.empty_box) and any(shown(s) for s in p.sections)
-        assert all(shown(s) == (st == p.step()) for s, st in zip(p.sections, p._section_steps))
+        assert all(
+            shown(s) == (st == p.step()) for s, st in zip(p.sections, p._section_steps)
+        )
         assert shown(p.title) and shown(p.apply_all)
 
         w.list.setCurrentRow(-1)  # figures, but none selected
@@ -959,27 +1043,33 @@ def test_source_view_shows_the_detected_outline(app, tmp_path):
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "b.png")
     w = MainWindow()
     try:
-        assert [w.tabs.tabText(i) for i in range(w.tabs.count())] == \
-            ["Source", "Miniature", "Print sheet"]
+        assert [w.tabs.tabText(i) for i in range(w.tabs.count())] == [
+            "Source",
+            "Miniature",
+            "Print sheet",
+        ]
         assert w.tabs.currentIndex() == w.SOURCE  # the first step
-        assert [b.text() for b in w.views.group.buttons()] == \
-            ["1  Source", "2  Miniature", "3  Print sheet"]
+        assert [b.text() for b in w.views.group.buttons()] == [
+            "1  Source",
+            "2  Miniature",
+            "3  Print sheet",
+        ]
         w.add_images([tmp_path / "a.png"], FigureSettings(margin_mm=5))
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         cv = w.crop_view
         shade, line = cv._outline_items
         assert shade.scene() is cv.scene()
-        r = line.path().boundingRect()                    # the ellipse itself: no margin
+        r = line.path().boundingRect()  # the ellipse itself: no margin
         assert abs(r.left() - 150) < 3 and abs(r.top() - 150) < 3
         assert abs(r.right() - 551) < 3 and abs(r.bottom() - 751) < 3
 
-        cv.refresh_theme()                                 # redrawn, not duplicated
+        cv.refresh_theme()  # redrawn, not duplicated
         assert len(cv._outline_items) == 2
-        cv.set_busy(True)                                  # a model runs: dimmed, no outline
+        cv.set_busy(True)  # a model runs: dimmed, no outline
         assert len(cv._outline_items) == 1
         cv.set_busy(False)
-        cv.set_image(load_qimage(tmp_path / "b.png"))    # another image: no stale outline
+        cv.set_image(load_qimage(tmp_path / "b.png"))  # another image: no stale outline
         assert cv._outline is None and cv._outline_items == []
     finally:
         w._modified = False
@@ -1011,36 +1101,44 @@ def _mouse(v, kind, scene_pt, button=None):
     from PySide6.QtGui import QMouseEvent
 
     pos = QPointF(v.mapFromScene(QPointF(*scene_pt)))
-    t = {"press": QEvent.MouseButtonPress, "move": QEvent.MouseMove,
-         "release": QEvent.MouseButtonRelease}[kind]
+    t = {
+        "press": QEvent.MouseButtonPress,
+        "move": QEvent.MouseMove,
+        "release": QEvent.MouseButtonRelease,
+    }[kind]
     b = Qt.LeftButton if kind != "move" else Qt.NoButton
     held = Qt.LeftButton if (kind == "move" and button) else Qt.NoButton
     if kind == "press":
         held = Qt.LeftButton
     ev = QMouseEvent(t, pos, v.viewport().mapToGlobal(pos), b, held, Qt.NoModifier)
-    {"press": v.mousePressEvent, "move": v.mouseMoveEvent,
-     "release": v.mouseReleaseEvent}[kind](ev)
+    {
+        "press": v.mousePressEvent,
+        "move": v.mouseMoveEvent,
+        "release": v.mouseReleaseEvent,
+    }[kind](ev)
 
 
 def test_crop_view_guides_the_user(app):
     """Without a crop box a hint says to drag one; over the image, guide lines show
     where a new box would start; over the box, the part a drag grabs is shown."""
     v = _crop_view(app)
-    assert v.show_hint()                                   # no box yet: say how...
+    assert v.show_hint()  # no box yet: say how...
     img = v._image_view_rect()
-    pill = v.hint_rect()                                   # ...beside the image, not on it
+    pill = v.hint_rect()  # ...beside the image, not on it
     assert not pill.intersects(img) and v.viewport().rect().contains(pill.toRect())
     _mouse(v, "move", (200, 150))
-    assert v._hover is not None and v._hover_part == "new"  # guide lines through the mouse
-    v.grab()                                               # (paints without errors)
+    assert (
+        v._hover is not None and v._hover_part == "new"
+    )  # guide lines through the mouse
+    v.grab()  # (paints without errors)
     v.set_crop([0.25, 0.25, 0.75, 0.75])
-    assert not v.show_hint()                               # a box: no hint
+    assert not v.show_hint()  # a box: no hint
     _mouse(v, "move", (200, 150))
-    assert v._hover_part == "move"                         # inside: move the whole box
+    assert v._hover_part == "move"  # inside: move the whole box
     _mouse(v, "move", (100, 150))
-    assert v._hover_part == "l"                            # on the left edge
+    assert v._hover_part == "l"  # on the left edge
     _mouse(v, "move", (100, 75))
-    assert v._hover_part == "tl"                           # on a corner handle
+    assert v._hover_part == "tl"  # on a corner handle
     v.grab()
     v.leaveEvent(None)
     assert v._hover is None and v._hover_part is None
@@ -1054,18 +1152,18 @@ def test_a_click_on_the_crop_view_changes_nothing(app):
     v.cropChanged.connect(got.append)
     _mouse(v, "press", (200, 150))
     _mouse(v, "release", (200, 150))
-    assert got == [] and v.crop_box() is None              # a click: no box
+    assert got == [] and v.crop_box() is None  # a click: no box
     v.set_crop([0.25, 0.25, 0.75, 0.75])
     box = v.crop_box()
-    s = 1 / v.transform().m11()                            # scene units per screen px
-    _mouse(v, "press", (200, 150))                         # inside: would move it...
-    _mouse(v, "move", (200 + 2 * s, 150), button=True)     # ...but 2 px is a jitter
+    s = 1 / v.transform().m11()  # scene units per screen px
+    _mouse(v, "press", (200, 150))  # inside: would move it...
+    _mouse(v, "move", (200 + 2 * s, 150), button=True)  # ...but 2 px is a jitter
     _mouse(v, "release", (200 + 2 * s, 150))
     assert got == [] and v.crop_box() == box
     _mouse(v, "press", (200, 150))
-    _mouse(v, "move", (230, 150), button=True)             # a real drag moves it
+    _mouse(v, "move", (230, 150), button=True)  # a real drag moves it
     _mouse(v, "release", (230, 150))
-    moved = v.crop_box()                                   # (to a whole screen pixel)
+    moved = v.crop_box()  # (to a whole screen pixel)
     assert len(got) == 1 and abs(moved.left() - box.left() - 30) < 2 * s
     assert moved.size() == box.size() and moved.top() == box.top()
 
@@ -1087,24 +1185,24 @@ def test_crop_changes_can_be_undone_and_cleared(app, tmp_path):
         w.crop_view.cropChanged.emit([0.2, 0.2, 0.8, 0.8])
         assert a.entry.settings.crop == [0.2, 0.2, 0.8, 0.8]
         assert w.clear_crop_card.isVisibleTo(w)
-        w.tabs.setCurrentIndex(w.MINI)                     # only on the Source view
+        w.tabs.setCurrentIndex(w.MINI)  # only on the Source view
         assert not w.clear_crop_card.isVisibleTo(w)
         w.tabs.setCurrentIndex(w.SOURCE)
         w.list.setCurrentRow(1)
-        w.btn_clear_crop.click()                           # nothing to clear on b...
+        w.btn_clear_crop.click()  # nothing to clear on b...
         assert b.entry.settings.crop is None
         w.list.setCurrentRow(0)
-        w.btn_clear_crop.click()                           # ...on a it clears the box
+        w.btn_clear_crop.click()  # ...on a it clears the box
         assert a.entry.settings.crop is None and not w.clear_crop_card.isVisibleTo(w)
         w.list.setCurrentRow(1)
-        w.a_undo_crop.trigger()                            # back on a, as it was
+        w.a_undo_crop.trigger()  # back on a, as it was
         assert w.current() is a and a.entry.settings.crop == [0.2, 0.2, 0.8, 0.8]
         assert w.crop_view.crop_box() is not None
         w.a_undo_crop.trigger()
         assert a.entry.settings.crop == [0.1, 0.1, 0.9, 0.9]
         w.a_undo_crop.trigger()
         assert a.entry.settings.crop is None
-        w.a_undo_crop.trigger()                            # nothing left: no change
+        w.a_undo_crop.trigger()  # nothing left: no change
         assert a.entry.settings.crop is None
     finally:
         w._modified = False
@@ -1121,7 +1219,7 @@ def test_color_sliders_snap_to_their_centre(app):
     from papermini.gui import theme
     from papermini.gui.panels import SNAP_PX, SliderField
 
-    theme.apply(app, "light")                                # (as the window does)
+    theme.apply(app, "light")  # (as the window does)
     assert SliderField(0, 254, 254).slider.centre is None
     f = SliderField(-100, 100, 100)
     f.setAttribute(Qt.WA_DontShowOnScreen)
@@ -1137,13 +1235,25 @@ def test_color_sliders_snap_to_their_centre(app):
         return sl._handle_rect(v).center().x()
 
     def send(kind, x, held=Qt.LeftButton):
-        t = {"press": QEvent.MouseButtonPress, "move": QEvent.MouseMove,
-             "release": QEvent.MouseButtonRelease, "double": QEvent.MouseButtonDblClick}[kind]
+        t = {
+            "press": QEvent.MouseButtonPress,
+            "move": QEvent.MouseMove,
+            "release": QEvent.MouseButtonRelease,
+            "double": QEvent.MouseButtonDblClick,
+        }[kind]
         pos = QPointF(x, sl.height() / 2)
         b = Qt.NoButton if kind == "move" else Qt.LeftButton
-        app.sendEvent(sl, QMouseEvent(t, pos, sl.mapToGlobal(pos), b,
-                                      Qt.NoButton if kind == "release" else held,
-                                      Qt.NoModifier))
+        app.sendEvent(
+            sl,
+            QMouseEvent(
+                t,
+                pos,
+                sl.mapToGlobal(pos),
+                b,
+                Qt.NoButton if kind == "release" else held,
+                Qt.NoModifier,
+            ),
+        )
 
     def drag(to_x):
         send("press", x_of(sl.value()))
@@ -1151,18 +1261,18 @@ def test_color_sliders_snap_to_their_centre(app):
         send("release", to_x)
         return f.value()
 
-    assert drag(x_of(50)) == 50                              # far away: where it is put
-    assert drag(x_of(0) + SNAP_PX - 2) == 0                  # close by: snapped to 0
+    assert drag(x_of(50)) == 50  # far away: where it is put
+    assert drag(x_of(0) + SNAP_PX - 2) == 0  # close by: snapped to 0
     assert drag(x_of(-60)) == -60
     assert drag(x_of(0) - SNAP_PX + 2) == 0
-    assert drag(x_of(0) + 3 * SNAP_PX) > 0                   # past the snap: free again
+    assert drag(x_of(0) + 3 * SNAP_PX) > 0  # past the snap: free again
     f.spin.setValue(2)
-    assert f.value() == 2                                    # typed values are kept
+    assert f.value() == 2  # typed values are kept
     send("press", x_of(2))
     send("release", x_of(2))
     send("double", x_of(2))
     send("release", x_of(2))
-    assert f.value() == 0 and got[-1] == 0                   # double-click: back to 0
+    assert f.value() == 0 and got[-1] == 0  # double-click: back to 0
 
     t = theme.current
     f.setValue(60)
@@ -1172,14 +1282,22 @@ def test_color_sliders_snap_to_their_centre(app):
     accent, border = QColor(t.accent), QColor(t.border)
 
     def near(c, ref):
-        return max(abs(c.red() - ref.red()), abs(c.green() - ref.green()),
-                   abs(c.blue() - ref.blue())) < 40
+        return (
+            max(
+                abs(c.red() - ref.red()),
+                abs(c.green() - ref.green()),
+                abs(c.blue() - ref.blue()),
+            )
+            < 40
+        )
 
     cx, vx = off + int(sl.centre_x()), off + x_of(60)
-    assert near(img.pixelColor((cx + vx) // 2, cy), accent)      # filled from 0 to 60
-    assert near(img.pixelColor(off + x_of(-50), cy), border)     # not left of 0
+    assert near(img.pixelColor((cx + vx) // 2, cy), accent)  # filled from 0 to 60
+    assert near(img.pixelColor(off + x_of(-50), cy), border)  # not left of 0
     mark = QColor(t.muted)
-    assert any(near(img.pixelColor(cx + dx, cy - 5), mark) for dx in (-1, 0, 1))  # the 0 mark
+    assert any(
+        near(img.pixelColor(cx + dx, cy - 5), mark) for dx in (-1, 0, 1)
+    )  # the 0 mark
     f.close()
 
 
@@ -1194,7 +1312,7 @@ def test_image_adjustments_panel(app):
     box = next(b for b in p.sections if b.header.text() == "Image adjustments")
     assert box.isVisibleTo(p)
     reset = p._resets["_reset_adjust"][0]
-    assert not reset.isEnabled()                         # nothing to reset yet
+    assert not reset.isEnabled()  # nothing to reset yet
     got = []
     p.changed.connect(got.append)
     p._w["brightness"][1].spin.setValue(30)
@@ -1205,14 +1323,16 @@ def test_image_adjustments_panel(app):
     assert p.is_shown("brightness") and p.is_shown("contrast")
     n = len(got)
     reset.click()
-    assert len(got) == n + 1                             # one change, not five
+    assert len(got) == n + 1  # one change, not five
     assert got[-1].adjustments().is_identity() and not reset.isEnabled()
     assert p.is_shown("saturation")
-    assert "_reset_adjust" not in p.step_settings()      # (a button, not a setting)
+    assert "_reset_adjust" not in p.step_settings()  # (a button, not a setting)
     assert {"greyscale", "brightness", "hue"} <= p.step_settings()
 
 
-def test_source_view_shows_the_adjusted_picture_without_running_the_model(app, tmp_path):
+def test_source_view_shows_the_adjusted_picture_without_running_the_model(
+    app, tmp_path
+):
     """The Source view follows the color sliders (a preview at the original's size),
     and a color change rebuilds the miniature from the cached mask: the model does not
     run again and the outline stays."""
@@ -1220,7 +1340,7 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(app, t
     from papermini.gui.views import PREVIEW_PX
     from papermini.gui.window import MainWindow
 
-    im = np.full((2400, 1800, 3), 255, np.uint8)                # larger than a preview
+    im = np.full((2400, 1800, 3), 255, np.uint8)  # larger than a preview
     cv2.circle(im, (900, 1200), 500, (200, 40, 40), -1)
     Image.fromarray(im).save(tmp_path / "a.png")
     runs = []
@@ -1234,19 +1354,23 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(app, t
         assert len(runs) == 1 and w.crop_view.picture_size() == (1800, 2400)
         outline = fig.mini.source_outline
         w._settings_changed(replace(fig.entry.settings, greyscale=True))
-        assert wait(app, lambda: fig.up_to_date and w.crop_view.picture_size() != (1800, 2400))
-        assert max(w.crop_view.picture_size()) == PREVIEW_PX     # a smaller preview...
-        assert w.crop_view._img_size == (1800, 2400)              # ...in the original's pixels
+        assert wait(
+            app, lambda: fig.up_to_date and w.crop_view.picture_size() != (1800, 2400)
+        )
+        assert max(w.crop_view.picture_size()) == PREVIEW_PX  # a smaller preview...
+        assert w.crop_view._img_size == (1800, 2400)  # ...in the original's pixels
         pm = w.crop_view._pix_item.pixmap().toImage()
         c = pm.pixelColor(pm.width() // 2, pm.height() // 2)
-        assert c.red() == c.green() == c.blue()                  # shown in grey
-        assert len(runs) == 1                                    # the model did not run again
+        assert c.red() == c.green() == c.blue()  # shown in grey
+        assert len(runs) == 1  # the model did not run again
         assert len(fig.mini.source_outline) == len(outline)
         art = np.asarray(fig.mini.art.convert("RGB")).astype(int)
         mid = art[art.shape[0] // 2, art.shape[1] // 2]
-        assert abs(mid[0] - mid[1]) <= 2                         # and printed grey
+        assert abs(mid[0] - mid[1]) <= 2  # and printed grey
         w._settings_changed(replace(fig.entry.settings, greyscale=False))
-        assert wait(app, lambda: w.crop_view.picture_size() == (1800, 2400))  # the original
+        assert wait(
+            app, lambda: w.crop_view.picture_size() == (1800, 2400)
+        )  # the original
     finally:
         segment.OnnxSegmenter.__call__ = real
         w._modified = False
@@ -1265,7 +1389,7 @@ def test_source_view_has_a_legend(app, tmp_path):
     w = MainWindow()
     try:
         legend = w.legend
-        assert not w.legend_box.isVisibleTo(w)                 # no image yet
+        assert not w.legend_box.isVisibleTo(w)  # no image yet
         w.add_images([tmp_path / "a.png"])
         assert w.legend_box.isVisibleTo(w)
         texts = ["Detected outline", "Removed background", "Crop area"]
@@ -1273,9 +1397,9 @@ def test_source_view_has_a_legend(app, tmp_path):
         assert all(not sw.pixmap().isNull() for sw in legend.swatches)
         assert legend.testAttribute(Qt.WA_TransparentForMouseEvents)
         assert w.legend_box.testAttribute(Qt.WA_TransparentForMouseEvents)
-        w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])     # a crop box drawn
-        assert [t.text() for t in legend.texts] == texts       # the same words
-        w.tabs.setCurrentIndex(w.MINI)                          # only on the Source view
+        w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])  # a crop box drawn
+        assert [t.text() for t in legend.texts] == texts  # the same words
+        w.tabs.setCurrentIndex(w.MINI)  # only on the Source view
         assert not w.legend_box.isVisibleTo(w)
         w.tabs.setCurrentIndex(w.SOURCE)
         assert w.legend_box.isVisibleTo(w)
@@ -1298,32 +1422,50 @@ def test_settings_panel_follows_the_step(app, tmp_path):
         w.add_images([tmp_path / "a.png", tmp_path / "b.png"])
         p = w.panel
         titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]
-        expected = [["Crop", "Background removal", "Image adjustments"],
-                    ["Size", "Back side", "Image outline", "Cut line", "Tab", "Label", "Text",
-                         "Number"],
-                    []]
+        expected = [
+            ["Crop", "Background removal", "Image adjustments"],
+            [
+                "Size",
+                "Back side",
+                "Image outline",
+                "Cut line",
+                "Tab",
+                "Label",
+                "Text",
+                "Number",
+            ],
+            [],
+        ]
         for i, want in enumerate(expected):
-            w.views.group.button(i).click()               # the step buttons in the header
+            w.views.group.button(i).click()  # the step buttons in the header
             assert w.tabs.currentIndex() == i and p.step() == i and titles() == want
             # the Print sheet step shows the sheet's own settings instead
             assert w.side.currentWidget() is (w.sheet_panel if i == PRINT else p)
-            assert p.export_piece.isVisibleTo(p) == (i == MINIATURE)  # (this figure's file)
+            assert p.export_piece.isVisibleTo(p) == (
+                i == MINIATURE
+            )  # (this figure's file)
             assert p.kind_row.isVisibleTo(p) == (i == MINIATURE)
         w.tabs.setCurrentIndex(w.SOURCE)
         assert "Crop" in p.step_hint.text() and p.step() == SOURCE
 
         a, b = w.figures
         w.list.setCurrentRow(0)
-        w._settings_changed(replace(a.entry.settings, height_mm=30, margin_mm=3, strength=90))
+        w._settings_changed(
+            replace(a.entry.settings, height_mm=30, margin_mm=3, strength=90)
+        )
         w._copies_changed(a.uid, 4)
         w.tabs.setCurrentIndex(w.MINI)
         assert "miniature" in p.apply_all.text()
         p.apply_all.click()
-        assert b.entry.settings.height_mm == 30            # the Miniature step's settings...
-        assert b.entry.settings.size == a.entry.settings.size == "custom"  # (and its size)
+        assert b.entry.settings.height_mm == 30  # the Miniature step's settings...
+        assert (
+            b.entry.settings.size == a.entry.settings.size == "custom"
+        )  # (and its size)
         assert b.entry.settings.margin_mm == 3
-        assert b.entry.settings.strength == FigureSettings().strength  # ...not the others
-        assert b.entry.settings.copies == 1                # copies stay per figure
+        assert (
+            b.entry.settings.strength == FigureSettings().strength
+        )  # ...not the others
+        assert b.entry.settings.copies == 1  # copies stay per figure
     finally:
         w._modified = False
         w.close()
@@ -1337,18 +1479,18 @@ def test_size_fields_keep_proportions_until_unlinked(app):
     p = FigurePanel()
     p.set_settings(FigureSettings(height_mm=40), "x", "x")
     f = p.size_field
-    assert f.linked() and f.w.text() == "—"                # proportions not known yet
+    assert f.linked() and f.w.text() == "—"  # proportions not known yet
     p.set_aspect(0.5)
     assert f.w.value() == 20
-    f.w.setValue(30)                                       # typing the width
+    f.w.setValue(30)  # typing the width
     s = p.settings()
     assert (s.height_mm, s.width_mm) == (None, 30) and f.h.value() == 60
-    f.link.click()                                         # unlink: both as shown
+    f.link.click()  # unlink: both as shown
     s = p.settings()
     assert (s.height_mm, s.width_mm) == (60, 30) and not f.linked()
-    f.h.setValue(50)                                       # the width stays
+    f.h.setValue(50)  # the width stays
     assert (p.settings().height_mm, p.settings().width_mm) == (50, 30)
-    f.link.click()                                         # linked again: by height
+    f.link.click()  # linked again: by height
     s = p.settings()
     assert (s.height_mm, s.width_mm) == (50, None) and f.w.value() == 25
     p.set_settings(FigureSettings(height_mm=42, width_mm=10), "x", "x")
@@ -1384,7 +1526,9 @@ class SlowSegmenter(DarkSegmenter):
                 segment._RUNS.discard(ro)
 
 
-def test_background_removal_shows_progress_and_can_be_cancelled(app, tmp_path, monkeypatch):
+def test_background_removal_shows_progress_and_can_be_cancelled(
+    app, tmp_path, monkeypatch
+):
     """A running model shows a card with Cancel on the dimmed image; Cancel really stops
     it and nothing restarts on its own; Run again does. A new crop stops the old run."""
     import threading
@@ -1403,30 +1547,38 @@ def test_background_removal_shows_progress_and_can_be_cancelled(app, tmp_path, m
         w.add_images([tmp_path / "a.png"])
         fig = w.current()
         assert wait(app, lambda: w.work_box.isVisibleTo(w) and w.crop_view._busy, 30)
-        assert w.work.button.text() == "Cancel" and "Removing the background" in w.work.title.text()
+        assert (
+            w.work.button.text() == "Cancel"
+            and "Removing the background" in w.work.title.text()
+        )
         assert segment.DEFAULT_MODEL in w.work.detail.text()
 
         # a new crop: the old run stops at once and the new one starts
         SlowSegmenter.started.clear()
         w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])
-        assert wait(app, lambda: SlowSegmenter.started.is_set() and SlowSegmenter.calls == 2, 30)
+        assert wait(
+            app, lambda: SlowSegmenter.started.is_set() and SlowSegmenter.calls == 2, 30
+        )
         assert fig.cancelled is None
 
-        w.work.button.click()                             # Cancel
-        assert fig.stopped                                # at once
+        w.work.button.click()  # Cancel
+        assert fig.stopped  # at once
         assert wait(app, lambda: not segment._RUNS, 30)  # and the run really stops
-        assert w.work.button.text() == "Run again" and "cancelled" in w.work.title.text()
+        assert (
+            w.work.button.text() == "Run again" and "cancelled" in w.work.title.text()
+        )
         assert not w.crop_view._busy and not fig.up_to_date
         from papermini.gui.widgets import SUBTITLE_ROLE
+
         assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
-        w._build_current()                                # nothing restarts on its own
+        w._build_current()  # nothing restarts on its own
         for _ in range(20):
             app.processEvents()
             time.sleep(0.01)
         assert SlowSegmenter.calls == 2
 
         SlowSegmenter.block = False
-        w.work.button.click()                             # Run again
+        w.work.button.click()  # Run again
         assert wait(app, lambda: fig.up_to_date, 30), fig.error
         assert not w.work_box.isVisibleTo(w) and w.crop_view._outline_items
     finally:
@@ -1461,7 +1613,10 @@ def test_cancel_works_while_the_model_loads(app, tmp_path, monkeypatch):
     from papermini.gui.window import MainWindow
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowLoadSegmenter)
-    SlowLoadSegmenter.loading, SlowLoadSegmenter.loaded = threading.Event(), threading.Event()
+    SlowLoadSegmenter.loading, SlowLoadSegmenter.loaded = (
+        threading.Event(),
+        threading.Event(),
+    )
     SlowLoadSegmenter.calls = 0
     im = np.full((400, 300, 3), 255, np.uint8)
     cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
@@ -1470,9 +1625,13 @@ def test_cancel_works_while_the_model_loads(app, tmp_path, monkeypatch):
     try:
         w.add_images([tmp_path / "a.png"])
         fig = w.current()
-        assert wait(app, lambda: SlowLoadSegmenter.loading.is_set() and w.work_box.isVisibleTo(w), 30)
+        assert wait(
+            app,
+            lambda: SlowLoadSegmenter.loading.is_set() and w.work_box.isVisibleTo(w),
+            30,
+        )
         assert "loading" in w.work.detail.text()
-        w.work.button.click()                             # Cancel, while it loads
+        w.work.button.click()  # Cancel, while it loads
         assert fig.stopped and w.work.button.text() == "Run again"
         assert "Cancelled" in w._list_item(fig).data(SUBTITLE_ROLE)
         SlowLoadSegmenter.loaded.set()
@@ -1480,14 +1639,14 @@ def test_cancel_works_while_the_model_loads(app, tmp_path, monkeypatch):
         assert SlowLoadSegmenter.calls == 0 and not fig.up_to_date
 
         w._settings_changed(replace(fig.entry.settings, margin_mm=4))  # not the mask
-        end = time.time() + 0.8                          # (past the build debounce)
+        end = time.time() + 0.8  # (past the build debounce)
         while time.time() < end:
             app.processEvents()
             time.sleep(0.02)
         assert w.pool.activeThreadCount() == 0 and SlowLoadSegmenter.calls == 0
         assert fig.stopped and w.work.button.text() == "Run again"
 
-        w.work.button.click()                             # Run again
+        w.work.button.click()  # Run again
         assert wait(app, lambda: fig.up_to_date, 30), fig.error
         assert SlowLoadSegmenter.calls == 1 and not w.work_box.isVisibleTo(w)
     finally:
@@ -1516,22 +1675,31 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(app, tmp_path, monkey
     try:
         w.add_images([tmp_path / "a.png"])
         a = w.current()
-        assert wait(app, lambda: SlowSegmenter.started.is_set() and w.work_box.isVisibleTo(w), 30)
+        assert wait(
+            app,
+            lambda: SlowSegmenter.started.is_set() and w.work_box.isVisibleTo(w),
+            30,
+        )
         SlowSegmenter.started.clear()
         w.add_images([tmp_path / "b.png"])
         b = w.current()
         assert b is not a
-        assert wait(app, lambda: w.work_box.isVisibleTo(w)
-                    and w.work.title.text() == "Waiting for a", 30)
+        assert wait(
+            app,
+            lambda: (
+                w.work_box.isVisibleTo(w) and w.work.title.text() == "Waiting for a"
+            ),
+            30,
+        )
         assert w.work.button.text() == "Cancel it" and not w.crop_view._busy
-        assert not w.busy_box.isVisibleTo(w)              # the card says it all
+        assert not w.busy_box.isVisibleTo(w)  # the card says it all
 
-        w.work.button.click()                             # stops a's run
+        w.work.button.click()  # stops a's run
         assert a.stopped and not b.stopped
         assert wait(app, lambda: SlowSegmenter.started.is_set(), 30)  # b goes next
         assert wait(app, lambda: "Removing the background" in w.work.title.text(), 30)
         assert w.work.button.text() == "Cancel" and SlowSegmenter.calls == 2
-        w.work.button.click()                             # and b's own run
+        w.work.button.click()  # and b's own run
         assert b.stopped and wait(app, lambda: not segment._RUNS, 30)
         assert "Cancelled" in w._list_item(a).data(SUBTITLE_ROLE)
     finally:
@@ -1551,7 +1719,9 @@ def test_stretched_figure_gets_both_sizes(app, tmp_path):
         fig = w.current()
         assert wait(app, lambda: fig.up_to_date), fig.error
         f = w.panel.size_field
-        assert f.w.value() == pytest.approx(32 * 401 / 601, abs=0.1)  # follows the figure
+        assert f.w.value() == pytest.approx(
+            32 * 401 / 601, abs=0.1
+        )  # follows the figure
         f.link.click()
         f.w.setValue(40)
         assert (fig.entry.settings.height_mm, fig.entry.settings.width_mm) == (32, 40)
@@ -1585,11 +1755,11 @@ def test_closed_window_never_asks_to_download(app, monkeypatch):
     w = MainWindow()
     got = []
     w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
-    time.sleep(0.2)          # the question is queued; the window closes before it is shown
+    time.sleep(0.2)  # the question is queued; the window closes before it is shown
     w._modified = False
     w.close()
     assert got == [False]
-    for _ in range(20):      # deliver the stale question: it must be dropped
+    for _ in range(20):  # deliver the stale question: it must be dropped
         app.processEvents()
         time.sleep(0.01)
     assert asked == []
@@ -1603,13 +1773,21 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
 
     def colors(pm):
         img = pm.toImage()
-        return {img.pixelColor(x, y).name() for x in range(img.width()) for y in range(img.height())
-                if img.pixelColor(x, y).alpha() == 255}
+        return {
+            img.pixelColor(x, y).name()
+            for x in range(img.width())
+            for y in range(img.height())
+            if img.pixelColor(x, y).alpha() == 255
+        }
 
-    assert theme.LOGO.is_file()  # shipped as package data (pyproject.toml, papermini.spec)
+    assert (
+        theme.LOGO.is_file()
+    )  # shipped as package data (pyproject.toml, papermini.spec)
     pm = theme.logo_pixmap(64)
     assert pm.width() == 128  # 2x for sharp rendering on high-DPI screens
-    assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colors(pm)  # full color, not a line icon
+    assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colors(
+        pm
+    )  # full color, not a line icon
     assert pm.toImage().pixelColor(0, 0).alpha() == 0  # transparent around the sticker
 
     sizes = theme.app_icon().availableSizes()
@@ -1639,24 +1817,26 @@ def test_strength_and_gap_filling_sliders(app):
     got = []
     p.changed.connect(got.append)
 
-    th.slider.setValue(80)                       # slider and box stay in step
+    th.slider.setValue(80)  # slider and box stay in step
     assert th.spin.value() == 80 and got[-1].strength == 80
     th.spin.setValue(25)
     assert th.slider.value() == 25 and got[-1].strength == 25
 
-    p.set_auto_fill_gaps(14)                         # what the last build picked
+    p.set_auto_fill_gaps(14)  # what the last build picked
     assert cl.spin.value() == 14 and p.settings().fill_gaps is None
-    cl.auto.setChecked(False)                    # carry on from the automatic value
+    cl.auto.setChecked(False)  # carry on from the automatic value
     assert cl.slider.isEnabled() and got[-1].fill_gaps == 14
-    cl.slider.setValue(0)                        # 0 = no gap filling, now possible
+    cl.slider.setValue(0)  # 0 = no gap filling, now possible
     assert got[-1].fill_gaps == 0
-    cl.spin.setValue(300)                        # past the slider's end: typed in the box
+    cl.spin.setValue(300)  # past the slider's end: typed in the box
     assert got[-1].fill_gaps == 300 and cl.slider.value() == cl.slider.maximum()
     cl.auto.setChecked(True)
     assert got[-1].fill_gaps is None and cl.spin.value() == 14
 
     p.set_settings(FigureSettings(fill_gaps=0), "x", "x")
-    assert not cl.auto.isChecked() and cl.spin.value() == 0 and p.settings().fill_gaps == 0
+    assert (
+        not cl.auto.isChecked() and cl.spin.value() == 0 and p.settings().fill_gaps == 0
+    )
 
 
 def test_start_card_offers_images_and_a_project(app, monkeypatch):
@@ -1664,8 +1844,14 @@ def test_start_card_offers_images_and_a_project(app, monkeypatch):
     from papermini.gui.window import MainWindow
 
     asked = []
-    monkeypatch.setattr(window.QFileDialog, "getOpenFileNames",
-                        lambda parent, caption, folder, filters: (asked.append((caption, filters)), ([], ""))[1])
+    monkeypatch.setattr(
+        window.QFileDialog,
+        "getOpenFileNames",
+        lambda parent, caption, folder, filters: (
+            asked.append((caption, filters)),
+            ([], ""),
+        )[1],
+    )
     w = MainWindow()
     try:
         assert w.empty.button.text() == "Add images…"
@@ -1708,13 +1894,14 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
         return Resp(site[req.full_url])
 
     import urllib.error
+
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     warned = []
     monkeypatch.setattr(window.QMessageBox, "warning", lambda *a: warned.append(a[2]))
     w = MainWindow()
     try:
         url = "https://example.com/img/goblin.webp"
-        w.add_links([url])                       # downloads in the background
+        w.add_links([url])  # downloads in the background
         assert wait(app, lambda: len(w.figures) == 1)
         fig = w.figures[0]
         assert fig.entry.source == url and fig.entry.image == remote.cached_image(url)
@@ -1727,14 +1914,21 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
         # a picture copied in a browser: the HTML has the image's own address, while the
         # URL is often the page it links to; the image address wins
         mime = QMimeData()
-        mime.setHtml(f'<a href="https://example.com/page"><img alt="g" src="{url}"></a>')
-        mime.setUrls([QUrl("https://example.com/page"), QUrl.fromLocalFile(str(tmp_path / "a.png"))])
+        mime.setHtml(
+            f'<a href="https://example.com/page"><img alt="g" src="{url}"></a>'
+        )
+        mime.setUrls(
+            [
+                QUrl("https://example.com/page"),
+                QUrl.fromLocalFile(str(tmp_path / "a.png")),
+            ]
+        )
         files, links = MainWindow._sources(mime)
         assert links == [url] and [Path(f) for f in files] == [tmp_path / "a.png"]
 
         n = len(asked)
         QApplication.clipboard().setText(url)
-        w.paste()                                 # Ctrl+V outside a text field
+        w.paste()  # Ctrl+V outside a text field
         assert len(w.figures) == 2 and len(asked) == n  # second time from the cache
     finally:
         w._modified = False
@@ -1750,15 +1944,21 @@ def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
 
     w = MainWindow()
     try:
-        header_tips = [b.toolTip() for b in w.findChild(QFrame, "Header").findChildren(QToolButton)]
+        header_tips = [
+            b.toolTip() for b in w.findChild(QFrame, "Header").findChildren(QToolButton)
+        ]
         assert not any("Add images" in t for t in header_tips)
         left = w.splitter.widget(0)
         assert any("Add images" in b.toolTip() for b in left.findChildren(QToolButton))
         assert w.link_edit.parent() is left and not w.link_add.isEnabled()
         lay = left.layout()
-        row = [i for i in range(lay.count()) if lay.itemAt(i).layout()
-               and lay.itemAt(i).layout().indexOf(w.link_edit) >= 0]
-        assert row and row[0] < lay.indexOf(w.list)          # right above the list
+        row = [
+            i
+            for i in range(lay.count())
+            if lay.itemAt(i).layout()
+            and lay.itemAt(i).layout().indexOf(w.link_edit) >= 0
+        ]
+        assert row and row[0] < lay.indexOf(w.list)  # right above the list
 
         added = []
         monkeypatch.setattr(w, "add_links", lambda links, *a: added.append(links))
@@ -1768,7 +1968,7 @@ def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
         w.link_edit.returnPressed.emit()
         assert added == [[url]] and w.link_edit.text() == ""
 
-        w.link_edit.setText("goblin.webp")              # not a link: kept, nothing added
+        w.link_edit.setText("goblin.webp")  # not a link: kept, nothing added
         w.link_add.click()
         assert added == [[url]] and w.link_edit.text() == "goblin.webp"
         assert "not a link" in w.statusBar().currentMessage()
@@ -1776,9 +1976,9 @@ def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
         w.link_edit.clear()
         QApplication.clipboard().setText(url)
         w.set_side_visible(0, False)
-        w.a_add_link.trigger()                          # Ctrl+L: shows the list, fills in the link
+        w.a_add_link.trigger()  # Ctrl+L: shows the list, fills in the link
         assert w.side_visible(0) and w.link_edit.text() == url
-        w.empty.link_button.click()                     # the start card's link does the same
+        w.empty.link_button.click()  # the start card's link does the same
         assert w.link_edit.text() == url
     finally:
         w._modified = False
@@ -1796,7 +1996,9 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
 
     class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
         def __init__(self, first=0, last=0):
-            super().__init__(round(210 / 25.4 * 100), round(297 / 25.4 * 100), QImage.Format_RGB32)
+            super().__init__(
+                round(210 / 25.4 * 100), round(297 / 25.4 * 100), QImage.Format_RGB32
+            )
             self.fill(0xFF808080)
             self.range, self.pages = (first, last), 1
 
@@ -1820,13 +2022,17 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     pr = ImagePrinter()
     assert print_sheet(pr, lay, "test") == lay.pages == pr.pages
     k = 100 / 25.4
-    y = round((12 + lay.header_mm - 4) * k)             # the scale bar's row
+    y = round((12 + lay.header_mm - 4) * k)  # the scale bar's row
     dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
-    end = next(a for a, b in zip(dark, dark[1:] + [None]) if b != a + 1)  # the bar alone,
-    assert abs(dark[0] - 12 * k) <= 2 and abs(end - 62 * k) <= 2  # not the "50 mm" next to it
-    assert QColor(pr.pixel(2, 2)).lightness() > 250       # white paper from the very corner
+    end = next(
+        a for a, b in zip(dark, dark[1:] + [None]) if b != a + 1
+    )  # the bar alone,
+    assert (
+        abs(dark[0] - 12 * k) <= 2 and abs(end - 62 * k) <= 2
+    )  # not the "50 mm" next to it
+    assert QColor(pr.pixel(2, 2)).lightness() > 250  # white paper from the very corner
 
-    pr = ImagePrinter(2, 2)                                # "pages 2 to 2" in the dialog
+    pr = ImagePrinter(2, 2)  # "pages 2 to 2" in the dialog
     assert print_sheet(pr, lay, "test") == 1 and pr.pages == 1
 
 
@@ -1837,6 +2043,7 @@ def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
     from PIL import ImageDraw
+
     ImageDraw.Draw(im).ellipse((30, 30, 270, 420), fill=(200, 40, 30, 255))
     im.save(tmp_path / "hero.png")
     out = tmp_path / "printed.pdf"
@@ -1854,10 +2061,11 @@ def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
         w.add_images([tmp_path / "hero.png"])
         w.tabs.setCurrentIndex(w.SHEET)
         assert w.sheet_panel.print_btn.isVisibleTo(w.sheet_panel)
-        w.sheet_panel.print_btn.click()                   # builds first if needed, then prints
+        w.sheet_panel.print_btn.click()  # builds first if needed, then prints
         assert wait(app, lambda: out.exists() and out.stat().st_size > 1000)
         from PySide6.QtGui import QPageSize
-        assert seen == [(True, QPageSize.A4, 1)]          # true size on the sheet's paper
+
+        assert seen == [(True, QPageSize.A4, 1)]  # true size on the sheet's paper
         assert out.read_bytes().startswith(b"%PDF")
     finally:
         w._modified = False
@@ -1904,7 +2112,9 @@ def test_auto_model_says_which_method_it_used(app, tmp_path):
         w.close()
 
 
-def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(app, tmp_path, monkeypatch):
+def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(
+    app, tmp_path, monkeypatch
+):
     """Switching the sheet to machine cutting builds every figure with the bleed, and
     Export PDF also writes the cut file."""
     from papermini.gui.window import MainWindow
@@ -1938,7 +2148,10 @@ def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(app, tmp_pa
         w.export_pdf()
         assert seen["name"] == "Paper miniatures"  # (named after the sheet's title)
         assert wait(app, lambda: (tmp_path / "sheet-cut.svg").exists())
-        assert out.exists() and 'id="registration"' in (tmp_path / "sheet-cut.svg").read_text()
+        assert (
+            out.exists()
+            and 'id="registration"' in (tmp_path / "sheet-cut.svg").read_text()
+        )
     finally:
         w._modified = False
         w.close()
@@ -1981,7 +2194,9 @@ def test_copies_on_the_figure_card(app, tmp_path):
         assert fig.entry.settings.copies == 0  # (not below 0)
         lst = w.list
         _, num, _ = lst.itemDelegate()._copies_rects(lst.visualItemRect(lst.item(0)))
-        QTest.mouseClick(lst.viewport(), Qt.LeftButton, Qt.NoModifier, num.center().toPoint())
+        QTest.mouseClick(
+            lst.viewport(), Qt.LeftButton, Qt.NoModifier, num.center().toPoint()
+        )
         app.processEvents()
         box = next(b for b in lst.findChildren(QSpinBox) if b.isVisible())
         QTest.keyClicks(box, "12")
@@ -2005,9 +2220,15 @@ def test_export_dialog(app, tmp_path):
 
     d = ExportDialog(tmp_path, "My minis", pages=3, machine=True)
     assert d.pdf_path() == tmp_path / "My minis.pdf"
-    assert [p.name for p in d.cut_paths()] == ["My minis-cut.svg", "My minis-cut-2.svg",
-                                               "My minis-cut-3.svg"]
-    assert "My minis-cut-3.svg" in d.cut_files.text() and d.pdf_files.text() == "My minis.pdf"
+    assert [p.name for p in d.cut_paths()] == [
+        "My minis-cut.svg",
+        "My minis-cut-2.svg",
+        "My minis-cut-3.svg",
+    ]
+    assert (
+        "My minis-cut-3.svg" in d.cut_files.text()
+        and d.pdf_files.text() == "My minis.pdf"
+    )
     d.pdf.setChecked(False)  # only the cut file, after printing from the app
     assert d.chosen() == d.cut_paths()
     d.cut.setChecked(False)
@@ -2069,8 +2290,11 @@ def fake_updates(monkeypatch, tmp_path):
         return app
 
     monkeypatch.setattr(update, "download", download)
-    monkeypatch.setattr(update, "install_on_exit",
-                        lambda app, restart=False: calls["install"].append((app, restart)))
+    monkeypatch.setattr(
+        update,
+        "install_on_exit",
+        lambda app, restart=False: calls["install"].append((app, restart)),
+    )
     return calls
 
 
@@ -2084,13 +2308,19 @@ def test_about_window_shows_each_update_state(app):
         d = AboutDialog(w)
         rel = Release("99.0.0", "")
         for state, data, text, button in (
-                ("checking", None, "Checking", None),
-                ("latest", rel, "latest version", None),
-                ("available", (rel, None), "99.0.0", "Update"),
-                ("available", (rel, "runs from source"), "runs from source", "Release page"),
-                ("downloading", rel, "Downloading", None),
-                ("ready", (rel, None), "ready", "Restart now"),
-                ("error", "Could not check for updates: offline", "offline", "Try again")):
+            ("checking", None, "Checking", None),
+            ("latest", rel, "latest version", None),
+            ("available", (rel, None), "99.0.0", "Update"),
+            (
+                "available",
+                (rel, "runs from source"),
+                "runs from source",
+                "Release page",
+            ),
+            ("downloading", rel, "Downloading", None),
+            ("ready", (rel, None), "ready", "Restart now"),
+            ("error", "Could not check for updates: offline", "offline", "Try again"),
+        ):
             d.update_state(state, data)
             assert text in d.status.text(), state
             assert d.action.isVisibleTo(d) == (button is not None), state
@@ -2128,7 +2358,9 @@ def test_update_from_the_about_window(app, fake_updates):
         w._about = None
         w._modified = False
         w._restart_for_update()  # closes the window: the helper installs and restarts
-        assert len(fake_updates["install"]) == 1 and fake_updates["install"][0][1] is True
+        assert (
+            len(fake_updates["install"]) == 1 and fake_updates["install"][0][1] is True
+        )
     finally:
         w._modified = False
         w.close()
@@ -2160,7 +2392,9 @@ def test_daily_update_check(app, fake_updates, monkeypatch, tmp_path):
         w.set_auto_updates(False)
         real_check(source="auto")
         assert wait(app, lambda: w.update_bar.isVisibleTo(w), 20)
-        assert "available" in w.update_text.text() and w.update_restart.text() == "Update…"
+        assert (
+            "available" in w.update_text.text() and w.update_restart.text() == "Update…"
+        )
         assert fake_updates["download"] == []
         assert prefs.store().value("updates/auto", type=bool) is False
     finally:
@@ -2183,7 +2417,10 @@ def test_update_menu_items(app):
         dlg = PreferencesDialog(w, "updates")
         assert dlg.auto_updates.isChecked()
         dlg.auto_updates.setChecked(False)
-        assert not w.auto_updates() and prefs.store().value("updates/auto", type=bool) is False
+        assert (
+            not w.auto_updates()
+            and prefs.store().value("updates/auto", type=bool) is False
+        )
         dlg.close()
     finally:
         w._modified = False
@@ -2226,7 +2463,9 @@ def test_number_fields_follow_the_back_side(app):
     from papermini.gui.panels import FigurePanel
 
     p = FigurePanel()
-    p.set_settings(FigureSettings(double_sided=True, back="number", tab_front="number"), "x", "x")
+    p.set_settings(
+        FigureSettings(double_sided=True, back="number", tab_front="number"), "x", "x"
+    )
     assert p._w["tab_front"][1].currentData() == "number"
     assert p.is_shown("tab_front") and p.is_shown("tab_back")
     assert p.is_shown("back_text_color") and not p.is_shown("back_text")
@@ -2253,7 +2492,9 @@ def test_about_names_the_font_licence(app, monkeypatch):
     w = MainWindow()
     try:
         d = AboutDialog(w)
-        label = next(lb for lb in d.findChildren(QLabel) if "Open Font License" in lb.text())
+        label = next(
+            lb for lb in d.findChildren(QLabel) if "Open Font License" in lb.text()
+        )
         assert all(name in label.text() for name in fonts.BUNDLED)
         label.linkActivated.emit("fonts")
         assert [u.toLocalFile() for u in opened] == [fonts.HERE.as_posix()]
@@ -2274,18 +2515,27 @@ def test_sheet_panel_paper_orientation_and_custom_size(app):
     p.changed.connect(got.append)
     p.set_settings(SheetSettings())
     assert [p.paper.itemText(i) for i in range(p.paper.count())] == [
-        "A3 (297 \u00d7 420 mm)", "A4 (210 \u00d7 297 mm)", "A5 (148 \u00d7 210 mm)",
-        "Letter (8.5 \u00d7 11 in)", "Legal (8.5 \u00d7 14 in)", "Tabloid (11 \u00d7 17 in)",
-        "Custom"]
+        "A3 (297 \u00d7 420 mm)",
+        "A4 (210 \u00d7 297 mm)",
+        "A5 (148 \u00d7 210 mm)",
+        "Letter (8.5 \u00d7 11 in)",
+        "Legal (8.5 \u00d7 14 in)",
+        "Tabloid (11 \u00d7 17 in)",
+        "Custom",
+    ]
     assert p.paper.currentData() == "a4" and p.is_shown(p.orientation)
     assert not p.is_shown(p.paper_w) and not p.is_shown(p.mat)
     p.paper.setCurrentIndex(p.paper.findData("a3"))
     p.orientation.setCurrentIndex(p.orientation.findData("landscape"))
     assert (got[-1].paper, got[-1].orientation) == ("a3", "landscape")
     assert got[-1].paper_width_mm is None
-    p.paper.setCurrentIndex(p.paper.findData("custom"))   # starts at A3 landscape
+    p.paper.setCurrentIndex(p.paper.findData("custom"))  # starts at A3 landscape
     assert (got[-1].paper_width_mm, got[-1].paper_height_mm) == (420, 297)
-    assert p.is_shown(p.paper_w) and p.is_shown(p.paper_h) and not p.is_shown(p.orientation)
+    assert (
+        p.is_shown(p.paper_w)
+        and p.is_shown(p.paper_h)
+        and not p.is_shown(p.orientation)
+    )
     p.paper_h.setValue(350)
     assert got[-1].page == (420, 350)
     p.paper.setCurrentIndex(p.paper.findData("letter"))
@@ -2298,10 +2548,14 @@ def test_sheet_panel_paper_orientation_and_custom_size(app):
     assert p.mat_warning.text().startswith("Tabloid (279 \u00d7 432 mm) is bigger than")
     p.mat.setCurrentIndex(p.mat.findData("12x24"))
     assert not p.is_shown(p.mat_warning)
-    p.cut.setCurrentIndex(p.cut.findData("hand"))         # hidden, but kept
+    p.cut.setCurrentIndex(p.cut.findData("hand"))  # hidden, but kept
     assert not p.is_shown(p.mat) and got[-1].mat == "12x24"
-    p.set_settings(SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=450))
-    assert (p.paper_w.value(), p.paper_h.value()) == (300, 450) and p.is_shown(p.paper_w)
+    p.set_settings(
+        SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=450)
+    )
+    assert (p.paper_w.value(), p.paper_h.value()) == (300, 450) and p.is_shown(
+        p.paper_w
+    )
 
 
 def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
@@ -2314,32 +2568,41 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
     from PIL import ImageDraw
+
     ImageDraw.Draw(im).ellipse((30, 30, 270, 420), fill=(200, 40, 30, 255))
     im.save(tmp_path / "hero.png")
     im.save(tmp_path / "imp.png")
     asked, printed = [], []
-    monkeypatch.setattr(QMessageBox, "question",
-                        lambda *a, **k: asked.append(a[2]) or QMessageBox.No)
-    monkeypatch.setattr(MainWindow, "_print_dialog",
-                        lambda self, printer, pages: printed.append(pages) or False)
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a, **k: asked.append(a[2]) or QMessageBox.No
+    )
+    monkeypatch.setattr(
+        MainWindow,
+        "_print_dialog",
+        lambda self, printer, pages: printed.append(pages) or False,
+    )
     w = MainWindow()
     try:
         w.add_images([tmp_path / "hero.png", tmp_path / "imp.png"])
         hero, _imp = w.figures
         hero.entry.settings = replace(hero.entry.settings, height_mm=150, label="Hero")
         w.tabs.setCurrentIndex(w.SHEET)
-        w._refresh_sheet()                                 # (builds what is missing)
-        assert wait(app, lambda: all(f.mini is not None and f.up_to_date for f in w.figures))
+        w._refresh_sheet()  # (builds what is missing)
+        assert wait(
+            app, lambda: all(f.mini is not None and f.up_to_date for f in w.figures)
+        )
         w._sheet_changed(SheetSettings(paper="a5", orientation="landscape"))
         w._refresh_sheet()
         sp = w.sheet_panel
         assert w.sheet_banner_box.isVisibleTo(w) and w.sheet_view.scene().items() == []
         assert sp.is_shown(sp.fit_warning)
         text = sp.fit_warning.text()
-        assert text.startswith("The following figure is too large to fit on the selected paper:")
+        assert text.startswith(
+            "The following figure is too large to fit on the selected paper:"
+        )
         assert "<li>Hero</li>" in text and "imp" not in text
         assert "Pick bigger paper" in text
-        w._print()                                         # asks; No: does not print
+        w._print()  # asks; No: does not print
         assert len(asked) == 1 and "\u2022 Hero" in asked[0] and "left off" in asked[0]
         assert printed == []
         w._sheet_changed(SheetSettings(paper="a3"))  # everything fits again
@@ -2369,10 +2632,14 @@ def test_print_sets_the_paper_size_and_orientation(app, tmp_path, monkeypatch):
     w = MainWindow()
     try:
         w.add_images([tmp_path / "hero.png"])
-        assert wait(app, lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
-        for sheet in (SheetSettings(paper="a3", orientation="landscape"),
-                      SheetSettings(paper="tabloid"),
-                      SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=200)):
+        assert wait(
+            app, lambda: w.figures[0].mini is not None and w.figures[0].up_to_date
+        )
+        for sheet in (
+            SheetSettings(paper="a3", orientation="landscape"),
+            SheetSettings(paper="tabloid"),
+            SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=200),
+        ):
             w._sheet_changed(sheet)
             w._print()
         assert seen == [(420, 297), (279, 432), (300, 200)]

@@ -37,12 +37,15 @@ from .. import log
 logger = logging.getLogger("papermini.error")
 qt_logger = logging.getLogger("papermini.qt")
 
-_QT_LEVELS = {QtMsgType.QtWarningMsg: logging.WARNING, QtMsgType.QtCriticalMsg: logging.ERROR,
-              QtMsgType.QtFatalMsg: logging.CRITICAL}
+_QT_LEVELS = {
+    QtMsgType.QtWarningMsg: logging.WARNING,
+    QtMsgType.QtCriticalMsg: logging.ERROR,
+    QtMsgType.QtFatalMsg: logging.CRITICAL,
+}
 
 
 class ErrorDialog(QDialog):
-    """"Something went wrong": what happened in a sentence, the traceback folded away
+    """ "Something went wrong": what happened in a sentence, the traceback folded away
     (Show details unfolds it in a large box, and the window can then be resized), and
     Report a problem… beside Continue (or Quit while papermini is starting). After
     ``exec()``, ``reported`` says whether Report a problem… was clicked."""
@@ -57,7 +60,9 @@ class ErrorDialog(QDialog):
         top = QHBoxLayout()
         top.setSpacing(14)
         icon = QLabel()
-        icon.setPixmap(self.style().standardIcon(QStyle.SP_MessageBoxCritical).pixmap(40, 40))
+        icon.setPixmap(
+            self.style().standardIcon(QStyle.SP_MessageBoxCritical).pixmap(40, 40)
+        )
         icon.setAlignment(Qt.AlignTop)
         top.addWidget(icon)
         col = QVBoxLayout()
@@ -66,11 +71,15 @@ class ErrorDialog(QDialog):
         title.setTextFormat(Qt.RichText)
         col.addWidget(title)
         if quit_:
-            what = ("papermini ran into an unexpected problem while starting and cannot "
-                    "continue. It has been written to the log.")
+            what = (
+                "papermini ran into an unexpected problem while starting and cannot "
+                "continue. It has been written to the log."
+            )
         else:
-            what = ("papermini ran into an unexpected problem. It has been written to the "
-                    "log. You can keep working, but save your project soon.")
+            what = (
+                "papermini ran into an unexpected problem. It has been written to the "
+                "log. You can keep working, but save your project soon."
+            )
         for text in (what, summary):
             label = QLabel(text)
             label.setWordWrap(True)
@@ -122,9 +131,13 @@ class ErrorDialog(QDialog):
         self.copy.setVisible(show)
         self.toggle.setText("Hide details" if show else "Show details")
         if show:  # room for a traceback, within the screen
-            screen = (self.screen() or QGuiApplication.primaryScreen()).availableGeometry()
-            self.resize(min(max(self.width(), 760), screen.width() - 80),
-                        min(max(self.height(), 520), screen.height() - 80))
+            screen = (
+                self.screen() or QGuiApplication.primaryScreen()
+            ).availableGeometry()
+            self.resize(
+                min(max(self.width(), 760), screen.width() - 80),
+                min(max(self.height(), 520), screen.height() - 80),
+            )
         else:
             QTimer.singleShot(0, lambda: self.resize(self.minimumSizeHint()))
 
@@ -166,8 +179,12 @@ class ErrorHandler:
     def _threadhook(self, args):
         if args.exc_type is SystemExit:
             return
-        self.report_exception(args.exc_type, args.exc_value, args.exc_traceback,
-                              f" in thread {args.thread.name}" if args.thread else "")
+        self.report_exception(
+            args.exc_type,
+            args.exc_value,
+            args.exc_traceback,
+            f" in thread {args.thread.name}" if args.thread else "",
+        )
 
     def _qt_message(self, mode, context, message):
         level = _QT_LEVELS.get(mode)
@@ -192,7 +209,9 @@ class ErrorHandler:
         self.showing = True
         try:
             quit_ = self.starting
-            box = ErrorDialog(self.window, log.redact(summary), log.redact(details), quit_)
+            box = ErrorDialog(
+                self.window, log.redact(summary), log.redact(details), quit_
+            )
             box.exec()
             if box.reported:
                 report_problem(self.window, details)
@@ -222,7 +241,9 @@ def open_log_folder() -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
 
-def report_problem(parent=None, details: str = "", files: list[Path] | None = None) -> None:
+def report_problem(
+    parent=None, details: str = "", files: list[Path] | None = None
+) -> None:
     """Open a new bug report on GitHub with the version, the operating system and how
     papermini runs filled in (and ``details``, a traceback, when given), open the log
     folder, and say which file to attach: ``files``, or the newest log."""
@@ -233,12 +254,16 @@ def report_problem(parent=None, details: str = "", files: list[Path] | None = No
     if files:
         open_log_folder()
         names = "\n".join(f"  {f.name}" for f in files)
-        text = ("A new issue opened in your browser. Describe what happened and how to make "
-                "it happen again, then drag this from the log folder into its Log file "
-                f"field:\n\n{names}")
+        text = (
+            "A new issue opened in your browser. Describe what happened and how to make "
+            "it happen again, then drag this from the log folder into its Log file "
+            f"field:\n\n{names}"
+        )
     else:
-        text = ("A new issue opened in your browser. Describe what happened and how to make "
-                "it happen again. (papermini could not write a log this time.)")
+        text = (
+            "A new issue opened in your browser. Describe what happened and how to make "
+            "it happen again. (papermini could not write a log this time.)"
+        )
     QMessageBox.information(parent, "Report a problem", text)
 
 
@@ -249,10 +274,13 @@ def offer_crash_report(parent=None) -> None:
     if not found:
         return
     crash, crash_log = found[0]
-    box = QMessageBox(QMessageBox.Warning, "papermini", "papermini closed unexpectedly",
-                      parent=parent)
-    box.setInformativeText("The last time, papermini stopped because of a problem. "
-                           "Reporting it helps to get it fixed.")
+    box = QMessageBox(
+        QMessageBox.Warning, "papermini", "papermini closed unexpectedly", parent=parent
+    )
+    box.setInformativeText(
+        "The last time, papermini stopped because of a problem. "
+        "Reporting it helps to get it fixed."
+    )
     report = box.addButton("Report a problem…", QMessageBox.AcceptRole)
     box.addButton("Not now", QMessageBox.RejectRole)
     box.exec()
@@ -264,4 +292,3 @@ def offer_crash_report(parent=None) -> None:
         if crash_log.exists():
             files.append(crash_log)
         report_problem(parent, files=files)
-

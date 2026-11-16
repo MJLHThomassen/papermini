@@ -24,13 +24,17 @@ UPDATE_PY = Path(__file__).resolve().parent.parent / "src" / "papermini" / "upda
 def sign(data: bytes, private_key_b64: str) -> bytes:
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-    key = Ed25519PrivateKey.from_private_bytes(base64.b64decode(private_key_b64.strip()))
+    key = Ed25519PrivateKey.from_private_bytes(
+        base64.b64decode(private_key_b64.strip())
+    )
     return base64.b64encode(key.sign(data))
 
 
 def app_public_key() -> str:
     """The public key built into the app (PUBLIC_KEY in src/papermini/update.py)."""
-    m = re.search(r'^PUBLIC_KEY = "(.*)"$', UPDATE_PY.read_text(encoding="utf-8"), re.MULTILINE)
+    m = re.search(
+        r'^PUBLIC_KEY = "(.*)"$', UPDATE_PY.read_text(encoding="utf-8"), re.MULTILINE
+    )
     return m.group(1) if m else ""
 
 
@@ -40,7 +44,8 @@ def check(data: bytes, signature: bytes, public_key_b64: str) -> bool:
 
     try:
         Ed25519PublicKey.from_public_bytes(base64.b64decode(public_key_b64)).verify(
-            base64.b64decode(signature), data)
+            base64.b64decode(signature), data
+        )
         return True
     except (InvalidSignature, ValueError):
         return False
@@ -52,16 +57,20 @@ def main() -> None:
     args = ap.parse_args()
     key = os.environ.get("RELEASE_SIGNING_KEY", "")
     if not key.strip():
-        sys.exit("RELEASE_SIGNING_KEY is not set: add the repository secret "
-                 "(see scripts/release_key.py)")
+        sys.exit(
+            "RELEASE_SIGNING_KEY is not set: add the repository secret "
+            "(see scripts/release_key.py)"
+        )
     data = args.file.read_bytes()
     signature = sign(data, key)
     public = app_public_key()
     if not public:
         sys.exit(f"no PUBLIC_KEY in {UPDATE_PY}: run scripts/release_key.py first")
     if not check(data, signature, public):
-        sys.exit("RELEASE_SIGNING_KEY does not belong to the public key in "
-                 f"{UPDATE_PY.name}: the app would refuse this release's updates")
+        sys.exit(
+            "RELEASE_SIGNING_KEY does not belong to the public key in "
+            f"{UPDATE_PY.name}: the app would refuse this release's updates"
+        )
     out = args.file.with_name(args.file.name + ".sig")
     out.write_bytes(signature + b"\n")
     print(f"wrote {out} (checked with the app's public key)")

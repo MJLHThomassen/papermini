@@ -49,8 +49,11 @@ def print_sheet(printer, lay: SheetLayout, title: str) -> int:
     scene = QGraphicsScene()
     pages = draw_sheet(scene, lay, title)
     first, last = printer.fromPage(), printer.toPage()  # 1-based; 0 = all pages
-    chosen = [r for i, r in enumerate(pages, 1)
-              if not first or first <= i <= (last or len(pages))]
+    chosen = [
+        r
+        for i, r in enumerate(pages, 1)
+        if not first or first <= i <= (last or len(pages))
+    ]
     k = printer.resolution() / 25.4  # device pixels per mm
     p = QPainter()
     if not chosen or not p.begin(printer):
@@ -65,13 +68,16 @@ def print_sheet(printer, lay: SheetLayout, title: str) -> int:
         p.end()
     return len(chosen)
 
+
 PAGE_GAP_MM = 12.0
 
 
 def pil_to_qimage(im) -> QImage:
     im = im.convert("RGBA")
     data = im.tobytes("raw", "RGBA")
-    return QImage(data, im.width, im.height, 4 * im.width, QImage.Format_RGBA8888).copy()
+    return QImage(
+        data, im.width, im.height, 4 * im.width, QImage.Format_RGBA8888
+    ).copy()
 
 
 def array_to_qimage(a: np.ndarray) -> QImage:
@@ -99,15 +105,22 @@ def adjusted_preview(img: QImage, adj) -> QImage:
     from ..adjust import apply
 
     if max(img.width(), img.height()) > PREVIEW_PX:
-        img = img.scaled(PREVIEW_PX, PREVIEW_PX, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-    img = img.convertToFormat(QImage.Format_RGBA8888)  # straight (not premultiplied) alpha
+        img = img.scaled(
+            PREVIEW_PX, PREVIEW_PX, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+    img = img.convertToFormat(
+        QImage.Format_RGBA8888
+    )  # straight (not premultiplied) alpha
     w, h = img.width(), img.height()
-    a = np.frombuffer(img.constBits(), np.uint8).reshape(h, img.bytesPerLine())[:, :4 * w]
+    a = np.frombuffer(img.constBits(), np.uint8).reshape(h, img.bytesPerLine())[
+        :, : 4 * w
+    ]
     out = np.ascontiguousarray(apply(a.reshape(h, w, 4), adj, premultiplied=False))
     return QImage(out.data, w, h, 4 * w, QImage.Format_RGBA8888).copy()
 
 
 # --------------------------------------------------------------------------- viewer
+
 
 class ZoomView(QGraphicsView):
     """Wheel zoom around the cursor, fit-to-view and actual-size (1 scene unit = 1 mm).
@@ -120,13 +133,18 @@ class ZoomView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setScene(QGraphicsScene(self))
-        self.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
-                            | QPainter.TextAntialiasing)
+        self.setRenderHints(
+            QPainter.Antialiasing
+            | QPainter.SmoothPixmapTransform
+            | QPainter.TextAntialiasing
+        )
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setFrameShape(QGraphicsView.NoFrame)
-        self.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)  # the dot grid is screen-fixed
+        self.setViewportUpdateMode(
+            QGraphicsView.FullViewportUpdate
+        )  # the dot grid is screen-fixed
         self._fit_pending = True
 
     def drawBackground(self, painter: QPainter, rect: QRectF):
@@ -141,7 +159,11 @@ class ZoomView(QGraphicsView):
         step = 18
         ox = -self.horizontalScrollBar().value() % step
         oy = -self.verticalScrollBar().value() % step
-        pts = [QPointF(x, y) for y in range(oy, vp.height(), step) for x in range(ox, vp.width(), step)]
+        pts = [
+            QPointF(x, y)
+            for y in range(oy, vp.height(), step)
+            for x in range(ox, vp.width(), step)
+        ]
         painter.drawPoints(pts)
         painter.restore()
 
@@ -211,14 +233,26 @@ def qt_family(name: str) -> str:
             for path in (font.regular, font.bold):
                 if path is not None:
                     fid = QFontDatabase.addApplicationFont(str(path))
-                    found += QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
+                    found += (
+                        QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
+                    )
             family = found[0] if found else font.name
         _qt_families[name] = family
     return _qt_families[name]
 
 
-def _text(scene: QGraphicsScene, text: str, size_mm: float, color: str, family: str,
-          x: float, y: float, rot: float = 0.0, anchor: str = "center", bold=False):
+def _text(
+    scene: QGraphicsScene,
+    text: str,
+    size_mm: float,
+    color: str,
+    family: str,
+    x: float,
+    y: float,
+    rot: float = 0.0,
+    anchor: str = "center",
+    bold=False,
+):
     """Add text ``size_mm`` high at (x, y) in mm. anchor: center (middle) or left (baseline-ish)."""
     item = QGraphicsSimpleTextItem(text)
     f = QFont(family)
@@ -262,15 +296,23 @@ def cut_painter_path(m: Mini, x: float = 0.0, y: float = 0.0) -> QPainterPath:
     return qpath(m.cut, x, y)
 
 
-def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
-              pixmap: QPixmap | None = None, cut_line: bool = True) -> None:
+def draw_mini(
+    scene: QGraphicsScene,
+    m: Mini,
+    x: float = 0.0,
+    y: float = 0.0,
+    pixmap: QPixmap | None = None,
+    cut_line: bool = True,
+) -> None:
     """Draw a miniature exactly as printed, top-left at (x, y) mm (on a sheet cut by
     machine without its cut line)."""
     st = m.style
     pm = pixmap or QPixmap.fromImage(pil_to_qimage(m.art))
     art = QGraphicsPixmapItem(pm)
     art.setTransformationMode(Qt.SmoothTransformation)
-    art.setTransform(QTransform.fromScale(m.width_mm / pm.width(), m.height_mm / pm.height()))
+    art.setTransform(
+        QTransform.fromScale(m.width_mm / pm.width(), m.height_mm / pm.height())
+    )
     art.setPos(x, y)
     scene.addItem(art)
 
@@ -280,7 +322,17 @@ def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
         scene.addLine(x + x0, y + fy, x + x1, y + fy, pen)
     family = qt_family(st.font)
     for t in m.text_items():  # labels, numbers and the back text
-        _text(scene, t.text, t.size_mm, t.color, family, x + t.cx, y + t.cy, t.rot, bold=t.bold)
+        _text(
+            scene,
+            t.text,
+            t.size_mm,
+            t.color,
+            family,
+            x + t.cx,
+            y + t.cy,
+            t.rot,
+            bold=t.bold,
+        )
     if not cut_line or not st.cut_line:
         return
     cut = QGraphicsPathItem(cut_painter_path(m, x, y))
@@ -315,12 +367,12 @@ class PaperItem(QGraphicsRectItem):
         return self.rect().adjusted(-m, -m, m, m)
 
     def paint(self, p: QPainter, option, widget=None):
-        s = max(abs(p.worldTransform().m11()), 1e-6)       # device px per scene unit
+        s = max(abs(p.worldTransform().m11()), 1e-6)  # device px per scene unit
         blur = min(self.BLUR_PX / s, 0.7 * self._reach)
         off = min(self.OFFSET_PX / s, 0.3 * self._reach)
-        h = theme.current.shadow.lstrip("#")              # RRGGBBAA
+        h = theme.current.shadow.lstrip("#")  # RRGGBBAA
         total = int(h[6:8], 16) / 255.0
-        a = 1.0 - (1.0 - total) ** (1.0 / self.STEPS)    # layers add up to ``total``
+        a = 1.0 - (1.0 - total) ** (1.0 / self.STEPS)  # layers add up to ``total``
         c = QColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
         c.setAlphaF(a)
         p.setPen(Qt.NoPen)
@@ -355,8 +407,9 @@ def draw_mini_page(scene: QGraphicsScene, m: Mini) -> None:
     _text(scene, "10 mm", 2.0, "#333", "Arial", 12, yb + 0.7, anchor="left")
 
 
-def draw_sheet(scene: QGraphicsScene, lay: SheetLayout, title: str,
-               pixmaps: dict | None = None) -> list[QRectF]:
+def draw_sheet(
+    scene: QGraphicsScene, lay: SheetLayout, title: str, pixmaps: dict | None = None
+) -> list[QRectF]:
     """All pages of the sheet stacked vertically, as the PDF prints them; returns the
     page rectangles."""
     scene.clear()
@@ -369,15 +422,42 @@ def draw_sheet(scene: QGraphicsScene, lay: SheetLayout, title: str,
         _paper(scene, r)
         pages.append(r)
         for x, y, w, h in lay.mark_rects():  # alignment marks (cut by machine)
-            scene.addRect(QRectF(x, oy + y, w, h), QPen(Qt.NoPen), QBrush(QColor("#000")))
-        _text(scene, title, 3.9, "#000", "Arial", hx, oy + margin_mm + 4,
-              anchor="left", bold=True)
+            scene.addRect(
+                QRectF(x, oy + y, w, h), QPen(Qt.NoPen), QBrush(QColor("#000"))
+            )
+        _text(
+            scene,
+            title,
+            3.9,
+            "#000",
+            "Arial",
+            hx,
+            oy + margin_mm + 4,
+            anchor="left",
+            bold=True,
+        )
         for i, line in enumerate(lay.instructions()):
-            _text(scene, line, 2.6, "#000", "Arial", hx, oy + margin_mm + 8.5 + 3.4 * i,
-                  anchor="left")
+            _text(
+                scene,
+                line,
+                2.6,
+                "#000",
+                "Arial",
+                hx,
+                oy + margin_mm + 8.5 + 3.4 * i,
+                anchor="left",
+            )
         if lay.pages > 1:
-            _text(scene, f"page {page + 1}/{lay.pages}", 2.6, "#000", "Arial",
-                  lay.header_right - 16, oy + margin_mm + 4, anchor="left")
+            _text(
+                scene,
+                f"page {page + 1}/{lay.pages}",
+                2.6,
+                "#000",
+                "Arial",
+                lay.header_right - 16,
+                oy + margin_mm + 4,
+                anchor="left",
+            )
         cy = oy + margin_mm + lay.header_mm - 4
         pen = QPen(QColor("#000"), 0.4)
         scene.addLine(hx, cy, hx + 50, cy, pen)
@@ -388,25 +468,35 @@ def draw_sheet(scene: QGraphicsScene, lay: SheetLayout, title: str,
         _text(scene, "50 mm", 2.4, "#000", "Arial", hx + 52, cy + 1, anchor="left")
     for p in lay.placements:
         pm = (pixmaps or {}).get(id(p.mini.art))  # (numbered copies share their art)
-        draw_mini(scene, p.mini, p.x, p.page * (ph + PAGE_GAP_MM) + p.y, pm,
-                  cut_line=not lay.machine)
+        draw_mini(
+            scene,
+            p.mini,
+            p.x,
+            p.page * (ph + PAGE_GAP_MM) + p.y,
+            pm,
+            cut_line=not lay.machine,
+        )
     return pages
 
 
 # --------------------------------------------------------------------------- crop editor
 
 HANDLE_PX = 10  # handle size on screen
-GRAB_PX = 8     # how close (on screen) the mouse must be to grab a handle or edge
-DRAG_PX = 4     # a press that moves less than this (on screen) is a click: no change
+GRAB_PX = 8  # how close (on screen) the mouse must be to grab a handle or edge
+DRAG_PX = 4  # a press that moves less than this (on screen) is a click: no change
 CROP_COLOR = "#ffd400"  # the crop box and its handles
 CROP_HINT = "Drag a box around the figure to crop"
-WASH_ALPHA = 200        # how strongly the background outside the outline is faded
+WASH_ALPHA = 200  # how strongly the background outside the outline is faded
 
 _HANDLE_CURSORS = {
-    "tl": Qt.SizeFDiagCursor, "br": Qt.SizeFDiagCursor,
-    "tr": Qt.SizeBDiagCursor, "bl": Qt.SizeBDiagCursor,
-    "l": Qt.SizeHorCursor, "r": Qt.SizeHorCursor,
-    "t": Qt.SizeVerCursor, "b": Qt.SizeVerCursor,
+    "tl": Qt.SizeFDiagCursor,
+    "br": Qt.SizeFDiagCursor,
+    "tr": Qt.SizeBDiagCursor,
+    "bl": Qt.SizeBDiagCursor,
+    "l": Qt.SizeHorCursor,
+    "r": Qt.SizeHorCursor,
+    "t": Qt.SizeVerCursor,
+    "b": Qt.SizeVerCursor,
     "move": Qt.SizeAllCursor,
 }
 
@@ -438,20 +528,20 @@ class CropView(ZoomView):
         self.viewport().setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self._img_size = None
-        self._pix_item = None                      # the picture (its pixmap may be smaller)
-        self._box: QRectF | None = None         # image pixels
+        self._pix_item = None  # the picture (its pixmap may be smaller)
+        self._box: QRectF | None = None  # image pixels
         self._rect_item: QGraphicsRectItem | None = None
         self._shade: QGraphicsPathItem | None = None
         self._handles: dict = {}
-        self._drag = None                           # (mode, start scene pos, box at start)
+        self._drag = None  # (mode, start scene pos, box at start)
         self._pan = None
-        self._outline = None                        # list of point arrays, image pixels
+        self._outline = None  # list of point arrays, image pixels
         self._outline_items: list = []
         self._busy = False
-        self._hover = None       # view position of the mouse over the image, or None
+        self._hover = None  # view position of the mouse over the image, or None
         self._hover_part = None  # what a drag from there would grab (see _hit)
-        self._press = None       # view position of the left press, for DRAG_PX
-        self._moved = False      # the press became a drag
+        self._press = None  # view position of the left press, for DRAG_PX
+        self._moved = False  # the press became a drag
         self.viewport().setCursor(Qt.CrossCursor)
 
     # ----------------------------------------------------------------- image / box
@@ -462,7 +552,10 @@ class CropView(ZoomView):
         sc.clear()
         self._rect_item = self._shade = None
         self._handles = {}
-        self._outline, self._outline_items = None, []  # a new image: its outline comes later
+        self._outline, self._outline_items = (
+            None,
+            [],
+        )  # a new image: its outline comes later
         self._box = None
         self._drag = None
         if img is None or img.isNull():
@@ -471,8 +564,9 @@ class CropView(ZoomView):
         self._img_size = tuple(size) if size else (img.width(), img.height())
         # on paper with a soft shadow, like the Miniature and Print sheet views (the
         # reach in image pixels: enough for the shadow at the fitted zoom)
-        sc.addItem(PaperItem(QRectF(0, 0, *self._img_size),
-                             reach=0.05 * max(self._img_size)))
+        sc.addItem(
+            PaperItem(QRectF(0, 0, *self._img_size), reach=0.05 * max(self._img_size))
+        )
         self._pix_item = sc.addPixmap(QPixmap())
         self._pix_item.setTransformationMode(Qt.SmoothTransformation)
         self.replace_picture(img)
@@ -487,7 +581,9 @@ class CropView(ZoomView):
             return
         self._pix_item.setPixmap(QPixmap.fromImage(img))
         W, H = self._img_size
-        self._pix_item.setTransform(QTransform.fromScale(W / img.width(), H / img.height()))
+        self._pix_item.setTransform(
+            QTransform.fromScale(W / img.width(), H / img.height())
+        )
 
     def picture_size(self):
         """Size of the picture shown (smaller than the image for an adjusted preview)."""
@@ -498,7 +594,9 @@ class CropView(ZoomView):
     def set_outline(self, contours):
         """Show the detected figure: outer edges and holes as point arrays in image
         pixels, or None (not known yet)."""
-        self._outline = None if contours is None else [np.asarray(c, float) for c in contours]
+        self._outline = (
+            None if contours is None else [np.asarray(c, float) for c in contours]
+        )
         self._draw_outline()
 
     def set_busy(self, busy: bool):
@@ -530,7 +628,9 @@ class CropView(ZoomView):
                 self._outline_items = [dim]
             return
         figure = QPainterPath()
-        figure.setFillRule(Qt.OddEvenFill)  # holes are separate contours inside the outline
+        figure.setFillRule(
+            Qt.OddEvenFill
+        )  # holes are separate contours inside the outline
         for c in self._outline:
             figure.moveTo(*c[0])
             for x, y in c[1:]:
@@ -557,7 +657,9 @@ class CropView(ZoomView):
             box = parse_crop(crop, W, H)
         except ValueError:
             box = None
-        self._set_box(QRectF(box[0], box[1], box[2] - box[0], box[3] - box[1]) if box else None)
+        self._set_box(
+            QRectF(box[0], box[1], box[2] - box[0], box[3] - box[1]) if box else None
+        )
 
     def crop_box(self) -> QRectF | None:
         return QRectF(self._box) if self._box is not None else None
@@ -573,7 +675,9 @@ class CropView(ZoomView):
             return
         sc = self.scene()
         if self._shade is None:
-            self._shade = sc.addPath(QPainterPath(), QPen(Qt.NoPen), QBrush(QColor(0, 0, 0, 120)))
+            self._shade = sc.addPath(
+                QPainterPath(), QPen(Qt.NoPen), QBrush(QColor(0, 0, 0, 120))
+            )
             self._shade.setZValue(1)
             pen = QPen(QColor(CROP_COLOR), 2)
             pen.setCosmetic(True)
@@ -581,9 +685,14 @@ class CropView(ZoomView):
             self._rect_item = sc.addRect(QRectF(), pen)
             self._rect_item.setZValue(2)
             for name in ("tl", "t", "tr", "r", "br", "b", "bl", "l"):
-                h = sc.addRect(QRectF(-HANDLE_PX / 2, -HANDLE_PX / 2, HANDLE_PX, HANDLE_PX),
-                               QPen(QColor("#222"), 1), QBrush(QColor(CROP_COLOR)))
-                h.setFlag(QGraphicsRectItem.ItemIgnoresTransformations)  # constant screen size
+                h = sc.addRect(
+                    QRectF(-HANDLE_PX / 2, -HANDLE_PX / 2, HANDLE_PX, HANDLE_PX),
+                    QPen(QColor("#222"), 1),
+                    QBrush(QColor(CROP_COLOR)),
+                )
+                h.setFlag(
+                    QGraphicsRectItem.ItemIgnoresTransformations
+                )  # constant screen size
                 h.setZValue(3)
                 self._handles[name] = h
         outer = QPainterPath()
@@ -600,10 +709,16 @@ class CropView(ZoomView):
     @staticmethod
     def _handle_points(r: QRectF) -> dict:
         c = r.center()
-        return {"tl": r.topLeft(), "t": QPointF(c.x(), r.top()), "tr": r.topRight(),
-                "r": QPointF(r.right(), c.y()), "br": r.bottomRight(),
-                "b": QPointF(c.x(), r.bottom()), "bl": r.bottomLeft(),
-                "l": QPointF(r.left(), c.y())}
+        return {
+            "tl": r.topLeft(),
+            "t": QPointF(c.x(), r.top()),
+            "tr": r.topRight(),
+            "r": QPointF(r.right(), c.y()),
+            "br": r.bottomRight(),
+            "b": QPointF(c.x(), r.bottom()),
+            "bl": r.bottomLeft(),
+            "l": QPointF(r.left(), c.y()),
+        }
 
     # ----------------------------------------------------------------- hit testing
     def _hit(self, view_pos) -> str:
@@ -683,7 +798,9 @@ class CropView(ZoomView):
         if self._pan is not None:
             d = pos - self._pan
             self._pan = pos
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - d.x())
+            self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value() - d.x()
+            )
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - d.y())
             return
         if self._drag is not None:
@@ -780,10 +897,12 @@ class CropView(ZoomView):
                 painter.fillRect(box, hi)
             else:
                 painter.setPen(QPen(hi, 3))
-                edges = {"l": (box.topLeft(), box.bottomLeft()),
-                         "r": (box.topRight(), box.bottomRight()),
-                         "t": (box.topLeft(), box.topRight()),
-                         "b": (box.bottomLeft(), box.bottomRight())}
+                edges = {
+                    "l": (box.topLeft(), box.bottomLeft()),
+                    "r": (box.topRight(), box.bottomRight()),
+                    "t": (box.topLeft(), box.topRight()),
+                    "b": (box.bottomLeft(), box.bottomRight()),
+                }
                 if part in edges:
                     painter.drawLine(*edges[part])
                 pt = QPointF(self.mapFromScene(self._handle_points(self._box)[part]))
@@ -817,18 +936,22 @@ class CropView(ZoomView):
         w, h = fm.horizontalAdvance(CROP_HINT) + 28, fm.height() + 14
         img, vp, gap = self._image_view_rect(), QRectF(self.viewport().rect()), 8
         if img.top() - gap - h >= vp.top() + 4:
-            y = img.top() - gap - h                     # above the image
+            y = img.top() - gap - h  # above the image
         elif img.bottom() + gap + h <= vp.bottom() - 4:
-            y = img.bottom() + gap                      # below it
+            y = img.bottom() + gap  # below it
         else:
-            y = max(img.top(), vp.top()) + 16           # no room outside: on the image
+            y = max(img.top(), vp.top()) + 16  # no room outside: on the image
         cx = img.intersected(vp).center().x()
         return QRectF(cx - w / 2, y, w, h)
 
     def _fractions(self, r: QRectF) -> list:
         W, H = self._img_size
-        return [round(r.left() / W, 4), round(r.top() / H, 4),
-                round(r.right() / W, 4), round(r.bottom() / H, 4)]
+        return [
+            round(r.left() / W, 4),
+            round(r.top() / H, 4),
+            round(r.right() / W, 4),
+            round(r.bottom() / H, 4),
+        ]
 
 
 class SourceLegend(QFrame):
@@ -846,8 +969,9 @@ class SourceLegend(QFrame):
         g.setHorizontalSpacing(8)
         g.setVerticalSpacing(4)
         self.swatches, self.texts = [], []
-        for row, text in enumerate(("Detected outline", "Removed background",
-                                    "Crop area")):
+        for row, text in enumerate(
+            ("Detected outline", "Removed background", "Crop area")
+        ):
             sw, lab = QLabel(), QLabel(text)
             g.addWidget(sw, row, 0)
             g.addWidget(lab, row, 1)
@@ -865,7 +989,7 @@ class SourceLegend(QFrame):
             p = QPainter(pm)
             p.setRenderHint(QPainter.Antialiasing)
             r = QRectF(2, 2, self.SW - 4, 10)
-            if i == 0:    # the outline, in the accent color
+            if i == 0:  # the outline, in the accent color
                 pen = QPen(QColor(t.accent), 2)
                 p.setPen(pen)
                 p.drawRoundedRect(r, 4, 4)
@@ -873,13 +997,19 @@ class SourceLegend(QFrame):
                 p.setPen(Qt.NoPen)
                 for k, c in enumerate(("#7a9e5a", "#c9a46a", "#6b8fbf")):
                     p.setBrush(QColor(c))
-                    p.drawRect(QRectF(r.left() + k * r.width() / 3, r.top(),
-                                      r.width() / 3, r.height()))
+                    p.drawRect(
+                        QRectF(
+                            r.left() + k * r.width() / 3,
+                            r.top(),
+                            r.width() / 3,
+                            r.height(),
+                        )
+                    )
                 wash = QColor(t.canvas)
                 wash.setAlpha(WASH_ALPHA)
                 p.setBrush(wash)
                 p.drawRect(r)
-            else:         # the dashed crop box with a handle
+            else:  # the dashed crop box with a handle
                 pen = QPen(QColor(CROP_COLOR), 1.5, Qt.DashLine)
                 p.setPen(pen)
                 p.drawRect(r)
@@ -891,6 +1021,7 @@ class SourceLegend(QFrame):
 
 
 # --------------------------------------------------------------------------- token framing
+
 
 class MiniView(ZoomView):
     """The Miniature view. For a token it also frames the figure in the circle: a box
@@ -909,15 +1040,15 @@ class MiniView(ZoomView):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
-        self._token = None        # the shown token's TokenInfo (None: not a token)
-        self._box: QRectF | None = None   # the figure's box, mm
+        self._token = None  # the shown token's TokenInfo (None: not a token)
+        self._box: QRectF | None = None  # the figure's box, mm
         self._box_item = None
         self._handles: dict = {}
-        self._drag = None         # (part, press scene pos, box at the press)
+        self._drag = None  # (part, press scene pos, box at the press)
         self._press = None
         self._moved = False
-        self._picture = None      # (picture, image size, figure outline, background)
-        self._preview = None      # the figure shown while dragging
+        self._picture = None  # (picture, image size, figure outline, background)
+        self._preview = None  # the figure shown while dragging
 
     def set_token(self, info, picture=None, size=None, outline=None, fill=None) -> None:
         """Show the framing of a token (its ``TokenInfo``), or none (``None``). ``picture``
@@ -932,8 +1063,12 @@ class MiniView(ZoomView):
         self._preview = None
         self._picture = None
         if picture is not None and not picture.isNull():
-            self._picture = (picture, tuple(size) if size else (picture.width(), picture.height()),
-                             outline or [], fill or ("color", "#ffffff"))
+            self._picture = (
+                picture,
+                tuple(size) if size else (picture.width(), picture.height()),
+                outline or [],
+                fill or ("color", "#ffffff"),
+            )
         if info is None or info.figure_box is None:
             self._box = None
             self.viewport().unsetCursor()
@@ -947,16 +1082,25 @@ class MiniView(ZoomView):
         self._box_item = sc.addRect(self._box, pen)
         self._box_item.setZValue(5)
         for name in self.CORNERS:
-            h = sc.addRect(QRectF(-HANDLE_PX / 2, -HANDLE_PX / 2, HANDLE_PX, HANDLE_PX),
-                           QPen(QColor("#222"), 1), QBrush(QColor(CROP_COLOR)))
-            h.setFlag(QGraphicsRectItem.ItemIgnoresTransformations)  # constant screen size
+            h = sc.addRect(
+                QRectF(-HANDLE_PX / 2, -HANDLE_PX / 2, HANDLE_PX, HANDLE_PX),
+                QPen(QColor("#222"), 1),
+                QBrush(QColor(CROP_COLOR)),
+            )
+            h.setFlag(
+                QGraphicsRectItem.ItemIgnoresTransformations
+            )  # constant screen size
             h.setZValue(6)
             self._handles[name] = h
         self._show_box(self._box)
 
     def _corners(self, r: QRectF) -> dict:
-        return {"tl": r.topLeft(), "tr": r.topRight(), "br": r.bottomRight(),
-                "bl": r.bottomLeft()}
+        return {
+            "tl": r.topLeft(),
+            "tr": r.topRight(),
+            "br": r.bottomRight(),
+            "bl": r.bottomLeft(),
+        }
 
     def _show_box(self, r: QRectF) -> None:
         if self._box_item is None:
@@ -975,7 +1119,7 @@ class MiniView(ZoomView):
                 return name
         t = self._token
         s = self.mapToScene(view_pos)
-        if (s.x() - t.cx) ** 2 + (s.y() - t.cy) ** 2 <= t.radius_mm ** 2:
+        if (s.x() - t.cx) ** 2 + (s.y() - t.cy) ** 2 <= t.radius_mm**2:
             return "move"
         return None
 
@@ -1019,14 +1163,24 @@ class MiniView(ZoomView):
             holder.setFlag(QGraphicsItem.ItemClipsChildrenToShape)
             pix = QGraphicsPixmapItem(QPixmap.fromImage(picture), holder)
             pix.setTransformationMode(Qt.SmoothTransformation)
-            pix.setTransform(QTransform.fromScale(W / picture.width(), H / picture.height()))
+            pix.setTransform(
+                QTransform.fromScale(W / picture.width(), H / picture.height())
+            )
             self.scene().addItem(clip)
             self._preview = (clip, holder)
         a = self.area_for(box)
         side = 2 * t.inner_mm
         sx, sy = side / ((a[2] - a[0]) * W), side / ((a[3] - a[1]) * H)
-        self._preview[1].setTransform(QTransform(sx, 0, 0, sy, t.cx - t.inner_mm - a[0] * W * sx,
-                                                 t.cy - t.inner_mm - a[1] * H * sy))
+        self._preview[1].setTransform(
+            QTransform(
+                sx,
+                0,
+                0,
+                sy,
+                t.cx - t.inner_mm - a[0] * W * sx,
+                t.cy - t.inner_mm - a[1] * H * sy,
+            )
+        )
 
     def _end_preview(self) -> None:
         if self._preview is not None:

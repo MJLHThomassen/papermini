@@ -28,11 +28,11 @@ from PySide6.QtWidgets import QApplication
 @dataclass(frozen=True)
 class Theme:
     name: str
-    bg: str           # window
-    surface: str      # panels, cards
-    surface2: str     # inputs, hover
-    canvas: str       # behind the paper
-    dots: str         # canvas dot grid
+    bg: str  # window
+    surface: str  # panels, cards
+    surface2: str  # inputs, hover
+    canvas: str  # behind the paper
+    dots: str  # canvas dot grid
     border: str
     text: str
     muted: str
@@ -45,14 +45,38 @@ class Theme:
 
 DRAGON_RED = "#fd3c1b"  # the logo's red: the accent in both themes
 
-LIGHT = Theme("light", bg="#f4f4f6", surface="#ffffff", surface2="#f7f7f9", canvas="#e9e9ee",
-              dots="#d4d4dc", border="#e2e2e8", text="#1d1d22", muted="#6e6e7a",
-              accent=DRAGON_RED, accent_text="#ffffff", accent_soft="#ffe9e4",
-              danger="#d64545", shadow="#00000028")
-DARK = Theme("dark", bg="#161618", surface="#1e1e21", surface2="#26262a", canvas="#111113",
-             dots="#26262b", border="#2f2f34", text="#ececf0", muted="#9a9aa6",
-             accent=DRAGON_RED, accent_text="#ffffff", accent_soft="#45231f",
-             danger="#f07070", shadow="#00000070")
+LIGHT = Theme(
+    "light",
+    bg="#f4f4f6",
+    surface="#ffffff",
+    surface2="#f7f7f9",
+    canvas="#e9e9ee",
+    dots="#d4d4dc",
+    border="#e2e2e8",
+    text="#1d1d22",
+    muted="#6e6e7a",
+    accent=DRAGON_RED,
+    accent_text="#ffffff",
+    accent_soft="#ffe9e4",
+    danger="#d64545",
+    shadow="#00000028",
+)
+DARK = Theme(
+    "dark",
+    bg="#161618",
+    surface="#1e1e21",
+    surface2="#26262a",
+    canvas="#111113",
+    dots="#26262b",
+    border="#2f2f34",
+    text="#ececf0",
+    muted="#9a9aa6",
+    accent=DRAGON_RED,
+    accent_text="#ffffff",
+    accent_soft="#45231f",
+    danger="#f07070",
+    shadow="#00000070",
+)
 
 current: Theme = LIGHT
 
@@ -62,16 +86,16 @@ current: Theme = LIGHT
 ICONS: dict[str, str] = {
     "open": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
     "add_folder": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>'
-                  '<path d="M12 10.5v5M9.5 13h5"/>',
+    '<path d="M12 10.5v5M9.5 13h5"/>',
     "add": '<path d="M13.5 4.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-7.5"/>'
-           '<path d="M4.5 15.5l4-4 3.5 3.5 2-2 5.5 5.5"/><path d="M18.5 2.5v6M15.5 5.5h6"/>',
+    '<path d="M4.5 15.5l4-4 3.5 3.5 2-2 5.5 5.5"/><path d="M18.5 2.5v6M15.5 5.5h6"/>',
     "save": '<path d="M5.5 4.5h10l4 4v10a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/>'
-            '<path d="M8 4.5v4.5h6.5V4.5M8 19.5v-5.5h8v5.5"/>',
+    '<path d="M8 4.5v4.5h6.5V4.5M8 19.5v-5.5h8v5.5"/>',
     "export": '<path d="M12 4v10.5M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14"/>',
     "pdf": '<path d="M6.5 3.5h7.5l4.5 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5z"/>'
-           '<path d="M14 3.5V8h4.5M8.5 13h7M8.5 16.5h5"/>',
+    '<path d="M14 3.5V8h4.5M8.5 13h7M8.5 16.5h5"/>',
     "printer": '<path d="M7 9V4.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/>'
-               '<path d="M7 13.5h10v6H7z"/><path d="M17 11.5h.01"/>',
+    '<path d="M7 13.5h10v6H7z"/><path d="M17 11.5h.01"/>',
     "fit": '<path d="M4.5 9V4.5H9M19.5 9V4.5H15M4.5 15v4.5H9M19.5 15v4.5H15"/>',
     "zoom_in": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M11 8v6M8 11h6"/>',
     "zoom_out": '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8 11h6"/>',
@@ -79,38 +103,42 @@ ICONS: dict[str, str] = {
     # side panel toggles: outline = hidden, filled strip = shown
     "panel_left": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/>',
     "panel_left_on": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/>'
-                     '<path d="M9.5 4.5h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h4z" fill="currentColor"/>',
+    '<path d="M9.5 4.5h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h4z" fill="currentColor"/>',
     "panel_right": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>',
     "panel_right_on": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>'
-                      '<path d="M14.5 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4z" fill="currentColor"/>',
+    '<path d="M14.5 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4z" fill="currentColor"/>',
     "sliders": '<path d="M5 7h9M18 7h1M5 12h3M12 12h7M5 17h6M15 17h4"/>'
-               '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>'
-               '<circle cx="13" cy="17" r="2"/>',
+    '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>'
+    '<circle cx="13" cy="17" r="2"/>',
     "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
     "link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
-            '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     "unlink": '<path d="M15.5 13.5l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3"/>'
-              '<path d="M8.5 10.5l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3"/>'
-              '<path d="M4.5 4.5l2 2M19.5 19.5l-2-2M9.5 3v2.2M14.5 21v-2.2"/>',
+    '<path d="M8.5 10.5l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3"/>'
+    '<path d="M4.5 4.5l2 2M19.5 19.5l-2-2M9.5 3v2.2M14.5 21v-2.2"/>',
     "chevron_down": '<path d="M7 10l5 5 5-5"/>',
     "chevron_right": '<path d="M10 7l5 5-5 5"/>',
     "chevron_up": '<path d="M7 14l5-5 5 5"/>',
     "check": '<path d="M5.5 12.5l4 4 9-9.5"/>',
     "image": '<rect x="4" y="4.5" width="16" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.5"/>'
-             '<path d="M4 16l4.5-4.5 4 4 2.5-2.5 5 5"/>',
+    '<path d="M4 16l4.5-4.5 4 4 2.5-2.5 5 5"/>',
     "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2'
-           'M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    'M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
     "warning": '<path d="M12 4l9 15.5H3z"/><path d="M12 10v4.5M12 17.2v.3"/>',
 }
 
 
 def icon_svg(name: str, color: str, stroke: float = 1.7) -> str:
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-            f'stroke="{color}" stroke-width="{stroke}" stroke-linecap="round" '
-            f'stroke-linejoin="round" color="{color}">{ICONS[name]}</svg>')
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+        f'stroke="{color}" stroke-width="{stroke}" stroke-linecap="round" '
+        f'stroke-linejoin="round" color="{color}">{ICONS[name]}</svg>'
+    )
 
 
-def pixmap(name: str, color: str | None = None, size: int = 18, ratio: float = 2.0) -> QPixmap:
+def pixmap(
+    name: str, color: str | None = None, size: int = 18, ratio: float = 2.0
+) -> QPixmap:
     color = color or current.text
     r = QSvgRenderer(QByteArray(icon_svg(name, color).encode()))
     px = QPixmap(int(size * ratio), int(size * ratio))
@@ -187,7 +215,13 @@ def apply(app: QApplication, mode: str = "system") -> Theme:
     app.setStyle("Fusion")
 
     families = QFontDatabase.families()
-    for fam in ("Segoe UI Variable Text", "Segoe UI", "SF Pro Text", "Inter", "Cantarell"):
+    for fam in (
+        "Segoe UI Variable Text",
+        "Segoe UI",
+        "SF Pro Text",
+        "Inter",
+        "Cantarell",
+    ):
         if fam in families:
             f = QFont(fam)
             f.setPointSizeF(9.5)
@@ -195,14 +229,25 @@ def apply(app: QApplication, mode: str = "system") -> Theme:
             break
 
     pal = QPalette()
-    for role, c in ((QPalette.Window, t.bg), (QPalette.Base, t.surface2),
-                    (QPalette.AlternateBase, t.surface), (QPalette.WindowText, t.text),
-                    (QPalette.Text, t.text), (QPalette.Button, t.surface),
-                    (QPalette.ButtonText, t.text), (QPalette.Highlight, t.accent),
-                    (QPalette.HighlightedText, t.accent_text), (QPalette.ToolTipBase, t.surface),
-                    (QPalette.ToolTipText, t.text), (QPalette.PlaceholderText, t.muted),
-                    (QPalette.Mid, t.border), (QPalette.Dark, t.border), (QPalette.Light, t.surface),
-                    (QPalette.Link, t.accent), (QPalette.LinkVisited, t.accent)):
+    for role, c in (
+        (QPalette.Window, t.bg),
+        (QPalette.Base, t.surface2),
+        (QPalette.AlternateBase, t.surface),
+        (QPalette.WindowText, t.text),
+        (QPalette.Text, t.text),
+        (QPalette.Button, t.surface),
+        (QPalette.ButtonText, t.text),
+        (QPalette.Highlight, t.accent),
+        (QPalette.HighlightedText, t.accent_text),
+        (QPalette.ToolTipBase, t.surface),
+        (QPalette.ToolTipText, t.text),
+        (QPalette.PlaceholderText, t.muted),
+        (QPalette.Mid, t.border),
+        (QPalette.Dark, t.border),
+        (QPalette.Light, t.surface),
+        (QPalette.Link, t.accent),
+        (QPalette.LinkVisited, t.accent),
+    ):
         pal.setColor(role, QColor(c))
     for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
         pal.setColor(QPalette.Disabled, role, QColor(t.muted))

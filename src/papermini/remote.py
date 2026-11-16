@@ -23,9 +23,17 @@ from PIL import Image
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
 IMAGE_FILTER = "Images (" + " ".join("*" + e for e in IMAGE_EXT) + ")"
 READABLE = "PNG, JPG, WebP, BMP and TIFF"
-_EXT_FOR = {"PNG": ".png", "JPEG": ".jpg", "MPO": ".jpg", "WEBP": ".webp", "BMP": ".bmp",
-            "TIFF": ".tif"}
-MAX_BYTES = 100 << 20  # no illustration is this big; stops a wrong link filling the disk
+_EXT_FOR = {
+    "PNG": ".png",
+    "JPEG": ".jpg",
+    "MPO": ".jpg",
+    "WEBP": ".webp",
+    "BMP": ".bmp",
+    "TIFF": ".tif",
+}
+MAX_BYTES = (
+    100 << 20
+)  # no illustration is this big; stops a wrong link filling the disk
 
 
 def is_url(s: str | Path) -> bool:
@@ -39,19 +47,26 @@ def is_image_file(p: str | Path) -> bool:
 
 def natural_key(name: str) -> list:
     """Sort key that counts numbers as numbers: "goblin 2" before "goblin 10"."""
-    return [(0, int(s), "") if s.isdigit() else (1, 0, s)
-            for s in re.split(r"(\d+)", name.lower()) if s]
+    return [
+        (0, int(s), "") if s.isdigit() else (1, 0, s)
+        for s in re.split(r"(\d+)", name.lower())
+        if s
+    ]
 
 
-def folder_images(folder: str | Path, subfolders: bool = True) -> tuple[list[Path], int]:
+def folder_images(
+    folder: str | Path, subfolders: bool = True
+) -> tuple[list[Path], int]:
     """The images papermini reads in ``folder``, in natural order: the folder's own first,
     then (with ``subfolders``) each subfolder's the same way. Also how many other files
     were skipped. Hidden files and folders (a name starting with ".") are left out."""
     folder = Path(folder)
     images: list[Path] = []
     skipped = 0
-    entries = sorted((e for e in folder.iterdir() if not e.name.startswith(".")),
-                     key=lambda e: natural_key(e.name))
+    entries = sorted(
+        (e for e in folder.iterdir() if not e.name.startswith(".")),
+        key=lambda e: natural_key(e.name),
+    )
     for e in entries:
         if e.is_file():
             if is_image_file(e):
@@ -77,8 +92,11 @@ def figure_names(images: list[Path], folder: str | Path) -> list[str | None]:
     out: list[str | None] = []
     for p in images:
         rel = p.parent.relative_to(folder).parts
-        out.append("-".join(rel + (p.stem,)) if len(stems[p.stem.lower()]) > 1 and rel
-                   else None)
+        out.append(
+            "-".join(rel + (p.stem,))
+            if len(stems[p.stem.lower()]) > 1 and rel
+            else None
+        )
     return out
 
 
@@ -114,8 +132,13 @@ def cached_images() -> list:
     d = _cache_dir()
     if not d.is_dir():
         return []
-    return sorted(p for sub in d.iterdir() if sub.is_dir()
-                  for p in sub.iterdir() if is_image_file(p))
+    return sorted(
+        p
+        for sub in d.iterdir()
+        if sub.is_dir()
+        for p in sub.iterdir()
+        if is_image_file(p)
+    )
 
 
 def clear_images(keep=()) -> int:
@@ -128,8 +151,9 @@ def clear_images(keep=()) -> int:
     keep = {os.path.normcase(os.path.abspath(p)) for p in keep}
     gone = 0
     for sub in sorted(d.iterdir()):
-        if not sub.is_dir() or any(os.path.normcase(os.path.abspath(p)) in keep
-                                   for p in sub.iterdir()):
+        if not sub.is_dir() or any(
+            os.path.normcase(os.path.abspath(p)) in keep for p in sub.iterdir()
+        ):
             continue
         images = sum(is_image_file(p) for p in sub.iterdir())
         shutil.rmtree(sub, ignore_errors=True)
@@ -144,14 +168,17 @@ def _key(url: str) -> str:
 
 def _name(url: str) -> str:
     """A readable file name stem from the link (the figure's name in the app)."""
-    last = urllib.parse.unquote(urllib.parse.urlparse(url).path.rstrip("/").rsplit("/", 1)[-1])
+    last = urllib.parse.unquote(
+        urllib.parse.urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
+    )
     stem = Path(last).stem if is_image_file(last) else last
     stem = re.sub(r"[^\w\- .()]+", "_", stem).strip(" ._")
     return stem[:80] or "image"
 
 
-def fetch_image(url: str, timeout: float = 30.0,
-                cancel: threading.Event | None = None) -> Path:
+def fetch_image(
+    url: str, timeout: float = 30.0, cancel: threading.Event | None = None
+) -> Path:
     """Download the image at ``url`` (once; later calls use the cache) and return its path.
 
     Raises ValueError with a readable message when the link fails or is not an image.
@@ -172,8 +199,10 @@ def fetch_image(url: str, timeout: float = 30.0,
                     break
                 size += len(chunk)
                 if size > MAX_BYTES:
-                    raise ValueError(f"{url} is larger than {MAX_BYTES >> 20} MB, "
-                                     "too big for an image")
+                    raise ValueError(
+                        f"{url} is larger than {MAX_BYTES >> 20} MB, "
+                        "too big for an image"
+                    )
                 chunks.append(chunk)
     except urllib.error.HTTPError as e:
         raise ValueError(f"could not download {url}: {e.code} {e.reason}") from None
@@ -190,7 +219,9 @@ def fetch_image(url: str, timeout: float = 30.0,
     if ext is None:
         if fmt:
             raise ValueError(f"{url} is a {fmt} image; papermini reads {READABLE}")
-        raise ValueError(f"{url} is not an image (a web page? use the link of the image itself)")
+        raise ValueError(
+            f"{url} is not an image (a web page? use the link of the image itself)"
+        )
     dest = _cache_dir() / _key(url) / (_name(url) + ext)
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + f".{os.getpid()}.{threading.get_ident()}.part")

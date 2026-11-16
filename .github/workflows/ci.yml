@@ -54,8 +54,11 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Ruff
+      - name: Ruff check
         run: uv run --locked --only-group dev ruff check --output-format github
+
+      - name: Ruff format
+        run: uv run --locked --only-group dev ruff format --diff
 
   # The Linux tests run in papermini's CI image (.github/ci-image): Python and Qt's
   # system libraries, ready made, instead of downloading them from the Ubuntu mirror

@@ -7,11 +7,11 @@ from pathlib import Path
 from PySide6.QtCore import QSettings
 
 RECENT_KEY = "recent_projects"
-RECENT_MAX = 10              # projects in Open recent
+RECENT_MAX = 10  # projects in Open recent
 SUBFOLDERS_KEY = "add_subfolders"
 PNG_PX_KEY = "png_px_per_square"
-PNG_PX_RANGE = (16, 4096)    # the PNG size a user can set, pixels per grid square
-PNG_MODE_KEY = "png_size"    # "square" (pixels per grid square) or "dpi"
+PNG_PX_RANGE = (16, 4096)  # the PNG size a user can set, pixels per grid square
+PNG_MODE_KEY = "png_size"  # "square" (pixels per grid square) or "dpi"
 PNG_DPI_KEY = "png_dpi"
 PNG_DPI_RANGE = (50, 2400)
 
@@ -19,7 +19,9 @@ PNG_DPI_RANGE = (50, 2400)
 def store() -> QSettings:
     """The app's settings. Follows ``QSettings.setDefaultFormat`` / ``setPath``, so the
     tests can point it at a temporary folder instead of the user's real settings."""
-    return QSettings(QSettings.defaultFormat(), QSettings.UserScope, "papermini", "papermini")
+    return QSettings(
+        QSettings.defaultFormat(), QSettings.UserScope, "papermini", "papermini"
+    )
 
 
 def _same(a: Path, b: Path) -> bool:

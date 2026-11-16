@@ -32,8 +32,12 @@ def isolated_model_cache(monkeypatch, tmp_path_factory):
     """
     from papermini import segment
 
-    monkeypatch.setenv("PAPERMINI_CACHE", str(tmp_path_factory.mktemp("papermini-cache")))
-    monkeypatch.setattr(segment, "_SEGMENTERS", {})  # no session left over from another test
+    monkeypatch.setenv(
+        "PAPERMINI_CACHE", str(tmp_path_factory.mktemp("papermini-cache"))
+    )
+    monkeypatch.setattr(
+        segment, "_SEGMENTERS", {}
+    )  # no session left over from another test
 
     def no_network(req, *a, **k):
         url = getattr(req, "full_url", req)

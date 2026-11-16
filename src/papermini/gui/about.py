@@ -25,9 +25,11 @@ def _font_note() -> str:
     """The fonts that come with papermini, their licence, and a link to their folder."""
     names = [f.name for f in fonts.bundled() if f.regular is not None]
     listed = ", ".join(names[:-1]) + " and " + names[-1]
-    return (f"The fonts {html.escape(listed)} come with papermini. They are free fonts "
-            "under the SIL Open Font License, also for commercial use. Each font's "
-            "licence (OFL.txt) is in its folder: <a href='fonts'>open the font folder</a>.")
+    return (
+        f"The fonts {html.escape(listed)} come with papermini. They are free fonts "
+        "under the SIL Open Font License, also for commercial use. Each font's "
+        "licence (OFL.txt) is in its folder: <a href='fonts'>open the font folder</a>."
+    )
 
 
 def open_font_folder(_link: str = "") -> None:
@@ -62,10 +64,14 @@ class AboutDialog(QDialog):
         col.addWidget(title)
         # the update notice, right under the version it is about
         self.status = QLabel()
-        self.status.setObjectName("MethodBox")  # (the same framed note as Chosen method)
+        self.status.setObjectName(
+            "MethodBox"
+        )  # (the same framed note as Chosen method)
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.RichText)
-        self.status.setFixedWidth(400)  # (a wrapping label needs a fixed width for its height)
+        self.status.setFixedWidth(
+            400
+        )  # (a wrapping label needs a fixed width for its height)
         col.addWidget(self.status)
         self.progress = QProgressBar()
         self.progress.setFixedWidth(400)
@@ -80,7 +86,8 @@ class AboutDialog(QDialog):
             "MIT-licensed, also for commercial use.<br><br>"
             f"{_font_note()}<br><br>"
             "Projects are saved as batch YAML files, so you can also run them from the "
-            "command line: <code>papermini batch project.yaml</code>")
+            "command line: <code>papermini batch project.yaml</code>"
+        )
         text.setWordWrap(True)
         text.setTextFormat(Qt.RichText)
         text.setFixedWidth(400)
@@ -117,8 +124,10 @@ class AboutDialog(QDialog):
             label = QLabel("papermini could not write a log this time.")
         else:
             folder = html.escape(log.redact(str(s.log.parent)))
-            label = QLabel(f"Log: <a href='#'>{folder}</a><br>"
-                           f"<span style='font-size:small'>{html.escape(s.log.name)}</span>")
+            label = QLabel(
+                f"Log: <a href='#'>{folder}</a><br>"
+                f"<span style='font-size:small'>{html.escape(s.log.name)}</span>"
+            )
             label.setTextFormat(Qt.RichText)
             label.linkActivated.connect(lambda _: open_log_folder())
             label.setToolTip("Open the log folder")
@@ -150,12 +159,15 @@ class AboutDialog(QDialog):
         elif state == "available":
             rel, why = data
             if why is None:
-                self.status.setText(f"<b>papermini {html.escape(rel.version)}</b> is "
-                                    "available.")
+                self.status.setText(
+                    f"<b>papermini {html.escape(rel.version)}</b> is available."
+                )
                 self._offer("Update", lambda: w.download_update(rel, "about"))
             else:
-                self.status.setText(f"<b>papermini {html.escape(rel.version)}</b> is "
-                                    f"available. {html.escape(why)}")
+                self.status.setText(
+                    f"<b>papermini {html.escape(rel.version)}</b> is "
+                    f"available. {html.escape(why)}"
+                )
                 self._offer("Release page", w._open_release_page)
         elif state == "downloading":
             self._offer("")
@@ -168,16 +180,26 @@ class AboutDialog(QDialog):
                 self.progress.setValue(int(1000 * done / total))
                 self.progress.setFormat(f"{done / 1e6:.0f} of {total / 1e6:.0f} MB")
         elif state in ("verifying", "unpacking"):
-            self.status.setText("Checking the download…" if state == "verifying"
-                                else "Unpacking the update…")
+            self.status.setText(
+                "Checking the download…"
+                if state == "verifying"
+                else "Unpacking the update…"
+            )
             self.progress.setRange(0, 0)
         elif state == "ready":
             version = version or data[0].version
-            self.status.setText(f"<b>papermini {html.escape(version)}</b> is ready: it is "
-                                "installed when you close papermini.")
+            self.status.setText(
+                f"<b>papermini {html.escape(version)}</b> is ready: it is "
+                "installed when you close papermini."
+            )
             self._offer("Restart now", lambda: (self.accept(), w._restart_for_update()))
         elif state == "error":
             self.status.setText(html.escape(str(data)))
-            self._offer("Try again", lambda: (self.update_state("checking", None),
-                                              w.check_updates(source="about")))
+            self._offer(
+                "Try again",
+                lambda: (
+                    self.update_state("checking", None),
+                    w.check_updates(source="about"),
+                ),
+            )
         self.adjustSize()  # (the notice may now take more lines)

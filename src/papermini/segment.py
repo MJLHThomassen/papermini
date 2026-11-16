@@ -45,16 +45,27 @@ ONNX_MODELS = {
         "size": 1024,
         "mean": 0.5,
         "std": 1.0,
-        "post": "minmax",   # stretch the output to 0-1, as BRIA's own pipeline does
+        "post": "minmax",  # stretch the output to 0-1, as BRIA's own pipeline does
     },
 }
 
 _BIREFNET = "https://github.com/ZhengPeng7/BiRefNet/releases/download/v1/"
 for _name, _title, _about, _mb, _file in (
-        ("birefnet", "BiRefNet", "Sharpest edges and fine detail, but slow on a CPU.", 928,
-         "BiRefNet-general-epoch_244.onnx"),
-        ("birefnet-lite", "BiRefNet lite", "A smaller, faster BiRefNet.", 214,
-         "BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx")):
+    (
+        "birefnet",
+        "BiRefNet",
+        "Sharpest edges and fine detail, but slow on a CPU.",
+        928,
+        "BiRefNet-general-epoch_244.onnx",
+    ),
+    (
+        "birefnet-lite",
+        "BiRefNet lite",
+        "A smaller, faster BiRefNet.",
+        214,
+        "BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx",
+    ),
+):
     ONNX_MODELS[_name] = {
         "title": _title,
         "about": _about,
@@ -76,6 +87,7 @@ Box = tuple[int, int, int, int]
 
 class ModelError(RuntimeError):
     """The requested segmentation model cannot be used (unknown, missing, not installed)."""
+
 
 # Optional callback(done_bytes, total_bytes_or_None, message) for model downloads.
 PROGRESS_HOOK = None
@@ -170,7 +182,7 @@ def clear_masks() -> int:
     stays, so a build that is saving a mask meanwhile still can."""
     d = masks_dir()
     gone = 0
-    for f in (sorted(d.iterdir()) if d.is_dir() else []):
+    for f in sorted(d.iterdir()) if d.is_dir() else []:
         if f.is_file():
             try:
                 f.unlink()
@@ -180,8 +192,13 @@ def clear_masks() -> int:
     return gone
 
 
-def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
-             cancel: threading.Event | None = None) -> Path:
+def download(
+    url: str,
+    dest: Path,
+    timeout: float = 30.0,
+    progress=None,
+    cancel: threading.Event | None = None,
+) -> Path:
     """Download ``url`` to ``dest`` with progress (atomic via a .part file).
 
     Works without a console (``papermini-gui`` has no stderr), times out on a
@@ -190,7 +207,9 @@ def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
     ``progress(done_bytes, total_bytes_or_None, message)``.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    part = dest.with_suffix(dest.suffix + f".{os.getpid()}.{threading.get_ident()}.part")
+    part = dest.with_suffix(
+        dest.suffix + f".{os.getpid()}.{threading.get_ident()}.part"
+    )
     err = sys.stderr
     if err is not None:
         print(f"Downloading {url}\n  -> {dest}", file=err)
@@ -203,7 +222,9 @@ def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
             if err is not None:
                 from tqdm import tqdm
 
-                bar = tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024, file=err)
+                bar = tqdm(
+                    total=total, unit="B", unit_scale=True, unit_divisor=1024, file=err
+                )
             done = 0
             while True:
                 if CANCEL.is_set() or (cancel is not None and cancel.is_set()):
@@ -218,7 +239,9 @@ def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
                 if progress:
                     progress(done, total, f"Downloading model {dest.name}")
         if total and done != total:
-            raise ModelError(f"model download incomplete ({done} of {total} bytes); try again")
+            raise ModelError(
+                f"model download incomplete ({done} of {total} bytes); try again"
+            )
         part.replace(dest)
     except (OSError, urllib.error.URLError) as e:
         raise ModelError(f"could not download the model from {url}: {e}") from e
@@ -262,11 +285,15 @@ class OnnxSegmenter:
     probabilities (BiRefNet).
     """
 
-    def __init__(self, path: Path, size: int = 1024, mean=0.5, std=1.0, post: str = "minmax"):
+    def __init__(
+        self, path: Path, size: int = 1024, mean=0.5, std=1.0, post: str = "minmax"
+    ):
         import onnxruntime as ort
 
         try:
-            self.sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+            self.sess = ort.InferenceSession(
+                str(path), providers=["CPUExecutionProvider"]
+            )
         except Exception as e:
             raise ModelError(f"cannot load the model {path.name}: {e}") from e
         inp = self.sess.get_inputs()[0]
@@ -282,7 +309,10 @@ class OnnxSegmenter:
         self.post = post
 
     def __call__(self, im: Image.Image) -> np.ndarray:
-        x = np.asarray(im.convert("RGB").resize(self.size, Image.BILINEAR), np.float32) / 255.0
+        x = (
+            np.asarray(im.convert("RGB").resize(self.size, Image.BILINEAR), np.float32)
+            / 255.0
+        )
         x = (x - self.mean) / self.std
         x = x.transpose(2, 0, 1)[None].astype(self.dtype)
         out = self._run(x)
@@ -328,9 +358,11 @@ def licence_notice(model: str) -> str:
     """What a user of a non-commercial built-in ``model`` is responsible for, in words."""
     title = ONNX_MODELS[model]["title"]
     free = " or ".join(s["title"] for s in ONNX_MODELS.values() if s.get("commercial"))
-    return (f"{title} is licensed for non-commercial use only. You are responsible for not "
-            f"using it commercially, for example to make minis you sell. For commercial use, "
-            f"pick {free} (MIT licence).")
+    return (
+        f"{title} is licensed for non-commercial use only. You are responsible for not "
+        f"using it commercially, for example to make minis you sell. For commercial use, "
+        f"pick {free} (MIT licence)."
+    )
 
 
 def model_path(model: str) -> Path:
@@ -338,8 +370,12 @@ def model_path(model: str) -> Path:
     return cache_dir() / ONNX_MODELS[model]["file"]
 
 
-def fetch_model(model: str, force: bool = False, progress=None,
-                cancel: threading.Event | None = None) -> Path:
+def fetch_model(
+    model: str,
+    force: bool = False,
+    progress=None,
+    cancel: threading.Event | None = None,
+) -> Path:
     """Download the built-in ``model`` unless it is already there (always with
     ``force``, e.g. to replace a damaged file). One download per model at a time."""
     with _MODEL_LOCKS[model]:
@@ -367,14 +403,24 @@ def get_segmenter(model: str):
         path = model_path(model)
         if not path.exists():
             if CONFIRM_DOWNLOAD is not None and not CONFIRM_DOWNLOAD(model):
-                raise ModelError(f"the {model} model is not downloaded. Download it in "
-                                 "Preferences… > Models and cache in the menu, or pick "
-                                 "another model.")
-            if CONFIRM_DOWNLOAD is None and non_commercial(model) and sys.stderr is not None:
-                print(f"Note: {licence_notice(model)}", file=sys.stderr)  # (the command line)
+                raise ModelError(
+                    f"the {model} model is not downloaded. Download it in "
+                    "Preferences… > Models and cache in the menu, or pick "
+                    "another model."
+                )
+            if (
+                CONFIRM_DOWNLOAD is None
+                and non_commercial(model)
+                and sys.stderr is not None
+            ):
+                print(
+                    f"Note: {licence_notice(model)}", file=sys.stderr
+                )  # (the command line)
             fetch_model(model)
         logger.info("Loading the %s model", model)
-        return OnnxSegmenter(path, spec["size"], spec["mean"], spec["std"], spec["post"])
+        return OnnxSegmenter(
+            path, spec["size"], spec["mean"], spec["std"], spec["post"]
+        )
     if model.lower().endswith(".onnx"):
         path = Path(model).expanduser()
         if not path.exists():
@@ -403,7 +449,9 @@ def get_cached_segmenter(model: str):
 
 
 def has_alpha(im: Image.Image) -> bool:
-    if im.mode not in ("RGBA", "LA", "PA") and not (im.mode == "P" and "transparency" in im.info):
+    if im.mode not in ("RGBA", "LA", "PA") and not (
+        im.mode == "P" and "transparency" in im.info
+    ):
         return False
     return im.convert("RGBA").getchannel("A").getextrema()[0] < 255
 
@@ -424,8 +472,10 @@ def compute_mask(
     W, H = im.size
     if model == "alpha":
         if not has_alpha(im):
-            raise ModelError("model 'alpha' needs an image with transparency; "
-                             "this one has none - pick another model")
+            raise ModelError(
+                "model 'alpha' needs an image with transparency; "
+                "this one has none - pick another model"
+            )
         full = np.asarray(im.convert("RGBA").getchannel("A")).copy()
         if crop:
             keep = np.zeros_like(full)
@@ -455,8 +505,9 @@ def compute_mask(
     check_cancel()
     rgb = im.convert("RGB")
     if has_alpha(im):  # the model sees a cut-out on white, not its hidden pixel colors
-        rgb = Image.alpha_composite(Image.new("RGBA", im.size, (255, 255, 255, 255)),
-                                    im.convert("RGBA")).convert("RGB")
+        rgb = Image.alpha_composite(
+            Image.new("RGBA", im.size, (255, 255, 255, 255)), im.convert("RGBA")
+        ).convert("RGB")
     if crop:
         x0, y0, x1, y1 = crop
         full = np.zeros((H, W), np.uint8)

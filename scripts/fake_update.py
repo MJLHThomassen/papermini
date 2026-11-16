@@ -57,18 +57,33 @@ def pack(app: Path, archive: Path) -> None:
     if archive.name.endswith(".tar.gz"):
         with tarfile.open(archive, "w:gz") as t:
             t.add(app, arcname=app.name)
-    elif sys.platform == "darwin" and (app / "Contents").exists():  # a real .app: keep links
-        subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app),
-                        str(archive)], check=True)
+    elif (
+        sys.platform == "darwin" and (app / "Contents").exists()
+    ):  # a real .app: keep links
+        subprocess.run(
+            [
+                "ditto",
+                "-c",
+                "-k",
+                "--sequesterRsrc",
+                "--keepParent",
+                str(app),
+                str(archive),
+            ],
+            check=True,
+        )
     else:
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
             for f in sorted(app.rglob("*")):
                 z.write(f, f.relative_to(app.parent).as_posix())
 
 
-def make_release(app: Path | None = None, version: str = "99.0.0",
-                 out: Path | None = None, setup: Path | None = None
-                 ) -> tuple[dict[str, str], Path | None, Path]:
+def make_release(
+    app: Path | None = None,
+    version: str = "99.0.0",
+    out: Path | None = None,
+    setup: Path | None = None,
+) -> tuple[dict[str, str], Path | None, Path]:
     """Make the fake release (of the build ``app``, or of a pretend app with a pretend
     installed copy; with ``setup``, of that Windows installer, for an installed
     papermini). Returns (environment variables to set, the pretend installed copy or
@@ -99,11 +114,15 @@ def make_release(app: Path | None = None, version: str = "99.0.0",
         if app.name != Path(want).name:
             sys.exit(f"--app must be the build for this computer: {want} (not {app})")
         if not app.exists():
-            sys.exit(f"{app} does not exist: build it first with "
-                     "pyinstaller packaging/papermini.spec --noconfirm")
+            sys.exit(
+                f"{app} does not exist: build it first with "
+                "pyinstaller packaging/papermini.spec --noconfirm"
+            )
     else:
         app = pretend_app(out / "new", version, "the update")
-        installed = pretend_app(out / "installed", "0.0.1", "installed before the update")
+        installed = pretend_app(
+            out / "installed", "0.0.1", "installed before the update"
+        )
     if setup is None:
         archive = rel / update.asset_name(version, tgt)
         pack(app, archive)
@@ -113,15 +132,26 @@ def make_release(app: Path | None = None, version: str = "99.0.0",
 
     key = Ed25519PrivateKey.generate()  # a throwaway key: only this test trusts it
     (rel / update.SIGNATURE).write_bytes(base64.b64encode(key.sign(sums)) + b"\n")
-    public = base64.b64encode(key.public_key().public_bytes(
-        serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode()
+    public = base64.b64encode(
+        key.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )
+    ).decode()
     feed = rel / "release.json"
-    feed.write_text(json.dumps({
-        "tag_name": f"v{version}",
-        "html_url": "https://github.com/MJLHThomassen/papermini/releases",
-        "assets": [{"name": f.name, "browser_download_url": f.resolve().as_uri()}
-                   for f in (archive, rel / update.CHECKSUMS, rel / update.SIGNATURE)],
-    }, indent=2), encoding="utf-8")
+    feed.write_text(
+        json.dumps(
+            {
+                "tag_name": f"v{version}",
+                "html_url": "https://github.com/MJLHThomassen/papermini/releases",
+                "assets": [
+                    {"name": f.name, "browser_download_url": f.resolve().as_uri()}
+                    for f in (archive, rel / update.CHECKSUMS, rel / update.SIGNATURE)
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     env = {update.FEED_ENV: str(feed.resolve()), update.KEY_ENV: public}
     if installed is not None:
         env[update.INSTALL_ENV] = str(installed.resolve())
@@ -131,9 +161,15 @@ def make_release(app: Path | None = None, version: str = "99.0.0",
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--version", default="99.0.0", help="the fake new version (99.0.0)")
-    ap.add_argument("--app", type=Path, help="a real build to offer as the new version "
-                                             "(dist/papermini or dist/papermini.app)")
-    ap.add_argument("--out", type=Path, help="where to write it (a folder in the temp folder)")
+    ap.add_argument(
+        "--app",
+        type=Path,
+        help="a real build to offer as the new version "
+        "(dist/papermini or dist/papermini.app)",
+    )
+    ap.add_argument(
+        "--out", type=Path, help="where to write it (a folder in the temp folder)"
+    )
     args = ap.parse_args()
     env, installed, rel = make_release(args.app, args.version, args.out)
     print(f"fake release {args.version} in {rel}")
@@ -144,15 +180,23 @@ def main() -> None:
     for k, v in env.items():
         print(f"  export {k}='{v}'")
     if installed is not None:
-        print(f"\nThen start papermini from source in that shell. On closing it, "
-              f"{installed} is replaced by the update (see its VERSION.txt).")
+        print(
+            f"\nThen start papermini from source in that shell. On closing it, "
+            f"{installed} is replaced by the update (see its VERSION.txt)."
+        )
     else:
-        exe = ("papermini.app/Contents/MacOS/papermini" if sys.platform == "darwin"
-               else "papermini\\papermini.exe" if sys.platform == "win32"
-               else "papermini/papermini")
-        print(f"\nThen copy {args.app} somewhere outside dist (that copy plays the installed "
-              f"app), and start its {exe} in that shell. Update it from the About window; "
-              "on closing, the copy is replaced by the update.")
+        exe = (
+            "papermini.app/Contents/MacOS/papermini"
+            if sys.platform == "darwin"
+            else "papermini\\papermini.exe"
+            if sys.platform == "win32"
+            else "papermini/papermini"
+        )
+        print(
+            f"\nThen copy {args.app} somewhere outside dist (that copy plays the installed "
+            f"app), and start its {exe} in that shell. Update it from the About window; "
+            "on closing, the copy is replaced by the update."
+        )
 
 
 if __name__ == "__main__":

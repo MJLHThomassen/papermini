@@ -26,8 +26,11 @@ def figure(tmp_path):
 
 def _mini(figure, **settings):
     img, mask = figure
-    return build_mini(img, FigureSettings(mask=str(mask), label="Goblin", **settings),
-                      log=lambda *_: None)
+    return build_mini(
+        img,
+        FigureSettings(mask=str(mask), label="Goblin", **settings),
+        log=lambda *_: None,
+    )
 
 
 def _kinds(m, rot):
@@ -37,10 +40,13 @@ def _kinds(m, rot):
 def test_a_mini_shows_its_number_only_where_chosen(figure):
     m = _mini(figure)
     assert not m.numbered and m.number_box is None
-    assert _kinds(m, 0) == [("label", "Goblin")] and _kinds(m, 180)[0] == ("label", "Goblin")
+    assert _kinds(m, 0) == [("label", "Goblin")] and _kinds(m, 180)[0] == (
+        "label",
+        "Goblin",
+    )
     m = _mini(figure, tab_front="number", tab_back="label_number", back="blank")
     assert m.numbered
-    assert _kinds(m, 0) == [("number", NUMBER_PLACEHOLDER)]          # (no copy number yet)
+    assert _kinds(m, 0) == [("number", NUMBER_PLACEHOLDER)]  # (no copy number yet)
     assert _kinds(m, 180) == [("number", "#"), ("label", "Goblin")]
     m.number = 4
     assert [t.text for t in m.text_items() if t.kind == "number"] == ["4", "4"]
@@ -97,24 +103,35 @@ def test_the_sheet_numbers_the_copies(figure, tmp_path):
 
 def test_one_svg_per_numbered_copy(figure, tmp_path):
     plain = _mini(figure)
-    assert write_svgs(plain, tmp_path / "plain.svg", copies=3) == [tmp_path / "plain.svg"]
+    assert write_svgs(plain, tmp_path / "plain.svg", copies=3) == [
+        tmp_path / "plain.svg"
+    ]
     m = _mini(figure, tab_front="number", back="number")
     out = write_svgs(m, tmp_path / "goblin.svg", copies=3)
     assert [p.name for p in out] == ["goblin-1.svg", "goblin-2.svg", "goblin-3.svg"]
     assert [p.name for p in write_svgs(m, tmp_path / "one.svg")] == ["one-1.svg"]
     r = read_svg(tmp_path / "goblin-2.svg")
     assert [(t.kind, t.text) for t in r.extra] == [("number", "2"), ("number", "2")]
-    assert not r.numbered  # the numbers are in the file: a sheet prints them as they are
+    assert (
+        not r.numbered
+    )  # the numbers are in the file: a sheet prints them as they are
     lay = pack([(r, 2)])
-    assert [[t.text for t in p.mini.text_items() if t.kind == "number"]
-            for p in lay.placements] == [["2", "2"], ["2", "2"]]
+    assert [
+        [t.text for t in p.mini.text_items() if t.kind == "number"]
+        for p in lay.placements
+    ] == [["2", "2"], ["2", "2"]]
 
 
 def test_tab_options_validated():
     s = FigureSettings.from_dict({"tab_front": "number", "tab_back": "label_number"})
     assert (s.tab_front, s.tab_back) == ("number", "label_number")
-    assert s.to_dict(with_size=False) == {"tab_front": "number", "tab_back": "label_number"}
-    assert FigureSettings.from_dict({"back": "text_number"}).params().back == "text_number"
+    assert s.to_dict(with_size=False) == {
+        "tab_front": "number",
+        "tab_back": "label_number",
+    }
+    assert (
+        FigureSettings.from_dict({"back": "text_number"}).params().back == "text_number"
+    )
     for bad in ({"tab_front": "digits"}, {"tab_back": ""}, {"back": "numbers"}):
         with pytest.raises(ValueError):
             FigureSettings.from_dict(bad)
@@ -122,25 +139,49 @@ def test_tab_options_validated():
 
 def test_cli_numbers(figure, tmp_path):
     img, mask = figure
-    assert main(["make", str(img), "--mask", str(mask), "--tab-front", "number",
-                 "--back", "text_number", "--copies", "3", "-o", str(tmp_path)]) == 0
-    assert sorted(p.name for p in tmp_path.glob("goblin*.svg")) == \
-        ["goblin-1.svg", "goblin-2.svg", "goblin-3.svg"]
+    assert (
+        main(
+            [
+                "make",
+                str(img),
+                "--mask",
+                str(mask),
+                "--tab-front",
+                "number",
+                "--back",
+                "text_number",
+                "--copies",
+                "3",
+                "-o",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
+    assert sorted(p.name for p in tmp_path.glob("goblin*.svg")) == [
+        "goblin-1.svg",
+        "goblin-2.svg",
+        "goblin-3.svg",
+    ]
     assert [t.text for t in read_svg(tmp_path / "goblin-3.svg").extra] == ["3", "3"]
 
 
 def test_batch_numbers_the_copies(figure, tmp_path):
     img, mask = figure
     proj = tmp_path / "minis.yaml"
-    proj.write_text(f"""output: out
+    proj.write_text(
+        f"""output: out
 sheet: {{copies: 2}}
 figures:
   - image: {img.name}
     mask: {mask.name}
     tab_back: number
     copies: 4
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     assert load_project(proj).figures[0].settings.copies == 4
     assert main(["batch", str(proj)]) == 0
-    assert sorted(p.name for p in (tmp_path / "out").glob("*.svg")) == \
-        [f"goblin-{i}.svg" for i in range(1, 5)]
+    assert sorted(p.name for p in (tmp_path / "out").glob("*.svg")) == [
+        f"goblin-{i}.svg" for i in range(1, 5)
+    ]

@@ -32,14 +32,22 @@ GROUPS = [
 ]
 OTHER = "Other changes"
 
-SUBJECT = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]+)\))?(?P<bang>!)?: (?P<desc>.+)$")
+SUBJECT = re.compile(
+    r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]+)\))?(?P<bang>!)?: (?P<desc>.+)$"
+)
 MERGED_PR = re.compile(r"^Merge pull request #(\d+)")
 SQUASHED_PR = re.compile(r"\(#(\d+)\)$")
 
 
 def git(*args: str, cwd: str | None = None) -> str:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
-                          check=True, encoding="utf-8").stdout
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+    ).stdout
 
 
 @dataclass
@@ -62,7 +70,8 @@ class Commit:
     def breaking(self) -> bool:
         m = self.parsed
         return bool(m and m["bang"]) or bool(
-            re.search(r"^BREAKING[ -]CHANGE:", self.body, re.MULTILINE))
+            re.search(r"^BREAKING[ -]CHANGE:", self.body, re.MULTILINE)
+        )
 
     def line(self) -> str:
         m = self.parsed
@@ -76,12 +85,24 @@ class Commit:
         return f"- {text} ({refs})"
 
 
-def previous_tag(rev: str, cwd: str | None = None, inclusive: bool = False) -> str | None:
+def previous_tag(
+    rev: str, cwd: str | None = None, inclusive: bool = False
+) -> str | None:
     """The newest version tag before ``rev`` in its history (or on it, ``inclusive``),
     or None for the first."""
     try:
-        return git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*",
-                   rev if inclusive else f"{rev}^", cwd=cwd).strip() or None
+        return (
+            git(
+                "describe",
+                "--tags",
+                "--abbrev=0",
+                "--match",
+                "v[0-9]*",
+                rev if inclusive else f"{rev}^",
+                cwd=cwd,
+            ).strip()
+            or None
+        )
     except subprocess.CalledProcessError:
         return None
 
@@ -89,7 +110,9 @@ def previous_tag(rev: str, cwd: str | None = None, inclusive: bool = False) -> s
 def commits(rev_range: str, cwd: str | None = None) -> list[Commit]:
     """The non-merge commits in ``rev_range``, newest first, each with its pull request."""
     sep, end = "\x1f", "\x1e"
-    out = git("log", "--no-merges", f"--format=%H{sep}%s{sep}%b{end}", rev_range, cwd=cwd)
+    out = git(
+        "log", "--no-merges", f"--format=%H{sep}%s{sep}%b{end}", rev_range, cwd=cwd
+    )
     found = []
     for rec in out.split(end):
         rec = rec.strip("\n")
@@ -99,8 +122,9 @@ def commits(rev_range: str, cwd: str | None = None) -> list[Commit]:
             found.append(Commit(sha, subject, body, int(m[1]) if m else None))
     # commits that came in with a merged pull request: second parent side of its merge
     pr_of: dict[str, int] = {}
-    merges = git("log", "--merges", "--first-parent", "--format=%H %P%x1f%s", rev_range,
-                 cwd=cwd)
+    merges = git(
+        "log", "--merges", "--first-parent", "--format=%H %P%x1f%s", rev_range, cwd=cwd
+    )
     for line in merges.splitlines():
         shas, subject = line.split("\x1f", 1)
         m = MERGED_PR.match(subject)
@@ -117,15 +141,24 @@ def commits(rev_range: str, cwd: str | None = None) -> list[Commit]:
 def notes(tag: str, repo: str | None = None, cwd: str | None = None) -> str:
     """The notes for ``tag``; a tag that does not exist yet means the current commit, so
     the notes can be read before tagging."""
-    exists = subprocess.run(["git", "rev-parse", "--verify", "-q", f"{tag}^{{commit}}"],
-                            cwd=cwd, capture_output=True, check=False).returncode == 0
+    exists = (
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "-q", f"{tag}^{{commit}}"],
+            cwd=cwd,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
     rev = tag if exists else "HEAD"
     prev = previous_tag(rev, cwd, inclusive=not exists)  # (HEAD may carry the last tag)
     found = commits(f"{prev}..{rev}" if prev else rev, cwd)
     parts: list[str] = []
     breaking = [c for c in found if c.breaking]
     if breaking:
-        parts.append("## ⚠ Breaking changes\n\n" + "\n".join(c.line() for c in breaking))
+        parts.append(
+            "## ⚠ Breaking changes\n\n" + "\n".join(c.line() for c in breaking)
+        )
     for kind, heading in GROUPS + [(None, OTHER)]:
         group = [c for c in found if c.kind == kind]
         if group:
@@ -133,7 +166,9 @@ def notes(tag: str, repo: str | None = None, cwd: str | None = None) -> str:
     if not found:
         parts.append("No changes.")
     if repo and prev:
-        parts.append(f"**Full changelog:** https://github.com/{repo}/compare/{prev}...{tag}")
+        parts.append(
+            f"**Full changelog:** https://github.com/{repo}/compare/{prev}...{tag}"
+        )
     return "\n\n".join(parts) + "\n"
 
 

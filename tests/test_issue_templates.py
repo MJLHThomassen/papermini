@@ -39,16 +39,24 @@ def test_form_structure(path):
 def test_bug_report_keeps_the_fields_papermini_fills_in():
     """Released versions fill these in through the URL, so they must keep their ids and
     stay text fields (only inputs and textareas can be filled in that way)."""
-    fields = {item["id"]: item for item in _load(TEMPLATES / "bug_report.yml")["body"]
-              if "id" in item}
+    fields = {
+        item["id"]: item
+        for item in _load(TEMPLATES / "bug_report.yml")["body"]
+        if "id" in item
+    }
     for fid in ("version", "os", "runs-as", "traceback"):
         assert fields[fid]["type"] in ("input", "textarea"), fid
     # a log can only be dragged into a textarea that is not rendered as code
-    assert fields["log"]["type"] == "textarea" and "render" not in fields["log"]["attributes"]
+    assert (
+        fields["log"]["type"] == "textarea"
+        and "render" not in fields["log"]["attributes"]
+    )
 
 
 def test_config_keeps_blank_issues_for_the_maintainer_and_links_the_docs():
     cfg = _load(TEMPLATES / "config.yml")
     assert cfg["blank_issues_enabled"] is False  # GitHub still offers it to maintainers
-    assert any(link["url"].endswith("docs/reference.md") for link in cfg["contact_links"])
+    assert any(
+        link["url"].endswith("docs/reference.md") for link in cfg["contact_links"]
+    )
     assert (TEMPLATES.parents[1] / "docs" / "reference.md").is_file()

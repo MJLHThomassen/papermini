@@ -41,8 +41,11 @@ SIGNATURE = CHECKSUMS + ".sig"
 # the release workflow's public signing key, base64 (scripts/release_key.py sets it)
 PUBLIC_KEY = "1tcgNayNKgRQi2eWKy0RMuAC4vx9R/ovBGmproIi0AQ="
 READY = "READY"  # marks a downloaded, verified and unpacked update
-FEED_ENV, KEY_ENV, INSTALL_ENV = ("PAPERMINI_UPDATE_FEED", "PAPERMINI_UPDATE_KEY",
-                                  "PAPERMINI_UPDATE_INSTALL")
+FEED_ENV, KEY_ENV, INSTALL_ENV = (
+    "PAPERMINI_UPDATE_FEED",
+    "PAPERMINI_UPDATE_KEY",
+    "PAPERMINI_UPDATE_INSTALL",
+)
 
 
 def _feed() -> str:
@@ -63,12 +66,13 @@ class UpdateError(Exception):
 
 @dataclass
 class Release:
-    version: str                     # the release's version, without the "v" of its tag
-    url: str                         # the release page
+    version: str  # the release's version, without the "v" of its tag
+    url: str  # the release page
     assets: dict[str, str] = field(default_factory=dict)  # file name -> download link
 
 
 # --------------------------------------------------------------------------- versions
+
 
 def parse_version(v: str) -> tuple[int, int, int] | None:
     """Parse a release version (with or without "v") into (major, minor, patch); None
@@ -86,6 +90,7 @@ def is_newer(latest: str, current: str) -> bool:
 
 
 # --------------------------------------------------------------------------- this app
+
 
 def target() -> str | None:
     """The download that fits this computer: windows-x64, macos-arm64, macos-x64 or
@@ -107,12 +112,16 @@ def asset_name(version: str, tgt: str, setup: bool = False) -> str:
     (Windows)."""
     if setup:
         return f"papermini-{version}-{tgt}-setup.exe"
-    return f"papermini-{version}-{tgt}." + ("tar.gz" if tgt.startswith("linux") else "zip")
+    return f"papermini-{version}-{tgt}." + (
+        "tar.gz" if tgt.startswith("linux") else "zip"
+    )
 
 
 # the installer's entry in Apps & features (per user; the AppId in packaging/papermini.iss)
-SETUP_KEY = (r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
-             r"\{8ABD2E9A-F789-4350-88F8-2565C60699F0}_is1")
+SETUP_KEY = (
+    r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
+    r"\{8ABD2E9A-F789-4350-88F8-2565C60699F0}_is1"
+)
 
 
 def setup_install_dir() -> Path | None:
@@ -138,8 +147,11 @@ def installed_with_setup() -> bool:
     installed folder, replaces its own folder."""
     where = install_dir()
     installed = setup_install_dir()
-    return (where is not None and installed is not None
-            and os.path.normcase(installed) == os.path.normcase(where))
+    return (
+        where is not None
+        and installed is not None
+        and os.path.normcase(installed) == os.path.normcase(where)
+    )
 
 
 def install_dir() -> Path | None:
@@ -167,18 +179,28 @@ def unsupported() -> str | None:
         return "This version of papermini cannot check the signature of an update."
     where = install_dir()
     if not os.access(where.parent, os.W_OK) or not os.access(where, os.W_OK):
-        return f"papermini may not write to {where.parent}, so it cannot replace itself."
+        return (
+            f"papermini may not write to {where.parent}, so it cannot replace itself."
+        )
     return None
 
 
 # --------------------------------------------------------------------------- GitHub
 
+
 def _open(url: str, timeout: float):
     from . import __version__
 
-    req = urllib.request.Request(url, headers={"User-Agent": f"papermini/{__version__}",
-                                               "Accept": "application/vnd.github+json"})
-    return urllib.request.urlopen(req, timeout=timeout)  # (looked up now: tests replace it)
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": f"papermini/{__version__}",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    return urllib.request.urlopen(
+        req, timeout=timeout
+    )  # (looked up now: tests replace it)
 
 
 def latest_release(timeout: float = 10.0) -> Release:
@@ -193,8 +215,12 @@ def latest_release(timeout: float = 10.0) -> Release:
     return Release(version, str(data.get("html_url", "")), assets)
 
 
-def _fetch(url: str, dest: Path, timeout: float,
-           progress: Callable[[int, int], None] | None = None) -> Path:
+def _fetch(
+    url: str,
+    dest: Path,
+    timeout: float,
+    progress: Callable[[int, int], None] | None = None,
+) -> Path:
     tmp = dest.with_name(dest.name + ".part")
     try:
         with _open(url, timeout) as r, open(tmp, "wb") as f:
@@ -216,8 +242,10 @@ def _fetch(url: str, dest: Path, timeout: float,
 
 # --------------------------------------------------------------------------- verify
 
-def verify(checksums: bytes, signature: bytes, archive: Path,
-           public_key: str = "") -> None:
+
+def verify(
+    checksums: bytes, signature: bytes, archive: Path, public_key: str = ""
+) -> None:
     """Raise UpdateError unless ``checksums`` carries a valid signature by the release
     key and lists ``archive`` with its SHA-256."""
     from cryptography.exceptions import InvalidSignature
@@ -228,10 +256,12 @@ def verify(checksums: bytes, signature: bytes, archive: Path,
         raise UpdateError("No release key to check the update with.")
     try:
         Ed25519PublicKey.from_public_bytes(base64.b64decode(key)).verify(
-            base64.b64decode(signature.strip()), checksums)
+            base64.b64decode(signature.strip()), checksums
+        )
     except (InvalidSignature, ValueError):
-        raise UpdateError("The update is not signed by papermini's release key; "
-                          "it was not installed.") from None
+        raise UpdateError(
+            "The update is not signed by papermini's release key; it was not installed."
+        ) from None
     sums = {}
     for line in checksums.decode("utf-8", "replace").splitlines():
         parts = line.split()
@@ -242,11 +272,13 @@ def verify(checksums: bytes, signature: bytes, archive: Path,
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     if sums.get(archive.name) != h.hexdigest():
-        raise UpdateError(f"{archive.name} does not match its checksum; it was not "
-                          "installed.")
+        raise UpdateError(
+            f"{archive.name} does not match its checksum; it was not installed."
+        )
 
 
 # --------------------------------------------------------------------------- download
+
 
 def updates_dir() -> Path:
     from .segment import cache_dir
@@ -266,7 +298,9 @@ def _unpack(archive: Path, dest: Path) -> Path:
                 t.extractall(dest, filter="data")
             else:
                 t.extractall(dest)
-    elif sys.platform == "darwin":  # ditto keeps the app's links, permissions and signature
+    elif (
+        sys.platform == "darwin"
+    ):  # ditto keeps the app's links, permissions and signature
         subprocess.run(["ditto", "-x", "-k", str(archive), str(dest)], check=True)
     else:
         with zipfile.ZipFile(archive) as z:
@@ -277,8 +311,12 @@ def _unpack(archive: Path, dest: Path) -> Path:
     raise UpdateError(f"{name} does not hold papermini.")
 
 
-def download(release: Release, progress: Callable[[int, int], None] | None = None,
-             timeout: float = 30.0, step: Callable[[str], None] | None = None) -> Path:
+def download(
+    release: Release,
+    progress: Callable[[int, int], None] | None = None,
+    timeout: float = 30.0,
+    step: Callable[[str], None] | None = None,
+) -> Path:
     """Download this computer's archive of ``release``, verify it and unpack it, ready to
     install; returns the unpacked app. A papermini installed with the Windows installer
     downloads the new installer instead, and gets that back. ``progress(done, total)``
@@ -290,7 +328,9 @@ def download(release: Release, progress: Callable[[int, int], None] | None = Non
     name = asset_name(release.version, tgt or "", setup)
     for need in (name, CHECKSUMS, SIGNATURE):
         if need not in release.assets:
-            raise UpdateError(f"The release of papermini {release.version} has no {need}.")
+            raise UpdateError(
+                f"The release of papermini {release.version} has no {need}."
+            )
     where = updates_dir() / release.version
     if where.exists():
         shutil.rmtree(where, ignore_errors=True)
@@ -316,7 +356,11 @@ def _new_app(new: Path) -> Path | None:
     for app in ("papermini.app", "papermini"):
         if (new / app).exists():
             return new / app
-    return next(iter(sorted(new.glob("papermini-*-setup.exe"))), None) if new.is_dir() else None
+    return (
+        next(iter(sorted(new.glob("papermini-*-setup.exe"))), None)
+        if new.is_dir()
+        else None
+    )
 
 
 def pending() -> tuple[str, Path] | None:
@@ -332,7 +376,8 @@ def pending() -> tuple[str, Path] | None:
         if (d / READY).is_file() and is_newer(d.name, __version__):
             app = _new_app(d / "new")
             if app is not None and (
-                    best is None or parse_version(d.name) > parse_version(best[0])):
+                best is None or parse_version(d.name) > parse_version(best[0])
+            ):
                 best = (d.name, app)
     return best
 
@@ -350,7 +395,10 @@ def forget_old() -> None:
 
 # --------------------------------------------------------------------------- install
 
-def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> tuple[Path, list]:
+
+def install_script(
+    new_app: Path, old_app: Path, pid: int, restart: bool
+) -> tuple[Path, list]:
     """Write the helper that replaces ``old_app`` with ``new_app`` once the process
     ``pid`` (papermini) has quit; returns (script, command to start it). When
     ``new_app`` is the Windows installer, the helper runs it silently instead (it
@@ -360,25 +408,35 @@ def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> tup
         exe = old_app / "papermini.exe"
         sys32 = "%SystemRoot%\\System32"  # Windows' own tools, whatever else is on PATH
         if new_app.suffix.lower() == ".exe":  # the installer
-            install = [f'"{new_app}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
-                       f'if %ERRORLEVEL% EQU 0 rmdir /s /q "{new_app.parent}"']
+            install = [
+                f'"{new_app}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+                f'if %ERRORLEVEL% EQU 0 rmdir /s /q "{new_app.parent}"',
+            ]
         else:
-            install = [(f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
-                       "/NFL /NDL /NJH /NJS /NP >NUL"),
-                       f'if %ERRORLEVEL% LSS 8 rmdir /s /q "{new_app.parent}"']
+            install = [
+                (
+                    f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
+                    "/NFL /NDL /NJH /NJS /NP >NUL"
+                ),
+                f'if %ERRORLEVEL% LSS 8 rmdir /s /q "{new_app.parent}"',
+            ]
         lines = [
             "@echo off",
             ":wait",  # until papermini has quit (its files are locked while it runs)
-            (f'{sys32}\\tasklist.exe /FI "PID eq {pid}" /NH 2>NUL | '
-            f'{sys32}\\find.exe "{pid}" >NUL && '
-            f"({sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)"),
+            (
+                f'{sys32}\\tasklist.exe /FI "PID eq {pid}" /NH 2>NUL | '
+                f'{sys32}\\find.exe "{pid}" >NUL && '
+                f"({sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)"
+            ),
             *install,
         ]
         if restart:
             lines.append(f'start "" "{exe}"')
         lines.append('(goto) 2>NUL & del "%~f0"')  # the script removes itself
         script = folder / "update.cmd"
-        script.write_text("\n".join(lines) + "\n", encoding="utf-8")  # (CRLF on Windows)
+        script.write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )  # (CRLF on Windows)
         return script, ["cmd", "/c", str(script)]
     old, new = str(old_app), str(new_app)
     lines = [
@@ -391,7 +449,9 @@ def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> tup
         f'rm -rf "{new_app.parent}"',
     ]
     if restart:
-        lines.append(f'open "{old}"' if sys.platform == "darwin" else f'"{old}/papermini" &')
+        lines.append(
+            f'open "{old}"' if sys.platform == "darwin" else f'"{old}/papermini" &'
+        )
     lines.append('rm -f "$0"')
     script = folder / "update.sh"
     script.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -405,8 +465,12 @@ def install_on_exit(new_app: Path, restart: bool = False) -> None:
     if old is None:
         raise UpdateError("papermini runs from source; it does not install updates.")
     _, cmd = install_script(new_app, old, os.getpid(), restart)
-    quiet = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
-                 "stderr": subprocess.DEVNULL, "close_fds": True}
+    quiet = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
     if sys.platform == "win32":  # a hidden console: a batch script needs one to run
         flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         subprocess.Popen(cmd, creationflags=flags, **quiet)
