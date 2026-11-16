@@ -38,7 +38,9 @@ def _figure(path: Path, size=(300, 400)) -> Path:
     """A red figure (an ellipse) on a transparent background."""
     im = Image.new("RGBA", size, (0, 0, 0, 0))
     w, h = size
-    ImageDraw.Draw(im).ellipse([w * 0.2, h * 0.1, w * 0.8, h * 0.9], fill=(200, 40, 30, 255))
+    ImageDraw.Draw(im).ellipse(
+        [w * 0.2, h * 0.1, w * 0.8, h * 0.9], fill=(200, 40, 30, 255)
+    )
     im.save(path)
     return path
 
@@ -51,40 +53,73 @@ def _token(path, **kw):
 # ---------------------------------------------------------------- settings and sizes
 def test_token_settings_are_checked():
     d = FigureSettings()
-    assert (d.kind, d.token_diameter_mm, d.token_border_mm, d.token_text) == ("mini", 25, 2, "none")
-    assert (d.token_text_mm, d.token_text_color, d.token_cut_line) == (2.5, "#ffffff", False)
-    for bad in ({"kind": "standee"}, {"token_text": "name"}, {"token_text_style": "wavy"},
-                {"token_fill": "pattern"}, {"token_text_mm": 0}, {"token_border_mm": -1},
-                {"token_diameter_mm": 0}, {"token_border_color": "red"},
-                {"token_area": [0, 0, 0.5]}, {"token_area": [0.5, 0, 0.4, 1]}):
+    assert (d.kind, d.token_diameter_mm, d.token_border_mm, d.token_text) == (
+        "mini",
+        25,
+        2,
+        "none",
+    )
+    assert (d.token_text_mm, d.token_text_color, d.token_cut_line) == (
+        2.5,
+        "#ffffff",
+        False,
+    )
+    for bad in (
+        {"kind": "standee"},
+        {"token_text": "name"},
+        {"token_text_style": "wavy"},
+        {"token_fill": "pattern"},
+        {"token_text_mm": 0},
+        {"token_border_mm": -1},
+        {"token_diameter_mm": 0},
+        {"token_border_color": "red"},
+        {"token_area": [0, 0, 0.5]},
+        {"token_area": [0.5, 0, 0.4, 1]},
+    ):
         with pytest.raises(ValueError):
             FigureSettings.from_dict(bad)
     s = FigureSettings.from_dict({"token_area": "0.1, 0.2, 0.9, 1.0"})
     assert s.token_area == [0.1, 0.2, 0.9, 1.0]
-    assert FigureSettings.from_dict({"token_area": [-0.2, -0.1, 1.2, 1.3]}).token_area[0] == -0.2
+    assert (
+        FigureSettings.from_dict({"token_area": [-0.2, -0.1, 1.2, 1.3]}).token_area[0]
+        == -0.2
+    )
 
 
 def test_the_creature_size_fills_in_the_diameter():
-    assert settings_with_size({"kind": "token", "size": "large"}).token_diameter_mm == 50
+    assert (
+        settings_with_size({"kind": "token", "size": "large"}).token_diameter_mm == 50
+    )
     assert settings_with_size({"kind": "token", "size": "huge"}).token_diameter_mm == 75
-    edited = settings_with_size({"kind": "token", "size": "large", "token_diameter_mm": 40})
+    edited = settings_with_size(
+        {"kind": "token", "size": "large", "token_diameter_mm": 40}
+    )
     assert edited.size == "custom" and edited.token_diameter_mm == 40
 
 
 def test_a_project_keeps_its_tokens(tmp_path):
     img = _figure(tmp_path / "goblin.png")
-    tok_s = settings_with_size({"kind": "token", "size": "large", "token_area": [0, 0, 1, 1],
-                                "token_text": "label_number", "token_text_style": "curved"})
+    tok_s = settings_with_size(
+        {
+            "kind": "token",
+            "size": "large",
+            "token_area": [0, 0, 1, 1],
+            "token_text": "label_number",
+            "token_text_style": "curved",
+        }
+    )
     mini_s = settings_with_size({"size": "large"})
     p = Project(figures=[FigureEntry(img, tok_s), FigureEntry(img, mini_s, "mini")])
     path = save_project(p, tmp_path / "p.yaml")
     text = path.read_text()
-    assert "token_area:\n  - 0" in text or "token_area:\n    - 0" in text  # (a plain list)
+    assert (
+        "token_area:\n  - 0" in text or "token_area:\n    - 0" in text
+    )  # (a plain list)
     back = load_project(path)
     assert [f.settings for f in back.figures] == [tok_s, mini_s]
     saved = [f.settings.to_dict() for f in back.figures]
-    assert saved[0]["token_diameter_mm"] == 50     # a token: its size's diameter
-    assert "token_diameter_mm" not in saved[1]     # a mini: nothing about tokens
+    assert saved[0]["token_diameter_mm"] == 50  # a token: its size's diameter
+    assert "token_diameter_mm" not in saved[1]  # a mini: nothing about tokens
 
 
 def test_curved_text_has_a_least_ring():
@@ -112,9 +147,13 @@ def test_a_fitted_figure_stays_inside_the_circle(tmp_path):
     # every point of the figure lies inside the circle, with FIT_FREE of it free all round
     pts = np.vstack(m.source_outline)
     c = m.source_cut.points.mean(axis=0)
-    r = np.hypot(*(m.source_cut.points[0] - c))  # (the circle inside the ring, image px)
+    r = np.hypot(
+        *(m.source_cut.points[0] - c)
+    )  # (the circle inside the ring, image px)
     assert np.hypot(*(pts - c).T).max() <= r * (1 - 2 * tok.FIT_FREE) + 2
-    assert np.hypot(*(pts - c).T).max() >= r * (1 - 2 * tok.FIT_FREE) - 3  # (and fills it)
+    assert (
+        np.hypot(*(pts - c).T).max() >= r * (1 - 2 * tok.FIT_FREE) - 3
+    )  # (and fills it)
     # the cut line is the ring's edge (nothing printed on it by default)
     assert not m.style.cut_line
     assert np.hypot(*(m.cut.points - (t.cx, t.cy)).T) == pytest.approx(12.5)
@@ -126,7 +165,7 @@ def test_a_fitted_figure_stays_above_the_nameplate(tmp_path):
     t = m.token
     plate_top = t.cy + t.inner_mm - tok.PLATE * 3
     assert t.figure_box[3] <= plate_top + 0.05
-    assert t.plate[0] == pytest.approx(t.cx)               # the label is centred
+    assert t.plate[0] == pytest.approx(t.cx)  # the label is centred
 
 
 def test_a_printed_cut_line_lies_outside_the_ring(tmp_path):
@@ -143,21 +182,34 @@ def test_a_printed_cut_line_lies_outside_the_ring(tmp_path):
 
 def test_the_token_text(tmp_path):
     img = _figure(tmp_path / "goblin.png")
-    m = _token(img, label="Goblin boss", token_text="label_number", token_text_style="curved",
-               token_text_color="#2f5597", token_border_color="#303060")
+    m = _token(
+        img,
+        label="Goblin boss",
+        token_text="label_number",
+        token_text_style="curved",
+        token_text_color="#2f5597",
+        token_border_color="#303060",
+    )
     items = m.text_items()
     assert {t.kind for t in items} == {"tokentext"}
-    assert "".join(t.text for t in items) == "Goblinboss#"      # a letter each, # = the number
-    assert {t.color for t in items} == {"#2f5597"}              # the color chosen, always
+    assert (
+        "".join(t.text for t in items) == "Goblinboss#"
+    )  # a letter each, # = the number
+    assert {t.color for t in items} == {"#2f5597"}  # the color chosen, always
     letters = [t for t in items if t.text != "#"]
-    assert letters[0].rot > 20 and letters[-1].rot < -20     # (along the bottom, both ways)
+    assert (
+        letters[0].rot > 20 and letters[-1].rot < -20
+    )  # (along the bottom, both ways)
     # numbered copies: a file each, each with its number
     paths = write_svgs(m, tmp_path / "goblin.svg", 3)
     assert [p.name for p in paths] == ["goblin-1.svg", "goblin-2.svg", "goblin-3.svg"]
     assert ">3</text>" in paths[2].read_text()
     plate = _token(img, label="Goblin", token_text="label_number")
     t = plate.token
-    assert t.badge is not None and t.badge[1] + t.badge[2] <= t.cy + t.inner_mm - t.plate[3]
+    assert (
+        t.badge is not None
+        and t.badge[1] + t.badge[2] <= t.cy + t.inner_mm - t.plate[3]
+    )
     assert [i.text for i in plate.text_items()] == ["Goblin", "#"]
 
 
@@ -165,7 +217,9 @@ def test_a_token_svg_reads_back(tmp_path):
     img = _figure(tmp_path / "goblin.png")
     m = _token(img, label="Goblin", token_text="label_number")
     svg = to_svg(replace(m, number=2))
-    assert 'class="tokentext"' in svg and 'stroke="none"' in svg  # (no cut line printed)
+    assert (
+        'class="tokentext"' in svg and 'stroke="none"' in svg
+    )  # (no cut line printed)
     path = tmp_path / "t.svg"
     path.write_text(svg)
     back = read_svg(path)
@@ -182,25 +236,70 @@ def test_png_of_a_piece(tmp_path):
     scale = px_per_mm(256, 25.4)
     im = piece_image(m, scale)
     assert im.width == pytest.approx(m.width_mm * scale, abs=1) and im.mode == "RGBA"
-    assert im.getpixel((0, 0))[3] == 0                          # transparent around it
+    assert im.getpixel((0, 0))[3] == 0  # transparent around it
     assert im.getpixel((im.width // 2, im.height // 2))[3] == 255
     paths = write_pngs(m, tmp_path / "goblin.png", scale, 2)
     assert [p.name for p in paths] == ["goblin-1.png", "goblin-2.png"]
     mini = build_mini(img, settings_with_size({"model": "alpha"}), log=lambda *a: None)
-    assert piece_image(mini, scale).height == pytest.approx(mini.height_mm * scale, abs=1)
+    assert piece_image(mini, scale).height == pytest.approx(
+        mini.height_mm * scale, abs=1
+    )
 
 
 def test_make_tokens_on_the_command_line(tmp_path, capsys):
     img = _figure(tmp_path / "goblin.png")
     out = tmp_path / "out"
-    assert cli.main(["make", str(img), "--model", "alpha", "--kind", "token", "--size", "large",
-                     "--token-text", "number", "--copies", "2", "--format", "both",
-                     "-o", str(out)]) == 0
+    assert (
+        cli.main(
+            [
+                "make",
+                str(img),
+                "--model",
+                "alpha",
+                "--kind",
+                "token",
+                "--size",
+                "large",
+                "--token-text",
+                "number",
+                "--copies",
+                "2",
+                "--format",
+                "both",
+                "-o",
+                str(out),
+            ]
+        )
+        == 0
+    )
     assert sorted(p.name for p in out.iterdir()) == [
-        "goblin-1.png", "goblin-1.svg", "goblin-2.png", "goblin-2.svg"]
-    assert Image.open(out / "goblin-1.png").width == pytest.approx(512, abs=8)  # 2 squares
-    assert cli.main(["make", str(img), "--model", "alpha", "--kind", "token", "--format", "png",
-                     "--png-dpi", "254", "-o", str(tmp_path / "d.png")]) == 0
+        "goblin-1.png",
+        "goblin-1.svg",
+        "goblin-2.png",
+        "goblin-2.svg",
+    ]
+    assert Image.open(out / "goblin-1.png").width == pytest.approx(
+        512, abs=8
+    )  # 2 squares
+    assert (
+        cli.main(
+            [
+                "make",
+                str(img),
+                "--model",
+                "alpha",
+                "--kind",
+                "token",
+                "--format",
+                "png",
+                "--png-dpi",
+                "254",
+                "-o",
+                str(tmp_path / "d.png"),
+            ]
+        )
+        == 0
+    )
     assert Image.open(tmp_path / "d.png").width == pytest.approx(25.9 * 10, abs=3)
     with pytest.raises(SystemExit, match="not both"):
         cli.main(["make", str(img), "--png-px", "100", "--png-dpi", "300"])
@@ -213,7 +312,8 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys):
         "figures:\n"
         "  - {image: goblin.png, model: alpha}\n"
         "  - {image: goblin.png, name: tok, model: alpha, kind: token, copies: 3,\n"
-        "     token_text: number}\n")
+        "     token_text: number}\n"
+    )
     assert cli.main(["batch", str(tmp_path / "p.yaml")]) == 0
     assert "4 pieces" in capsys.readouterr().out
     assert (tmp_path / "minis" / "tok-3.svg").is_file()
@@ -223,8 +323,11 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys):
 @pytest.fixture(scope="module")
 def app(tmp_path_factory):
     QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(QSettings.IniFormat, QSettings.UserScope,
-                      str(tmp_path_factory.mktemp("settings")))
+    QSettings.setPath(
+        QSettings.IniFormat,
+        QSettings.UserScope,
+        str(tmp_path_factory.mktemp("settings")),
+    )
     return QApplication.instance() or QApplication([])
 
 
@@ -254,8 +357,10 @@ def window(app, prefs, tmp_path):
 
     w = MainWindow()
     w.resize(1300, 820)
-    w.add_images([_figure(tmp_path / "goblin.png")],
-                 settings_with_size({"kind": "token", "model": "alpha"}))
+    w.add_images(
+        [_figure(tmp_path / "goblin.png")],
+        settings_with_size({"kind": "token", "model": "alpha"}),
+    )
     w.list.setCurrentRow(0)
     w.tabs.setCurrentIndex(w.MINI)
     assert _wait(app, lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
@@ -282,8 +387,15 @@ def test_kind_switches_the_groups(app, prefs):
     assert "Back side" in shown() and "Token" not in shown()
     assert p.kind_row.isVisibleTo(p) and p.is_shown("dimensions")
     p._w["kind"][1].buttons["token"].click()
-    assert got[-1].kind == "token" and got[-1].label == "Boss"   # (the label is kept)
-    assert shown() == ["Size", "Token", "Token text", "Image outline", "Cut line", "Text"]
+    assert got[-1].kind == "token" and got[-1].label == "Boss"  # (the label is kept)
+    assert shown() == [
+        "Size",
+        "Token",
+        "Token text",
+        "Image outline",
+        "Cut line",
+        "Text",
+    ]
     assert p.is_shown("token_diameter_mm") and not p.is_shown("dimensions")
     assert "token" in p.step_hint.text()
     # token text: off is "none"; on, it shows the label first
@@ -294,7 +406,9 @@ def test_kind_switches_the_groups(app, prefs):
     style = p._w["token_text_style"][1]
     style.setCurrentIndex(style.findData("curved"))
     ring = p._w["token_border_mm"][1]
-    assert ring.minimum() == tok.min_ring_mm(2.5) and ring.value() == tok.min_ring_mm(2.5)
+    assert ring.minimum() == tok.min_ring_mm(2.5) and ring.value() == tok.min_ring_mm(
+        2.5
+    )
     assert p.ring_hint.isVisibleTo(p) and "3.5 mm" in p.ring_hint.text()
     # a token can switch its outline and cut line off; both off by default
     for name in ("token_outline", "token_cut_line"):
@@ -317,7 +431,7 @@ def test_drag_a_token_figure(app, window):
     QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
     for k in range(1, 5):
         QTest.mouseMove(v.viewport(), pa + (pb - pa) * (k / 4))
-    assert v._preview is not None                           # the figure moves with the mouse
+    assert v._preview is not None  # the figure moves with the mouse
     QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
     assert w.figures[0].entry.settings.token_area is not None
     m = _built(app, w)
@@ -332,7 +446,8 @@ def test_drag_a_token_figure(app, window):
     b1 = _built(app, w).token.figure_box
     assert b1[2] - b1[0] > b[2] - b[0]
     assert ((b1[0] + b1[2]) / 2, (b1[1] + b1[3]) / 2) == pytest.approx(
-        ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2), abs=0.15)
+        ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2), abs=0.15
+    )
     # Esc cancels a drag, a click changes nothing
     area = w.figures[0].entry.settings.token_area
     QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
@@ -354,9 +469,16 @@ def test_export_a_figure_as_svg_or_png(app, window, tmp_path, monkeypatch, prefs
     from papermini.gui.widgets import SUBTITLE_ROLE
 
     assert item.data(SUBTITLE_ROLE) == "⌀ 25 mm"
-    for name, filt in (("a.png", w.PNG_FILTER), ("b", w.PNG_FILTER), ("c.svg", w.SVG_FILTER)):
-        monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(
-            lambda *a, n=name, f=filt: (str(tmp_path / n), f)))
+    for name, filt in (
+        ("a.png", w.PNG_FILTER),
+        ("b", w.PNG_FILTER),
+        ("c.svg", w.SVG_FILTER),
+    ):
+        monkeypatch.setattr(
+            QFileDialog,
+            "getSaveFileName",
+            staticmethod(lambda *a, n=name, f=filt: (str(tmp_path / n), f)),
+        )
         w._save_piece(w.figures[0])
     assert {"a.png", "b.png", "c.svg"} <= {p.name for p in tmp_path.iterdir()}
     assert Image.open(tmp_path / "a.png").width == pytest.approx(26 * 256 / 25.4, abs=3)
@@ -367,7 +489,9 @@ def test_export_a_figure_as_svg_or_png(app, window, tmp_path, monkeypatch, prefs
     out = tmp_path / "all"
     out.mkdir()
     monkeypatch.setattr(w, "_ask_format", lambda: "both")
-    monkeypatch.setattr(QFileDialog, "getExistingDirectory", staticmethod(lambda *a: str(out)))
+    monkeypatch.setattr(
+        QFileDialog, "getExistingDirectory", staticmethod(lambda *a: str(out))
+    )
     w._save_all()
     assert sorted(p.suffix for p in out.iterdir()) == [".png", ".svg"]
     monkeypatch.setattr(w, "_ask_format", lambda: None)  # (cancelled: nothing)
@@ -381,7 +505,7 @@ def test_the_images_preferences(app, window, prefs):
     assert prefs.png_size_mode() == "square" and prefs.png_px_per_mm(25.4) == 256 / 25.4
     dlg = PreferencesDialog(window, "images")
     assert dlg.png_px.isEnabled() and not dlg.png_dpi.isEnabled()
-    assert dlg.png_px.suffix() == ""                     # (the unit is beside the box)
+    assert dlg.png_px.suffix() == ""  # (the unit is beside the box)
     dlg.png_buttons["dpi"].setChecked(True)
     assert prefs.png_size_mode() == "dpi" and dlg.png_dpi.isEnabled()
     dlg.png_dpi.setValue(600)

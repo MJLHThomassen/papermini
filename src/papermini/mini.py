@@ -30,7 +30,9 @@ class Style:
 
 
 TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
-NUMBER_PLACEHOLDER = "#"  # a figure's number where no copy number is known (the preview)
+NUMBER_PLACEHOLDER = (
+    "#"  # a figure's number where no copy number is known (the preview)
+)
 
 
 @dataclass
@@ -48,7 +50,9 @@ class TextItem:
     bold: bool = False
 
 
-def fit_number_size(text: str, max_w: float, max_h: float, font: str = fonts.DEFAULT) -> float:
+def fit_number_size(
+    text: str, max_w: float, max_h: float, font: str = fonts.DEFAULT
+) -> float:
     """The largest bold font size at which ``text`` fits ``max_w`` x ``max_h`` (mm)."""
     w = fonts.text_width(text, font, 1.0, bold=True)
     return max(0.0, min(max_h, max_w / w if w else max_h))
@@ -61,27 +65,31 @@ class Mini:
     name: str
     width_mm: float
     height_mm: float
-    art: Image.Image                         # RGBA, covers 0..width_mm x 0..height_mm
-    cut: geo.CutPath                          # in mm
-    folds: list[tuple[float, float, float]] = field(default_factory=list)   # x0, x1, y
-    labels: list[tuple[float, float, float]] = field(default_factory=list)  # cx, cy, rot
+    art: Image.Image  # RGBA, covers 0..width_mm x 0..height_mm
+    cut: geo.CutPath  # in mm
+    folds: list[tuple[float, float, float]] = field(default_factory=list)  # x0, x1, y
+    labels: list[tuple[float, float, float]] = field(
+        default_factory=list
+    )  # cx, cy, rot
     label: str = ""
     label_size_mm: float = 3.4
     style: Style = field(default_factory=Style)
     # extra text lines: (text, cx, cy, rotation, size_mm) - e.g. the back of a double-sided mini
     texts: list[tuple[str, float, float, float, float]] = field(default_factory=list)
-    figure_height_mm: float = 0.0            # measured height of the drawing (one side)
-    figure_width_mm: float = 0.0             # measured width of the drawing
-    aspect: float = 1.0                      # width / height of the drawing in the image
-    tab_overlap_used: bool = True            # False: the tab overlap changed nothing here
-    tab_joint_mm: float = 0.0                # paper joining tab and figure (0: no tab)
+    figure_height_mm: float = 0.0  # measured height of the drawing (one side)
+    figure_width_mm: float = 0.0  # measured width of the drawing
+    aspect: float = 1.0  # width / height of the drawing in the image
+    tab_overlap_used: bool = True  # False: the tab overlap changed nothing here
+    tab_joint_mm: float = 0.0  # paper joining tab and figure (0: no tab)
     tab_width_mm: float = 0.0
-    close_px: int = 0                        # closing radius used (the automatic one if unset)
+    close_px: int = 0  # closing radius used (the automatic one if unset)
     # the cut line and folds in pixels of the source image (front side), to show
     # on the original artwork what is kept and what is cut away
     source_cut: geo.CutPath | None = None
     source_folds: list[tuple[float, float, float]] = field(default_factory=list)
-    source_top: float = 0.0  # above this row the piece is the double-sided back, not the image
+    source_top: float = (
+        0.0  # above this row the piece is the double-sided back, not the image
+    )
     # what background removal found (outer edges and holes), in source image pixels
     source_outline: list[np.ndarray] = field(default_factory=list)
     # how the figure was found: "alpha" (the image's own transparency), "mask" (a mask
@@ -116,7 +124,9 @@ class Mini:
         if self.token is not None:
             from .token import token_text_items
 
-            return token_text_items(self.token, self.label, self.number, st.font) + list(self.extra)
+            return token_text_items(
+                self.token, self.label, self.number, st.font
+            ) + list(self.extra)
         num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
         room_w, room_h = self.tab_room
         items: list[TextItem] = []
@@ -125,27 +135,72 @@ class Mini:
             label = self.label if what in ("label", "label_number") else ""
             number = what in ("number", "label_number")
             if label and not number:
-                items.append(TextItem("label", label, cx, cy, rot, self.label_size_mm,
-                                      st.label_color))
+                items.append(
+                    TextItem(
+                        "label", label, cx, cy, rot, self.label_size_mm, st.label_color
+                    )
+                )
             elif number and not label:
-                items.append(TextItem("number", num, cx, cy, rot,
-                                      fit_number_size(num, room_w, room_h, st.font),
-                                      st.label_color, True))
+                items.append(
+                    TextItem(
+                        "number",
+                        num,
+                        cx,
+                        cy,
+                        rot,
+                        fit_number_size(num, room_w, room_h, st.font),
+                        st.label_color,
+                        True,
+                    )
+                )
             elif number:
                 ls, gap = self.label_size_mm, 0.15 * self.label_size_mm
                 ns = max(ls, fit_number_size(num, room_w, room_h - ls - gap, st.font))
                 block = ns + gap + ls
-                up = -1.0 if rot == 0 else 1.0  # towards the fold (the back tab is upside down)
-                items.append(TextItem("number", num, cx, cy + up * (block - ns) / 2, rot, ns,
-                                      st.label_color, True))
-                items.append(TextItem("label", label, cx, cy - up * (block - ls) / 2, rot, ls,
-                                      st.label_color))
-        items += [TextItem("backtext", text, cx, cy, rot, size, st.back_text_color)
-                  for text, cx, cy, rot, size in self.texts]
+                up = (
+                    -1.0 if rot == 0 else 1.0
+                )  # towards the fold (the back tab is upside down)
+                items.append(
+                    TextItem(
+                        "number",
+                        num,
+                        cx,
+                        cy + up * (block - ns) / 2,
+                        rot,
+                        ns,
+                        st.label_color,
+                        True,
+                    )
+                )
+                items.append(
+                    TextItem(
+                        "label",
+                        label,
+                        cx,
+                        cy - up * (block - ls) / 2,
+                        rot,
+                        ls,
+                        st.label_color,
+                    )
+                )
+        items += [
+            TextItem("backtext", text, cx, cy, rot, size, st.back_text_color)
+            for text, cx, cy, rot, size in self.texts
+        ]
         if self.number_box is not None:
             cx, cy, w, h = self.number_box
-            items.append(TextItem("number", num, cx, cy, 180.0,
-                                  fit_number_size(num, w, h, st.font), st.back_text_color, True))
+            items.append(
+                TextItem(
+                    "number",
+                    num,
+                    cx,
+                    cy,
+                    180.0,
+                    fit_number_size(num, w, h, st.font),
+                    st.back_text_color,
+                    True,
+                )
+            )
         return items + list(self.extra)
 
     def png_bytes(self) -> bytes:
@@ -189,8 +244,9 @@ def _frozen(a: np.ndarray) -> np.ndarray:
     return a
 
 
-def fit_label_size(text: str, max_width_mm: float, size_mm: float,
-                   font: str = fonts.DEFAULT) -> float:
+def fit_label_size(
+    text: str, max_width_mm: float, size_mm: float, font: str = fonts.DEFAULT
+) -> float:
     """Shrink the label font so the text fits ``max_width_mm``."""
     if not text:
         return size_mm
@@ -198,8 +254,14 @@ def fit_label_size(text: str, max_width_mm: float, size_mm: float,
     return size_mm if w <= max_width_mm else size_mm * max_width_mm / w
 
 
-def fit_text_block(text: str, max_w: float, max_h: float, max_size: float,
-                   max_lines: int = 4, font: str = fonts.DEFAULT) -> tuple[float, list[str]]:
+def fit_text_block(
+    text: str,
+    max_w: float,
+    max_h: float,
+    max_size: float,
+    max_lines: int = 4,
+    font: str = fonts.DEFAULT,
+) -> tuple[float, list[str]]:
     """Largest font size (and line split) that fits ``text`` into max_w x max_h.
 
     Tries 1..max_lines lines; words are balanced over the lines. Line pitch is
@@ -214,13 +276,20 @@ def fit_text_block(text: str, max_w: float, max_h: float, max_size: float,
         target = width(" ".join(words)) / n
         lines, cur = [], []
         for w in words:
-            if cur and width(" ".join(cur + [w])) > target * 1.08 and len(lines) < n - 1:
+            if (
+                cur
+                and width(" ".join(cur + [w])) > target * 1.08
+                and len(lines) < n - 1
+            ):
                 lines.append(" ".join(cur))
                 cur = []
             cur.append(w)
         lines.append(" ".join(cur))
-        size = min(max_size, max_h / (1.15 * len(lines)),
-                   min(max_w / max(width(t), 1e-6) for t in lines))
+        size = min(
+            max_size,
+            max_h / (1.15 * len(lines)),
+            min(max_w / max(width(t), 1e-6) for t in lines),
+        )
         if size > best[0] * 1.15:  # prefer fewer lines unless clearly bigger
             best = (size, lines)
     return best
@@ -236,16 +305,27 @@ class FigureMask:
     rgb: np.ndarray
     clean: np.ndarray
     contours: list[np.ndarray]
-    close_px: int                 # the closing radius used
-    method: str                   # "alpha", "mask" or the model that ran
-    key: tuple                    # identifies the clean mask in the caches
+    close_px: int  # the closing radius used
+    method: str  # "alpha", "mask" or the model that ran
+    key: tuple  # identifies the clean mask in the caches
     stages: dict[str, np.ndarray] | None = None  # debug: the intermediate masks
 
 
-def figure_mask(image_path: Path, *, threshold: int = 40, close_px: int | None = None,
-                keep_all: bool = False, min_area: int = 1000, crop=None, model: str = "auto",
-                mask_path: Path | None = None, use_cache: bool = True, debug: bool = False,
-                log=print, on_stage=None) -> FigureMask:
+def figure_mask(
+    image_path: Path,
+    *,
+    threshold: int = 40,
+    close_px: int | None = None,
+    keep_all: bool = False,
+    min_area: int = 1000,
+    crop=None,
+    model: str = "auto",
+    mask_path: Path | None = None,
+    use_cache: bool = True,
+    debug: bool = False,
+    log=print,
+    on_stage=None,
+) -> FigureMask:
     """Find the figure in an image (steps 1 and 2 of a build): the raw mask from a model,
     the image's transparency or a mask file, then the clean-up. ``on_stage`` hears
     ``("segment", model)`` before a model runs and ``("outline", (contours, close_px))``
@@ -253,7 +333,9 @@ def figure_mask(image_path: Path, *, threshold: int = 40, close_px: int | None =
     image_path = Path(image_path)
     stage = on_stage or (lambda *_: None)
     fkey = cache.file_key(image_path)
-    im, data, rgb, transparent = cache.images.get_or_make(fkey, lambda: _load_for_pipeline(image_path))
+    im, data, rgb, transparent = cache.images.get_or_make(
+        fkey, lambda: _load_for_pipeline(image_path)
+    )
     W, H = im.size
     box = parse_crop(crop, W, H)
 
@@ -265,7 +347,9 @@ def figure_mask(image_path: Path, *, threshold: int = 40, close_px: int | None =
         if model == "auto":
             model = "alpha" if transparent else DEFAULT_MODEL
             if model == "alpha":
-                log(f"  {image_path.name}: has transparency, using its alpha channel as mask")
+                log(
+                    f"  {image_path.name}: has transparency, using its alpha channel as mask"
+                )
         source = ("model", model)
         method = model
         if model.lower().endswith(".onnx") and Path(model).exists():
@@ -274,7 +358,9 @@ def figure_mask(image_path: Path, *, threshold: int = 40, close_px: int | None =
     raw = cache.raw_masks.get(raw_key) if use_cache else None
     if raw is None:
         if mask_path is not None:
-            raw = np.asarray(Image.open(mask_path).convert("L").resize((W, H), Image.BILINEAR))
+            raw = np.asarray(
+                Image.open(mask_path).convert("L").resize((W, H), Image.BILINEAR)
+            )
             if box:
                 x0, y0, x1, y1 = box
                 keep = np.zeros_like(raw)
@@ -295,10 +381,18 @@ def figure_mask(image_path: Path, *, threshold: int = 40, close_px: int | None =
         clean = geo.clean_mask(raw, threshold, close_px, keep_all, min_area, stages)
     else:
         stages = None
-        clean = cache.clean_masks.get_or_make(clean_key, lambda: _frozen(
-            geo.clean_mask(raw, threshold, close_px, keep_all, min_area)))
+        clean = cache.clean_masks.get_or_make(
+            clean_key,
+            lambda: _frozen(
+                geo.clean_mask(raw, threshold, close_px, keep_all, min_area)
+            ),
+        )
 
-    close_used = geo.default_close_px(raw.shape[1], raw.shape[0]) if close_px is None else close_px
+    close_used = (
+        geo.default_close_px(raw.shape[1], raw.shape[0])
+        if close_px is None
+        else close_px
+    )
     contours = geo.outline(clean)
     stage("outline", (contours, close_used))
     return FigureMask(im, rgb, clean, contours, close_used, method, clean_key, stages)
@@ -334,10 +428,20 @@ def make_mini(
     ``("outline", (contours, close_px))`` once the figure is found, before the layout."""
     image_path = Path(image_path)
     style = check_font(style or Style(), image_path.name, log)
-    fm = figure_mask(image_path, threshold=threshold, close_px=close_px,
-                     keep_all=prm.keep_all, min_area=min_area, crop=crop, model=model,
-                     mask_path=mask_path, use_cache=use_cache, debug=bool(debug_dir),
-                     log=log, on_stage=on_stage)
+    fm = figure_mask(
+        image_path,
+        threshold=threshold,
+        close_px=close_px,
+        keep_all=prm.keep_all,
+        min_area=min_area,
+        crop=crop,
+        model=model,
+        mask_path=mask_path,
+        use_cache=use_cache,
+        debug=bool(debug_dir),
+        log=log,
+        on_stage=on_stage,
+    )
     im, rgb, clean, clean_key, stages = fm.image, fm.rgb, fm.clean, fm.key, fm.stages
     W, H = im.size
     contours, close_used, method = fm.contours, fm.close_px, fm.method
@@ -351,7 +455,9 @@ def make_mini(
 
     def _work():
         c, r = (clean, rgb) if stretch == 1 else geo.stretch_x(clean, rgb, stretch)
-        return tuple(_frozen(a) for a in geo.limit_resolution(c, r, height_mm, prm.max_px_per_mm))
+        return tuple(
+            _frozen(a) for a in geo.limit_resolution(c, r, height_mm, prm.max_px_per_mm)
+        )
 
     work_key = (clean_key, height_mm, stretch, prm.max_px_per_mm)
     clean, rgb = _work() if debug_dir else cache.working.get_or_make(work_key, _work)
@@ -360,18 +466,32 @@ def make_mini(
     # and outline above never see them, so a slider never runs the model again
     adj = adjust or adj_mod.Adjustments()
     if not adj.is_identity():
-        rgb = (_frozen(adj_mod.apply(rgb, adj)) if debug_dir else cache.adjusted.get_or_make(
-            (work_key, adj), lambda: _frozen(adj_mod.apply(rgb, adj))))
+        rgb = (
+            _frozen(adj_mod.apply(rgb, adj))
+            if debug_dir
+            else cache.adjusted.get_or_make(
+                (work_key, adj), lambda: _frozen(adj_mod.apply(rgb, adj))
+            )
+        )
 
     # 3+4. margin, tab and vector cut line - cached, so cosmetic changes (label,
     # colors, line width, dpi) only redo the cheap finishing below
     def _layout():
         lay = geo.build_layout(clean, rgb, prm)
-        return lay, geo.trace_cut(lay.cut, lay.px_per_mm, simplify_mm, smooth_path,
-                                  lay.tab_circles)
+        return lay, geo.trace_cut(
+            lay.cut, lay.px_per_mm, simplify_mm, smooth_path, lay.tab_circles
+        )
 
-    layout_key = (work_key, adj, tuple(sorted(asdict(prm).items())), simplify_mm, smooth_path)
-    lay, path_px = _layout() if debug_dir else cache.layouts.get_or_make(layout_key, _layout)
+    layout_key = (
+        work_key,
+        adj,
+        tuple(sorted(asdict(prm).items())),
+        simplify_mm,
+        smooth_path,
+    )
+    lay, path_px = (
+        _layout() if debug_dir else cache.layouts.get_or_make(layout_key, _layout)
+    )
     pxmm = lay.px_per_mm
     check_cancel()
 
@@ -404,11 +524,16 @@ def make_mini(
         art=art_im,
         cut=path_px.transformed(s, X0, Y0),
         folds=[((a - X0) * s, (b - X0) * s, (y - Y0) * s) for a, b, y in lay.folds],
-        labels=[((x - X0) * s, (y - Y0) * s, r) for x, y, r in lay.labels] if prm.tab else [],
+        labels=[((x - X0) * s, (y - Y0) * s, r) for x, y, r in lay.labels]
+        if prm.tab
+        else [],
         label=label,
-        label_size_mm=fit_label_size(label, max_w, min(style.label_size_mm,
-                                                        lay.label_max_h_px * s or style.label_size_mm),
-                                     style.font),
+        label_size_mm=fit_label_size(
+            label,
+            max_w,
+            min(style.label_size_mm, lay.label_max_h_px * s or style.label_size_mm),
+            style.font,
+        ),
         style=style,
         figure_height_mm=lay.figure_height_px * s,
         figure_width_mm=height_mm * bw * stretch / bh,
@@ -420,7 +545,9 @@ def make_mini(
         tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
         close_px=close_used,
         # (the front tab's label is upright, the back tab's upside down)
-        tab_shows=[tab_front if r == 0 else tab_back for _, _, r in lay.labels] if prm.tab else [],
+        tab_shows=[tab_front if r == 0 else tab_back for _, _, r in lay.labels]
+        if prm.tab
+        else [],
         tab_room=(max_w, lay.label_max_h_px * s) if prm.tab else (0.0, 0.0),
     )
     if lay.back_box is not None:
@@ -441,20 +568,31 @@ def make_mini(
                 off = ((len(lines) - 1) / 2 - i) * pitch
                 mini.texts.append((line, bcx, bcy + off, 180.0, size))
 
-    if prm.tab and not lay.tab_overlap_used and prm.tab_overlap_mm != geo.Params().tab_overlap_mm:
-        log(f"  {image_path.name}: note: the tab overlap has no effect here - the figure's "
-            "bottom is wider than the tab (it only matters for narrow feet or tails)")
-    log(f"  {image_path.name}: figure {lay.figure_height_px * s:.1f} mm high, "
-        f"piece {w_mm:.1f} x {h_mm:.1f} mm, cut line {len(path_px.points)} nodes")
+    if (
+        prm.tab
+        and not lay.tab_overlap_used
+        and prm.tab_overlap_mm != geo.Params().tab_overlap_mm
+    ):
+        log(
+            f"  {image_path.name}: note: the tab overlap has no effect here - the figure's "
+            "bottom is wider than the tab (it only matters for narrow feet or tails)"
+        )
+    log(
+        f"  {image_path.name}: figure {lay.figure_height_px * s:.1f} mm high, "
+        f"piece {w_mm:.1f} x {h_mm:.1f} mm, cut line {len(path_px.points)} nodes"
+    )
 
     # canvas -> working image (lay.src) -> source image (the working downscale)
     sx, sy, dx, dy = lay.src
     k = np.array([sx * W / rgb.shape[1], sy * H / rgb.shape[0]])
     d = np.array([dx, dy])
-    mini.source_cut = geo.CutPath((path_px.points - d) * k, None if path_px.controls is None
-                                  else (path_px.controls - d) * k)
-    mini.source_folds = [((a - dx) * k[0], (b - dx) * k[0], (y - dy) * k[1])
-                         for a, b, y in lay.folds]
+    mini.source_cut = geo.CutPath(
+        (path_px.points - d) * k,
+        None if path_px.controls is None else (path_px.controls - d) * k,
+    )
+    mini.source_folds = [
+        ((a - dx) * k[0], (b - dx) * k[0], (y - dy) * k[1]) for a, b, y in lay.folds
+    ]
     if prm.double_sided:
         mini.source_top = max(0.0, (lay.front_top - dy) * k[1])
     if debug_dir is not None:
@@ -466,12 +604,16 @@ def check_font(style: Style, name: str, log=print) -> Style:
     """``style``, printing in the default font when its font is not on this computer."""
     if fonts.resolve(style.font)[1]:
         return style
-    log(f"  {name}: note: the font {style.font} is not on this computer: "
-        f"printing in {fonts.DEFAULT}")
+    log(
+        f"  {name}: note: the font {style.font} is not on this computer: "
+        f"printing in {fonts.DEFAULT}"
+    )
     return replace(style, font=fonts.DEFAULT)
 
 
-def write_debug(out: Path, stem: str, stages, lay: geo.Layout, path_px: geo.CutPath) -> None:
+def write_debug(
+    out: Path, stem: str, stages, lay: geo.Layout, path_px: geo.CutPath
+) -> None:
     """Intermediate masks plus a red-overlay preview (what gets cut away is red)."""
     out.mkdir(parents=True, exist_ok=True)
     for name, m in (stages or {}).items():
@@ -493,7 +635,9 @@ def overlay_image(lay: geo.Layout, path_px: geo.CutPath) -> np.ndarray:
     t = max(1, round(0.3 * lay.px_per_mm))
     cv2.polylines(over, [pts], True, (0, 0, 0), t, cv2.LINE_AA)
     for x0, x1, y in lay.folds:
-        cv2.line(over, (int(x0), int(y)), (int(x1), int(y)), (60, 160, 60), t, cv2.LINE_AA)
+        cv2.line(
+            over, (int(x0), int(y)), (int(x1), int(y)), (60, 160, 60), t, cv2.LINE_AA
+        )
     x0, y0, x1, y1 = geo.bbox(lay.cut)
     b = int(5 * lay.px_per_mm)
-    return np.ascontiguousarray(over[max(0, y0 - b):y1 + b, max(0, x0 - b):x1 + b])
+    return np.ascontiguousarray(over[max(0, y0 - b) : y1 + b, max(0, x0 - b) : x1 + b])

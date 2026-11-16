@@ -36,14 +36,20 @@ from .mini import (
     fit_number_size,
 )
 
-TOKEN_FILLS = ("color", "image")        # behind the figure: a color, or the picture
+TOKEN_FILLS = ("color", "image")  # behind the figure: a color, or the picture
 TOKEN_TEXTS = ("none", "label", "number", "label_number")
 TOKEN_TEXT_STYLES = ("nameplate", "curved")
-FIT_FREE = 0.08     # a fitted figure leaves this share of the inner diameter free on each side
-PX_PER_MM = 16.0    # working resolution of a token (about 400 dpi; the art is resized to dpi)
-CURVED_TEXT = 0.72  # curved text: its height as a share of the narrowest ring that holds it
-PLATE = 1.35        # the nameplate's height, as a multiple of the text size
-BADGE = 1.35        # the number badge's radius, as a multiple of the text size
+FIT_FREE = (
+    0.08  # a fitted figure leaves this share of the inner diameter free on each side
+)
+PX_PER_MM = (
+    16.0  # working resolution of a token (about 400 dpi; the art is resized to dpi)
+)
+CURVED_TEXT = (
+    0.72  # curved text: its height as a share of the narrowest ring that holds it
+)
+PLATE = 1.35  # the nameplate's height, as a multiple of the text size
+BADGE = 1.35  # the number badge's radius, as a multiple of the text size
 
 
 @dataclass(frozen=True)
@@ -55,7 +61,7 @@ class TokenOptions:
     border_color: str = "#000000"
     fill: str = "color"
     fill_color: str = "#ffffff"
-    outline: bool = False          # an outline around the figure, made like a mini's margin
+    outline: bool = False  # an outline around the figure, made like a mini's margin
     margin_mm: float = 1.6
     margin_fill: str = "color"
     margin_color: str = "#ffffff"
@@ -63,7 +69,7 @@ class TokenOptions:
     area: tuple[float, float, float, float] | None = None
     text: str = "none"
     text_style: str = "nameplate"
-    text_mm: float = 2.5           # the text's size (the nameplate shrinks a long label)
+    text_mm: float = 2.5  # the text's size (the nameplate shrinks a long label)
     text_color: str = "#ffffff"
 
     @property
@@ -73,7 +79,11 @@ class TokenOptions:
 
     def ring_mm(self) -> float:
         """The ring's width as printed: never below what curved text needs."""
-        return max(self.border_mm, min_ring_mm(self.text_mm)) if self.curved else self.border_mm
+        return (
+            max(self.border_mm, min_ring_mm(self.text_mm))
+            if self.curved
+            else self.border_mm
+        )
 
 
 @dataclass
@@ -83,14 +93,16 @@ class TokenInfo:
 
     cx: float
     cy: float
-    radius_mm: float                 # the cut line
-    inner_mm: float                  # inside the ring
+    radius_mm: float  # the cut line
+    inner_mm: float  # inside the ring
     text: str = "none"
     text_style: str = "nameplate"
-    color: str = "#ffffff"           # the text's color
-    size_mm: float = 0.0             # the text's height (nameplate: at most)
-    plate: tuple[float, float, float, float] | None = None  # the label's box (cx, cy, w, h)
-    badge: tuple[float, float, float] | None = None         # the number badge (cx, cy, r)
+    color: str = "#ffffff"  # the text's color
+    size_mm: float = 0.0  # the text's height (nameplate: at most)
+    plate: tuple[float, float, float, float] | None = (
+        None  # the label's box (cx, cy, w, h)
+    )
+    badge: tuple[float, float, float] | None = None  # the number badge (cx, cy, r)
     # the square of the picture that fills the circle, as fractions of the image (what
     # token_area holds), and the figure's box on the piece (mm)
     area: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
@@ -106,16 +118,22 @@ def parse_area(v) -> list[float]:
     """A token area from a project or the command line: x0, y0, x1, y1 as fractions of the
     picture (a list, or a string "x0,y0,x1,y1"). It may reach past the picture's edges."""
     try:
-        vals = [float(x) for x in (v.replace(" ", "").split(",") if isinstance(v, str) else v)]
+        vals = [
+            float(x)
+            for x in (v.replace(" ", "").split(",") if isinstance(v, str) else v)
+        ]
     except (TypeError, ValueError):
         vals = []
     if len(vals) != 4 or not (vals[2] > vals[0] and vals[3] > vals[1]):
-        raise ValueError(f"token_area must be x0, y0, x1, y1 (fractions of the picture, "
-                         f"x1 > x0 and y1 > y0), not {v!r}")
+        raise ValueError(
+            f"token_area must be x0, y0, x1, y1 (fractions of the picture, "
+            f"x1 > x0 and y1 > y0), not {v!r}"
+        )
     return vals
 
 
 # --------------------------------------------------------------------------- text
+
 
 @lru_cache(maxsize=256)
 def _middle(text: str, font: str, bold: bool = False) -> float:
@@ -125,15 +143,29 @@ def _middle(text: str, font: str, bold: bool = False) -> float:
     from .sheet import _font
 
     try:
-        _, top, _, bottom = _font(100, serif=True, path=fonts.file_for(font, bold)).getbbox(
-            text, anchor="ls")
-    except (OSError, TypeError, ValueError):  # (a font without metrics: caps-like letters)
+        _, top, _, bottom = _font(
+            100, serif=True, path=fonts.file_for(font, bold)
+        ).getbbox(text, anchor="ls")
+    except (
+        OSError,
+        TypeError,
+        ValueError,
+    ):  # (a font without metrics: caps-like letters)
         top, bottom = -66, 0
     return 0.35 + (top + bottom) / 200.0
 
 
-def _arc(text: str, cx: float, cy: float, r: float, size: float, font: str, color: str,
-         bottom: bool, bold: bool = False) -> list[TextItem]:
+def _arc(
+    text: str,
+    cx: float,
+    cy: float,
+    r: float,
+    size: float,
+    font: str,
+    color: str,
+    bottom: bool,
+    bold: bool = False,
+) -> list[TextItem]:
     """``text`` curved along a circle of radius ``r``, one item per character: along the
     bottom read left to right with the tops towards the centre, along the top with the
     tops outwards. The letters (descenders included) are centred on the circle. Shrinks
@@ -151,18 +183,29 @@ def _arc(text: str, cx: float, cy: float, r: float, size: float, font: str, colo
     r = r - shift if bottom else r + shift
     items, s = [], -total / 2
     for ch, w in zip(text, widths):
-        a = (s + w / 2) / r                      # angle from the middle of the text
+        a = (s + w / 2) / r  # angle from the middle of the text
         theta = math.pi / 2 - a if bottom else -math.pi / 2 + a
         rot = -math.degrees(a) if bottom else math.degrees(a)
         if ch.strip():
-            items.append(TextItem("tokentext", ch, cx + r * math.cos(theta),
-                                  cy + r * math.sin(theta), rot, size, color, bold))
+            items.append(
+                TextItem(
+                    "tokentext",
+                    ch,
+                    cx + r * math.cos(theta),
+                    cy + r * math.sin(theta),
+                    rot,
+                    size,
+                    color,
+                    bold,
+                )
+            )
         s += w + track
     return items
 
 
-def token_text_items(t: TokenInfo, label: str, number: int | None,
-                     font: str) -> list[TextItem]:
+def token_text_items(
+    t: TokenInfo, label: str, number: int | None, font: str
+) -> list[TextItem]:
     """A token's label and copy number, as ``t.text`` says and where ``t.text_style``
     puts them (the preview shows the number as #)."""
     num = NUMBER_PLACEHOLDER if number is None else str(number)
@@ -174,39 +217,67 @@ def token_text_items(t: TokenInfo, label: str, number: int | None,
         if show_label:
             items += _arc(label, t.cx, t.cy, r, t.size_mm, font, t.color, bottom=True)
         if show_number:
-            items += _arc(num, t.cx, t.cy, r, t.size_mm, font, t.color, bottom=False, bold=True)
+            items += _arc(
+                num, t.cx, t.cy, r, t.size_mm, font, t.color, bottom=False, bold=True
+            )
         return items
-    if show_label and t.plate is not None:  # (centred: the letters' middle on the band's)
+    if (
+        show_label and t.plate is not None
+    ):  # (centred: the letters' middle on the band's)
         cx, cy, w, _h = t.plate
         size = fit_label_size(label, w, t.size_mm, font)
-        items.append(TextItem("tokentext", label, cx, cy - _middle(label, font) * size, 0.0,
-                              size, t.color))
+        items.append(
+            TextItem(
+                "tokentext",
+                label,
+                cx,
+                cy - _middle(label, font) * size,
+                0.0,
+                size,
+                t.color,
+            )
+        )
     if show_number and t.badge is not None:
         cx, cy, r = t.badge
         size = fit_number_size(num, 1.25 * r, 1.1 * r, font)
-        items.append(TextItem("tokentext", num, cx, cy - _middle(num, font, True) * size, 0.0,
-                              size, t.color, True))
+        items.append(
+            TextItem(
+                "tokentext",
+                num,
+                cx,
+                cy - _middle(num, font, True) * size,
+                0.0,
+                size,
+                t.color,
+                True,
+            )
+        )
     return items
 
 
 # --------------------------------------------------------------------------- framing
 
-def fit_frame(contours: Sequence[np.ndarray], inner_mm: float,
-              outline_mm: float = 0.0) -> tuple[float, float, float]:
+
+def fit_frame(
+    contours: Sequence[np.ndarray], inner_mm: float, outline_mm: float = 0.0
+) -> tuple[float, float, float]:
     """The fitted framing: (cx, cy) in image pixels and the scale in token pixels per
     image pixel, so the whole figure (with its outline) sits in the circle with
     ``FIT_FREE`` of the inner diameter free on each side."""
     pts = [c for c in contours if len(c)]
     if not pts:
-        raise ValueError("background removal found no figure in this image: try a lower "
-                         "strength, a crop or another model")
+        raise ValueError(
+            "background removal found no figure in this image: try a lower "
+            "strength, a crop or another model"
+        )
     (x, y), r = cv2.minEnclosingCircle(np.vstack(pts).astype(np.float32))
     room = max(0.3 * inner_mm, inner_mm * (1 - 2 * FIT_FREE) - outline_mm)
     return float(x), float(y), room * PX_PER_MM / max(float(r), 1.0)
 
 
-def area_frame(area: Sequence[float], size: tuple[int, int],
-               inner_mm: float) -> tuple[float, float, float]:
+def area_frame(
+    area: Sequence[float], size: tuple[int, int], inner_mm: float
+) -> tuple[float, float, float]:
     """The framing of a token ``area`` (fractions of a ``size`` = (w, h) picture): its
     centre and the scale that makes it fill the circle inside the ring."""
     W, H = size
@@ -215,30 +286,40 @@ def area_frame(area: Sequence[float], size: tuple[int, int],
     return (x0 + x1) / 2 * W, (y0 + y1) / 2 * H, 2 * inner_mm * PX_PER_MM / side
 
 
-def frame_area(cx: float, cy: float, f: float, size: tuple[int, int],
-               inner_mm: float) -> tuple[float, float, float, float]:
+def frame_area(
+    cx: float, cy: float, f: float, size: tuple[int, int], inner_mm: float
+) -> tuple[float, float, float, float]:
     """The token area (fractions) of a framing: the square around (cx, cy) that fills the
     circle at scale ``f``."""
     W, H = size
     half = inner_mm * PX_PER_MM / f
-    return (round((cx - half) / W, 4), round((cy - half) / H, 4),
-            round((cx + half) / W, 4), round((cy + half) / H, 4))
+    return (
+        round((cx - half) / W, 4),
+        round((cy - half) / H, 4),
+        round((cx + half) / W, 4),
+        round((cy + half) / H, 4),
+    )
 
 
-def _place(a: np.ndarray, f: float, cx: float, cy: float, n: int, interp: int,
-           fill) -> np.ndarray:
+def _place(
+    a: np.ndarray, f: float, cx: float, cy: float, n: int, interp: int, fill
+) -> np.ndarray:
     """The part of image ``a`` around (cx, cy) on an ``n`` x ``n`` canvas, scaled by
     ``f`` (shrunk first with area averaging, so a big picture never aliases)."""
     h, w = a.shape[:2]
     gx = gy = 1.0
     if f < 1:
-        a = cv2.resize(a, (max(1, round(w * f)), max(1, round(h * f))),
-                       interpolation=cv2.INTER_AREA)
+        a = cv2.resize(
+            a,
+            (max(1, round(w * f)), max(1, round(h * f))),
+            interpolation=cv2.INTER_AREA,
+        )
         gx, gy = a.shape[1] / w, a.shape[0] / h
     c = n / 2
     M = np.float32([[f / gx, 0, c - cx * f], [0, f / gy, c - cy * f]])
-    return cv2.warpAffine(a, M, (n, n), flags=interp, borderMode=cv2.BORDER_CONSTANT,
-                          borderValue=fill)
+    return cv2.warpAffine(
+        a, M, (n, n), flags=interp, borderMode=cv2.BORDER_CONSTANT, borderValue=fill
+    )
 
 
 def _disk(n: int, c: float, r: float) -> np.ndarray:
@@ -251,7 +332,7 @@ def circle_path(cx: float, cy: float, r: float, n: int = 8) -> geo.CutPath:
     """A circle as a closed path of ``n`` cubic arcs."""
     a = np.linspace(0, 2 * np.pi, n, endpoint=False)
     pts = np.stack([cx + r * np.cos(a), cy + r * np.sin(a)], axis=1)
-    h = 4.0 / 3.0 * math.tan(math.pi / (2 * n)) * r       # handle length of one arc
+    h = 4.0 / 3.0 * math.tan(math.pi / (2 * n)) * r  # handle length of one arc
     tang = np.stack([-np.sin(a), np.cos(a)], axis=1)
     nxt = np.roll(np.arange(n), -1)
     ctrl = np.stack([pts + h * tang, pts[nxt] - h * tang[nxt]], axis=1)
@@ -260,8 +341,15 @@ def circle_path(cx: float, cy: float, r: float, n: int = 8) -> geo.CutPath:
 
 # --------------------------------------------------------------------------- building
 
-def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_mm: float,
-            has_label: bool):
+
+def _render(
+    fm,
+    o: TokenOptions,
+    adj: adj_mod.Adjustments,
+    bleed_mm: float,
+    pad_mm: float,
+    has_label: bool,
+):
     """The token's pixels (RGBA, PX_PER_MM) and where its parts are, in token pixels."""
     W, H = fm.image.size
     R = o.diameter_mm / 2
@@ -271,8 +359,11 @@ def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_
     n = math.ceil(2 * (R + pad_mm) * p)
     c = n / 2
     outline_mm = o.margin_mm if o.outline else 0.0
-    plate_mm = (min(ri, PLATE * o.text_mm) if not o.curved and has_label
-                and o.text in ("label", "label_number") else 0.0)
+    plate_mm = (
+        min(ri, PLATE * o.text_mm)
+        if not o.curved and has_label and o.text in ("label", "label_number")
+        else 0.0
+    )
     if o.area is not None:
         fx, fy, f = area_frame(o.area, (W, H), ri)
     else:
@@ -285,7 +376,9 @@ def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_
     rgb = fm.rgb
     blank = (255, 255, 255) if rgb.shape[2] == 3 else (0, 0, 0, 0)
     img = _place(rgb, f, fx, fy, n, cv2.INTER_LINEAR, blank)
-    fig = ((_place(fm.clean, f, fx, fy, n, cv2.INTER_LINEAR, 0) > 127) * 255).astype(np.uint8)
+    fig = ((_place(fm.clean, f, fx, fy, n, cv2.INTER_LINEAR, 0) > 127) * 255).astype(
+        np.uint8
+    )
     if not adj.is_identity():
         img = adj_mod.apply(img, adj)
     a = img[..., 3:4].astype(np.float32) / 255.0 if img.shape[2] == 4 else 1.0
@@ -299,7 +392,9 @@ def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_
     if o.outline:
         sil = geo.dilate(fig, o.margin_mm * p)
         sil = geo.fill_holes(geo.smooth_outline(sil, o.smooth_mm * p) | fig)
-        paper = geo.hex_rgb(o.margin_color) if o.margin_fill == "color" else (255, 255, 255)
+        paper = (
+            geo.hex_rgb(o.margin_color) if o.margin_fill == "color" else (255, 255, 255)
+        )
         figart = geo.compose_art(img, fig, sil, paper, p, o.margin_fill == "image")
         soft = cv2.GaussianBlur(sil.astype(np.float32) / 255.0, (0, 0), 0.6)[..., None]
         art = soft * figart + (1.0 - soft) * bg
@@ -312,7 +407,9 @@ def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_
     ring_rgb = np.array(geo.hex_rgb(o.border_color), np.float32)
     inner = _disk(n, c, ri * p)[..., None]
     art = inner * art + (1.0 - inner) * ring_rgb
-    shape = np.zeros((n, n), np.float32)  # the nameplate and the badge, in the ring color
+    shape = np.zeros(
+        (n, n), np.float32
+    )  # the nameplate and the badge, in the ring color
     plate = badge = None
     show_label = o.text in ("label", "label_number") and has_label
     show_number = o.text in ("number", "label_number")
@@ -324,24 +421,38 @@ def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_
             room = (ri - plate_mm - 0.3 - rb) / (R - rb)
             ang = min(ang, max(math.radians(-30), math.asin(max(-1.0, min(1.0, room)))))
         bx, by = c + (R - rb) * math.cos(ang) * p, c + (R - rb) * math.sin(ang) * p
-        shape = np.maximum(shape, np.clip(rb * p + 0.5 - np.hypot(
-            *np.meshgrid(np.arange(n) + 0.5 - bx, np.arange(n) + 0.5 - by)), 0, 1))
+        shape = np.maximum(
+            shape,
+            np.clip(
+                rb * p
+                + 0.5
+                - np.hypot(
+                    *np.meshgrid(np.arange(n) + 0.5 - bx, np.arange(n) + 0.5 - by)
+                ),
+                0,
+                1,
+            ),
+        )
         badge = (bx / p, by / p, rb)
     if not o.curved and show_label:
         h = plate_mm
         top = c + (ri - h) * p
         band = np.zeros((n, n), np.float32)
-        band[int(top):] = 1.0
+        band[int(top) :] = 1.0
         if int(top) < n:
             band[int(top)] = 1.0 - (top - int(top))
-        shape = np.maximum(shape, band)  # (below the circle it is the ring's color anyway)
-        y = ri - h / 2                                   # (the text's middle, mm from the centre)
+        shape = np.maximum(
+            shape, band
+        )  # (below the circle it is the ring's color anyway)
+        y = ri - h / 2  # (the text's middle, mm from the centre)
         # the ring beside the band has its color too: as wide as the token is along the
         # bottom of the letters, keeping clear of the cut line
         edge = R - max(0.4, 0.15 * text_mm)
         half = math.sqrt(max(0.0, edge * edge - (y + 0.3 * text_mm) ** 2))
         if badge is not None and badge[1] - c / p + badge[2] > y - 0.6 * text_mm:
-            half = min(half, badge[0] - c / p - badge[2] - 0.3)  # (centred, clear of the badge)
+            half = min(
+                half, badge[0] - c / p - badge[2] - 0.3
+            )  # (centred, clear of the badge)
         plate = (c / p, c / p + y, max(1.0, 2 * half), h)
     art = shape[..., None] * ring_rgb + (1.0 - shape[..., None]) * art
 
@@ -350,25 +461,62 @@ def _render(fm, o: TokenOptions, adj: adj_mod.Adjustments, bleed_mm: float, pad_
     if bleed_mm:
         out, alpha = geo.add_bleed(out, alpha, bleed_mm * p)
     bx0, by0, bx1, by1 = geo.bbox(fm.clean)
-    fbox = tuple(float(v) for v in
-                 (np.array([bx0 - fx, by0 - fy, bx1 + 1 - fx, by1 + 1 - fy]) * f + c) / p)
-    return (np.dstack([out, alpha]), n, ring, ri, text_mm, plate, badge,
-            frame_area(fx, fy, f, (W, H), ri), fbox, (fx, fy, f))
+    fbox = tuple(
+        float(v)
+        for v in (np.array([bx0 - fx, by0 - fy, bx1 + 1 - fx, by1 + 1 - fy]) * f + c)
+        / p
+    )
+    return (
+        np.dstack([out, alpha]),
+        n,
+        ring,
+        ri,
+        text_mm,
+        plate,
+        badge,
+        frame_area(fx, fy, f, (W, H), ri),
+        fbox,
+        (fx, fy, f),
+    )
 
 
-def make_token(image_path: Path, o: TokenOptions, *, label: str | None = None,
-               threshold: int = 40, close_px: int | None = None, keep_all: bool = False,
-               min_area: int = 1000, crop=None, model: str = "auto",
-               mask_path: Path | None = None, dpi: int = 300, bleed_mm: float = 0.0,
-               adjust: adj_mod.Adjustments | None = None, use_cache: bool = True,
-               style: Style | None = None, log=print, on_stage=None) -> Mini:
+def make_token(
+    image_path: Path,
+    o: TokenOptions,
+    *,
+    label: str | None = None,
+    threshold: int = 40,
+    close_px: int | None = None,
+    keep_all: bool = False,
+    min_area: int = 1000,
+    crop=None,
+    model: str = "auto",
+    mask_path: Path | None = None,
+    dpi: int = 300,
+    bleed_mm: float = 0.0,
+    adjust: adj_mod.Adjustments | None = None,
+    use_cache: bool = True,
+    style: Style | None = None,
+    log=print,
+    on_stage=None,
+) -> Mini:
     """Build one token: background removal as for a mini, then the figure framed in a
     circle on its background, inside a ring, with a circular cut line."""
     image_path = Path(image_path)
     style = check_font(style or Style(), image_path.name, log)
-    fm = figure_mask(image_path, threshold=threshold, close_px=close_px, keep_all=keep_all,
-                     min_area=min_area, crop=crop, model=model, mask_path=mask_path,
-                     use_cache=use_cache, log=log, on_stage=on_stage)
+    fm = figure_mask(
+        image_path,
+        threshold=threshold,
+        close_px=close_px,
+        keep_all=keep_all,
+        min_area=min_area,
+        crop=crop,
+        model=model,
+        mask_path=mask_path,
+        use_cache=use_cache,
+        log=log,
+        on_stage=on_stage,
+    )
     adj = adjust or adj_mod.Adjustments()
     label = image_path.stem if label is None else label
     bleed_mm = min(max(0.0, bleed_mm), 5.0)
@@ -378,11 +526,14 @@ def make_token(image_path: Path, o: TokenOptions, *, label: str | None = None,
     cut_out = style.cut_width_mm / 2 if style.cut_line and not bleed_mm else 0.0
     key = ("token", fm.key, o, adj, bleed_mm, pad_mm, bool(label))
     make = lambda: _render(fm, o, adj, bleed_mm, pad_mm, bool(label))
-    rgba, n, ring, ri, text_mm, plate, badge, area, fbox, (fx, fy, f) = \
+    rgba, n, ring, ri, text_mm, plate, badge, area, fbox, (fx, fy, f) = (
         cache.layouts.get_or_make(key, make) if use_cache else make()
+    )
     if o.curved and o.border_mm < ring:
-        log(f"  {image_path.name}: note: the ring is {ring:g} mm wide, the least that holds "
-            "curved text")
+        log(
+            f"  {image_path.name}: note: the ring is {ring:g} mm wide, the least that holds "
+            "curved text"
+        )
 
     side_mm = n / PX_PER_MM
     px = max(1, round(side_mm / 25.4 * dpi))
@@ -391,15 +542,37 @@ def make_token(image_path: Path, o: TokenOptions, *, label: str | None = None,
     R = o.diameter_mm / 2
     bx0, by0, bx1, by1 = geo.bbox(fm.clean)
     info = TokenInfo(
-        cx=c, cy=c, radius_mm=R, inner_mm=ri, text=o.text, text_style=o.text_style,
-        color=o.text_color, size_mm=text_mm,
-        plate=plate, badge=badge, area=area, figure_box=fbox)
+        cx=c,
+        cy=c,
+        radius_mm=R,
+        inner_mm=ri,
+        text=o.text,
+        text_style=o.text_style,
+        color=o.text_color,
+        size_mm=text_mm,
+        plate=plate,
+        badge=badge,
+        area=area,
+        figure_box=fbox,
+    )
     mini = Mini(
-        name=image_path.stem, width_mm=side_mm, height_mm=side_mm, art=art,
-        cut=circle_path(c, c, R + cut_out), label=label, label_size_mm=text_mm, style=style,
-        figure_height_mm=o.diameter_mm, figure_width_mm=o.diameter_mm,
-        aspect=(bx1 - bx0 + 1) / (by1 - by0 + 1), source_outline=fm.contours,
-        method=fm.method, close_px=fm.close_px, kind="token", token=info)
+        name=image_path.stem,
+        width_mm=side_mm,
+        height_mm=side_mm,
+        art=art,
+        cut=circle_path(c, c, R + cut_out),
+        label=label,
+        label_size_mm=text_mm,
+        style=style,
+        figure_height_mm=o.diameter_mm,
+        figure_width_mm=o.diameter_mm,
+        aspect=(bx1 - bx0 + 1) / (by1 - by0 + 1),
+        source_outline=fm.contours,
+        method=fm.method,
+        close_px=fm.close_px,
+        kind="token",
+        token=info,
+    )
     # the circle inside the ring, on the source image
     mini.source_cut = circle_path(fx, fy, ri * PX_PER_MM / f)
     log(f"  {image_path.name}: token {o.diameter_mm:g} mm, ring {ring:g} mm")

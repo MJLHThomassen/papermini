@@ -24,7 +24,10 @@ DEFAULT = "Times"
 # the bundled fonts: name -> (regular, bold or None), relative to this folder
 BUNDLED: dict[str, tuple[str, str | None]] = {
     "Fira Sans": ("firasans/FiraSans-Regular.ttf", "firasans/FiraSans-Bold.ttf"),
-    "Crimson Text": ("crimsontext/CrimsonText-Regular.ttf", "crimsontext/CrimsonText-Bold.ttf"),
+    "Crimson Text": (
+        "crimsontext/CrimsonText-Regular.ttf",
+        "crimsontext/CrimsonText-Bold.ttf",
+    ),
     "Almendra": ("almendra/Almendra-Regular.ttf", "almendra/Almendra-Bold.ttf"),
     "MedievalSharp": ("medievalsharp/MedievalSharp.ttf", None),
     "Uncial Antiqua": ("uncialantiqua/UncialAntiqua-Regular.ttf", None),
@@ -50,8 +53,10 @@ TIMES = Font(DEFAULT, bundled=True)
 
 def bundled() -> list[Font]:
     """Times and the fonts that come with papermini."""
-    return [TIMES] + [Font(n, HERE / r, HERE / b if b else None, True)
-                      for n, (r, b) in BUNDLED.items()]
+    return [TIMES] + [
+        Font(n, HERE / r, HERE / b if b else None, True)
+        for n, (r, b) in BUNDLED.items()
+    ]
 
 
 # ----------------------------------------------------------------- installed fonts
@@ -63,10 +68,18 @@ def font_dirs() -> list[Path]:
         local = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
         return [win / "Fonts", local / "Microsoft" / "Windows" / "Fonts"]
     if sys.platform == "darwin":
-        return [Path("/System/Library/Fonts"), Path("/Library/Fonts"), home / "Library" / "Fonts"]
+        return [
+            Path("/System/Library/Fonts"),
+            Path("/Library/Fonts"),
+            home / "Library" / "Fonts",
+        ]
     data = Path(os.environ.get("XDG_DATA_HOME", home / ".local" / "share"))
-    return [Path("/usr/share/fonts"), Path("/usr/local/share/fonts"), home / ".fonts",
-            data / "fonts"]
+    return [
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        home / ".fonts",
+        data / "fonts",
+    ]
 
 
 def _index_path() -> Path:
@@ -129,8 +142,9 @@ def _scan() -> dict[str, Font]:
                 files[key] = stamp + list(_read_name(f) or ("", ""))
     try:
         _index_path().parent.mkdir(parents=True, exist_ok=True)
-        _index_path().write_text(json.dumps({"version": INDEX_VERSION, "files": files}),
-                                 encoding="utf-8")
+        _index_path().write_text(
+            json.dumps({"version": INDEX_VERSION, "files": files}), encoding="utf-8"
+        )
     except OSError as e:
         logger.debug("could not save the font index: %s", e)
     styles: dict[str, dict[str, Path]] = {}
@@ -183,7 +197,9 @@ def pdf_name(name: str, bold: bool = False) -> str:
         try:
             pdfmetrics.registerFont(TTFont(ident, str(path)))
         except Exception as e:  # noqa: BLE001 - e.g. an outline format reportlab cannot read
-            logger.warning("could not use the font %s (%s): printing in Times", font.name, e)
+            logger.warning(
+                "could not use the font %s (%s): printing in Times", font.name, e
+            )
             ident = "Times-Bold" if bold else "Times-Roman"
         _registered[key] = ident
     return _registered[key]

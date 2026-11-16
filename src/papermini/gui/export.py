@@ -32,7 +32,9 @@ class ExportDialog(QDialog):
     remembers the ticks (so "only the cut file", after printing from the app, stays
     one click away)."""
 
-    def __init__(self, folder: Path, title: str, pages: int, machine: bool, parent=None):
+    def __init__(
+        self, folder: Path, title: str, pages: int, machine: bool, parent=None
+    ):
         super().__init__(parent)
         self.setWindowTitle("Export sheet")
         self.setObjectName("ExportDialog")
@@ -63,8 +65,10 @@ class ExportDialog(QDialog):
         self.pdf_files = self._files_label()
         v.addWidget(self.pdf)
         v.addWidget(self.pdf_files)
-        self.cut = QCheckBox("Cut file for your cutting machine (SVG"
-                             + (", one per page)" if self._pages > 1 else ")"))
+        self.cut = QCheckBox(
+            "Cut file for your cutting machine (SVG"
+            + (", one per page)" if self._pages > 1 else ")")
+        )
         self.cut.setChecked(store.value("export/cut", True, type=bool))
         self.cut_files = self._files_label()
         v.addWidget(self.cut)
@@ -78,8 +82,12 @@ class ExportDialog(QDialog):
         self.buttons.accepted.connect(self._accept)
         self.buttons.rejected.connect(self.reject)
         v.addWidget(self.buttons)
-        for sig in (self.folder.textChanged, self.name.textChanged, self.pdf.toggled,
-                    self.cut.toggled):
+        for sig in (
+            self.folder.textChanged,
+            self.name.textChanged,
+            self.pdf.toggled,
+            self.cut.toggled,
+        ):
             sig.connect(self._sync)
         self._sync()
         self.setMinimumWidth(460)
@@ -110,14 +118,18 @@ class ExportDialog(QDialog):
     def chosen(self) -> list[Path]:
         """Every file the export writes, with the boxes as they are ticked."""
         out = [self.pdf_path()] if self.pdf.isChecked() and self.pdf_path() else []
-        return out + (self.cut_paths() if self._machine and self.cut.isChecked() else [])
+        return out + (
+            self.cut_paths() if self._machine and self.cut.isChecked() else []
+        )
 
     def _sync(self, *_):
         pdf, cut = self.pdf_path(), self.cut_paths()
         self.pdf_files.setText(html.escape(pdf.name) if pdf else "")
         if len(cut) > 2:
-            names = f"{html.escape(cut[0].name)}, {html.escape(cut[1].name)} … " \
-                    f"{html.escape(cut[-1].name)}"
+            names = (
+                f"{html.escape(cut[0].name)}, {html.escape(cut[1].name)} … "
+                f"{html.escape(cut[-1].name)}"
+            )
         else:
             names = ", ".join(html.escape(c.name) for c in cut)
         self.cut_files.setText(names)
@@ -131,12 +143,20 @@ class ExportDialog(QDialog):
             return
         folder = Path(self.folder.text().strip())
         if not folder.is_dir():
-            QMessageBox.warning(self, "Export sheet", f"The folder {folder} does not exist.")
+            QMessageBox.warning(
+                self, "Export sheet", f"The folder {folder} does not exist."
+            )
             return
         there = [f for f in files if f.exists()]
-        if there and QMessageBox.question(
-                self, "Export sheet", "Replace these files?\n\n"
-                + "\n".join(f.name for f in there)) != QMessageBox.Yes:
+        if (
+            there
+            and QMessageBox.question(
+                self,
+                "Export sheet",
+                "Replace these files?\n\n" + "\n".join(f.name for f in there),
+            )
+            != QMessageBox.Yes
+        ):
             return
         store = prefs.store()
         store.setValue("export/pdf", self.pdf.isChecked())

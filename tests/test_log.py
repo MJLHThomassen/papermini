@@ -20,15 +20,21 @@ def _folder() -> Path:
 
 
 def _query(url: str) -> dict:
-    return {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).items()}
+    return {
+        k: v[0]
+        for k, v in urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).items()
+    }
 
 
-@pytest.mark.parametrize("platform, env, expected", [
-    ("win32", {"LOCALAPPDATA": "C:/Local"}, "C:/Local/papermini/logs"),
-    ("darwin", {}, "~/Library/Logs/papermini"),
-    ("linux", {"XDG_STATE_HOME": "/state"}, "/state/papermini"),
-    ("linux", {}, "~/.local/state/papermini"),
-])
+@pytest.mark.parametrize(
+    "platform, env, expected",
+    [
+        ("win32", {"LOCALAPPDATA": "C:/Local"}, "C:/Local/papermini/logs"),
+        ("darwin", {}, "~/Library/Logs/papermini"),
+        ("linux", {"XDG_STATE_HOME": "/state"}, "/state/papermini"),
+        ("linux", {}, "~/.local/state/papermini"),
+    ],
+)
 def test_log_dir_is_the_systems_log_folder(monkeypatch, platform, env, expected):
     monkeypatch.delenv(log.LOG_ENV)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
@@ -46,8 +52,12 @@ def test_log_dir_follows_the_environment_variable(tmp_path, monkeypatch):
 def test_start_writes_the_start_up_line_with_the_home_folder_as_tilde():
     s = log.start("6.0.0")
     assert s is not None and s.log.parent == _folder()
-    assert s.log.name.startswith("papermini-") and s.log.name.endswith(f"-{os.getpid()}.log")
-    logging.getLogger("papermini.test").info("opened %s", Path.home() / "minis" / "a.yaml")
+    assert s.log.name.startswith("papermini-") and s.log.name.endswith(
+        f"-{os.getpid()}.log"
+    )
+    logging.getLogger("papermini.test").info(
+        "opened %s", Path.home() / "minis" / "a.yaml"
+    )
     log.stop()
     text = s.log.read_text(encoding="utf-8")
     first = text.splitlines()[0]
@@ -93,8 +103,12 @@ def test_old_sessions_are_deleted_but_an_unoffered_crash_is_kept():
             os.utime(p, (old, old))
 
     session("papermini-20250101-100000-11", ".log", log.REPORTED)
-    session("papermini-20250101-100000-12", ".log", log.CRASH, crash="Fatal Python error")
-    session("papermini-20250101-100000-13", ".log", log.CRASH)  # killed: empty crash file
+    session(
+        "papermini-20250101-100000-12", ".log", log.CRASH, crash="Fatal Python error"
+    )
+    session(
+        "papermini-20250101-100000-13", ".log", log.CRASH
+    )  # killed: empty crash file
     recent = d / "papermini-20261101-100000-14.log"
     recent.write_text("log\n", encoding="utf-8")
     s = log.start()
@@ -136,8 +150,10 @@ def _dead_pid() -> int:
 def test_a_crash_is_found_once_and_renamed_with_the_home_folder_as_tilde():
     d = _folder()
     crash = d / f"papermini-20261111-100000-77{log.CRASH}"
-    crash.write_text(f'Windows fatal exception\n  File "{Path.home() / "x.py"}", line 1\n',
-                     encoding="utf-8")
+    crash.write_text(
+        f'Windows fatal exception\n  File "{Path.home() / "x.py"}", line 1\n',
+        encoding="utf-8",
+    )
     (d / "papermini-20261111-100000-77.log").write_text("log\n", encoding="utf-8")
     log.start()
     found = log.crashes()
@@ -177,30 +193,48 @@ def test_issue_url_fills_in_the_bug_report_form():
     from papermini import __version__
 
     q = _query(log.issue_url())
-    assert q == {"template": "bug_report.yml", "version": __version__, "os": log.os_name(),
-                 "runs-as": log.runs_as()}
+    assert q == {
+        "template": "bug_report.yml",
+        "version": __version__,
+        "os": log.os_name(),
+        "runs-as": log.runs_as(),
+    }
     assert log.issue_url().startswith(log.ISSUE_URL + "?")
 
 
 def test_issue_url_adds_the_traceback_shortened_from_the_start():
-    tb = f'File "{Path.home() / "a.py"}"\n' + "".join(f"  line {i}\n" for i in range(3000)) \
+    tb = (
+        f'File "{Path.home() / "a.py"}"\n'
+        + "".join(f"  line {i}\n" for i in range(3000))
         + "RuntimeError: the end"
+    )
     url = log.issue_url(tb)
     assert len(url) <= log.MAX_URL
     details = _query(url)["traceback"]
     assert details.startswith("…") and details.endswith("RuntimeError: the end")
-    assert str(Path.home()) not in _query(log.issue_url("in " + str(Path.home())))["traceback"]
+    assert (
+        str(Path.home())
+        not in _query(log.issue_url("in " + str(Path.home())))["traceback"]
+    )
 
 
 def test_settings_for_the_log():
     a, b = FigureSettings(), FigureSettings(height_mm=45, crop=[0.1, 0.25, 0.9, 1.0])
-    assert log.settings_diff(a, b) == "height_mm 32 → 45, crop None → [0.1, 0.25, 0.9, 1]"
+    assert (
+        log.settings_diff(a, b) == "height_mm 32 → 45, crop None → [0.1, 0.25, 0.9, 1]"
+    )
     assert log.settings_diff(a, a) == ""
-    assert log.settings_text(b.to_dict(with_size=False)) == "height_mm=45, crop=[0.1, 0.25, 0.9, 1]"
+    assert (
+        log.settings_text(b.to_dict(with_size=False))
+        == "height_mm=45, crop=[0.1, 0.25, 0.9, 1]"
+    )
     assert log.settings_text({}) == "default settings"
     sheet = SheetSettings()
     assert "paper" in log.settings_diff(sheet, SheetSettings(paper="letter"))
 
 
 def test_link_text_drops_the_query():
-    assert log.link_text("https://x.org/a/b.webp?key=secret#top") == "https://x.org/a/b.webp"
+    assert (
+        log.link_text("https://x.org/a/b.webp?key=secret#top")
+        == "https://x.org/a/b.webp"
+    )

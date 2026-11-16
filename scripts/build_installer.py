@@ -44,19 +44,33 @@ def build(version: str, dist: Path, out: Path) -> Path:
 
     iscc = find_iscc()
     if iscc is None:
-        sys.exit("Inno Setup 6 is not installed (https://jrsoftware.org/isdl.php, "
-                 "or: winget install JRSoftware.InnoSetup)")
+        sys.exit(
+            "Inno Setup 6 is not installed (https://jrsoftware.org/isdl.php, "
+            "or: winget install JRSoftware.InnoSetup)"
+        )
     if not (dist / "papermini.exe").is_file():
-        sys.exit(f"{dist} has no papermini.exe: build it first with "
-                 "pyinstaller packaging/papermini.spec --noconfirm")
+        sys.exit(
+            f"{dist} has no papermini.exe: build it first with "
+            "pyinstaller packaging/papermini.spec --noconfirm"
+        )
     out.mkdir(parents=True, exist_ok=True)
     name = update.asset_name(version, "windows-x64", setup=True)
-    done = subprocess.run([str(iscc), "/Qp", f"/DAppVersion={version}",
-                           f"/DSourceDir={dist.resolve()}", f"/DOutputDir={out.resolve()}",
-                           f"/DOutputBaseFilename={Path(name).stem}",
-                           str(ROOT / "packaging" / "papermini.iss")], check=False)
+    done = subprocess.run(
+        [
+            str(iscc),
+            "/Qp",
+            f"/DAppVersion={version}",
+            f"/DSourceDir={dist.resolve()}",
+            f"/DOutputDir={out.resolve()}",
+            f"/DOutputBaseFilename={Path(name).stem}",
+            str(ROOT / "packaging" / "papermini.iss"),
+        ],
+        check=False,
+    )
     if done.returncode:
-        sys.exit(f"Inno Setup could not build the installer (exit code {done.returncode})")
+        sys.exit(
+            f"Inno Setup could not build the installer (exit code {done.returncode})"
+        )
     return out / name
 
 
@@ -64,12 +78,23 @@ def main() -> None:
     from papermini import __version__
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--version", default=__version__,
-                    help="the version to show in Apps & features (this papermini's)")
-    ap.add_argument("--dist", type=Path, default=ROOT / "dist" / "papermini",
-                    help="the PyInstaller build (dist/papermini)")
-    ap.add_argument("--out", type=Path, default=ROOT / "dist",
-                    help="where to write the installer (dist)")
+    ap.add_argument(
+        "--version",
+        default=__version__,
+        help="the version to show in Apps & features (this papermini's)",
+    )
+    ap.add_argument(
+        "--dist",
+        type=Path,
+        default=ROOT / "dist" / "papermini",
+        help="the PyInstaller build (dist/papermini)",
+    )
+    ap.add_argument(
+        "--out",
+        type=Path,
+        default=ROOT / "dist",
+        help="where to write the installer (dist)",
+    )
     args = ap.parse_args()
     print(f"wrote {build(args.version, args.dist, args.out)}")
 

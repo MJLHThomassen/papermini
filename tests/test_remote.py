@@ -16,7 +16,9 @@ from papermini.settings import FigureSettings, load_project, save_project
 def figure_bytes(fmt="PNG", size=(300, 450)) -> bytes:
     """A red oval on a transparent background: the alpha channel is the mask, no model needed."""
     im = Image.new("RGBA", size, (0, 0, 0, 0))
-    ImageDraw.Draw(im).ellipse((30, 30, size[0] - 30, size[1] - 30), fill=(200, 40, 30, 255))
+    ImageDraw.Draw(im).ellipse(
+        (30, 30, size[0] - 30, size[1] - 30), fill=(200, 40, 30, 255)
+    )
     buf = io.BytesIO()
     (im.convert("RGB") if fmt == "JPEG" else im).save(buf, fmt)
     return buf.getvalue()
@@ -82,7 +84,9 @@ def test_bad_links_give_readable_errors(web, monkeypatch):
     web["https://example.com/huge.png"] = b"\0" * 5000
     with pytest.raises(ValueError, match="larger than"):
         remote.fetch_image("https://example.com/huge.png")
-    assert not list((remote._cache_dir()).rglob("*.png"))  # nothing half-written is kept
+    assert not list(
+        (remote._cache_dir()).rglob("*.png")
+    )  # nothing half-written is kept
 
 
 def test_link_and_file_uri_helpers(tmp_path):
@@ -97,29 +101,40 @@ def test_link_and_file_uri_helpers(tmp_path):
 def test_project_keeps_the_link_not_the_cached_file(web, tmp_path):
     url = "https://example.com/goblin.png"
     web[url] = figure_bytes()
-    (tmp_path / "p.yaml").write_text(f"figures:\n  - image: {url}\n    strength: 50\n",
-                                     encoding="utf-8")
+    (tmp_path / "p.yaml").write_text(
+        f"figures:\n  - image: {url}\n    strength: 50\n", encoding="utf-8"
+    )
     proj = load_project(tmp_path / "p.yaml")
     f = proj.figures[0]
-    assert f.source == url and f.image == remote.cached_image(url) and f.settings.strength == 50
+    assert (
+        f.source == url
+        and f.image == remote.cached_image(url)
+        and f.settings.strength == 50
+    )
     assert f.display_name == "goblin"
     save_project(proj, tmp_path / "q.yaml")
     assert f"image: {url}" in (tmp_path / "q.yaml").read_text(encoding="utf-8")
 
 
 def test_project_with_a_dead_link_says_which(web, tmp_path):
-    (tmp_path / "p.yaml").write_text("figures: [https://example.com/gone.png]\n", encoding="utf-8")
+    (tmp_path / "p.yaml").write_text(
+        "figures: [https://example.com/gone.png]\n", encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="gone.png: 404"):
         load_project(tmp_path / "p.yaml")
 
 
-def test_cli_makes_a_mini_from_a_link_into_the_current_folder(web, tmp_path, monkeypatch):
+def test_cli_makes_a_mini_from_a_link_into_the_current_folder(
+    web, tmp_path, monkeypatch
+):
     url = "https://example.com/minis/hero.webp"
     web[url] = figure_bytes("WEBP")
     monkeypatch.chdir(tmp_path)
     assert main(["make", url, "--model", "alpha"]) == 0
     assert (tmp_path / "hero.svg").is_file()  # here, not next to the cached download
-    assert main(["make", "https://example.com/nothing.png"]) == 2  # a clear error, no traceback
+    assert (
+        main(["make", "https://example.com/nothing.png"]) == 2
+    )  # a clear error, no traceback
 
 
 def test_webp_file_works_like_any_other(tmp_path):
@@ -128,7 +143,9 @@ def test_webp_file_works_like_any_other(tmp_path):
     (tmp_path / "ogre.webp").write_bytes(figure_bytes("WEBP"))
     m = build_mini(tmp_path / "ogre.webp", FigureSettings())
     assert m.name == "ogre" and abs(m.figure_height_mm - 32) < 0.5
-    assert main(["make", (tmp_path / "ogre.webp").as_uri()]) == 0  # a file:// URI is a path
+    assert (
+        main(["make", (tmp_path / "ogre.webp").as_uri()]) == 0
+    )  # a file:// URI is a path
     assert (tmp_path / "ogre.svg").is_file()
 
 

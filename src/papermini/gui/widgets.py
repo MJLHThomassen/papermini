@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from . import theme
 
 SUBTITLE_ROLE = Qt.UserRole + 1
-COPIES_ROLE = Qt.UserRole + 2   # copies on the sheet (None: no copies control)
+COPIES_ROLE = Qt.UserRole + 2  # copies on the sheet (None: no copies control)
 MAX_COPIES = 999
 
 
@@ -34,11 +34,13 @@ class FigureDelegate(QStyledItemDelegate):
     on the sheet (- n +: click - or +, or click the number to type one)."""
 
     H = 68
-    TILE = 50          # thumbnail
+    TILE = 50  # thumbnail
     BTN, NUM = 18, 26  # copies control: button and number width (px)
     COPIES_TEXT = "Amount"  # right before the control, so it is clear what it counts
-    COPIES_TIP = ("How many of this figure go on the print sheet.\n"
-                  "Click − or +, or click the number to type one.")
+    COPIES_TIP = (
+        "How many of this figure go on the print sheet.\n"
+        "Click − or +, or click the number to type one."
+    )
     copiesChanged = Signal(object, int)  # figure uid (Qt.UserRole), copies
 
     def sizeHint(self, option, index):
@@ -60,8 +62,11 @@ class FigureDelegate(QStyledItemDelegate):
 
     def editorEvent(self, event, model, option, index):
         n = index.data(COPIES_ROLE)
-        if n is not None and event.type() == QEvent.MouseButtonRelease \
-                and event.button() == Qt.LeftButton:
+        if (
+            n is not None
+            and event.type() == QEvent.MouseButtonRelease
+            and event.button() == Qt.LeftButton
+        ):
             minus, num, plus = self._copies_rects(option.rect)
             pos = event.position()
             if minus.contains(pos):
@@ -71,7 +76,9 @@ class FigureDelegate(QStyledItemDelegate):
                 self._set_copies(index, n + 1)
                 return True
             if num.contains(pos):
-                self.parent().edit(index)  # (a spin box over the number, see createEditor)
+                self.parent().edit(
+                    index
+                )  # (a spin box over the number, see createEditor)
                 return True
         return super().editorEvent(event, model, option, index)
 
@@ -109,7 +116,9 @@ class FigureDelegate(QStyledItemDelegate):
                 p.setPen(QPen(QColor(t.accent), 1))
                 p.drawPath(path)
         # thumbnail on a small canvas tile
-        tile = QRectF(r.left() + 8, r.center().y() - self.TILE / 2, self.TILE, self.TILE)
+        tile = QRectF(
+            r.left() + 8, r.center().y() - self.TILE / 2, self.TILE, self.TILE
+        )
         tp = QPainterPath()
         tp.addRoundedRect(tile, 7, 7)
         p.fillPath(tp, QColor(t.canvas))
@@ -118,8 +127,11 @@ class FigureDelegate(QStyledItemDelegate):
             pm = icon.pixmap(QSize(int(tile.width()) - 8, int(tile.height()) - 8))
             if not pm.isNull():
                 s = pm.deviceIndependentSize()
-                p.drawPixmap(int(tile.center().x() - s.width() / 2),
-                             int(tile.center().y() - s.height() / 2), pm)
+                p.drawPixmap(
+                    int(tile.center().x() - s.width() / 2),
+                    int(tile.center().y() - s.height() / 2),
+                    pm,
+                )
         # text
         x = tile.right() + 12
         w = r.right() - x - 8
@@ -128,7 +140,9 @@ class FigureDelegate(QStyledItemDelegate):
         f.setWeight(QFont.DemiBold)
         p.setFont(f)
         p.setPen(QColor(t.text))
-        name = p.fontMetrics().elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, int(w))
+        name = p.fontMetrics().elidedText(
+            index.data(Qt.DisplayRole) or "", Qt.ElideRight, int(w)
+        )
         p.drawText(QRectF(x, r.top() + 13, w, 20), Qt.AlignLeft | Qt.AlignVCenter, name)
         p.setFont(option.font)
         p.setPen(QColor(t.muted))
@@ -137,7 +151,9 @@ class FigureDelegate(QStyledItemDelegate):
             sub_w = max(0.0, w - self._copies_width(p, self._show_word(p, w)) - 8)
         sub = index.data(SUBTITLE_ROLE) or ""
         sub = p.fontMetrics().elidedText(sub, Qt.ElideRight, int(sub_w))
-        p.drawText(QRectF(x, r.top() + 33, sub_w, 18), Qt.AlignLeft | Qt.AlignVCenter, sub)
+        p.drawText(
+            QRectF(x, r.top() + 33, sub_w, 18), Qt.AlignLeft | Qt.AlignVCenter, sub
+        )
         if copies is not None:
             self._paint_copies(p, option, copies, t, selected, self._show_word(p, w))
         p.restore()
@@ -154,18 +170,25 @@ class FigureDelegate(QStyledItemDelegate):
     def _copies_width(self, p: QPainter, word: bool = True) -> float:
         """The control, and the word "Amount" before it."""
         control = 2 * self.BTN + self.NUM
-        return control + (p.fontMetrics().horizontalAdvance(self.COPIES_TEXT) + 6 if word else 0)
+        return control + (
+            p.fontMetrics().horizontalAdvance(self.COPIES_TEXT) + 6 if word else 0
+        )
 
     def _show_word(self, p: QPainter, w: float) -> bool:
         """Whether "Amount" fits beside the control in a text column ``w`` wide."""
         return w >= self._copies_width(p) + 8
 
-    def _paint_copies(self, p: QPainter, option, n: int, t, selected: bool, word: bool = True):
+    def _paint_copies(
+        self, p: QPainter, option, n: int, t, selected: bool, word: bool = True
+    ):
         minus, num, plus = self._copies_rects(option.rect)
         p.setPen(QColor(t.muted))
         if word:
-            p.drawText(QRectF(minus.left() - 66, minus.top(), 60, minus.height()),
-                       Qt.AlignRight | Qt.AlignVCenter, self.COPIES_TEXT)
+            p.drawText(
+                QRectF(minus.left() - 66, minus.top(), 60, minus.height()),
+                Qt.AlignRight | Qt.AlignVCenter,
+                self.COPIES_TEXT,
+            )
         box = minus.united(plus)
         path = QPainterPath()
         path.addRoundedRect(box, 6, 6)
@@ -344,8 +367,10 @@ class ZoomBar(QFrame):
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setToolTip("Zoom (100% = actual size)")
         h.addWidget(self.label)
-        for name, tip, sig in (("zoom_in", "Zoom in", self.zoomIn),
-                               ("fit", "Fit to window  (Ctrl+0)", self.fit)):
+        for name, tip, sig in (
+            ("zoom_in", "Zoom in", self.zoomIn),
+            ("fit", "Fit to window  (Ctrl+0)", self.fit),
+        ):
             h.addWidget(self._button(name, tip, sig))
         one = QToolButton()
         one.setText("1:1")
@@ -397,9 +422,11 @@ class RecentProject(QLabel):
         room = self.width() - fm.horizontalAdvance(self.path.name + "\u00a0\u00a0") - 8
         folder = fm.elidedText(str(self.path.parent), Qt.ElideMiddle, max(40, room))
         line = "underline" if hover else "none"
-        self.setText(f"<span style='color:{t.accent}; text-decoration:{line}'>"
-                     f"{html.escape(self.path.name)}</span>&nbsp;&nbsp;"
-                     f"<span style='color:{t.muted}'>{html.escape(folder)}</span>")
+        self.setText(
+            f"<span style='color:{t.accent}; text-decoration:{line}'>"
+            f"{html.escape(self.path.name)}</span>&nbsp;&nbsp;"
+            f"<span style='color:{t.muted}'>{html.escape(folder)}</span>"
+        )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -414,7 +441,9 @@ class RecentProject(QLabel):
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self.rect().contains(event.position().toPoint()):
+        if event.button() == Qt.LeftButton and self.rect().contains(
+            event.position().toPoint()
+        ):
             self.clicked.emit(str(self.path))
         super().mouseReleaseEvent(event)
 
@@ -442,8 +471,10 @@ class EmptyState(QFrame):
         title = QLabel("Start with a drawing")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignCenter)
-        text = QLabel("Drop images, folders, image links or a project (.yaml) anywhere in this "
-                      "window, or pick them from your computer.")
+        text = QLabel(
+            "Drop images, folders, image links or a project (.yaml) anywhere in this "
+            "window, or pick them from your computer."
+        )
         text.setObjectName("Muted")
         text.setAlignment(Qt.AlignCenter)
         text.setWordWrap(True)
@@ -498,7 +529,7 @@ class EmptyState(QFrame):
     def set_recent(self, paths) -> None:
         """Show up to ``RECENT_SHOWN`` recent projects (newest first), or none: each its
         name and its folder, shortened in the middle to fit."""
-        self._recent = list(paths)[:self.RECENT_SHOWN]
+        self._recent = list(paths)[: self.RECENT_SHOWN]
         while self.recent_list.count():
             w = self.recent_list.takeAt(0).widget()
             w.deleteLater()
@@ -514,8 +545,12 @@ class EmptyState(QFrame):
         the recent projects' folders are shortened), so it never changes size while they
         are laid out; as tall as its contents are at that width."""
         w = self.maximumWidth()
-        return QSize(w, self.layout().heightForWidth(w) if self.layout().hasHeightForWidth()
-                     else super().sizeHint().height())
+        return QSize(
+            w,
+            self.layout().heightForWidth(w)
+            if self.layout().hasHeightForWidth()
+            else super().sizeHint().height(),
+        )
 
     def refresh_icons(self):
         self.icon.setPixmap(theme.logo_pixmap(104))
@@ -542,7 +577,9 @@ class Banner(QFrame):
 
     def show_message(self, title: str, body: str):
         self.icon.setPixmap(theme.pixmap("warning", theme.current.danger, 20))
-        self.text.setText(f"<p style='margin:0'><b>{title}</b></p>{body}")  # (a list may follow)
+        self.text.setText(
+            f"<p style='margin:0'><b>{title}</b></p>{body}"
+        )  # (a list may follow)
         self.show()
 
 

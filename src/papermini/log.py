@@ -85,7 +85,9 @@ def os_name() -> str:
     if sys.platform == "darwin":
         return f"macOS {platform.mac_ver()[0]} ({platform.machine()})"
     if sys.platform == "win32":
-        return f"Windows {platform.release()} ({platform.version()}, {platform.machine()})"
+        return (
+            f"Windows {platform.release()} ({platform.version()}, {platform.machine()})"
+        )
     try:
         name = platform.freedesktop_os_release().get("PRETTY_NAME", "Linux")
     except OSError:
@@ -160,12 +162,17 @@ def _running(pid: int) -> bool:
         import ctypes
 
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        handle = kernel.OpenProcess(
+            0x1000, False, pid
+        )  # PROCESS_QUERY_LIMITED_INFORMATION
         if not handle:
             return ctypes.get_last_error() == 5  # (access denied: it exists)
         try:
             code = ctypes.c_ulong()
-            return not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value == 259
+            return (
+                not kernel.GetExitCodeProcess(handle, ctypes.byref(code))
+                or code.value == 259
+            )
         finally:
             kernel.CloseHandle(handle)
     try:
@@ -241,11 +248,13 @@ def start(qt_version: str = "") -> Session | None:
         folder.mkdir(parents=True, exist_ok=True)
         _prune(folder, time.time())
         _tidy_crash_files(folder)
-        stem =f"papermini-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+        stem = f"papermini-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
         handler = _QuietFileHandler(folder / f"{stem}.log", encoding="utf-8")
     except Exception:  # noqa: BLE001 - logging must never stop the app
         return None
-    handler.setFormatter(_Formatter("%(asctime)s %(process)d %(levelname)s %(name)s: %(message)s"))
+    handler.setFormatter(
+        _Formatter("%(asctime)s %(process)d %(levelname)s %(name)s: %(message)s")
+    )
     s = Session(folder / f"{stem}.log", folder / f"{stem}{CRASH}", handler)
     try:
         s.crash_file = open(s.crash, "w", encoding="utf-8")  # noqa: SIM115 - faulthandler writes to it until the session ends
@@ -258,8 +267,14 @@ def start(qt_version: str = "") -> Session | None:
     _session = s
     atexit.register(stop)
     qt = f", Qt {qt_version}" if qt_version else ""
-    logger.info("papermini %s started on %s, Python %s%s, %s; detailed log off",
-                __version__, os_name(), platform.python_version(), qt, runs_as())
+    logger.info(
+        "papermini %s started on %s, Python %s%s, %s; detailed log off",
+        __version__,
+        os_name(),
+        platform.python_version(),
+        qt,
+        runs_as(),
+    )
     return s
 
 
@@ -303,7 +318,9 @@ def _value(v) -> str:
 def settings_text(options: dict) -> str:
     """Settings (as a saved project stores them: only those not at their default) for a
     log line, such as ``height_mm=45, margin_mm=3``, or "default settings"."""
-    return ", ".join(f"{k}={_value(v)}" for k, v in options.items()) or "default settings"
+    return (
+        ", ".join(f"{k}={_value(v)}" for k, v in options.items()) or "default settings"
+    )
 
 
 def settings_diff(old, new) -> str:
@@ -312,8 +329,9 @@ def settings_diff(old, new) -> str:
     from dataclasses import asdict
 
     a, b = asdict(old), asdict(new)
-    return ", ".join(f"{k} {_value(a.get(k))} → {_value(v)}" for k, v in b.items()
-                     if a.get(k) != v)
+    return ", ".join(
+        f"{k} {_value(a.get(k))} → {_value(v)}" for k, v in b.items() if a.get(k) != v
+    )
 
 
 def link_text(url: str) -> str:
@@ -328,14 +346,20 @@ def issue_url(details: str = "") -> str:
     folder as ``~``) when given, shortened from the start to keep the link short enough."""
     from . import __version__
 
-    fields = {"template": "bug_report.yml", "version": __version__, "os": os_name(),
-              "runs-as": runs_as()}
+    fields = {
+        "template": "bug_report.yml",
+        "version": __version__,
+        "os": os_name(),
+        "runs-as": runs_as(),
+    }
     url = f"{ISSUE_URL}?{urllib.parse.urlencode(fields, quote_via=urllib.parse.quote)}"
     details = redact(details).strip()
     while details:
         full = f"{url}&traceback={urllib.parse.quote(details)}"
         if len(full) <= MAX_URL:
             return full
-        cut = details[len(details) - int(len(details) * 0.8):]  # keep the end: where it failed
+        cut = details[
+            len(details) - int(len(details) * 0.8) :
+        ]  # keep the end: where it failed
         details = "…" + cut.split("\n", 1)[-1] if "\n" in cut else "…" + cut
     return url

@@ -16,9 +16,9 @@ from PIL import Image, ImageDraw
 from . import fonts
 from .mini import Mini
 
-PX_PER_SQUARE = 256       # the default scale: pixels per grid square...
-DPI = 300                 # ...or, sized as printed, this resolution
-SUPERSAMPLE = 2           # drawn this many times larger, then shrunk (smooth lines and text)
+PX_PER_SQUARE = 256  # the default scale: pixels per grid square...
+DPI = 300  # ...or, sized as printed, this resolution
+SUPERSAMPLE = 2  # drawn this many times larger, then shrunk (smooth lines and text)
 
 
 def _font(name: str, size_px: int, bold: bool):
@@ -39,8 +39,11 @@ def piece_image(m: Mini, px_per_mm: float) -> Image.Image:
     for x0, x1, y in m.folds:  # dashed: 1.2 mm on, 0.8 mm off
         x = x0
         while x < x1:
-            d.line([(x * s, y * s), (min(x + 1.2, x1) * s, y * s)], fill=st.fold_color,
-                   width=fold_w)
+            d.line(
+                [(x * s, y * s), (min(x + 1.2, x1) * s, y * s)],
+                fill=st.fold_color,
+                width=fold_w,
+            )
             x += 2.0
     for t in m.text_items():
         size = t.size_mm * s
@@ -49,17 +52,23 @@ def piece_image(m: Mini, px_per_mm: float) -> Image.Image:
         r = int(max(box[2] - box[0], size) * 1.5) + 4  # room to turn it in
         layer = Image.new("RGBA", (2 * r, 2 * r), (0, 0, 0, 0))
         # centred on (cx, cy), the baseline 0.35 x the size below it (as in the SVG)
-        ImageDraw.Draw(layer).text((r, r + 0.35 * size), t.text, font=font, fill=t.color,
-                                   anchor="ms")
+        ImageDraw.Draw(layer).text(
+            (r, r + 0.35 * size), t.text, font=font, fill=t.color, anchor="ms"
+        )
         if t.rot:
             layer = layer.rotate(-t.rot, resample=Image.BICUBIC, center=(r, r))
         im.alpha_composite(layer, (round(t.cx * s) - r, round(t.cy * s) - r))
     if st.cut_line:
         pts = [(x * s, y * s) for x, y in m.cut.flatten(16)]
-        d.line(pts + pts[:1], fill=st.cut_color, width=max(1, round(st.cut_width_mm * s)),
-               joint="curve")
-    return im.resize((max(1, round(W / SUPERSAMPLE)), max(1, round(H / SUPERSAMPLE))),
-                     Image.LANCZOS)
+        d.line(
+            pts + pts[:1],
+            fill=st.cut_color,
+            width=max(1, round(st.cut_width_mm * s)),
+            joint="curve",
+        )
+    return im.resize(
+        (max(1, round(W / SUPERSAMPLE)), max(1, round(H / SUPERSAMPLE))), Image.LANCZOS
+    )
 
 
 def write_png(m: Mini, path: Path, px_per_mm: float) -> Path:
@@ -75,8 +84,14 @@ def write_pngs(m: Mini, path: Path, px_per_mm: float, copies: int = 1) -> list[P
     path = Path(path)
     if not m.numbered:
         return [write_png(m, path, px_per_mm)]
-    return [write_png(replace(m, number=i), path.with_name(f"{path.stem}-{i}{path.suffix}"),
-                      px_per_mm) for i in range(1, max(1, copies) + 1)]
+    return [
+        write_png(
+            replace(m, number=i),
+            path.with_name(f"{path.stem}-{i}{path.suffix}"),
+            px_per_mm,
+        )
+        for i in range(1, max(1, copies) + 1)
+    ]
 
 
 def px_per_mm(px_per_square: float, grid_mm: float) -> float:

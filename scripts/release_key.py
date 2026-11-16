@@ -30,8 +30,12 @@ UPDATE_PY = ROOT / "src" / "papermini" / "update.py"
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("private_key", nargs="?", type=Path,
-                    default=Path.home() / ".papermini-release-key")
+    ap.add_argument(
+        "private_key",
+        nargs="?",
+        type=Path,
+        default=Path.home() / ".papermini-release-key",
+    )
     ap.add_argument("--force", action="store_true", help="replace an existing key file")
     args = ap.parse_args()
 
@@ -39,21 +43,32 @@ def main() -> None:
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     if args.private_key.exists() and not args.force:
-        sys.exit(f"{args.private_key} exists; pass --force to replace it (old versions of "
-                 "papermini would then no longer accept updates)")
+        sys.exit(
+            f"{args.private_key} exists; pass --force to replace it (old versions of "
+            "papermini would then no longer accept updates)"
+        )
     key = Ed25519PrivateKey.generate()
-    raw = key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
-                            serialization.NoEncryption())
-    pub = key.public_key().public_bytes(serialization.Encoding.Raw,
-                                        serialization.PublicFormat.Raw)
+    raw = key.private_bytes(
+        serialization.Encoding.Raw,
+        serialization.PrivateFormat.Raw,
+        serialization.NoEncryption(),
+    )
+    pub = key.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    )
     args.private_key.write_text(base64.b64encode(raw).decode() + "\n", encoding="utf-8")
     try:
         os.chmod(args.private_key, 0o600)  # (only you can read it, where supported)
     except OSError:
         pass
     text = UPDATE_PY.read_text(encoding="utf-8")
-    new, n = re.subn(r'^PUBLIC_KEY = ".*"$', f'PUBLIC_KEY = "{base64.b64encode(pub).decode()}"',
-                     text, count=1, flags=re.MULTILINE)
+    new, n = re.subn(
+        r'^PUBLIC_KEY = ".*"$',
+        f'PUBLIC_KEY = "{base64.b64encode(pub).decode()}"',
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
     if n != 1:
         sys.exit(f"PUBLIC_KEY not found in {UPDATE_PY}")
     UPDATE_PY.write_text(new, encoding="utf-8", newline="\n")
@@ -62,7 +77,9 @@ def main() -> None:
     print()
     print("Store the private key as the repository secret RELEASE_SIGNING_KEY:")
     if sys.platform == "win32":
-        print(f'  Get-Content -Raw "{args.private_key}" | gh secret set RELEASE_SIGNING_KEY')
+        print(
+            f'  Get-Content -Raw "{args.private_key}" | gh secret set RELEASE_SIGNING_KEY'
+        )
     else:
         print(f"  gh secret set RELEASE_SIGNING_KEY < '{args.private_key}'")
 

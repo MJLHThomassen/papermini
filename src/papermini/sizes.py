@@ -18,15 +18,29 @@ CUSTOM = "custom"
 SIZE_CHOICES = SIZES + (CUSTOM,)
 DEFAULT_SIZE = "medium"
 SQUARES = {"tiny": 0.5, "small": 1, "medium": 1, "large": 2, "huge": 3, "gargantuan": 4}
-HEIGHT_RATIO = {"tiny": 0.5, "small": 0.75, "medium": 1, "large": 1.5, "huge": 2,
-                "gargantuan": 2.5}
-GRID_MM = 25.4        # a 1-inch grid
-MEDIUM_MM = 32.0      # a "heroic" scale human
+HEIGHT_RATIO = {
+    "tiny": 0.5,
+    "small": 0.75,
+    "medium": 1,
+    "large": 1.5,
+    "huge": 2,
+    "gargantuan": 2.5,
+}
+GRID_MM = 25.4  # a 1-inch grid
+MEDIUM_MM = 32.0  # a "heroic" scale human
 BUILTIN_NAME = "Standard 1-inch"
-BASE_FIT = 25 / 25.4  # bases a little under the grid, so they fit side by side (25 mm per inch)
+BASE_FIT = (
+    25 / 25.4
+)  # bases a little under the grid, so they fit side by side (25 mm per inch)
 FIELDS = ("height_mm", "base_mm", "tab_width_mm", "tab_height_mm")
 # the figure settings a size fills in
-FILLS = ("height_mm", "tab_radius_mm", "tab_width_mm", "tab_height_mm", "token_diameter_mm")
+FILLS = (
+    "height_mm",
+    "tab_radius_mm",
+    "tab_width_mm",
+    "tab_height_mm",
+    "token_diameter_mm",
+)
 
 
 @dataclass(frozen=True)
@@ -41,9 +55,13 @@ class SizeRow:
 
     def values(self) -> dict[str, float]:
         """The figure settings this row fills in."""
-        return {"height_mm": self.height_mm, "tab_radius_mm": self.base_mm / 2,
-                "tab_width_mm": self.tab_width_mm, "tab_height_mm": self.tab_height_mm,
-                "token_diameter_mm": self.base_mm}
+        return {
+            "height_mm": self.height_mm,
+            "tab_radius_mm": self.base_mm / 2,
+            "tab_width_mm": self.tab_width_mm,
+            "tab_height_mm": self.tab_height_mm,
+            "token_diameter_mm": self.base_mm,
+        }
 
 
 def _mm(v: float) -> float:
@@ -69,10 +87,15 @@ class SizeTable:
     name: str = ""
 
     def __post_init__(self):
-        missing = {s: calculate_row(s, self.grid_mm, self.medium_mm)
-                   for s in SIZES if s not in self.rows}
+        missing = {
+            s: calculate_row(s, self.grid_mm, self.medium_mm)
+            for s in SIZES
+            if s not in self.rows
+        }
         if missing:
-            object.__setattr__(self, "rows", {s: self.rows.get(s) or missing[s] for s in SIZES})
+            object.__setattr__(
+                self, "rows", {s: self.rows.get(s) or missing[s] for s in SIZES}
+            )
 
     def row(self, size: str) -> SizeRow:
         return self.rows[size]
@@ -83,8 +106,10 @@ class SizeTable:
 
     def calculated(self) -> bool:
         """Whether every row is what the grid and Medium's height give."""
-        return all(self.rows[s] == calculate_row(s, self.grid_mm, self.medium_mm)
-                   for s in SIZES)
+        return all(
+            self.rows[s] == calculate_row(s, self.grid_mm, self.medium_mm)
+            for s in SIZES
+        )
 
     def same_values(self, other: SizeTable) -> bool:
         """Whether ``other`` has the same grid, Medium height and rows (names aside)."""
@@ -92,9 +117,12 @@ class SizeTable:
 
     def to_dict(self) -> dict[str, Any]:
         """The table as a project stores it."""
-        return {**({"preset": self.name} if self.name else {}),
-                "grid_mm": self.grid_mm, "medium_mm": self.medium_mm,
-                **{s: {k: getattr(self.rows[s], k) for k in FIELDS} for s in SIZES}}
+        return {
+            **({"preset": self.name} if self.name else {}),
+            "grid_mm": self.grid_mm,
+            "medium_mm": self.medium_mm,
+            **{s: {k: getattr(self.rows[s], k) for k in FIELDS} for s in SIZES},
+        }
 
     @classmethod
     def from_dict(cls, d: dict[str, Any] | None) -> SizeTable:
@@ -103,12 +131,16 @@ class SizeTable:
         if not d:
             return BUILTIN
         if not isinstance(d, dict):
-            raise ValueError("sizes must be a table of preset, grid_mm, medium_mm and the sizes")
+            raise ValueError(
+                "sizes must be a table of preset, grid_mm, medium_mm and the sizes"
+            )
         d = {str(k).replace("-", "_"): v for k, v in d.items()}
         unknown = set(d) - set(SIZES) - {"preset", "grid_mm", "medium_mm"}
         if unknown:
-            raise ValueError(f"unknown sizes entr{'y' if len(unknown) == 1 else 'ies'} "
-                             f"{', '.join(sorted(unknown))}")
+            raise ValueError(
+                f"unknown sizes entr{'y' if len(unknown) == 1 else 'ies'} "
+                f"{', '.join(sorted(unknown))}"
+            )
         name = d.get("preset", "")
         if not isinstance(name, str):
             raise ValueError(f"sizes preset must be a name, not {name!r}")
@@ -123,11 +155,17 @@ class SizeTable:
                 raise ValueError(f"sizes {s} must give {', '.join(FIELDS)}")
             unknown = set(r) - set(FIELDS)
             if unknown:
-                raise ValueError(f"unknown sizes {s} entr{'y' if len(unknown) == 1 else 'ies'} "
-                                 f"{', '.join(sorted(unknown))}")
+                raise ValueError(
+                    f"unknown sizes {s} entr{'y' if len(unknown) == 1 else 'ies'} "
+                    f"{', '.join(sorted(unknown))}"
+                )
             calc = calculate_row(s, grid, medium)
-            rows[s] = SizeRow(*(_positive(r.get(k, getattr(calc, k)), f"sizes {s} {k}")
-                                for k in FIELDS))
+            rows[s] = SizeRow(
+                *(
+                    _positive(r.get(k, getattr(calc, k)), f"sizes {s} {k}")
+                    for k in FIELDS
+                )
+            )
         return cls(grid, medium, rows, name.strip())
 
 
@@ -137,11 +175,16 @@ def _positive(v: Any, what: str) -> float:
     return float(v)
 
 
-def calculate(grid_mm: float = GRID_MM, medium_mm: float = MEDIUM_MM,
-              name: str = "") -> SizeTable:
+def calculate(
+    grid_mm: float = GRID_MM, medium_mm: float = MEDIUM_MM, name: str = ""
+) -> SizeTable:
     """A table calculated from the grid and Medium's height."""
-    return SizeTable(float(grid_mm), float(medium_mm),
-                     {s: calculate_row(s, grid_mm, medium_mm) for s in SIZES}, name)
+    return SizeTable(
+        float(grid_mm),
+        float(medium_mm),
+        {s: calculate_row(s, grid_mm, medium_mm) for s in SIZES},
+        name,
+    )
 
 
 def for_grid(grid_mm: float) -> SizeTable:
@@ -166,7 +209,8 @@ def matches(settings, table: SizeTable = BUILTIN) -> bool:
         return True
     row = table.row(settings.size).values()
     return settings.width_mm is None and all(
-        abs(getattr(settings, k) - v) < 0.005 for k, v in row.items())
+        abs(getattr(settings, k) - v) < 0.005 for k, v in row.items()
+    )
 
 
 def reconcile(old, new, table: SizeTable = BUILTIN):
@@ -188,7 +232,9 @@ def footprint_text(size: str, table: SizeTable) -> str:
     if size == CUSTOM:
         return ""
     sq = SQUARES[size]
-    squares = "½ × ½ square" if sq < 1 else f"{sq:g} × {sq:g} square{'s' if sq > 1 else ''}"
+    squares = (
+        "½ × ½ square" if sq < 1 else f"{sq:g} × {sq:g} square{'s' if sq > 1 else ''}"
+    )
     return f"{squares} · {table.row(size).base_mm:g} mm base"
 
 
@@ -201,5 +247,7 @@ def width_warning(size: str, width_mm: float, table: SizeTable) -> str:
         return ""
     sq = SQUARES[size]
     squares = "half a square" if sq < 1 else f"{sq:g} square{'s' if sq > 1 else ''}"
-    return (f"This figure is {width_mm:.0f} mm wide, wider than its {squares} "
-            f"({round(room, 1):g} mm): set a width or pick a bigger size.")
+    return (
+        f"This figure is {width_mm:.0f} mm wide, wider than its {squares} "
+        f"({round(room, 1):g} mm): set a width or pick a bigger size."
+    )

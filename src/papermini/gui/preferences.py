@@ -45,8 +45,12 @@ from .panels import DoubleSpinBox, SpinBox
 ui_log = logging.getLogger("papermini.ui")
 PRESETS_KEY = "sizes/presets"
 DEFAULT_KEY = "sizes/default_preset"
-COLUMNS = (("height_mm", "Height"), ("base_mm", "Round base"),
-           ("tab_width_mm", "Stand tab width"), ("tab_height_mm", "Stand tab height"))
+COLUMNS = (
+    ("height_mm", "Height"),
+    ("base_mm", "Round base"),
+    ("tab_width_mm", "Stand tab width"),
+    ("tab_height_mm", "Stand tab height"),
+)
 PROJECT = "project"  # the entry of a project table that matches no preset
 NOTES_ROLE = Qt.UserRole + 1  # a preset entry's notes: what it is used for, a line each
 
@@ -97,7 +101,9 @@ def find(tables: list[sizes.SizeTable], name: str) -> sizes.SizeTable | None:
     return next((t for t in tables if t.name == name), None)
 
 
-def preset_of(table: sizes.SizeTable, tables: list[sizes.SizeTable] | None = None) -> str:
+def preset_of(
+    table: sizes.SizeTable, tables: list[sizes.SizeTable] | None = None
+) -> str:
     """The name of the preset ``table`` is (same name and values), or ""."""
     p = find(tables if tables is not None else presets(), table.name)
     return p.name if p is not None and p.same_values(table) else ""
@@ -153,7 +159,9 @@ class _EntryDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index) -> QSize:
         name, notes = self._fonts(option)
         lines = self._lines(index)
-        h = QFontMetrics(name).height() + len(lines) * (QFontMetrics(notes).height() + 1)
+        h = QFontMetrics(name).height() + len(lines) * (
+            QFontMetrics(notes).height() + 1
+        )
         return QSize(200, h + 2 * self.PAD_Y)
 
     def paint(self, p, option, index) -> None:
@@ -168,15 +176,21 @@ class _EntryDelegate(QStyledItemDelegate):
         fm = QFontMetrics(name_font)
         p.setFont(name_font)
         p.setPen(QColor(theme.current.text))
-        p.drawText(QRect(r.left(), r.top(), r.width(), fm.height()), Qt.AlignLeft | Qt.AlignVCenter,
-                   fm.elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, r.width()))
+        p.drawText(
+            QRect(r.left(), r.top(), r.width(), fm.height()),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            fm.elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, r.width()),
+        )
         y = r.top() + fm.height() + 1
         fn = QFontMetrics(notes_font)
         p.setFont(notes_font)
         p.setPen(QColor(theme.current.muted))
         for line in self._lines(index):
-            p.drawText(QRect(r.left(), y, r.width(), fn.height()), Qt.AlignLeft | Qt.AlignVCenter,
-                       fn.elidedText(line, Qt.ElideRight, r.width()))
+            p.drawText(
+                QRect(r.left(), y, r.width(), fn.height()),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                fn.elidedText(line, Qt.ElideRight, r.width()),
+            )
             y += fn.height() + 1
         p.restore()
 
@@ -196,10 +210,12 @@ class SizesPage(QWidget):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)
         v.addWidget(_page_title("Creature sizes"))
-        intro = QLabel("Size table for D&D mini sizes, saved with this project. Click "
-                       "Calculate to fill it in from your grid square and Medium height, "
-                       "then change any value you need. Figures with a size are updated "
-                       "when you close this window.")
+        intro = QLabel(
+            "Size table for D&D mini sizes, saved with this project. Click "
+            "Calculate to fill it in from your grid square and Medium height, "
+            "then change any value you need. Figures with a size are updated "
+            "when you close this window."
+        )
         intro.setObjectName("Muted")
         intro.setWordWrap(True)
         v.addWidget(intro)
@@ -228,8 +244,10 @@ class SizesPage(QWidget):
         self.b_rename = QPushButton("Rename")
         self.b_rename.clicked.connect(self.rename_preset)
         self.b_delete = QPushButton("Delete")
-        self.b_delete.setToolTip("Delete the selected preset. Projects that use it keep "
-                                 "their own copy of the table.")
+        self.b_delete.setToolTip(
+            "Delete the selected preset. Projects that use it keep "
+            "their own copy of the table."
+        )
         self.b_delete.clicked.connect(self.delete_preset)
         for i, b in enumerate((self.b_new, self.b_copy, self.b_rename, self.b_delete)):
             tools.addWidget(b, i // 2, i % 2)
@@ -255,13 +273,16 @@ class SizesPage(QWidget):
         top.addSpacing(10)
         top.addWidget(QLabel("Medium height"))
         self.medium = _spin(sizes.MEDIUM_MM, 5, 300)
-        self.medium.setToolTip("How tall a Medium figure is. The other sizes are "
-                               "calculated from it.")
+        self.medium.setToolTip(
+            "How tall a Medium figure is. The other sizes are calculated from it."
+        )
         top.addWidget(self.medium)
         top.addStretch(1)
         self.calc = QPushButton("Calculate")
-        self.calc.setToolTip("Fill in every row from the grid square and Medium height. "
-                             "This replaces values you changed.")
+        self.calc.setToolTip(
+            "Fill in every row from the grid square and Medium height. "
+            "This replaces values you changed."
+        )
         self.calc.clicked.connect(self.calculate)
         top.addWidget(self.calc)
         right.addLayout(top)
@@ -295,8 +316,9 @@ class SizesPage(QWidget):
         actions = QHBoxLayout()
         actions.setSpacing(8)
         self.b_use = QPushButton("Use in this project")
-        self.b_use.setToolTip("Give the open project this table. Its figures with a size "
-                              "follow it.")
+        self.b_use.setToolTip(
+            "Give the open project this table. Its figures with a size follow it."
+        )
         self.b_use.clicked.connect(self.use_in_project)
         self.b_default = QPushButton("Make default for new projects")
         self.b_default.clicked.connect(self.make_default)
@@ -307,8 +329,16 @@ class SizesPage(QWidget):
             actions.addWidget(b)
         actions.addStretch(1)
         v.addLayout(actions)
-        for b in (self.b_new, self.b_copy, self.b_rename, self.b_delete, self.calc,
-                  self.b_use, self.b_default, self.b_save):
+        for b in (
+            self.b_new,
+            self.b_copy,
+            self.b_rename,
+            self.b_delete,
+            self.calc,
+            self.b_use,
+            self.b_default,
+            self.b_save,
+        ):
             b.setCursor(Qt.PointingHandCursor)
         self._loading = False
         self._rebuild(self._key_of_project())
@@ -333,7 +363,11 @@ class SizesPage(QWidget):
 
     def _key(self) -> tuple[str, str]:
         item = self.list.currentItem()
-        return item.data(Qt.UserRole) if item is not None else ("preset", sizes.BUILTIN_NAME)
+        return (
+            item.data(Qt.UserRole)
+            if item is not None
+            else ("preset", sizes.BUILTIN_NAME)
+        )
 
     def _table(self, key: tuple[str, str]) -> sizes.SizeTable:
         if key[0] == PROJECT:
@@ -372,8 +406,9 @@ class SizesPage(QWidget):
         self._show_selected()
 
     def _refresh_notes(self) -> None:
-        if self._entries() != [self.list.item(i).data(Qt.UserRole)
-                               for i in range(self.list.count())]:
+        if self._entries() != [
+            self.list.item(i).data(Qt.UserRole) for i in range(self.list.count())
+        ]:
             self._rebuild(self._key())
             return
         for i in range(self.list.count()):
@@ -400,17 +435,24 @@ class SizesPage(QWidget):
             self.title.setText("This project's table")
             came = self._project.name
             if came and find(self._all(), came):
-                status = (f"It came from the preset {came}, but the values are different "
-                          "now. Save it as a preset to keep it, or use a preset instead.")
+                status = (
+                    f"It came from the preset {came}, but the values are different "
+                    "now. Save it as a preset to keep it, or use a preset instead."
+                )
             elif came:
-                status = (f"It came from the preset {came}, which is not on this computer. "
-                          "Save it as a preset to keep it.")
+                status = (
+                    f"It came from the preset {came}, which is not on this computer. "
+                    "Save it as a preset to keep it."
+                )
             else:
                 status = "It is not saved as a preset. Save it as a preset to keep it."
         else:
             self.title.setText(key[1])
-            status = ("The built-in table can't be changed. Copy it to make your own."
-                      if builtin else "Changes are saved at once.")
+            status = (
+                "The built-in table can't be changed. Copy it to make your own."
+                if builtin
+                else "Changes are saved at once."
+            )
             if key == self._key_of_project() and not builtin:
                 status += " The open project uses this preset, so it changes too."
         self.status.setText(status)
@@ -432,10 +474,13 @@ class SizesPage(QWidget):
 
     # -- editing
     def _shown(self, name: str) -> sizes.SizeTable:
-        rows = {s: sizes.SizeRow(*(round(self.spins[s, k].value(), 2) for k, _ in COLUMNS))
-                for s in sizes.SIZES}
-        return sizes.SizeTable(round(self.grid.value(), 2), round(self.medium.value(), 2),
-                               rows, name)
+        rows = {
+            s: sizes.SizeRow(*(round(self.spins[s, k].value(), 2) for k, _ in COLUMNS))
+            for s in sizes.SIZES
+        }
+        return sizes.SizeTable(
+            round(self.grid.value(), 2), round(self.medium.value(), 2), rows, name
+        )
 
     def _edited(self, *_) -> None:
         if self._loading:
@@ -480,7 +525,9 @@ class SizesPage(QWidget):
         if not name or name == old:
             return ""
         if find(self._all(), name):
-            QMessageBox.warning(self, title, f"There is already a preset called {name}.")
+            QMessageBox.warning(
+                self, title, f"There is already a preset called {name}."
+            )
             return ""
         return name
 
@@ -516,10 +563,15 @@ class SizesPage(QWidget):
 
     def delete_preset(self) -> None:
         name = self._key()[1]
-        if QMessageBox.question(
-                self, "Delete preset",
+        if (
+            QMessageBox.question(
+                self,
+                "Delete preset",
                 f"Delete the preset {name}? Projects that use it keep their own copy of "
-                "the table.") != QMessageBox.Yes:
+                "the table.",
+            )
+            != QMessageBox.Yes
+        ):
             return
         self._user = [t for t in self._user if t.name != name]
         save_user_presets(self._user)
@@ -540,8 +592,11 @@ class SizesPage(QWidget):
         self._refresh_notes()
 
     def save_as_preset(self) -> None:
-        name = self._ask_name("Save as preset", "Name for the preset:",
-                              self._unique(self._project.name or "My preset"))
+        name = self._ask_name(
+            "Save as preset",
+            "Name for the preset:",
+            self._unique(self._project.name or "My preset"),
+        )
         if not name:
             return
         self._project = replace(self._project, name=name)
@@ -552,9 +607,14 @@ class SizesPage(QWidget):
 class PreferencesDialog(QDialog):
     """The Preferences window for ``window`` (the main window), opened at ``page``."""
 
-    PAGES = (("sizes", "Creature sizes"), ("images", "Images"),
-             ("appearance", "Appearance"), ("updates", "Updates"), ("logging", "Logging"),
-             ("cache", "Models and cache"))
+    PAGES = (
+        ("sizes", "Creature sizes"),
+        ("images", "Images"),
+        ("appearance", "Appearance"),
+        ("updates", "Updates"),
+        ("logging", "Logging"),
+        ("cache", "Models and cache"),
+    )
 
     def __init__(self, window, page: str = "sizes"):
         super().__init__(window)
@@ -574,8 +634,14 @@ class PreferencesDialog(QDialog):
         self.sizes = SizesPage(window.project.sizes)
         self.cache = CachePage(in_use=lambda: [f.entry.image for f in window.figures])
         self.cache.changed.connect(window._models_changed)
-        pages = (self.sizes, self._images(), self._appearance(),
-                 self._updates(), self._logging(), self.cache)
+        pages = (
+            self.sizes,
+            self._images(),
+            self._appearance(),
+            self._updates(),
+            self._logging(),
+            self.cache,
+        )
         for (key, text), w in zip(self.PAGES, pages):
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, key)
@@ -619,9 +685,13 @@ class PreferencesDialog(QDialog):
         self.subfolders.setChecked(prefs.add_subfolders())
         self.subfolders.toggled.connect(prefs.set_add_subfolders)
         v.addWidget(self.subfolders)
-        v.addWidget(_hint("When you add a folder (Add folder\u2026 in the menu, or by dropping "
-                          "it on the window), also add the images in its subfolders. The "
-                          "command line always does, unless you give --no-subfolders."))
+        v.addWidget(
+            _hint(
+                "When you add a folder (Add folder\u2026 in the menu, or by dropping "
+                "it on the window), also add the images in its subfolders. The "
+                "command line always does, unless you give --no-subfolders."
+            )
+        )
         v.addSpacing(14)
         head = QLabel("PNG size")
         head.setObjectName("SubHeading")
@@ -641,9 +711,17 @@ class PreferencesDialog(QDialog):
         self.png_dpi.setValue(prefs.png_dpi())
         self.png_dpi.valueChanged.connect(prefs.set_png_dpi)
         self.png_buttons = {}
-        for row, (mode, text, box, unit) in enumerate((
-                ("square", "For a virtual tabletop", self.png_px, "pixels per grid square"),
-                ("dpi", "At the size it prints", self.png_dpi, "dpi"))):
+        for row, (mode, text, box, unit) in enumerate(
+            (
+                (
+                    "square",
+                    "For a virtual tabletop",
+                    self.png_px,
+                    "pixels per grid square",
+                ),
+                ("dpi", "At the size it prints", self.png_dpi, "dpi"),
+            )
+        ):
             b = QRadioButton(text)
             b.setCursor(Qt.PointingHandCursor)
             self.png_mode.addButton(b)
@@ -659,12 +737,16 @@ class PreferencesDialog(QDialog):
         for mode, b in self.png_buttons.items():
             b.toggled.connect(lambda on, m=mode: on and self._png_mode(m))
         self._png_mode(prefs.png_size_mode())
-        v.addWidget(_hint("How big an exported PNG is. For a virtual tabletop: this many pixels "
-                          "for each grid square, so a Medium figure covers one square and a "
-                          "Large one two; set it to your tabletop's grid size (for example 100 "
-                          "in Foundry or 70 in Roll20). At the size it prints: a picture of the "
-                          "piece at this resolution, as on the print sheet. The command line "
-                          "takes --png-px or --png-dpi."))
+        v.addWidget(
+            _hint(
+                "How big an exported PNG is. For a virtual tabletop: this many pixels "
+                "for each grid square, so a Medium figure covers one square and a "
+                "Large one two; set it to your tabletop's grid size (for example 100 "
+                "in Foundry or 70 in Roll20). At the size it prints: a picture of the "
+                "piece at this resolution, as on the print sheet. The command line "
+                "takes --png-px or --png-dpi."
+            )
+        )
         v.addStretch(1)
         return w
 
@@ -679,7 +761,11 @@ class PreferencesDialog(QDialog):
         head.setObjectName("SubHeading")
         v.addWidget(head)
         self.theme_group = QButtonGroup(w)
-        for mode, text in (("system", "Follow system"), ("light", "Light"), ("dark", "Dark")):
+        for mode, text in (
+            ("system", "Follow system"),
+            ("light", "Light"),
+            ("dark", "Dark"),
+        ):
             b = QRadioButton(text)
             b.setChecked(mode == self.window_._theme_mode)
             b.toggled.connect(lambda on, mode=mode: on and self.window_.set_theme(mode))
@@ -694,9 +780,13 @@ class PreferencesDialog(QDialog):
         self.auto_updates.setChecked(self.window_.auto_updates())
         self.auto_updates.toggled.connect(self.window_.set_auto_updates)
         v.addWidget(self.auto_updates)
-        v.addWidget(_hint("Look for a new version once a day, download it in the "
-                          "background and install it when papermini closes. Check for "
-                          "updates in the menu looks right away."))
+        v.addWidget(
+            _hint(
+                "Look for a new version once a day, download it in the "
+                "background and install it when papermini closes. Check for "
+                "updates in the menu looks right away."
+            )
+        )
         v.addStretch(1)
         return w
 
@@ -708,9 +798,14 @@ class PreferencesDialog(QDialog):
         self.detailed_log.setEnabled(on)
         self.detailed_log.toggled.connect(log.set_detailed)
         v.addWidget(self.detailed_log)
-        v.addWidget(_hint("Write more to the log, until papermini closes. Turn it on "
-                          "before you repeat a problem you want to report."
-                          if on else "There is no log in this session."))
+        v.addWidget(
+            _hint(
+                "Write more to the log, until papermini closes. Turn it on "
+                "before you repeat a problem you want to report."
+                if on
+                else "There is no log in this session."
+            )
+        )
         folder = QPushButton("Open log folder")
         folder.setEnabled(on)
         folder.setCursor(Qt.PointingHandCursor)

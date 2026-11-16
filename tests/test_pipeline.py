@@ -17,7 +17,9 @@ def figure(tmp_path):
     """A dark figure on white, exactly 700 px high, plus its mask."""
     im = np.full((1000, 800, 3), 255, np.uint8)
     cv2.ellipse(im, (400, 300), (150, 120), 0, 0, 360, (40, 40, 40), -1)
-    cv2.rectangle(im, (300, 300), (500, 899), (40, 40, 40), -1)   # rows 180..899 -> 720 px
+    cv2.rectangle(
+        im, (300, 300), (500, 899), (40, 40, 40), -1
+    )  # rows 180..899 -> 720 px
     mask = np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)
     Image.fromarray(im).save(tmp_path / "hero.png")
     Image.fromarray(mask).save(tmp_path / "hero_mask.png")
@@ -34,7 +36,9 @@ def _dark_rows_mm(mini):
 @pytest.mark.parametrize("height", [30.0, 42.0])
 def test_printed_figure_height(figure, height):
     img, mask = figure
-    m = make_mini(img, geo.Params(height_mm=height), mask_path=mask, log=lambda *_: None)
+    m = make_mini(
+        img, geo.Params(height_mm=height), mask_path=mask, log=lambda *_: None
+    )
     assert _dark_rows_mm(m) == pytest.approx(height, abs=0.5)
 
 
@@ -55,7 +59,9 @@ def test_svg_roundtrip(figure, tmp_path):
 
 def test_polygon_roundtrip(figure, tmp_path):
     img, mask = figure
-    m = make_mini(img, geo.Params(), mask_path=mask, smooth_path=False, log=lambda *_: None)
+    m = make_mini(
+        img, geo.Params(), mask_path=mask, smooth_path=False, log=lambda *_: None
+    )
     r = read_svg(write_svg(m, tmp_path / "hero.svg"))
     assert r.cut.controls is None
     assert np.allclose(r.cut.points, m.cut.points, atol=1e-3)
@@ -91,7 +97,9 @@ def test_alpha_png_needs_no_model(tmp_path):
     a = np.zeros((600, 400, 4), np.uint8)
     cv2.circle(a, (200, 300), 150, (90, 60, 30, 255), -1)
     Image.fromarray(a, "RGBA").save(tmp_path / "cut.png")
-    m = make_mini(tmp_path / "cut.png", geo.Params(height_mm=20, tab=False), log=lambda *_: None)
+    m = make_mini(
+        tmp_path / "cut.png", geo.Params(height_mm=20, tab=False), log=lambda *_: None
+    )
     assert _dark_rows_mm(m) == pytest.approx(20, abs=0.5)
 
 
@@ -128,46 +136,64 @@ def test_cli_reports_bad_model(figure, capsys):
 def test_double_sided_back_text(figure, tmp_path):
     img, mask = figure
     prm = geo.Params(double_sided=True, back="text")
-    m = make_mini(img, prm, mask_path=mask, label="Hero", back_text="Hero of the Crypt",
-                  log=lambda *_: None)
+    m = make_mini(
+        img,
+        prm,
+        mask_path=mask,
+        label="Hero",
+        back_text="Hero of the Crypt",
+        log=lambda *_: None,
+    )
     assert m.texts and all(rot == 180 for _, _, _, rot, _ in m.texts)
-    assert " ".join(t for t, *_ in m.texts) == "Hero of the Crypt"  # stored in reading order
+    assert (
+        " ".join(t for t, *_ in m.texts) == "Hero of the Crypt"
+    )  # stored in reading order
     ys = [cy for _, _, cy, _, _ in m.texts]
-    assert ys == sorted(ys, reverse=True)  # first line nearest the fold = on top once folded
+    assert ys == sorted(
+        ys, reverse=True
+    )  # first line nearest the fold = on top once folded
     for _, cx, cy, _, size in m.texts:
         assert 0 < cx < m.width_mm and 0 < cy < m.height_mm / 2 and size > 1
     # default text is the label; round-trips through the SVG
     m2 = make_mini(img, prm, mask_path=mask, label="Hero", log=lambda *_: None)
     assert [t for t, *_ in m2.texts] == ["Hero"]
     r = read_svg(write_svg(m, tmp_path / "hero.svg"))
-    assert [(t, round(x, 2), round(y, 2), rot, round(s, 2)) for t, x, y, rot, s in r.texts] == \
-           [(t, round(x, 2), round(y, 2), rot, round(s, 2)) for t, x, y, rot, s in m.texts]
+    assert [
+        (t, round(x, 2), round(y, 2), rot, round(s, 2)) for t, x, y, rot, s in r.texts
+    ] == [
+        (t, round(x, 2), round(y, 2), rot, round(s, 2)) for t, x, y, rot, s in m.texts
+    ]
     write_pdf(pack([(r, 1)]), tmp_path / "s.pdf")
-
 
 
 def test_back_text_has_its_own_color(figure, tmp_path):
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
-    s = FigureSettings(mask=str(mask), double_sided=True, back="text", back_text="Hero",
-                       label_color="#111111", back_text_color="#c0a030")
+    s = FigureSettings(
+        mask=str(mask),
+        double_sided=True,
+        back="text",
+        back_text="Hero",
+        label_color="#111111",
+        back_text_color="#c0a030",
+    )
     m = build_mini(img, s, log=lambda *_: None)
     svg = write_svg(m, tmp_path / "h.svg").read_text(encoding="utf-8")
     assert 'class="backtext"' in svg and 'fill="#c0a030"' in svg
     assert read_svg(tmp_path / "h.svg").style.back_text_color == "#c0a030"
 
 
-
 def test_mask_model_choice(figure):
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
-    m = build_mini(img, FigureSettings(model="mask", mask=str(mask)), log=lambda *_: None)
+    m = build_mini(
+        img, FigureSettings(model="mask", mask=str(mask)), log=lambda *_: None
+    )
     assert m.figure_height_mm == pytest.approx(32, abs=0.05)  # Medium
     with pytest.raises(ValueError, match="needs a mask image"):
         build_mini(img, FigureSettings(model="mask"), log=lambda *_: None)
-
 
 
 def test_bleed(figure):
@@ -175,17 +201,20 @@ def test_bleed(figure):
     from papermini.settings import FigureSettings, build_mini
 
     img, mask = figure
-    s = FigureSettings(mask=str(mask), margin_color="#204080", tab_color="#3b6e2a",
-                       double_sided=False)  # (the points below assume one side)
+    s = FigureSettings(
+        mask=str(mask), margin_color="#204080", tab_color="#3b6e2a", double_sided=False
+    )  # (the points below assume one side)
     plain = build_mini(img, s, log=lambda *_: None)
     bled = build_mini(img, s, bleed_mm=1.5, log=lambda *_: None)
     # the canvas grows from half the 0.3 mm cut line + 0.3 to the bleed + 0.2, on each side
-    assert bled.width_mm == pytest.approx(plain.width_mm + 2 * (1.5 + 0.2 - 0.45), abs=0.1)
+    assert bled.width_mm == pytest.approx(
+        plain.width_mm + 2 * (1.5 + 0.2 - 0.45), abs=0.1
+    )
     a = np.asarray(bled.art.convert("RGBA")).astype(int)
     px_mm = a.shape[1] / bled.width_mm
     # a point 1 mm outside the cut line, beside the figure: margin color, opaque
     pts = bled.cut.flatten()
-    above = pts[pts[:, 1] < bled.folds[0][2] - 10]      # beside the figure, above the tab
+    above = pts[pts[:, 1] < bled.folds[0][2] - 10]  # beside the figure, above the tab
     i = int(np.argmin(above[:, 0]))
     x, y = above[i, 0] - 1.0, above[i, 1]
     r, g, b, al = a[int(y * px_mm), int(x * px_mm)]
@@ -194,10 +223,12 @@ def test_bleed(figure):
     by = pts[:, 1].max() + 1.0
     bx = pts[np.argmax(pts[:, 1]), 0]
     r, g, b, al = a[int(by * px_mm), int(bx * px_mm)]
-    assert al == 255 and abs(r - 0x3b) < 8 and abs(g - 0x6e) < 8 and abs(b - 0x2a) < 8
+    assert al == 255 and abs(r - 0x3B) < 8 and abs(g - 0x6E) < 8 and abs(b - 0x2A) < 8
 
 
-@pytest.mark.parametrize("size", [(700, 900), (3000, 4000)])   # the big one is downscaled
+@pytest.mark.parametrize(
+    "size", [(700, 900), (3000, 4000)]
+)  # the big one is downscaled
 @pytest.mark.parametrize("double_sided", [False, True])
 def test_cut_line_in_source_pixels(tmp_path, size, double_sided):
     """The cut line drawn on the Source view: in source-image pixels, around the drawing
@@ -209,26 +240,40 @@ def test_cut_line_in_source_pixels(tmp_path, size, double_sided):
     cx, cy, ax, ay = W // 2 + W // 10, H // 2, W // 5, H // 3
     cv2.ellipse(im, (cx, cy), (ax, ay), 0, 0, 360, (60, 60, 60), -1)
     Image.fromarray(im).save(tmp_path / "a.png")
-    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(tmp_path / "m.png")
-    m = build_mini(tmp_path / "a.png", FigureSettings(model="mask", mask=str(tmp_path / "m.png"),
-                                                      double_sided=double_sided,
-                                                      tab_width_mm=10),  # (narrower than the drawing)
-                   log=lambda *_: None)
+    Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(
+        tmp_path / "m.png"
+    )
+    m = build_mini(
+        tmp_path / "a.png",
+        FigureSettings(
+            model="mask",
+            mask=str(tmp_path / "m.png"),
+            double_sided=double_sided,
+            tab_width_mm=10,
+        ),  # (narrower than the drawing)
+        log=lambda *_: None,
+    )
     p = m.source_cut.points
-    margin = 1.6 * (2 * ay + 1) / m.figure_height_mm    # default margin, in source pixels
+    margin = 1.6 * (2 * ay + 1) / m.figure_height_mm  # default margin, in source pixels
     tol = 0.25 * margin
     assert p[:, 0].min() == pytest.approx(cx - ax - margin, abs=tol)
     assert p[:, 0].max() == pytest.approx(cx + ax + margin, abs=tol)
-    assert p[:, 1].max() > cy + ay + margin                # the tab hangs below the drawing
+    assert p[:, 1].max() > cy + ay + margin  # the tab hangs below the drawing
     if double_sided:
-        assert p[:, 1].min() < 0                           # the mirrored back, above the image
-        assert m.source_top == pytest.approx(cy - ay - margin, abs=tol)  # front starts at the fold
-        assert any(y == pytest.approx(cy - ay - margin, abs=tol) for _, _, y in m.source_folds)
+        assert p[:, 1].min() < 0  # the mirrored back, above the image
+        assert m.source_top == pytest.approx(
+            cy - ay - margin, abs=tol
+        )  # front starts at the fold
+        assert any(
+            y == pytest.approx(cy - ay - margin, abs=tol) for _, _, y in m.source_folds
+        )
     else:
         assert p[:, 1].min() == pytest.approx(cy - ay - margin, abs=tol)
         assert m.source_top == 0
     fold_y = [y for _, _, y in m.source_folds if y > cy]
-    assert fold_y and cy + ay < fold_y[0] < p[:, 1].max()   # the tab fold, below the drawing
+    assert (
+        fold_y and cy + ay < fold_y[0] < p[:, 1].max()
+    )  # the tab fold, below the drawing
 
 
 def _dark_cols_mm(mini):
@@ -244,7 +289,11 @@ def test_size_by_width_or_stretched(figure):
     quiet = {"mask_path": mask, "log": lambda *_: None}
     by_h = make_mini(img, geo.Params(height_mm=42.0), **quiet)
     ratio = by_h.figure_width_mm / by_h.figure_height_mm
-    assert by_h.aspect == pytest.approx(301 / 720, rel=0.01) == pytest.approx(ratio, rel=0.01)
+    assert (
+        by_h.aspect
+        == pytest.approx(301 / 720, rel=0.01)
+        == pytest.approx(ratio, rel=0.01)
+    )
     assert _dark_cols_mm(by_h) == pytest.approx(42.0 * 301 / 720, abs=0.5)
 
     by_w = make_mini(img, geo.Params(height_mm=None, width_mm=20.0), **quiet)
@@ -266,15 +315,25 @@ def test_source_outline_is_the_detected_figure(figure):
     img, mask = figure
     m = make_mini(img, geo.Params(margin_mm=5.0), mask_path=mask, log=lambda *_: None)
     pts = np.vstack(m.source_outline)
-    assert pts[:, 0].min() == pytest.approx(250, abs=2) and pts[:, 0].max() == pytest.approx(551, abs=2)
-    assert pts[:, 1].min() == pytest.approx(180, abs=2) and pts[:, 1].max() == pytest.approx(900, abs=2)
+    assert pts[:, 0].min() == pytest.approx(250, abs=2) and pts[
+        :, 0
+    ].max() == pytest.approx(551, abs=2)
+    assert pts[:, 1].min() == pytest.approx(180, abs=2) and pts[
+        :, 1
+    ].max() == pytest.approx(900, abs=2)
 
 
 def test_on_stage_reports_the_outline_before_the_layout(figure):
     img, mask = figure
     seen = []
-    make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None, use_cache=False,
-              on_stage=lambda name, data: seen.append(name))
+    make_mini(
+        img,
+        geo.Params(),
+        mask_path=mask,
+        log=lambda *_: None,
+        use_cache=False,
+        on_stage=lambda name, data: seen.append(name),
+    )
     assert seen == ["outline"]  # a mask file runs no model, so no "segment" stage
 
 
@@ -282,10 +341,22 @@ def test_cli_makes_double_sided_minis_unless_told_not_to(figure, tmp_path):
     """Double-sided is the default; --no-double-sided prints the front only."""
     img, mask = figure
     for name, extra in (("both", []), ("front", ["--no-double-sided"])):
-        assert main(["make", str(img), "--mask", str(mask), "-o",
-                     str(tmp_path / f"{name}.svg")] + extra) == 0
+        assert (
+            main(
+                [
+                    "make",
+                    str(img),
+                    "--mask",
+                    str(mask),
+                    "-o",
+                    str(tmp_path / f"{name}.svg"),
+                ]
+                + extra
+            )
+            == 0
+        )
     both, front = read_svg(tmp_path / "both.svg"), read_svg(tmp_path / "front.svg")
-    assert both.height_mm > 1.8 * front.height_mm       # front and back, one above the other
+    assert both.height_mm > 1.8 * front.height_mm  # front and back, one above the other
 
 
 def test_cli_width_alone_scales_by_width(figure, tmp_path):
@@ -293,11 +364,29 @@ def test_cli_width_alone_scales_by_width(figure, tmp_path):
 
     img, mask = figure
     out = tmp_path / "w.svg"
-    assert main(["make", str(img), "--mask", str(mask), "--width-mm", "25",
-                 "--no-double-sided", "-o", str(out)]) == 0
+    assert (
+        main(
+            [
+                "make",
+                str(img),
+                "--mask",
+                str(mask),
+                "--width-mm",
+                "25",
+                "--no-double-sided",
+                "-o",
+                str(out),
+            ]
+        )
+        == 0
+    )
     r = read_svg(out)
-    by_h = make_mini(img, FigureSettings(double_sided=False).params(), mask_path=mask,
-                     log=lambda *_: None)
+    by_h = make_mini(
+        img,
+        FigureSettings(double_sided=False).params(),
+        mask_path=mask,
+        log=lambda *_: None,
+    )
     # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not
     # Medium's 32 mm (margin and tab stay the same, so compare the difference)
     assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 32, abs=0.5)
@@ -308,8 +397,14 @@ def _square_mini(name="sq", w=30.0, h=40.0):
     from papermini.mini import Mini
 
     sq = CutPath(np.array([[0, 0], [w, 0], [w, h], [0, h]], float))
-    return Mini(name, w, h, Image.new("RGBA", (int(w * 10), int(h * 10)), (200, 40, 30, 255)),
-                sq, folds=[(0.0, w, h - 5)])
+    return Mini(
+        name,
+        w,
+        h,
+        Image.new("RGBA", (int(w * 10), int(h * 10)), (200, 40, 30, 255)),
+        sq,
+        folds=[(0.0, w, h - 5)],
+    )
 
 
 def test_machine_sheet_keeps_clear_of_the_marks():
@@ -330,8 +425,12 @@ def test_machine_sheet_keeps_clear_of_the_marks():
         c = MARK_CLEAR_MM
         for p in lay.placements:  # no piece within MARK_CLEAR_MM of a mark
             for x, y, w, h in rects:
-                apart = (p.x + m.width_mm <= x - c + 1e-9 or p.x >= x + w + c - 1e-9
-                         or p.y + m.height_mm <= y - c + 1e-9 or p.y >= y + h + c - 1e-9)
+                apart = (
+                    p.x + m.width_mm <= x - c + 1e-9
+                    or p.x >= x + w + c - 1e-9
+                    or p.y + m.height_mm <= y - c + 1e-9
+                    or p.y >= y + h + c - 1e-9
+                )
                 assert apart, (kind, p.x, p.y, (x, y, w, h))
         assert lay.header_x > 12  # beside the top-left mark
         # about as many on a page as cut by hand: only the bottom corners cost room
@@ -367,16 +466,22 @@ def test_cut_files_match_the_sheet(tmp_path):
     ns = {"s": "http://www.w3.org/2000/svg"}
     root = ET.parse(paths[0]).getroot()
     assert root.get("width") == "210mm" and root.get("viewBox") == "0 0 210 297"
-    rects = [tuple(float(r.get(k)) for k in ("x", "y", "width", "height"))
-             for r in root.findall("s:g[@id='registration']/s:rect", ns)]
+    rects = [
+        tuple(float(r.get(k)) for k in ("x", "y", "width", "height"))
+        for r in root.findall("s:g[@id='registration']/s:rect", ns)
+    ]
     assert np.allclose(rects, lay.mark_rects(), atol=1e-3)  # the same marks as the PDF
     cuts = root.findall("s:g[@id='cut']/s:path", ns)
     first = [p for p in lay.placements if p.page == 0]
     assert len(cuts) == len(first)
     xy = [float(v) for v in re.findall(r"[-\d.]+", cuts[0].get("d"))[:2]]
-    assert xy == pytest.approx([first[0].x, first[0].y], abs=1e-3)  # placed as on the page
+    assert xy == pytest.approx(
+        [first[0].x, first[0].y], abs=1e-3
+    )  # placed as on the page
     assert root.find("s:g[@id='fold']", ns) is None  # fold lines only when asked for
-    folded = ET.fromstring(write_cut_files(lay, tmp_path / "f.svg", folds=True)[0].read_text())
+    folded = ET.fromstring(
+        write_cut_files(lay, tmp_path / "f.svg", folds=True)[0].read_text()
+    )
     assert len(folded.findall("s:g[@id='fold']/s:line", ns)) == len(first)
 
 
@@ -384,10 +489,37 @@ def test_sheet_cli_cut_by_machine(figure, tmp_path):
     img, mask = figure
     from papermini.cli import main
 
-    assert main(["make", str(img), "--mask", str(mask), "--bleed-mm", "1", "-o",
-                 str(tmp_path / "hero.svg")]) == 0
-    assert main(["sheet", str(tmp_path / "hero.svg"), "-o", str(tmp_path / "s.pdf"),
-                 "--cut", "machine", "--marks", "silhouette", "--cut-folds"]) == 0
+    assert (
+        main(
+            [
+                "make",
+                str(img),
+                "--mask",
+                str(mask),
+                "--bleed-mm",
+                "1",
+                "-o",
+                str(tmp_path / "hero.svg"),
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
+                "sheet",
+                str(tmp_path / "hero.svg"),
+                "-o",
+                str(tmp_path / "s.pdf"),
+                "--cut",
+                "machine",
+                "--marks",
+                "silhouette",
+                "--cut-folds",
+            ]
+        )
+        == 0
+    )
     assert (tmp_path / "s.pdf").exists()
     svg = (tmp_path / "s-cut.svg").read_text()
     assert 'id="registration"' in svg and 'id="cut"' in svg and 'id="fold"' in svg
@@ -399,11 +531,14 @@ def test_batch_cut_by_machine_builds_the_bleed(figure, tmp_path):
         f"output: out\nsheet:\n  output: out/s.pdf\n  cut: machine\n  bleed_mm: 1.5\n"
         f"figures:\n  - image: {img.as_posix()}\n    mask: {mask.as_posix()}\n"
         f"  - image: {img.as_posix()}\n    mask: {mask.as_posix()}\n    name: b\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     from papermini.cli import main
 
     assert main(["batch", str(tmp_path / "p.yaml")]) == 0
-    assert (tmp_path / "out" / "s.pdf").exists() and (tmp_path / "out" / "s-cut.svg").exists()
+    assert (tmp_path / "out" / "s.pdf").exists() and (
+        tmp_path / "out" / "s-cut.svg"
+    ).exists()
     from papermini.svg import read_svg
 
     plain = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
@@ -418,9 +553,14 @@ def test_no_command_opens_the_app(monkeypatch):
     from papermini import cli
 
     opened = []
-    monkeypatch.setattr(papermini.gui, "run", lambda files=None: opened.append(list(files)) or 0)
+    monkeypatch.setattr(
+        papermini.gui, "run", lambda files=None: opened.append(list(files)) or 0
+    )
     assert cli.main([]) == 0 and opened[-1] == []
-    assert cli.main(["hero.png", "lair.yaml"]) == 0 and opened[-1] == ["hero.png", "lair.yaml"]
+    assert cli.main(["hero.png", "lair.yaml"]) == 0 and opened[-1] == [
+        "hero.png",
+        "lair.yaml",
+    ]
     assert cli.route(["make", "hero.png"]) == ["make", "hero.png"]
     assert cli.route(["--version"]) == ["--version"]
     assert cli.route(["-psn_0_42"]) == ["gui"]  # (older macOS adds a process id)

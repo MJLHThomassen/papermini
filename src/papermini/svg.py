@@ -37,7 +37,9 @@ def path_d(p: CutPath) -> str:
                 parts.append(f"L{_f(q[0])},{_f(q[1])}")
         else:
             c1, c2 = p.controls[i]
-            parts.append(f"C{_f(c1[0])},{_f(c1[1])} {_f(c2[0])},{_f(c2[1])} {_f(q[0])},{_f(q[1])}")
+            parts.append(
+                f"C{_f(c1[0])},{_f(c1[1])} {_f(c2[0])},{_f(c2[1])} {_f(q[0])},{_f(q[1])}"
+            )
     return " ".join(parts) + " Z"
 
 
@@ -47,12 +49,16 @@ def to_svg(m: Mini) -> str:
     W, H = _f(m.width_mm), _f(m.height_mm)
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        (f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}" '
-        f'width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}">'),
+        (
+            f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}" '
+            f'width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}">'
+        ),
         f"<title>{escape(m.label or m.name)}</title>",
         f'<metadata id="papermini">{escape(m.name)}</metadata>',
-        (f'<image id="art" x="0" y="0" width="{W}" height="{H}" preserveAspectRatio="none" '
-        f'xlink:href="data:image/png;base64,{b64}"/>'),
+        (
+            f'<image id="art" x="0" y="0" width="{W}" height="{H}" preserveAspectRatio="none" '
+            f'xlink:href="data:image/png;base64,{b64}"/>'
+        ),
     ]
     for i, (x0, x1, y) in enumerate(m.folds):
         out.append(
@@ -62,8 +68,12 @@ def to_svg(m: Mini) -> str:
     count: dict = {}
     for t in m.text_items():  # labels, numbers, the back text and a token's text
         i = count[t.kind] = count.get(t.kind, -1) + 1
-        ident = {"label": "label", "number": "number", "backtext": "text",
-                 "tokentext": "tokentext"}[t.kind]
+        ident = {
+            "label": "label",
+            "number": "number",
+            "backtext": "text",
+            "tokentext": "tokentext",
+        }[t.kind]
         tr = f' transform="rotate({_f(t.rot)},{_f(t.cx)},{_f(t.cy)})"' if t.rot else ""
         weight = ' font-weight="bold"' if t.bold else ""
         out.append(
@@ -93,8 +103,10 @@ def write_svgs(m: Mini, path: Path, copies: int = 1) -> list[Path]:
     path = Path(path)
     if not m.numbered:
         return [write_svg(m, path)]
-    return [write_svg(replace(m, number=i), path.with_name(f"{path.stem}-{i}{path.suffix}"))
-            for i in range(1, max(1, copies) + 1)]
+    return [
+        write_svg(replace(m, number=i), path.with_name(f"{path.stem}-{i}{path.suffix}"))
+        for i in range(1, max(1, copies) + 1)
+    ]
 
 
 # --------------------------------------------------------------------------- reading
@@ -118,7 +130,9 @@ def parse_path_d(d: str) -> CutPath:
                 break
             continue
         if cmd in ("m", "l", "c"):
-            raise ValueError("relative path commands are not supported; use a papermini SVG")
+            raise ValueError(
+                "relative path commands are not supported; use a papermini SVG"
+            )
         if cmd in ("M", "L"):
             p = [float(tokens[i]), float(tokens[i + 1])]
             if pts:
@@ -126,7 +140,7 @@ def parse_path_d(d: str) -> CutPath:
             pts.append(p)
             i += 2
         elif cmd == "C":
-            v = [float(x) for x in tokens[i:i + 6]]
+            v = [float(x) for x in tokens[i : i + 6]]
             ctrls.append([v[0:2], v[2:4]])
             pts.append(v[4:6])
             has_curve = True
@@ -157,14 +171,22 @@ def read_svg(path: Path) -> Mini:
     root = ET.parse(path).getroot()
     ns = {"s": SVG_NS}
     W, H = _mm(root.get("width")), _mm(root.get("height"))
-    vb = [float(v) for v in re.split(r"[\s,]+", root.get("viewBox", f"0 0 {W} {H}").strip())]
+    vb = [
+        float(v)
+        for v in re.split(r"[\s,]+", root.get("viewBox", f"0 0 {W} {H}").strip())
+    ]
     sx, sy = W / vb[2], H / vb[3]  # viewBox units -> mm (1 for papermini files)
     if abs(sx - sy) > 1e-6:
         raise ValueError(f"{path.name}: non-uniform viewBox scaling is not supported")
 
     def el(tag, id_=None, cls=None):
         for e in root.iter(f"{{{SVG_NS}}}{tag}"):
-            if id_ and e.get("id") == id_ or cls and cls in (e.get("class") or "").split():
+            if (
+                id_
+                and e.get("id") == id_
+                or cls
+                and cls in (e.get("class") or "").split()
+            ):
                 yield e
 
     img = next(el("image", id_="art"), None)
@@ -172,11 +194,15 @@ def read_svg(path: Path) -> Mini:
         img = root.find("s:image", ns)
     cut = next(el("path", id_="cut"), None)
     if img is None or cut is None:
-        raise ValueError(f"{path.name} is not a papermini SVG (needs image#art and path#cut)")
+        raise ValueError(
+            f"{path.name} is not a papermini SVG (needs image#art and path#cut)"
+        )
     href = img.get(f"{{{XLINK_NS}}}href") or img.get("href") or ""
     if not href.startswith("data:image"):
         raise ValueError(f"{path.name}: artwork must be an embedded data: URI")
-    art = Image.open(io.BytesIO(base64.b64decode(href.split(",", 1)[1]))).convert("RGBA")
+    art = Image.open(io.BytesIO(base64.b64decode(href.split(",", 1)[1]))).convert(
+        "RGBA"
+    )
 
     style = Style()
     stroke = cut.get("stroke", style.cut_color)
@@ -189,7 +215,13 @@ def read_svg(path: Path) -> Mini:
     for ln in el("line", cls="fold"):
         style.fold_color = ln.get("stroke", style.fold_color)
         style.fold_width_mm = float(ln.get("stroke-width", style.fold_width_mm)) * sx
-        folds.append((float(ln.get("x1")) * sx, float(ln.get("x2")) * sx, float(ln.get("y1")) * sx))
+        folds.append(
+            (
+                float(ln.get("x1")) * sx,
+                float(ln.get("x2")) * sx,
+                float(ln.get("y1")) * sx,
+            )
+        )
     first = next(iter(root.iter(f"{{{SVG_NS}}}text")), None)
     if first is not None:  # (one font for all of a piece's text)
         style.font = fonts.from_svg_family(first.get("font-family", ""))
@@ -210,18 +242,42 @@ def read_svg(path: Path) -> Mini:
         size_t = float(t.get("font-size", 3.4)) * sx
         style.back_text_color = t.get("fill", style.back_text_color)
         m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
-        texts.append(("".join(t.itertext()), float(t.get("x")) * sx,
-                      float(t.get("y")) * sx - 0.35 * size_t, float(m.group(1)) if m else 0.0, size_t))
+        texts.append(
+            (
+                "".join(t.itertext()),
+                float(t.get("x")) * sx,
+                float(t.get("y")) * sx - 0.35 * size_t,
+                float(m.group(1)) if m else 0.0,
+                size_t,
+            )
+        )
     numbers = []  # (written into the file: kept as they are, also a token's text)
     for t in [*el("text", cls="number"), *el("text", cls="tokentext")]:
         size_t = float(t.get("font-size", 3.4)) * sx
         m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
-        numbers.append(TextItem(t.get("class"), "".join(t.itertext()), float(t.get("x")) * sx,
-                                float(t.get("y")) * sx - 0.35 * size_t,
-                                float(m.group(1)) if m else 0.0, size_t,
-                                t.get("fill", style.label_color), t.get("font-weight") == "bold"))
+        numbers.append(
+            TextItem(
+                t.get("class"),
+                "".join(t.itertext()),
+                float(t.get("x")) * sx,
+                float(t.get("y")) * sx - 0.35 * size_t,
+                float(m.group(1)) if m else 0.0,
+                size_t,
+                t.get("fill", style.label_color),
+                t.get("font-weight") == "bold",
+            )
+        )
     return Mini(
-        name=path.stem, width_mm=W, height_mm=H, art=art, texts=texts, extra=numbers,
+        name=path.stem,
+        width_mm=W,
+        height_mm=H,
+        art=art,
+        texts=texts,
+        extra=numbers,
         cut=parse_path_d(cut.get("d")).transformed(sx),
-        folds=folds, labels=labels, label=text, label_size_mm=size, style=style,
+        folds=folds,
+        labels=labels,
+        label=text,
+        label_size_mm=size,
+        style=style,
     )
