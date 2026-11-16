@@ -261,7 +261,8 @@ try-update-installer` (Windows) installs the build with its installer and
 updates it with a newer installer
 ([scripts/try_update.py](scripts/try_update.py)).
 
-Contributors and coding agents: read [AGENTS.md](AGENTS.md) first.
+Contributors: read the [maintainability guide](docs/maintainability.md) first.
+Coding agents also read [AGENTS.md](AGENTS.md).
 
 ## Versions and releases
 
