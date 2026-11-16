@@ -76,7 +76,8 @@ packaging/      PyInstaller spec (one program: the app without a command, the co
                 ISSUE_TEMPLATE/: the bug report and feature request forms
 examples/       minis.yaml (a batch example) and dragons/: the images and
                 project of the README screenshots, and the sample outputs
-docs/           reference.md (full option docs) and README screenshots
+docs/           reference.md (full option docs), maintainability.md (what keeps the
+                code maintainable, used by reviews) and README screenshots
 ```
 
 ## Making changes
