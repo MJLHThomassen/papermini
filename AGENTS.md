@@ -51,3 +51,6 @@ guide.
   output in a certain shape.
 - **Quoting user-interface text or example version numbers in comments**
   (rule S13).
+- **Commenting on a change made for a review** (rule S13). When you change code
+  to answer a review comment, change only the code. Don't add a comment about
+  what used to be there.

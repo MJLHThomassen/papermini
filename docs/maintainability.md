@@ -241,6 +241,10 @@ otherwise surprise a reader. They don't repeat what the code already says.
   formats in words instead.
 - Don't write comments about history ("now", "new", "used to"). Describe the
   code as it is.
+- Don't leave comments that record a review. When a change answers a review
+  comment, change the code and nothing else. Don't add a comment about what used
+  to be there or what shouldn't be. Add a comment only when the code itself
+  needs one, such as a workaround for a known bug in a dependency.
 - Give every module a docstring that says what it holds.
 - Give public functions in the core modules a docstring. A private helper needs
   one only when its name and signature aren't enough.
