@@ -6,9 +6,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini import geometry as geo
 from papermini.cli import main
-from papermini.mini import NUMBER_PLACEHOLDER, make_mini
+from papermini.mini import NUMBER_PLACEHOLDER
 from papermini.settings import FigureSettings, build_mini, load_project
 from papermini.sheet import pack, write_pdf, write_previews
 from papermini.svg import read_svg, write_svgs
@@ -68,7 +67,7 @@ def test_number_and_label_share_the_tab(figure):
 def test_the_number_on_the_back(figure):
     m = _mini(figure, back="number")
     assert m.numbered and not m.texts
-    cx, cy, w, h = m.number_box
+    _cx, cy, w, h = m.number_box
     assert 0 < cy < m.height_mm / 2 and w > 0 and h > 0  # the back half is the top half
     m.number = 3
     back = [t for t in m.text_items() if t.kind == "number"]
@@ -76,7 +75,7 @@ def test_the_number_on_the_back(figure):
     assert back[0].size_mm > 2 * m.label_size_mm
     # with text: the number above the text (upside down, so further down the sheet)
     both = _mini(figure, back="text_number", back_text="Goblin boss")
-    cx, cy, w, h = both.number_box
+    _cx, cy, w, h = both.number_box
     assert both.texts and all(t[2] < cy - h / 2 for t in both.texts)
 
 

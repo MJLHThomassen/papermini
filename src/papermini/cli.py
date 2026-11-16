@@ -6,16 +6,22 @@ import argparse
 import glob
 import sys
 from pathlib import Path
-from typing import List, Optional
 
-from . import __version__, remote, sizes
-from . import fonts
+from . import __version__, fonts, remote, sizes
 from . import geometry as geo
 from . import token as tok
 from .mini import TAB_SHOWS
 from .segment import ModelError
-from .settings import (FIGURE_OPTIONS, FigureSettings, Project, SheetSettings, build_mini,
-                       load_project, safe_name, settings_with_size)
+from .settings import (
+    FIGURE_OPTIONS,
+    FigureSettings,
+    Project,
+    SheetSettings,
+    build_mini,
+    load_project,
+    safe_name,
+    settings_with_size,
+)
 from .sheet import CUSTOM_PAPER_MM, CUT_MODES, MARKS, MATS, ORIENTATIONS, PAPER_CHOICES
 
 D = FigureSettings()  # defaults shown in --help
@@ -234,7 +240,13 @@ def cmd_sheet(a: argparse.Namespace) -> int:
 
 def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -> int:
     """The PDF sheet, its PNG previews, and cut by machine its cut files."""
-    from .sheet import default_cut_file, pack, write_cut_files, write_pdf, write_previews
+    from .sheet import (
+        default_cut_file,
+        pack,
+        write_cut_files,
+        write_pdf,
+        write_previews,
+    )
 
     lay = pack(minis, sh.page, sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks,
                orientation=sh.orientation)
@@ -293,9 +305,9 @@ def cmd_gui(a: argparse.Namespace) -> int:
     return run(a.files)
 
 
-def _expand(patterns: List[str]) -> List[str]:
+def _expand(patterns: list[str]) -> list[str]:
     """Expand globs ourselves (Windows shells do not); links are passed through."""
-    out: List[str] = []
+    out: list[str] = []
     for p in patterns:
         if remote.is_url(p):
             out.append(p)
@@ -392,7 +404,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = ("make", "sheet", "batch", "gui")
 
 
-def route(argv: List[str]) -> List[str]:
+def route(argv: list[str]) -> list[str]:
     """Turn the program's arguments into a command: a command or an option runs the
     command line as given; no arguments, or only files (an image dropped on the program,
     or opened with it), open the desktop app with those files."""
@@ -404,7 +416,7 @@ def route(argv: List[str]) -> List[str]:
     return ["gui", *args]
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(route(sys.argv[1:] if argv is None else argv))
     try:
         return a.func(a)

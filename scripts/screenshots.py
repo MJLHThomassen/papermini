@@ -58,10 +58,9 @@ def main() -> None:
     QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, tempfile.mkdtemp("papermini"))
 
     sys.path.insert(0, str(ROOT / "src"))
+    import cv2
     import numpy as np
     from PIL import Image
-
-    import cv2
 
     from papermini import segment
     from papermini.gui import theme
@@ -281,11 +280,10 @@ def main() -> None:
         # cut by machine: the PDF (no cut lines, marks) and its cut file, side by side
         from PySide6.QtSvg import QSvgRenderer
 
+        from papermini import sizes
         from papermini.gui.views import draw_sheet
         from papermini.settings import load_project
         from papermini.sheet import cut_file_svg, pack
-
-        from papermini import sizes
 
         proj = load_project(args.project)
         sh = replace(proj.sheet, cut="machine")
@@ -349,7 +347,7 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     from papermini import sizes
 
     red, fly = "dragon.webp", "dragon-flying.webp"
-    one = dict(double_sided=False, label="")  # one side, no label: the setting stands out
+    one = {"double_sided": False, "label": ""}  # one side, no label: the setting stands out
 
     # step 2, Size: the creature size fills in the height and the base (a round tab shows it)
     def sized(size):
@@ -447,7 +445,7 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     ])
 
     # step 2, Token: what fills the circle, and the text on the ring
-    tk = dict(kind="token")
+    tk = {"kind": "token"}
     square = [1 / 6, 0.0, 5 / 6, 1.0]  # (the picture's middle, as tall as it is: it fills
     #                                     the circle; the wide picture's own edges stay out)
     compare("token-fill", [

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import sys
-from typing import List, Optional
 
 
-def run(files: Optional[List[str]] = None) -> int:
+def run(files: list[str] | None = None) -> int:
     from PySide6 import __version__ as qt_version
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
@@ -40,9 +39,7 @@ def _start(app, files):
         import ctypes
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("papermini")
-    from . import prefs
-
-    from . import theme
+    from . import prefs, theme
 
     theme.apply(app, prefs.store().value("theme", "system", type=str))
     app.setWindowIcon(theme.app_icon())

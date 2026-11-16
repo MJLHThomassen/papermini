@@ -11,7 +11,7 @@ defaults of a figure and is what a project without a table of its own uses.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Optional
+from typing import Any
 
 SIZES = ("tiny", "small", "medium", "large", "huge", "gargantuan")
 CUSTOM = "custom"
@@ -39,7 +39,7 @@ class SizeRow:
     tab_width_mm: float
     tab_height_mm: float
 
-    def values(self) -> Dict[str, float]:
+    def values(self) -> dict[str, float]:
         """The figure settings this row fills in."""
         return {"height_mm": self.height_mm, "tab_radius_mm": self.base_mm / 2,
                 "tab_width_mm": self.tab_width_mm, "tab_height_mm": self.tab_height_mm,
@@ -65,7 +65,7 @@ class SizeTable:
 
     grid_mm: float = GRID_MM
     medium_mm: float = MEDIUM_MM
-    rows: Dict[str, SizeRow] = field(default_factory=dict)
+    rows: dict[str, SizeRow] = field(default_factory=dict)
     name: str = ""
 
     def __post_init__(self):
@@ -86,18 +86,18 @@ class SizeTable:
         return all(self.rows[s] == calculate_row(s, self.grid_mm, self.medium_mm)
                    for s in SIZES)
 
-    def same_values(self, other: "SizeTable") -> bool:
+    def same_values(self, other: SizeTable) -> bool:
         """Whether ``other`` has the same grid, Medium height and rows (names aside)."""
         return replace(self, name="") == replace(other, name="")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """The table as a project stores it."""
         return {**({"preset": self.name} if self.name else {}),
                 "grid_mm": self.grid_mm, "medium_mm": self.medium_mm,
                 **{s: {k: getattr(self.rows[s], k) for k in FIELDS} for s in SIZES}}
 
     @classmethod
-    def from_dict(cls, d: Optional[Dict[str, Any]]) -> "SizeTable":
+    def from_dict(cls, d: dict[str, Any] | None) -> SizeTable:
         """A table from a project (``None``: the built-in one). Sizes left out are
         calculated from the grid and Medium's height."""
         if not d:

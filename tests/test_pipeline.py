@@ -1,7 +1,7 @@
 """End-to-end tests with a supplied mask (no model download)."""
 
-import numpy as np
 import cv2
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -241,7 +241,7 @@ def _dark_cols_mm(mini):
 def test_size_by_width_or_stretched(figure):
     """Height alone or width alone keep the proportions; both stretch the figure sideways."""
     img, mask = figure
-    quiet = dict(mask_path=mask, log=lambda *_: None)
+    quiet = {"mask_path": mask, "log": lambda *_: None}
     by_h = make_mini(img, geo.Params(height_mm=42.0), **quiet)
     ratio = by_h.figure_width_mm / by_h.figure_height_mm
     assert by_h.aspect == pytest.approx(301 / 720, rel=0.01) == pytest.approx(ratio, rel=0.01)

@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
-from typing import List, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-                               QHBoxLayout, QLabel, QLineEdit, QMessageBox, QToolButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..settings import safe_name
 from ..sheet import cut_file_paths, default_cut_file
@@ -89,15 +99,15 @@ class ExportDialog(QDialog):
             self.folder.setText(d)
 
     # what will be written -------------------------------------------------------------
-    def pdf_path(self) -> Optional[Path]:
+    def pdf_path(self) -> Path | None:
         name = safe_name(self.name.text().strip()) if self.name.text().strip() else ""
         return Path(self.folder.text().strip()) / f"{name}.pdf" if name else None
 
-    def cut_paths(self) -> List[Path]:
+    def cut_paths(self) -> list[Path]:
         pdf = self.pdf_path()
         return cut_file_paths(default_cut_file(pdf), self._pages) if pdf else []
 
-    def chosen(self) -> List[Path]:
+    def chosen(self) -> list[Path]:
         """Every file the export writes, with the boxes as they are ticked."""
         out = [self.pdf_path()] if self.pdf.isChecked() and self.pdf_path() else []
         return out + (self.cut_paths() if self._machine and self.cut.isChecked() else [])

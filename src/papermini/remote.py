@@ -16,7 +16,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 
 from PIL import Image
 
@@ -29,12 +28,12 @@ _EXT_FOR = {"PNG": ".png", "JPEG": ".jpg", "MPO": ".jpg", "WEBP": ".webp", "BMP"
 MAX_BYTES = 100 << 20  # no illustration is this big; stops a wrong link filling the disk
 
 
-def is_url(s: Union[str, Path]) -> bool:
+def is_url(s: str | Path) -> bool:
     """True for an http(s) link."""
     return isinstance(s, str) and s.strip().lower().startswith(("http://", "https://"))
 
 
-def is_image_file(p: Union[str, Path]) -> bool:
+def is_image_file(p: str | Path) -> bool:
     return Path(p).suffix.lower() in IMAGE_EXT
 
 
@@ -44,12 +43,12 @@ def natural_key(name: str) -> list:
             for s in re.split(r"(\d+)", name.lower()) if s]
 
 
-def folder_images(folder: Union[str, Path], subfolders: bool = True) -> Tuple[List[Path], int]:
+def folder_images(folder: str | Path, subfolders: bool = True) -> tuple[list[Path], int]:
     """The images papermini reads in ``folder``, in natural order: the folder's own first,
     then (with ``subfolders``) each subfolder's the same way. Also how many other files
     were skipped. Hidden files and folders (a name starting with ".") are left out."""
     folder = Path(folder)
-    images: List[Path] = []
+    images: list[Path] = []
     skipped = 0
     entries = sorted((e for e in folder.iterdir() if not e.name.startswith(".")),
                      key=lambda e: natural_key(e.name))
@@ -68,14 +67,14 @@ def folder_images(folder: Union[str, Path], subfolders: bool = True) -> Tuple[Li
     return images, skipped
 
 
-def figure_names(images: List[Path], folder: Union[str, Path]) -> List[Optional[str]]:
+def figure_names(images: list[Path], folder: str | Path) -> list[str | None]:
     """Names for figures from a folder's ``images``: None (named after the file, as
     usual), but for files that share a name, the subfolder in front, e.g. goblins-leader
     and orcs-leader (an image directly in ``folder`` keeps its own name)."""
     stems: dict = {}
     for p in images:
         stems.setdefault(p.stem.lower(), []).append(p)
-    out: List[Optional[str]] = []
+    out: list[str | None] = []
     for p in images:
         rel = p.parent.relative_to(folder).parts
         out.append("-".join(rel + (p.stem,)) if len(stems[p.stem.lower()]) > 1 and rel
@@ -83,7 +82,7 @@ def figure_names(images: List[Path], folder: Union[str, Path]) -> List[Optional[
     return out
 
 
-def local_path(s: Union[str, Path]) -> Path:
+def local_path(s: str | Path) -> Path:
     """A path, also from a ``file://`` URI (what browsers and file managers hand over)."""
     if isinstance(s, str) and s.lower().startswith("file:"):
         u = urllib.parse.urlparse(s)
@@ -100,7 +99,7 @@ def _cache_dir() -> Path:
     return cache_dir() / "images"
 
 
-def cached_image(url: str) -> Optional[Path]:
+def cached_image(url: str) -> Path | None:
     """The downloaded copy of ``url``, or None if it is not in the cache."""
     d = _cache_dir() / _key(url)
     if d.is_dir():
@@ -152,7 +151,7 @@ def _name(url: str) -> str:
 
 
 def fetch_image(url: str, timeout: float = 30.0,
-                cancel: Optional[threading.Event] = None) -> Path:
+                cancel: threading.Event | None = None) -> Path:
     """Download the image at ``url`` (once; later calls use the cache) and return its path.
 
     Raises ValueError with a readable message when the link fails or is not an image.

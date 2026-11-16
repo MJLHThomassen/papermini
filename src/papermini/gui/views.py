@@ -2,22 +2,39 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import (QBrush, QColor, QFont, QFontDatabase, QImage, QImageReader,
-                           QPainter, QPainterPath, QPen, QPixmap, QTransform)
-from PySide6.QtWidgets import (QFrame, QGraphicsItem, QGraphicsPathItem, QGraphicsPixmapItem,
-                               QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
-                               QGraphicsView, QGridLayout, QLabel)
-
-from . import theme
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QFontDatabase,
+    QImage,
+    QImageReader,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QTransform,
+)
+from PySide6.QtWidgets import (
+    QFrame,
+    QGraphicsItem,
+    QGraphicsPathItem,
+    QGraphicsPixmapItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsSimpleTextItem,
+    QGraphicsView,
+    QGridLayout,
+    QLabel,
+)
 
 from .. import fonts
 from ..geometry import CutPath
 from ..mini import Mini
 from ..sheet import SheetLayout
+from . import theme
 
 
 def print_sheet(printer, lay: SheetLayout, title: str) -> int:
@@ -246,7 +263,7 @@ def cut_painter_path(m: Mini, x: float = 0.0, y: float = 0.0) -> QPainterPath:
 
 
 def draw_mini(scene: QGraphicsScene, m: Mini, x: float = 0.0, y: float = 0.0,
-              pixmap: Optional[QPixmap] = None, cut_line: bool = True) -> None:
+              pixmap: QPixmap | None = None, cut_line: bool = True) -> None:
     """Draw a miniature exactly as printed, top-left at (x, y) mm (on a sheet cut by
     machine without its cut line)."""
     st = m.style
@@ -339,7 +356,7 @@ def draw_mini_page(scene: QGraphicsScene, m: Mini) -> None:
 
 
 def draw_sheet(scene: QGraphicsScene, lay: SheetLayout, title: str,
-               pixmaps: Optional[dict] = None) -> List[QRectF]:
+               pixmaps: dict | None = None) -> list[QRectF]:
     """All pages of the sheet stacked vertically, as the PDF prints them; returns the
     page rectangles."""
     scene.clear()
@@ -422,9 +439,9 @@ class CropView(ZoomView):
         self.setFocusPolicy(Qt.StrongFocus)
         self._img_size = None
         self._pix_item = None                      # the picture (its pixmap may be smaller)
-        self._box: Optional[QRectF] = None         # image pixels
-        self._rect_item: Optional[QGraphicsRectItem] = None
-        self._shade: Optional[QGraphicsPathItem] = None
+        self._box: QRectF | None = None         # image pixels
+        self._rect_item: QGraphicsRectItem | None = None
+        self._shade: QGraphicsPathItem | None = None
         self._handles: dict = {}
         self._drag = None                           # (mode, start scene pos, box at start)
         self._pan = None
@@ -438,7 +455,7 @@ class CropView(ZoomView):
         self.viewport().setCursor(Qt.CrossCursor)
 
     # ----------------------------------------------------------------- image / box
-    def set_image(self, img: Optional[QImage], size=None):
+    def set_image(self, img: QImage | None, size=None):
         """Show ``img``; ``size`` (w, h) is the original image's, when ``img`` is a smaller
         preview of it: the view keeps working in the original's pixels (crop, outline)."""
         sc = self.scene()
@@ -542,10 +559,10 @@ class CropView(ZoomView):
             box = None
         self._set_box(QRectF(box[0], box[1], box[2] - box[0], box[3] - box[1]) if box else None)
 
-    def crop_box(self) -> Optional[QRectF]:
+    def crop_box(self) -> QRectF | None:
         return QRectF(self._box) if self._box is not None else None
 
-    def _set_box(self, r: Optional[QRectF]):
+    def _set_box(self, r: QRectF | None):
         self._box = r
         if self._img_size is None:
             return
@@ -893,7 +910,7 @@ class MiniView(ZoomView):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self._token = None        # the shown token's TokenInfo (None: not a token)
-        self._box: Optional[QRectF] = None   # the figure's box, mm
+        self._box: QRectF | None = None   # the figure's box, mm
         self._box_item = None
         self._handles: dict = {}
         self._drag = None         # (part, press scene pos, box at the press)
@@ -948,7 +965,7 @@ class MiniView(ZoomView):
         for name, pos in self._corners(r).items():
             self._handles[name].setPos(pos)
 
-    def _hit(self, view_pos) -> Optional[str]:
+    def _hit(self, view_pos) -> str | None:
         """What a drag from ``view_pos`` would do: a corner, "move", or None (pan)."""
         if self._box is None:
             return None

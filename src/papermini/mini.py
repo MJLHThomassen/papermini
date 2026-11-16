@@ -5,15 +5,14 @@ from __future__ import annotations
 import io
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
+from . import adjust as adj_mod
 from . import cache, fonts
 from . import geometry as geo
-from . import adjust as adj_mod
 from .segment import DEFAULT_MODEL, check_cancel, compute_mask, has_alpha, parse_crop
 
 
@@ -64,13 +63,13 @@ class Mini:
     height_mm: float
     art: Image.Image                         # RGBA, covers 0..width_mm x 0..height_mm
     cut: geo.CutPath                          # in mm
-    folds: List[Tuple[float, float, float]] = field(default_factory=list)   # x0, x1, y
-    labels: List[Tuple[float, float, float]] = field(default_factory=list)  # cx, cy, rot
+    folds: list[tuple[float, float, float]] = field(default_factory=list)   # x0, x1, y
+    labels: list[tuple[float, float, float]] = field(default_factory=list)  # cx, cy, rot
     label: str = ""
     label_size_mm: float = 3.4
     style: Style = field(default_factory=Style)
     # extra text lines: (text, cx, cy, rotation, size_mm) - e.g. the back of a double-sided mini
-    texts: List[Tuple[str, float, float, float, float]] = field(default_factory=list)
+    texts: list[tuple[str, float, float, float, float]] = field(default_factory=list)
     figure_height_mm: float = 0.0            # measured height of the drawing (one side)
     figure_width_mm: float = 0.0             # measured width of the drawing
     aspect: float = 1.0                      # width / height of the drawing in the image
@@ -80,27 +79,27 @@ class Mini:
     close_px: int = 0                        # closing radius used (the automatic one if unset)
     # the cut line and folds in pixels of the source image (front side), to show
     # on the original artwork what is kept and what is cut away
-    source_cut: Optional[geo.CutPath] = None
-    source_folds: List[Tuple[float, float, float]] = field(default_factory=list)
+    source_cut: geo.CutPath | None = None
+    source_folds: list[tuple[float, float, float]] = field(default_factory=list)
     source_top: float = 0.0  # above this row the piece is the double-sided back, not the image
     # what background removal found (outer edges and holes), in source image pixels
-    source_outline: List[np.ndarray] = field(default_factory=list)
+    source_outline: list[np.ndarray] = field(default_factory=list)
     # how the figure was found: "alpha" (the image's own transparency), "mask" (a mask
     # image file) or the model that ran; for model "auto", the one it picked
     method: str = ""
     # numbers: what each tab shows (one per entry of ``labels``: "label", "number" or
     # "label_number"), the room for text on a tab (w, h mm), where the back side's number
     # goes (cx, cy, w, h mm), and this copy's number (None: the placeholder)
-    tab_shows: List[str] = field(default_factory=list)
-    tab_room: Tuple[float, float] = (0.0, 0.0)
-    number_box: Optional[Tuple[float, float, float, float]] = None
-    number: Optional[int] = None
+    tab_shows: list[str] = field(default_factory=list)
+    tab_room: tuple[float, float] = (0.0, 0.0)
+    number_box: tuple[float, float, float, float] | None = None
+    number: int | None = None
     # text read from an SVG file, drawn as it is (numbers already written into it)
-    extra: List[TextItem] = field(default_factory=list)
+    extra: list[TextItem] = field(default_factory=list)
     # "mini" (a standing miniature) or "token" (a flat round token); a token's circle,
     # ring, text and framing (token.TokenInfo)
     kind: str = "mini"
-    token: Optional[object] = None
+    token: object | None = None
 
     @property
     def numbered(self) -> bool:
@@ -109,7 +108,7 @@ class Mini:
             return self.token.text in ("number", "label_number")
         return self.number_box is not None or any(s != "label" for s in self.tab_shows)
 
-    def text_items(self) -> List[TextItem]:
+    def text_items(self) -> list[TextItem]:
         """Every text on the miniature: the tab labels and numbers, the back text and the
         back side's number. On a tab showing both, the number goes above the label (on
         the fold's side), as large as fits."""
@@ -120,7 +119,7 @@ class Mini:
             return token_text_items(self.token, self.label, self.number, st.font) + list(self.extra)
         num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
         room_w, room_h = self.tab_room
-        items: List[TextItem] = []
+        items: list[TextItem] = []
         shows = self.tab_shows or ["label"] * len(self.labels)
         for (cx, cy, rot), what in zip(self.labels, shows):
             label = self.label if what in ("label", "label_number") else ""
@@ -155,7 +154,7 @@ class Mini:
         return buf.getvalue()
 
 
-def load_image(path: Path) -> Tuple[Image.Image, bytes]:
+def load_image(path: Path) -> tuple[Image.Image, bytes]:
     data = Path(path).read_bytes()
     im = Image.open(io.BytesIO(data))
     im = ImageOps.exif_transpose(im)
@@ -200,7 +199,7 @@ def fit_label_size(text: str, max_width_mm: float, size_mm: float,
 
 
 def fit_text_block(text: str, max_w: float, max_h: float, max_size: float,
-                   max_lines: int = 4, font: str = fonts.DEFAULT) -> Tuple[float, List[str]]:
+                   max_lines: int = 4, font: str = fonts.DEFAULT) -> tuple[float, list[str]]:
     """Largest font size (and line split) that fits ``text`` into max_w x max_h.
 
     Tries 1..max_lines lines; words are balanced over the lines. Line pitch is
@@ -209,7 +208,7 @@ def fit_text_block(text: str, max_w: float, max_h: float, max_size: float,
     words = text.split()
     if not words:
         return 0.0, []
-    width = lambda t: fonts.text_width(t, font, 1.0)  # noqa: E731 - width at size 1
+    width = lambda t: fonts.text_width(t, font, 1.0)
     best = (0.0, [text])
     for n in range(1, min(max_lines, len(words)) + 1):
         target = width(" ".join(words)) / n
@@ -236,16 +235,16 @@ class FigureMask:
     image: Image.Image
     rgb: np.ndarray
     clean: np.ndarray
-    contours: List[np.ndarray]
+    contours: list[np.ndarray]
     close_px: int                 # the closing radius used
     method: str                   # "alpha", "mask" or the model that ran
     key: tuple                    # identifies the clean mask in the caches
-    stages: Optional[Dict[str, np.ndarray]] = None  # debug: the intermediate masks
+    stages: dict[str, np.ndarray] | None = None  # debug: the intermediate masks
 
 
-def figure_mask(image_path: Path, *, threshold: int = 40, close_px: Optional[int] = None,
+def figure_mask(image_path: Path, *, threshold: int = 40, close_px: int | None = None,
                 keep_all: bool = False, min_area: int = 1000, crop=None, model: str = "auto",
-                mask_path: Optional[Path] = None, use_cache: bool = True, debug: bool = False,
+                mask_path: Path | None = None, use_cache: bool = True, debug: bool = False,
                 log=print, on_stage=None) -> FigureMask:
     """Find the figure in an image (steps 1 and 2 of a build): the raw mask from a model,
     the image's transparency or a mask file, then the clean-up. ``on_stage`` hears
@@ -292,7 +291,7 @@ def figure_mask(image_path: Path, *, threshold: int = 40, close_px: Optional[int
     # 2. clean-up
     clean_key = (raw_key, threshold, close_px, keep_all, min_area if keep_all else None)
     if debug:
-        stages: Optional[Dict[str, np.ndarray]] = {"0_raw": raw}
+        stages: dict[str, np.ndarray] | None = {"0_raw": raw}
         clean = geo.clean_mask(raw, threshold, close_px, keep_all, min_area, stages)
     else:
         stages = None
@@ -309,24 +308,24 @@ def make_mini(
     image_path: Path,
     prm: geo.Params,
     *,
-    label: Optional[str] = None,
-    back_text: Optional[str] = None,
+    label: str | None = None,
+    back_text: str | None = None,
     tab_front: str = "label",
     tab_back: str = "label",
     threshold: int = 40,
-    close_px: Optional[int] = None,
+    close_px: int | None = None,
     min_area: int = 1000,
     crop=None,
     model: str = "auto",
-    mask_path: Optional[Path] = None,
+    mask_path: Path | None = None,
     dpi: int = 300,
     simplify_mm: float = 0.15,
     smooth_path: bool = True,
     bleed_mm: float = 0.0,
-    adjust: Optional[adj_mod.Adjustments] = None,
+    adjust: adj_mod.Adjustments | None = None,
     use_cache: bool = True,
-    style: Optional[Style] = None,
-    debug_dir: Optional[Path] = None,
+    style: Style | None = None,
+    debug_dir: Path | None = None,
     log=print,
     on_stage=None,
 ) -> Mini:
@@ -491,7 +490,7 @@ def overlay_image(lay: geo.Layout, path_px: geo.CutPath) -> np.ndarray:
     blue = cv2.addWeighted(rgb, 0.8, np.full_like(rgb, (120, 200, 255)), 0.2, 0)
     over = np.where(outside, red, np.where(margin, blue, rgb))
     pts = np.round(path_px.flatten() - 0.5).astype(np.int32)
-    t = max(1, int(round(0.3 * lay.px_per_mm)))
+    t = max(1, round(0.3 * lay.px_per_mm))
     cv2.polylines(over, [pts], True, (0, 0, 0), t, cv2.LINE_AA)
     for x0, x1, y in lay.folds:
         cv2.line(over, (int(x0), int(y)), (int(x1), int(y)), (60, 160, 60), t, cv2.LINE_AA)

@@ -30,7 +30,7 @@ def sign(data: bytes, private_key_b64: str) -> bytes:
 
 def app_public_key() -> str:
     """The public key built into the app (PUBLIC_KEY in src/papermini/update.py)."""
-    m = re.search(r'^PUBLIC_KEY = "(.*)"$', UPDATE_PY.read_text(encoding="utf-8"), re.M)
+    m = re.search(r'^PUBLIC_KEY = "(.*)"$', UPDATE_PY.read_text(encoding="utf-8"), re.MULTILINE)
     return m.group(1) if m else ""
 
 

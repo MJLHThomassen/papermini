@@ -8,9 +8,9 @@ the same marks, to line up in the cutting machine's software.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple, Union
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -32,10 +32,10 @@ MATS = {"12x12": (304.8, 304.8), "12x24": (304.8, 609.6)}
 MAT_LABELS = {"12x12": "12 \u00d7 12 in (305 \u00d7 305 mm)",
               "12x24": "12 \u00d7 24 in (305 \u00d7 610 mm)"}
 
-Paper = Union[str, Tuple[float, float]]  # a paper name, or a custom (width, height) in mm
+Paper = str | tuple[float, float]  # a paper name, or a custom (width, height) in mm
 
 
-def paper_size(paper: Paper, orientation: str = "portrait") -> Tuple[float, float]:
+def paper_size(paper: Paper, orientation: str = "portrait") -> tuple[float, float]:
     """The page's (width, height) in mm. A named paper turns for landscape; a custom
     (width, height) is used as it is."""
     if not isinstance(paper, str):
@@ -58,14 +58,14 @@ def paper_text(paper: Paper, orientation: str = "portrait") -> str:
     return name + (" landscape" if orientation == "landscape" else "")
 
 
-def fits_mat(size: Tuple[float, float], mat: str) -> bool:
+def fits_mat(size: tuple[float, float], mat: str) -> bool:
     """Whether a page of ``size`` (mm) fits the cutting mat, either way round."""
     mw, mh = MATS[mat]
     w, h = sorted(size)
     return w <= min(mw, mh) + 0.5 and h <= max(mw, mh) + 0.5
 
 
-def mat_warning(paper: Paper, orientation: str, mat: Optional[str]) -> str:
+def mat_warning(paper: Paper, orientation: str, mat: str | None) -> str:
     """Why the paper does not fit the cutting mat ("" when it fits, or without a mat)."""
     if not mat:
         return ""
@@ -78,8 +78,8 @@ def mat_warning(paper: Paper, orientation: str, mat: Optional[str]) -> str:
 TITLE = "Paper miniatures"
 INSTRUCTIONS = [
     "Print at 100% / actual size (no 'fit to page'). Check: the bar below must measure 50 mm.",
-    "Cut along the solid line and fold along the dashed lines. Square tabs slot into a stand; "
-    "round tabs fold outwards into a base.",
+    ("Cut along the solid line and fold along the dashed lines. Square tabs slot into a stand; "
+    "round tabs fold outwards into a base."),
 ]
 INSTRUCTIONS_DOUBLE = "Double-sided: fold at the top dashed line and glue the halves back to back."
 INSTRUCTIONS_MACHINE = [
@@ -98,8 +98,8 @@ MARK_CLEAR_MM = 6.0    # the header and the pieces keep this far from the marks
 CUT_FILE_STYLE = {"cut": ("#ff0000", 0.1), "fold": ("#0000ff", 0.1)}  # stroke, width (mm)
 
 
-def registration_marks(paper: Tuple[float, float], kind: str,
-                       inset: float) -> List[Tuple[float, float, float, float]]:
+def registration_marks(paper: tuple[float, float], kind: str,
+                       inset: float) -> list[tuple[float, float, float, float]]:
     """The alignment marks of a page as filled rectangles (x, y, w, h) in mm, the same
     in the PDF and the cut file.
 
@@ -141,20 +141,20 @@ class Placement:
 
 @dataclass
 class SheetLayout:
-    paper: Tuple[float, float]
-    placements: List[Placement]
+    paper: tuple[float, float]
+    placements: list[Placement]
     pages: int
     header_mm: float
     margin_mm: float = 12.0          # the page margin: where the header and the pieces start
     cut: str = "hand"                # "hand" (cut lines on the sheet) or "machine"
-    marks: Optional[str] = None      # alignment marks (cut by machine)
+    marks: str | None = None      # alignment marks (cut by machine)
     mark_inset: float = 0.0          # distance of the marks from the paper edges
     header_x: float = 0.0            # left of the header (right of a top-left mark)
     header_right: float = 0.0        # right end of the header (left of a top-right mark)
     paper_name: str = ""             # the paper as messages name it, e.g. "A3 landscape"
-    left_out: List[Mini] = field(default_factory=list)  # too big for the paper (one each)
+    left_out: list[Mini] = field(default_factory=list)  # too big for the paper (one each)
 
-    def too_big_names(self, names: Optional[dict] = None) -> List[str]:
+    def too_big_names(self, names: dict | None = None) -> list[str]:
         """The names of the figures too big for the paper. ``names``: the figures' names
         by ``id(mini.art)`` (default: the minis' own)."""
         names = names or {}
@@ -164,17 +164,17 @@ class SheetLayout:
     def machine(self) -> bool:
         return self.cut == "machine"
 
-    def mark_rects(self) -> List[Tuple[float, float, float, float]]:
+    def mark_rects(self) -> list[tuple[float, float, float, float]]:
         return registration_marks(self.paper, self.marks, self.mark_inset) if self.marks else []
 
-    def instructions(self) -> List[str]:
+    def instructions(self) -> list[str]:
         double = any(len(p.mini.labels) > 1 or len(p.mini.folds) > 1 for p in self.placements)
         lines = list(INSTRUCTIONS if not self.machine else INSTRUCTIONS_MACHINE_NO_MARKS
                      if self.marks == "none" else INSTRUCTIONS_MACHINE)
         return lines + ([INSTRUCTIONS_DOUBLE] if double else [])
 
 
-def _hits(x: float, y: float, w: float, h: float, keep) -> Optional[Tuple]:
+def _hits(x: float, y: float, w: float, h: float, keep) -> tuple | None:
     """The first keep-out rectangle (x0, y0, x1, y1) that the box x, y, w, h overlaps."""
     for k in keep:
         if x < k[2] and k[0] < x + w and y < k[3] and k[1] < y + h:
@@ -182,7 +182,7 @@ def _hits(x: float, y: float, w: float, h: float, keep) -> Optional[Tuple]:
     return None
 
 
-def pack(minis: Sequence[Tuple[Mini, int]], paper: Paper = "a4", margin_mm: float = 12.0,
+def pack(minis: Sequence[tuple[Mini, int]], paper: Paper = "a4", margin_mm: float = 12.0,
          gap_mm: float = 7.0, header_mm: float = 24.0, cut: str = "hand",
          marks: str = "corners", orientation: str = "portrait",
          leave_out: bool = False) -> SheetLayout:
@@ -215,7 +215,7 @@ def pack(minis: Sequence[Tuple[Mini, int]], paper: Paper = "a4", margin_mm: floa
     avail_w = pw - 2 * margin_mm
     top = margin_mm + header_mm
     bottom = ph - margin_mm
-    left_out: List[Mini] = []
+    left_out: list[Mini] = []
 
     def too_big(m: Mini, why: str) -> None:
         if not leave_out:
@@ -230,7 +230,7 @@ def pack(minis: Sequence[Tuple[Mini, int]], paper: Paper = "a4", margin_mm: floa
                        f"{name} with {margin_mm:g} mm margins; make it smaller (--height-mm)")
         else:
             fitting.append(m)
-    placements: List[Placement] = []
+    placements: list[Placement] = []
     page, x, y, row_h = 0, margin_mm, top, 0.0
     for m in fitting:
         on_page = sum(p.page == page for p in placements)
@@ -274,8 +274,8 @@ def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
     c = canvas.Canvas(str(out), pagesize=(pw * mm, ph * mm))
     c.setTitle(title)
     c.setCreator("papermini")
-    X = lambda v: v * mm  # noqa: E731
-    Y = lambda v: (ph - v) * mm  # noqa: E731
+    X = lambda v: v * mm
+    Y = lambda v: (ph - v) * mm
     margin_mm, hx = layout.margin_mm, layout.header_x
 
     for page in range(layout.pages):
@@ -365,7 +365,7 @@ def default_cut_file(pdf: Path) -> Path:
     return pdf.with_name(f"{pdf.stem}-cut.svg")
 
 
-def cut_file_paths(svg: Path, pages: int) -> List[Path]:
+def cut_file_paths(svg: Path, pages: int) -> list[Path]:
     """The cut files of a sheet, one per page: ``svg`` itself, then ``name-2.svg`` and
     so on for further pages (like the PNG previews)."""
     svg = Path(svg)
@@ -389,8 +389,8 @@ def cut_file_svg(layout: SheetLayout, page: int, folds: bool = False, title: str
     out += [f'<rect x="{_f(x)}" y="{_f(y)}" width="{_f(w)}" height="{_f(h)}"/>'
             for x, y, w, h in layout.mark_rects()]
     color, width = CUT_FILE_STYLE["cut"]
-    out += ["</g>", f'<g id="cut" fill="none" stroke="{color}" stroke-width="{_f(width)}" '
-                    'stroke-linejoin="round">']
+    out += ["</g>", (f'<g id="cut" fill="none" stroke="{color}" stroke-width="{_f(width)}" '
+                    'stroke-linejoin="round">')]
     here = [p for p in layout.placements if p.page == page]
     out += [f'<path d="{path_d(p.mini.cut.transformed(1.0, -p.x, -p.y))}"/>' for p in here]
     out.append("</g>")
@@ -405,7 +405,7 @@ def cut_file_svg(layout: SheetLayout, page: int, folds: bool = False, title: str
 
 
 def write_cut_files(layout: SheetLayout, svg: Path, folds: bool = False,
-                    title: str = TITLE) -> List[Path]:
+                    title: str = TITLE) -> list[Path]:
     """Write the sheet's cut files: ``svg`` for the first page, ``name-2.svg`` and so on
     for the others (see ``cut_file_paths``)."""
     paths = cut_file_paths(svg, layout.pages)
@@ -428,7 +428,7 @@ def _font(size_px: int, serif: bool = False, path=None):
 
 
 def write_previews(layout: SheetLayout, out: Path, dpi: int = 100,
-                   title: str = TITLE) -> List[Path]:
+                   title: str = TITLE) -> list[Path]:
     """One PNG per page (``out`` or ``out-2.png`` ...) for a quick look."""
     out = Path(out)
     s = dpi / 25.4

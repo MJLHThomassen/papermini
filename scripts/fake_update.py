@@ -36,7 +36,6 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -67,9 +66,9 @@ def pack(app: Path, archive: Path) -> None:
                 z.write(f, f.relative_to(app.parent).as_posix())
 
 
-def make_release(app: Optional[Path] = None, version: str = "99.0.0",
-                 out: Optional[Path] = None, setup: Optional[Path] = None
-                 ) -> Tuple[Dict[str, str], Optional[Path], Path]:
+def make_release(app: Path | None = None, version: str = "99.0.0",
+                 out: Path | None = None, setup: Path | None = None
+                 ) -> tuple[dict[str, str], Path | None, Path]:
     """Make the fake release (of the build ``app``, or of a pretend app with a pretend
     installed copy; with ``setup``, of that Windows installer, for an installed
     papermini). Returns (environment variables to set, the pretend installed copy or

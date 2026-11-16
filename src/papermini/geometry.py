@@ -7,16 +7,14 @@ so it can be tested with synthetic masks and no model.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
-
 # --------------------------------------------------------------------------- helpers
 
-def disk(r: int) -> np.ndarray:
-    r = max(1, int(round(r)))
+def disk(r: float) -> np.ndarray:
+    r = max(1, round(r))
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
 
 
@@ -75,7 +73,7 @@ def filter_components(m: np.ndarray, min_area: int) -> np.ndarray:
     return (np.isin(lab, keep) * 255).astype(np.uint8)
 
 
-def bbox(m: np.ndarray) -> Tuple[int, int, int, int]:
+def bbox(m: np.ndarray) -> tuple[int, int, int, int]:
     """(x0, y0, x1, y1) inclusive bounding box of the non-zero pixels."""
     ys, xs = np.nonzero(m)
     if len(ys) == 0:
@@ -151,16 +149,16 @@ def smooth_outline(m: np.ndarray, sigma: float) -> np.ndarray:
 
 def default_close_px(width: int, height: int) -> int:
     """Closing radius that scales with the image: ~9 px at 1400 px long side."""
-    return max(1, int(round(9 * max(width, height) / 1400)))
+    return max(1, round(9 * max(width, height) / 1400))
 
 
 def clean_mask(
     raw: np.ndarray,
     threshold: int = 40,
-    close_px: Optional[int] = None,
+    close_px: int | None = None,
     keep_all: bool = False,
     min_area: int = 1000,
-    stages: Optional[Dict[str, np.ndarray]] = None,
+    stages: dict[str, np.ndarray] | None = None,
 ) -> np.ndarray:
     """Threshold, close, fill holes and drop specks. Returns a 0/255 mask."""
     h, w = raw.shape
@@ -188,8 +186,8 @@ def clean_mask(
 
 @dataclass
 class Params:
-    height_mm: Optional[float] = 42.0  # figure height, excluding margin and tab
-    width_mm: Optional[float] = None   # figure width; see figure_size()
+    height_mm: float | None = 42.0  # figure height, excluding margin and tab
+    width_mm: float | None = None   # figure width; see figure_size()
     margin_mm: float = 1.6        # distance between drawing and cut line
     smooth_mm: float = 0.6        # Gaussian sigma that rounds the outline
     tab: bool = True
@@ -223,13 +221,13 @@ class Layout:
     cut: np.ndarray               # HxW 0/255 cut shape
     figure: np.ndarray            # HxW 0/255 clean figure mask (drawing that must not be cut)
     px_per_mm: float
-    folds: List[Tuple[float, float, float]] = field(default_factory=list)   # (x0, x1, y)
-    labels: List[Tuple[float, float, float]] = field(default_factory=list)  # (cx, cy, rot)
+    folds: list[tuple[float, float, float]] = field(default_factory=list)   # (x0, x1, y)
+    labels: list[tuple[float, float, float]] = field(default_factory=list)  # (cx, cy, rot)
     tab_width_px: float = 0.0
     tab_height_px: float = 0.0
     figure_height_px: int = 0     # one side, also for double-sided layouts
     # double-sided with a back of text or a number: where it may go (cx, cy, max_w, max_h), px
-    back_box: Optional[Tuple[float, float, float, float]] = None
+    back_box: tuple[float, float, float, float] | None = None
     # False when the tab's overlap lies entirely inside the silhouette (a figure whose
     # bottom is wider than the tab), i.e. tab_overlap_mm has no visible effect
     tab_overlap_used: bool = True
@@ -238,13 +236,13 @@ class Layout:
     # round tabs: exact circles (cx, cy, r, side) in pixel-edge coordinates; side +1 =
     # the half below cy, -1 = above (the mirrored back). The traced cut line is snapped
     # onto them so a round tab is a true circle, not a traced pixel staircase.
-    tab_circles: List[Tuple[float, float, float, int]] = field(default_factory=list)
+    tab_circles: list[tuple[float, float, float, int]] = field(default_factory=list)
     label_max_h_px: float = 0.0
-    paper: Tuple[int, int, int] = (255, 255, 255)  # margin color, RGB
-    tabfill: Optional[np.ndarray] = None  # HxW bool: tab area (painted in the tab color)
+    paper: tuple[int, int, int] = (255, 255, 255)  # margin color, RGB
+    tabfill: np.ndarray | None = None  # HxW bool: tab area (painted in the tab color)
     # where this canvas lies in the image given to build_layout, for the front side:
     # (sx, sy, dx, dy) with image pixel = ((x - dx) * sx, (y - dy) * sy)
-    src: Tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0)
+    src: tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0)
     front_top: float = 0.0        # canvas row where the front starts (double-sided: the fold)
 
 
@@ -256,10 +254,10 @@ def _overlap_matters(cut: np.ndarray, sil: np.ndarray, tab, fillet_px: float) ->
     Re-does the tab without the overlap in a window around it and compares.
     """
     shape, cx, fold_f, top_f, tw, th = tab
-    top, fold = int(round(top_f)), int(round(fold_f))
+    top, fold = round(top_f), round(fold_f)
     if top >= fold:
         return False
-    x0, x1 = int(round(cx - tw / 2)), int(round(cx + tw / 2))
+    x0, x1 = round(cx - tw / 2), round(cx + tw / 2)
     m = int(np.ceil(4 * max(fillet_px, 1.0))) + 2
     h, w = cut.shape
     wy0, wy1 = max(0, top - m), min(h, fold + m)
@@ -277,7 +275,7 @@ MARGIN_FILLS = ("color", "image")
 TAB_SHAPES = ("square", "round")
 
 
-def hex_rgb(c: str) -> Tuple[int, int, int]:
+def hex_rgb(c: str) -> tuple[int, int, int]:
     """'#rrggbb' (or 'rgb') -> (r, g, b)."""
     h = c.strip().lstrip("#")
     if len(h) == 3:
@@ -291,20 +289,20 @@ def draw_tab(m: np.ndarray, shape: str, cx: float, fold: float, top: float, tw: 
              th: float, dx: int = 0, dy: int = 0) -> None:
     """Paint a tab into ``m``: the overlap above the fold (top..fold) plus, below the
     fold, a rectangle tw x th (square) or a half disc of diameter tw (round)."""
-    x0, x1 = int(round(cx - tw / 2)) - dx, int(round(cx + tw / 2)) - dx
-    f = int(round(fold)) - dy
+    x0, x1 = round(cx - tw / 2) - dx, round(cx + tw / 2) - dx
+    f = round(fold) - dy
     if top < fold:
-        cv2.rectangle(m, (x0, int(round(top)) - dy), (x1, f), 255, -1)
+        cv2.rectangle(m, (x0, round(top) - dy), (x1, f), 255, -1)
     if shape == "round":
-        r = int(round(tw / 2))
-        cv2.ellipse(m, (int(round(cx)) - dx, f), (r, r), 0, 0, 180, 255, -1)
+        r = round(tw / 2)
+        cv2.ellipse(m, (round(cx) - dx, f), (r, r), 0, 0, 180, 255, -1)
     else:
-        cv2.rectangle(m, (x0, f), (x1, int(round(fold + th)) - dy), 255, -1)
+        cv2.rectangle(m, (x0, f), (x1, round(fold + th) - dy), 255, -1)
 
 
 def _band_centre(m: np.ndarray, y0: int, y1: int) -> int:
     cols = np.flatnonzero(m[max(0, y0):y1 + 1].any(axis=0))
-    return int(round((cols.min() + cols.max()) / 2))
+    return round((cols.min() + cols.max()) / 2)
 
 
 def _bridge_centre(sil: np.ndarray, y_top: int, depth: int, width: int) -> float:
@@ -329,14 +327,14 @@ def _bridge_centre(sil: np.ndarray, y_top: int, depth: int, width: int) -> float
     return (lo + hi) / 2 + w / 2
 
 
-def _runs(row: np.ndarray) -> List[Tuple[int, int]]:
+def _runs(row: np.ndarray) -> list[tuple[int, int]]:
     """(start, end) column pairs of the filled runs in a row, end exclusive."""
     d = np.diff(np.concatenate([[0], (row > 0).astype(np.int8), [0]]))
     return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
 
 
-def figure_size(w_px: int, h_px: int, height_mm: Optional[float],
-                width_mm: Optional[float]) -> Tuple[float, float]:
+def figure_size(w_px: int, h_px: int, height_mm: float | None,
+                width_mm: float | None) -> tuple[float, float]:
     """(height in mm, horizontal stretch) for a ``w_px`` x ``h_px`` drawing.
 
     Height only or width only keep the drawing's proportions; both stretch it
@@ -351,7 +349,7 @@ def figure_size(w_px: int, h_px: int, height_mm: Optional[float],
     return float(height_mm), (width_mm / height_mm) / (w_px / h_px)
 
 
-def stretch_x(clean: np.ndarray, rgb: np.ndarray, f: float) -> Tuple[np.ndarray, np.ndarray]:
+def stretch_x(clean: np.ndarray, rgb: np.ndarray, f: float) -> tuple[np.ndarray, np.ndarray]:
     """Mask and image ``f`` times as wide (``figure_size`` with both width and height)."""
     size = (max(1, round(clean.shape[1] * f)), clean.shape[0])
     interp = cv2.INTER_AREA if f < 1 else cv2.INTER_LINEAR
@@ -359,7 +357,7 @@ def stretch_x(clean: np.ndarray, rgb: np.ndarray, f: float) -> Tuple[np.ndarray,
     return mask, cv2.resize(rgb, size, interpolation=interp)
 
 
-def outline(clean: np.ndarray) -> List[np.ndarray]:
+def outline(clean: np.ndarray) -> list[np.ndarray]:
     """The detected figure's outline (outer edges and holes) as point arrays, in
     pixels of ``clean``: what background removal found, before any margin."""
     cs, _ = cv2.findContours(clean, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
@@ -367,13 +365,13 @@ def outline(clean: np.ndarray) -> List[np.ndarray]:
 
 
 def limit_resolution(clean: np.ndarray, rgb: np.ndarray, height_mm: float,
-                     max_px_per_mm: float) -> Tuple[np.ndarray, np.ndarray]:
+                     max_px_per_mm: float) -> tuple[np.ndarray, np.ndarray]:
     """Downscale mask and image so the figure has at most ``max_px_per_mm``.
 
     A small figure from a big image would otherwise make the padded canvas and
     every morphology step grow with (px per mm)^2.
     """
-    x0, y0, x1, y1 = bbox(clean)
+    _x0, y0, _x1, y1 = bbox(clean)
     pxmm = (y1 - y0 + 1) / height_mm
     if pxmm <= max_px_per_mm:
         return clean, rgb
@@ -399,7 +397,7 @@ def _window(mask: np.ndarray, rgb: np.ndarray, x0: int, y0: int, x1: int, y1: in
 
 
 def compose_art(img: np.ndarray, fig: np.ndarray, sil: np.ndarray,
-                paper: Tuple[int, int, int], pxmm: float, image_margin: bool) -> np.ndarray:
+                paper: tuple[int, int, int], pxmm: float, image_margin: bool) -> np.ndarray:
     """Artwork on the margin color ``paper``.
 
     ``img`` is RGB, or premultiplied RGBA for images with transparency (used as
@@ -420,7 +418,7 @@ def compose_art(img: np.ndarray, fig: np.ndarray, sil: np.ndarray,
         art = w * S + (1.0 - w) * a * P
     else:
         sigma = max(0.5, 0.12 * pxmm)
-        soft = lambda m: cv2.GaussianBlur(m.astype(np.float32) / 255.0, (0, 0), sigma)[..., None]  # noqa: E731
+        soft = lambda m: cv2.GaussianBlur(m.astype(np.float32) / 255.0, (0, 0), sigma)[..., None]
         core = soft(erode(fig, 0.2 * pxmm))                          # the drawing itself
         band = np.maximum(soft(dilate(fig, 0.25 * pxmm)), fig[..., None] / 255.0)
         ink = S * (P / 255.0)                                        # printed on the margin
@@ -460,19 +458,19 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
     sil = smooth_outline(sil, prm.smooth_mm * pxmm)
     sil = fill_holes(sil | fig)
     if prm.keep_all:
-        sil = connect_components(sil, int(round(prm.bridge_mm * pxmm)))
+        sil = connect_components(sil, round(prm.bridge_mm * pxmm))
         sil = fill_holes(sil)
     else:
         sil = largest_component(sil)
 
     cut = sil.copy()
-    folds: List[Tuple[float, float, float]] = []
-    labels: List[Tuple[float, float, float]] = []
+    folds: list[tuple[float, float, float]] = []
+    labels: list[tuple[float, float, float]] = []
     overlap_used = True
     tw = tab_w_mm * pxmm
     th = (prm.tab_radius_mm if round_tab else prm.tab_height_mm) * pxmm
     label_w = label_h = 0.0
-    circles: List[Tuple[float, float, float, int]] = []
+    circles: list[tuple[float, float, float, int]] = []
 
     _, sy0, _, sy1 = bbox(sil)
     if prm.tab:
@@ -497,10 +495,10 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
 
     if prm.double_sided:
         bw = prm.top_bridge_width_mm * pxmm
-        depth = int(round(prm.top_bridge_depth_mm * pxmm))
-        bcx = _bridge_centre(sil, sy0, depth, int(round(bw)))
-        cv2.rectangle(cut, (int(round(bcx - bw / 2)), sy0),
-                      (int(round(bcx + bw / 2)) - 1, sy0 + depth), 255, -1)
+        depth = round(prm.top_bridge_depth_mm * pxmm)
+        bcx = _bridge_centre(sil, sy0, depth, round(bw))
+        cv2.rectangle(cut, (round(bcx - bw / 2), sy0),
+                      (round(bcx + bw / 2) - 1, sy0 + depth), 255, -1)
 
     if prm.fillet_mm > 0:
         cut = close(cut, prm.fillet_mm * pxmm)
@@ -508,9 +506,9 @@ def build_layout(clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
     joint = 0.0
     if prm.tab:
         overlap_used = _overlap_matters(cut, sil, tab_geom, prm.fillet_mm * pxmm)
-        row = int(round(fold_y)) - 1  # how much paper holds the tab, right above the fold
+        row = round(fold_y) - 1  # how much paper holds the tab, right above the fold
         if 0 <= row < cut.shape[0]:
-            jx0, jx1 = max(0, int(round(cx - tw / 2))), int(round(cx + tw / 2)) + 1
+            jx0, jx1 = max(0, round(cx - tw / 2)), round(cx + tw / 2) + 1
             joint = float(np.count_nonzero(cut[row, jx0:jx1]))
 
     # Crop the generous padding away (keep 6 mm of context for previews).
@@ -554,7 +552,7 @@ BACK_MODES = ("mirror", "blank", "text", "number", "text_number")
 
 
 def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
-                   back_rgb: Tuple[int, int, int] = (255, 255, 255)) -> Layout:
+                   back_rgb: tuple[int, int, int] = (255, 255, 255)) -> Layout:
     """Front + vertically mirrored back, joined at a fold through ``y_top``.
 
     The fold line runs across all the paper that joins the halves there (the top
@@ -602,7 +600,7 @@ def _mirror_at_top(lay: Layout, y_top: int, back: str = "mirror",
                   src=(*lay.src[:3], lay.src[3] + h - y_top), front_top=float(h))
 
 
-def _text_box(fig: np.ndarray) -> Tuple[float, float, float, float]:
+def _text_box(fig: np.ndarray) -> tuple[float, float, float, float]:
     """Room for text inside a figure silhouette: (cx, cy, max_w, max_h) in px.
 
     Centred on the figure; the width is what the silhouette offers through its
@@ -646,10 +644,10 @@ class CutPath:
     """
 
     points: np.ndarray
-    controls: Optional[np.ndarray] = None
+    controls: np.ndarray | None = None
 
-    def transformed(self, scale: float, dx: float = 0.0, dy: float = 0.0) -> "CutPath":
-        f = lambda a: (a - np.array([dx, dy])) * scale  # noqa: E731
+    def transformed(self, scale: float, dx: float = 0.0, dy: float = 0.0) -> CutPath:
+        f = lambda a: (a - np.array([dx, dy])) * scale
         return CutPath(f(self.points), None if self.controls is None else f(self.controls))
 
     def flatten(self, steps: int = 12) -> np.ndarray:
@@ -665,7 +663,7 @@ class CutPath:
                + 3 * mt * t ** 2 * c2[:, None] + t ** 3 * p3[:, None])
         return pts.reshape(-1, 2)
 
-    def extent(self) -> Tuple[float, float, float, float]:
+    def extent(self) -> tuple[float, float, float, float]:
         a = self.flatten()
         return float(a[:, 0].min()), float(a[:, 1].min()), float(a[:, 0].max()), float(a[:, 1].max())
 
@@ -782,7 +780,7 @@ def add_bleed(rgb: np.ndarray, alpha: np.ndarray, bleed_px: float):
     return ext, np.maximum(alpha, ring.astype(np.uint8))
 
 
-def rasterize(path: CutPath, shape: Tuple[int, int], antialias: bool = True) -> np.ndarray:
+def rasterize(path: CutPath, shape: tuple[int, int], antialias: bool = True) -> np.ndarray:
     """Fill ``path`` (pixel coordinates, edge convention) into a uint8 mask."""
     out = np.zeros(shape, np.uint8)
     pts = np.round((path.flatten() - 0.5) * 16).astype(np.int32)

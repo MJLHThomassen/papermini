@@ -3,46 +3,98 @@
 from __future__ import annotations
 
 import html
-import os
 import itertools
 import logging
+import os
 import re
 import threading
 import time
 import traceback
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import ClassVar
 
-from PySide6.QtCore import QByteArray, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import (
+    QByteArray,
+    QObject,
+    QRunnable,
+    QSize,
+    Qt,
+    QThreadPool,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QGridLayout,
-                               QHBoxLayout, QLabel, QListView, QListWidget, QListWidgetItem,
-                               QMainWindow,
-                               QDialog, QLineEdit, QMenu, QMessageBox, QProgressDialog,
-                               QPushButton, QSplitter, QStackedWidget, QTabWidget, QToolButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QSplitter,
+    QStackedWidget,
+    QTabWidget,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import __version__, fonts, log, remote, segment, sizes
 from ..mini import Mini
-from ..segment import Cancelled, ModelError
-from ..settings import (FigureEntry, FigureSettings, Project, build_mini, load_project,
-                        save_project)
-from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
 from ..png import write_pngs
+from ..segment import Cancelled, ModelError
+from ..settings import (
+    FigureEntry,
+    FigureSettings,
+    Project,
+    build_mini,
+    load_project,
+    save_project,
+)
+from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
 from ..svg import write_svgs
 from . import errors, prefs, theme
-from .models import DownloadDialog
 from .export import ExportDialog
+from .models import DownloadDialog
 from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
-from .views import (CropView, MiniView, SourceLegend, ZoomView, adjusted_preview, draw_mini_page,
-                    draw_sheet, load_qimage, print_sheet, pil_to_qimage)
-from .widgets import (COPIES_ROLE, SUBTITLE_ROLE, Banner, EmptyState, FigureDelegate, Segmented, WorkCard,
-                      ZoomBar,
-                      overlay_wrap)
+from .views import (
+    CropView,
+    MiniView,
+    SourceLegend,
+    ZoomView,
+    adjusted_preview,
+    draw_mini_page,
+    draw_sheet,
+    load_qimage,
+    pil_to_qimage,
+    print_sheet,
+)
+from .widgets import (
+    COPIES_ROLE,
+    SUBTITLE_ROLE,
+    Banner,
+    EmptyState,
+    FigureDelegate,
+    Segmented,
+    WorkCard,
+    ZoomBar,
+    overlay_wrap,
+)
 
 IMAGE_FILTER = remote.IMAGE_FILTER
-IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.I)
+IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
 # settings that "apply to all" leaves alone
 
@@ -51,13 +103,13 @@ PROJECT_FILTER = "papermini project (*.yaml *.yml)"
 class Figure:
     uid: int
     entry: FigureEntry
-    mini: Optional[Mini] = None
-    built_key: Optional[str] = None
+    mini: Mini | None = None
+    built_key: str | None = None
     gen: int = 0
-    error: Optional[str] = None
-    pixmap: Optional[QPixmap] = None   # art of ``mini`` as a QPixmap (cached for the sheet)
-    queued: Optional[str] = None       # key of the job waiting in the pool
-    cancelled: Optional[str] = None    # mask_key whose background removal the user cancelled
+    error: str | None = None
+    pixmap: QPixmap | None = None   # art of ``mini`` as a QPixmap (cached for the sheet)
+    queued: str | None = None       # key of the job waiting in the pool
+    cancelled: str | None = None    # mask_key whose background removal the user cancelled
     bleed_mm: float = 0.0              # from the sheet: only when it is cut by machine
 
     def key(self) -> str:
@@ -140,7 +192,7 @@ class BuildJob(QRunnable):
                                    self.uid, self.key, self.mask_key, name, data))
         except Cancelled:
             self.sig.cancelled.emit(self.uid, self.gen, self.key)
-        except (Exception, SystemExit) as e:  # noqa: BLE001 - always report back, never die silently
+        except (Exception, SystemExit) as e:
             expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
             if isinstance(e, expected):
                 msg = str(e)
@@ -148,8 +200,8 @@ class BuildJob(QRunnable):
                                log.settings_text(self.settings.to_dict(with_size=False)))
             else:
                 msg = f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"
-                logger.error("Building %s failed unexpectedly (%s)", self.image.name,
-                             log.settings_text(self.settings.to_dict(with_size=False)), exc_info=True)
+                logger.exception("Building %s failed unexpectedly (%s)", self.image.name,
+                                 log.settings_text(self.settings.to_dict(with_size=False)))
             self.sig.failed.emit(self.uid, self.gen, self.key, msg)
         else:
             logger.debug("Built %s in %.1f s", self.image.name, time.perf_counter() - t0)
@@ -164,7 +216,7 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = self._fresh_project()
-        self.figures: List[Figure] = []
+        self.figures: list[Figure] = []
         self._uids = itertools.count(1)
         self._export = None  # (figures, callback, progress dialog, count) while exporting
         self._modified = False
@@ -196,7 +248,7 @@ class MainWindow(QMainWindow):
 
         self._build_timer = QTimer(self, singleShot=True, interval=250, timeout=self._build_current)
         # settings changes go to the detailed log once they settle, as old -> new
-        self._settings_log: Dict[object, tuple] = {}  # uid or "sheet" -> (name, old settings)
+        self._settings_log: dict[object, tuple] = {}  # uid or "sheet" -> (name, old settings)
         self._settings_log_timer = QTimer(self, singleShot=True, interval=250,
                                           timeout=self._flush_settings_log)
         self._sheet_timer = QTimer(self, singleShot=True, interval=150, timeout=self._refresh_sheet)
@@ -224,7 +276,7 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------------------- ui
     # the workflow, one view per step; any step can be opened at any time
-    VIEWS = [("Source", "Step 1: the picture, and the figure found in it"),
+    VIEWS: ClassVar = [("Source", "Step 1: the picture, and the figure found in it"),
              ("Miniature", "Step 2: the piece as it will print"),
              ("Print sheet", "Step 3: the pages to print")]
     SOURCE, MINI, SHEET = range(3)
@@ -614,7 +666,7 @@ class MainWindow(QMainWindow):
         self._sync_sides()
 
     # ----------------------------------------------------------------- side panels
-    SIDE_NAMES = {0: "figure list", 2: "settings"}
+    SIDE_NAMES: ClassVar = {0: "figure list", 2: "settings"}
 
     def side_visible(self, i: int) -> bool:
         return self.splitter.sizes()[i] > 0
@@ -724,15 +776,15 @@ class MainWindow(QMainWindow):
         self._sheet_timer.start()
 
     # ----------------------------------------------------------------- figures
-    def current(self) -> Optional[Figure]:
+    def current(self) -> Figure | None:
         r = self.list.currentRow()
         return self.figures[r] if 0 <= r < len(self.figures) else None
 
-    def _base_settings(self, settings: Optional[FigureSettings]) -> Optional[FigureSettings]:
+    def _base_settings(self, settings: FigureSettings | None) -> FigureSettings | None:
         """New figures start from the selected figure's settings (or ``settings``)."""
         return self.current().entry.settings if (settings is None and self.current()) else settings
 
-    def _new_settings(self, base: Optional[FigureSettings]) -> FigureSettings:
+    def _new_settings(self, base: FigureSettings | None) -> FigureSettings:
         if base is None:  # Medium, from the project's size table
             return sizes.apply(FigureSettings(), sizes.DEFAULT_SIZE, self.project.sizes)
         return replace(base, label=None, crop=None, mask=None)
@@ -744,7 +796,7 @@ class MainWindow(QMainWindow):
 
         return Project(sizes=default_table())
 
-    def add_images(self, paths, settings: Optional[FigureSettings] = None, names=None):
+    def add_images(self, paths, settings: FigureSettings | None = None, names=None):
         """Add image files; links among ``paths`` are downloaded first (in the background).
         ``names``: a figure name for each path (None: named after the file)."""
         base = self._base_settings(settings)
@@ -768,7 +820,7 @@ class MainWindow(QMainWindow):
             self.add_links(links, base)
         return added
 
-    def add_links(self, links, settings: Optional[FigureSettings] = None):
+    def add_links(self, links, settings: FigureSettings | None = None):
         """Add images from links: downloaded once (in the background), then cached."""
         base = self._base_settings(settings)
         for url in links:
@@ -903,10 +955,10 @@ class MainWindow(QMainWindow):
         self.figures = [by_uid[self.list.item(i).data(Qt.UserRole)] for i in range(self.list.count())]
         self._set_modified()
 
-    def _figure(self, uid) -> Optional[Figure]:
+    def _figure(self, uid) -> Figure | None:
         return next((f for f in self.figures if f.uid == uid), None)
 
-    def _list_item(self, fig: Figure) -> Optional[QListWidgetItem]:
+    def _list_item(self, fig: Figure) -> QListWidgetItem | None:
         for i in range(self.list.count()):
             if self.list.item(i).data(Qt.UserRole) == fig.uid:
                 return self.list.item(i)
@@ -1008,7 +1060,7 @@ class MainWindow(QMainWindow):
         self._set_modified()
         self._sheet_timer.start()
 
-    def _pack(self, figs: List[Figure]):
+    def _pack(self, figs: list[Figure]):
         """The sheet layout of ``figs`` (built) with the project's sheet settings; a
         figure too big for the paper is left off it (see the layout's ``left_out``)."""
         sh = self.project.sheet
@@ -1016,7 +1068,7 @@ class MainWindow(QMainWindow):
                     sh.margin_mm, sh.gap_mm, cut=sh.cut, marks=sh.marks,
                     orientation=sh.orientation, leave_out=True)
 
-    def _too_big(self, lay) -> Tuple[str, List[str], str]:
+    def _too_big(self, lay) -> tuple[str, list[str], str]:
         """The figures too big for the paper: a line saying so, their names, and what to
         do about it."""
         sh = self.project.sheet
@@ -1038,13 +1090,13 @@ class MainWindow(QMainWindow):
         return intro, lay.too_big_names(self._names()), advice
 
     @staticmethod
-    def _too_big_plain(intro: str, names: List[str], advice: str = "") -> str:
+    def _too_big_plain(intro: str, names: list[str], advice: str = "") -> str:
         """The too-big message as plain text (a bullet per figure), for a dialog."""
         lines = "\n".join(f"\u2022 {n}" for n in names)
         return f"{intro}\n{lines}" + (f"\n\n{advice}" if advice else "")
 
     @staticmethod
-    def _too_big_list(names: List[str]) -> str:
+    def _too_big_list(names: list[str]) -> str:
         """The figures too big for the paper as a bulleted list (rich text)."""
         items = "".join(f"<li>{html.escape(n)}</li>" for n in names)
         return ("<ul style='margin-top:4px; margin-bottom:6px; margin-left:0px; "
@@ -1477,7 +1529,7 @@ class MainWindow(QMainWindow):
             self.tabs.currentIndex()]
 
     # ----------------------------------------------------------------- export
-    def _when_built(self, figs: List[Figure], then) -> None:
+    def _when_built(self, figs: list[Figure], then) -> None:
         """Build stale figures in the background (UI stays responsive), then ``then()``."""
         todo = [f for f in figs if not f.up_to_date]
         if not todo:
@@ -1530,7 +1582,7 @@ class MainWindow(QMainWindow):
         square on the project's grid, or a dpi)."""
         return prefs.png_px_per_mm(self.project.sizes.grid_mm)
 
-    def _write(self, fig: Figure, path: Path, fmt: str) -> List[Path]:
+    def _write(self, fig: Figure, path: Path, fmt: str) -> list[Path]:
         """Write a figure as ``fmt`` ("svg" or "png") at ``path`` (one file per numbered copy)."""
         copies = fig.entry.settings.copies
         if fmt == "png":
@@ -1540,7 +1592,7 @@ class MainWindow(QMainWindow):
     def _save_piece(self, fig: Figure):
         f, chosen = QFileDialog.getSaveFileName(
             self, "Export", str(self._out_dir() / fig.entry.svg_name()),
-            ";;".join((self.SVG_FILTER, self.PNG_FILTER)))
+            f"{self.SVG_FILTER};;{self.PNG_FILTER}")
         if not f:
             return
         path = Path(f)
@@ -1560,7 +1612,7 @@ class MainWindow(QMainWindow):
         if self.figures:
             self._when_built(list(self.figures), self._save_all)
 
-    def _ask_format(self) -> Optional[str]:
+    def _ask_format(self) -> str | None:
         """Which files Export all writes: "svg", "png", "both", or None (cancelled)."""
         box = QMessageBox(QMessageBox.Question, "Export all",
                           "Save every figure as an SVG (to print or cut), a PNG (for a "
@@ -1888,7 +1940,7 @@ class MainWindow(QMainWindow):
 
         self.panel.set_size_table(self.project.sizes, table_label(self.project.sizes))
 
-    def set_size_table(self, table: "sizes.SizeTable") -> None:
+    def set_size_table(self, table: sizes.SizeTable) -> None:
         """Use ``table`` for this project: every figure with a creature size takes its
         values from it."""
         self.project.sizes = table
@@ -2013,7 +2065,7 @@ class MainWindow(QMainWindow):
         threading.Thread(target=self._download_job, args=(rel, source), daemon=True).start()
 
     def _update_job(self, source: str, download: bool):  # on a worker thread
-        from .. import __version__, update
+        from .. import update
 
         try:
             rel = update.latest_release()
@@ -2049,7 +2101,6 @@ class MainWindow(QMainWindow):
             self.sig.update.emit("error", str(e), source)
 
     def _on_update(self, state: str, data, source: str):
-        from .. import __version__
 
         if state not in ("downloading", "progress", "verifying", "unpacking"):
             self._checking_updates = False

@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fake_update import make_release  # noqa: E402
+from fake_update import make_release
 
 MAC = sys.platform == "darwin"
 APP = "papermini.app" if MAC else "papermini"
@@ -71,7 +71,7 @@ def wait_for(cond, seconds: float) -> bool:
 
 def run(app_cmd, env: dict) -> None:
     print(f"\n{HOW}\n")
-    subprocess.run(app_cmd, env={**os.environ, **env}, cwd=ROOT)
+    subprocess.run(app_cmd, env={**os.environ, **env}, cwd=ROOT, check=False)
 
 
 def installed_version() -> str:

@@ -68,7 +68,7 @@ def _answer(monkeypatch, name):
 
 
 def test_presets_in_the_preferences(app):
-    from papermini.gui import prefs, preferences
+    from papermini.gui import preferences, prefs
 
     assert preferences.presets() == [sizes.BUILTIN]
     assert preferences.default_table() == sizes.BUILTIN
@@ -250,10 +250,10 @@ def test_the_other_pages(window):
         "Creature sizes", "Images", "Appearance", "Updates", "Logging",
         "Models and cache"]
     assert dlg.stack.currentIndex() == 2
-    dark = [b for b in dlg.theme_group.buttons() if b.text() == "Dark"][0]
+    dark = next(b for b in dlg.theme_group.buttons() if b.text() == "Dark")
     dark.setChecked(True)
     assert window._theme_mode == "dark" and prefs.store().value("theme") == "dark"
-    [b for b in dlg.theme_group.buttons() if b.text() == "Follow system"][0].setChecked(True)
+    next(b for b in dlg.theme_group.buttons() if b.text() == "Follow system").setChecked(True)
     assert window._theme_mode == "system"
     dlg.show_page("nothing")  # (an unknown page: the first)
     assert dlg.stack.currentIndex() == 0

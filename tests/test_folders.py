@@ -11,14 +11,14 @@ from PIL import Image
 pytest.importorskip("PySide6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint, QSettings, Qt  # noqa: E402
-from PySide6.QtTest import QTest  # noqa: E402
-from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
+from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QMessageBox
 
-from papermini import cli, remote  # noqa: E402
-from papermini.geometry import CutPath  # noqa: E402
-from papermini.mini import Mini  # noqa: E402
-from papermini.settings import load_project  # noqa: E402
+from papermini import cli, remote
+from papermini.geometry import CutPath
+from papermini.mini import Mini
+from papermini.settings import load_project
 
 
 def _image(path: Path) -> Path:
@@ -194,8 +194,8 @@ def test_add_a_folder(window, monsters, monkeypatch):
 
     # again: asks, and No leaves them out
     assert window.add_folder(monsters) == 0
-    assert asked == ["5 of the images in Monsters are already in the project. "
-                     "Add them again?"]
+    assert asked == [("5 of the images in Monsters are already in the project. "
+                     "Add them again?")]
     assert len(window.figures) == 5
     assert window.statusBar().currentMessage() == \
         "No images added from Monsters (2 other files skipped, 5 already in the project)"

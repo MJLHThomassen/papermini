@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from typing import List
 
 from PIL import Image, ImageDraw
 
@@ -70,7 +69,7 @@ def write_png(m: Mini, path: Path, px_per_mm: float) -> Path:
     return path
 
 
-def write_pngs(m: Mini, path: Path, px_per_mm: float, copies: int = 1) -> List[Path]:
+def write_pngs(m: Mini, path: Path, px_per_mm: float, copies: int = 1) -> list[Path]:
     """The PNG of a piece at ``path``; a numbered one gets a file per copy, each with its
     number: ``goblin-1.png`` to ``goblin-6.png``."""
     path = Path(path)

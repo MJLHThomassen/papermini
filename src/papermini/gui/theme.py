@@ -10,10 +10,17 @@ from __future__ import annotations
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
 
-from PySide6.QtCore import QByteArray, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtCore import QByteArray, QRectF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontDatabase,
+    QIcon,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication
 
@@ -52,7 +59,7 @@ current: Theme = LIGHT
 
 # --------------------------------------------------------------------------- icons
 # 24x24 line icons, drawn for papermini (stroke = currentColor)
-ICONS: Dict[str, str] = {
+ICONS: dict[str, str] = {
     "open": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
     "add_folder": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>'
                   '<path d="M12 10.5v5M9.5 13h5"/>',
@@ -103,7 +110,7 @@ def icon_svg(name: str, color: str, stroke: float = 1.7) -> str:
             f'stroke-linejoin="round" color="{color}">{ICONS[name]}</svg>')
 
 
-def pixmap(name: str, color: Optional[str] = None, size: int = 18, ratio: float = 2.0) -> QPixmap:
+def pixmap(name: str, color: str | None = None, size: int = 18, ratio: float = 2.0) -> QPixmap:
     color = color or current.text
     r = QSvgRenderer(QByteArray(icon_svg(name, color).encode()))
     px = QPixmap(int(size * ratio), int(size * ratio))
@@ -115,7 +122,7 @@ def pixmap(name: str, color: Optional[str] = None, size: int = 18, ratio: float 
     return px
 
 
-def icon(name: str, color: Optional[str] = None, size: int = 18) -> QIcon:
+def icon(name: str, color: str | None = None, size: int = 18) -> QIcon:
     ic = QIcon(pixmap(name, color, size))
     ic.addPixmap(pixmap(name, current.muted, size), QIcon.Disabled)
     return ic

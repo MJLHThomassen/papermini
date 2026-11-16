@@ -1,7 +1,7 @@
 """Geometry tests on synthetic masks (no model needed)."""
 
-import numpy as np
 import cv2
+import numpy as np
 import pytest
 
 from papermini import geometry as geo
@@ -44,7 +44,7 @@ def test_largest_component_drops_specks_and_keep_all_keeps_props():
 def test_mm_scaling(height_mm):
     clean = geo.clean_mask(ghost(), close_px=9)
     lay = geo.build_layout(clean, rgb_like(clean), geo.Params(height_mm=height_mm))
-    x0, y0, x1, y1 = geo.bbox(lay.figure)
+    _x0, y0, _x1, y1 = geo.bbox(lay.figure)
     assert (y1 - y0 + 1) / lay.px_per_mm == pytest.approx(height_mm, abs=1e-9)
 
 
@@ -75,7 +75,7 @@ def test_tab_placement():
     # tab reaches 12 mm below the fold
     _, _, _, cut_y1 = geo.bbox(lay.cut)
     assert (cut_y1 - fy) / pxmm == pytest.approx(12, abs=0.1)
-    (lx, ly, rot), = lay.labels
+    (_lx, ly, rot), = lay.labels
     assert rot == 0 and (ly - fy) / pxmm == pytest.approx(6, abs=0.05)
 
 
@@ -201,9 +201,9 @@ def test_round_tab_is_a_half_disc():
     r = 12.5 * pxmm
     _, _, _, cut_y1 = geo.bbox(lay.cut)
     assert (cut_y1 - fy) / pxmm == pytest.approx(12.5, abs=0.2)   # depth = radius
-    cx = (fx0 + fx1) / 2
+    (fx0 + fx1) / 2
     for frac in (0.3, 0.6, 0.9):                                   # chord widths of a circle
-        y = int(round(fy + frac * r))
+        y = round(fy + frac * r)
         cols = np.flatnonzero(lay.cut[y])
         width = (cols[-1] - cols[0] + 1) / pxmm
         assert width == pytest.approx(2 * 12.5 * np.sqrt(1 - frac ** 2), abs=0.6)
@@ -215,7 +215,7 @@ def test_tab_and_margin_colors():
     rgb = rgb_like(clean)
     lay = geo.build_layout(clean, rgb, geo.Params(tab_color="#3b6e2a",
                                                   margin_color="#f3e6c8"))
-    (fx0, fx1, fy), = lay.folds
+    (_fx0, _fx1, fy), = lay.folds
     below = lay.rgb[int(fy) + 3:][lay.cut[int(fy) + 3:] > 0]
     assert (below == (0x3b, 0x6e, 0x2a)).all()                     # tab in the tab color
     margin = (lay.cut > 0) & (geo.dilate(lay.figure, 0.6 * lay.px_per_mm) == 0)
@@ -223,7 +223,7 @@ def test_tab_and_margin_colors():
     assert (lay.rgb[margin] == (0xf3, 0xe6, 0xc8)).all()          # margin in the margin color
     # with the original image in the margin, the tab background is plain white
     lay = geo.build_layout(clean, rgb, geo.Params(margin_fill="image", margin_color="#000000"))
-    (fx0, fx1, fy), = lay.folds
+    (_fx0, _fx1, fy), = lay.folds
     assert (lay.rgb[int(fy) + 3:][lay.cut[int(fy) + 3:] > 0] == 255).all()
 
 
@@ -244,7 +244,7 @@ def test_margin_color_does_not_color_the_label_tab():
     for tab_color, expected in ((None, (255, 255, 255)), ("#ddeeff", (0xdd, 0xee, 0xff))):
         kw = {"tab_color": tab_color} if tab_color else {}
         lay = geo.build_layout(clean, rgb, geo.Params(margin_color="#f3e6c8", **kw))
-        (fx0, fx1, fy), = lay.folds
+        (_fx0, _fx1, fy), = lay.folds
         assert lay.labels  # the label is still printed on the tab
         tab = lay.rgb[int(fy) + 3:][lay.cut[int(fy) + 3:] > 0]
         assert (tab == expected).all()

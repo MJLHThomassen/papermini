@@ -15,7 +15,6 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 # (type, heading), in the order the groups appear
 GROUPS = [
@@ -38,7 +37,7 @@ MERGED_PR = re.compile(r"^Merge pull request #(\d+)")
 SQUASHED_PR = re.compile(r"\(#(\d+)\)$")
 
 
-def git(*args: str, cwd: Optional[str] = None) -> str:
+def git(*args: str, cwd: str | None = None) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
                           check=True, encoding="utf-8").stdout
 
@@ -48,14 +47,14 @@ class Commit:
     sha: str
     subject: str
     body: str
-    pr: Optional[int] = None
+    pr: int | None = None
 
     @property
     def parsed(self):
         return SUBJECT.match(self.subject)
 
     @property
-    def kind(self) -> Optional[str]:
+    def kind(self) -> str | None:
         m = self.parsed
         return m["type"] if m and m["type"] in dict(GROUPS) else None
 
@@ -63,7 +62,7 @@ class Commit:
     def breaking(self) -> bool:
         m = self.parsed
         return bool(m and m["bang"]) or bool(
-            re.search(r"^BREAKING[ -]CHANGE:", self.body, re.M))
+            re.search(r"^BREAKING[ -]CHANGE:", self.body, re.MULTILINE))
 
     def line(self) -> str:
         m = self.parsed
@@ -77,7 +76,7 @@ class Commit:
         return f"- {text} ({refs})"
 
 
-def previous_tag(rev: str, cwd: Optional[str] = None, inclusive: bool = False) -> Optional[str]:
+def previous_tag(rev: str, cwd: str | None = None, inclusive: bool = False) -> str | None:
     """The newest version tag before ``rev`` in its history (or on it, ``inclusive``),
     or None for the first."""
     try:
@@ -87,7 +86,7 @@ def previous_tag(rev: str, cwd: Optional[str] = None, inclusive: bool = False) -
         return None
 
 
-def commits(rev_range: str, cwd: Optional[str] = None) -> List[Commit]:
+def commits(rev_range: str, cwd: str | None = None) -> list[Commit]:
     """The non-merge commits in ``rev_range``, newest first, each with its pull request."""
     sep, end = "\x1f", "\x1e"
     out = git("log", "--no-merges", f"--format=%H{sep}%s{sep}%b{end}", rev_range, cwd=cwd)
@@ -99,7 +98,7 @@ def commits(rev_range: str, cwd: Optional[str] = None) -> List[Commit]:
             m = SQUASHED_PR.search(subject)
             found.append(Commit(sha, subject, body, int(m[1]) if m else None))
     # commits that came in with a merged pull request: second parent side of its merge
-    pr_of: Dict[str, int] = {}
+    pr_of: dict[str, int] = {}
     merges = git("log", "--merges", "--first-parent", "--format=%H %P%x1f%s", rev_range,
                  cwd=cwd)
     for line in merges.splitlines():
@@ -115,15 +114,15 @@ def commits(rev_range: str, cwd: Optional[str] = None) -> List[Commit]:
     return found
 
 
-def notes(tag: str, repo: Optional[str] = None, cwd: Optional[str] = None) -> str:
+def notes(tag: str, repo: str | None = None, cwd: str | None = None) -> str:
     """The notes for ``tag``; a tag that does not exist yet means the current commit, so
     the notes can be read before tagging."""
     exists = subprocess.run(["git", "rev-parse", "--verify", "-q", f"{tag}^{{commit}}"],
-                            cwd=cwd, capture_output=True).returncode == 0
+                            cwd=cwd, capture_output=True, check=False).returncode == 0
     rev = tag if exists else "HEAD"
     prev = previous_tag(rev, cwd, inclusive=not exists)  # (HEAD may carry the last tag)
     found = commits(f"{prev}..{rev}" if prev else rev, cwd)
-    parts: List[str] = []
+    parts: list[str] = []
     breaking = [c for c in found if c.breaking]
     if breaking:
         parts.append("## ⚠ Breaking changes\n\n" + "\n".join(c.line() for c in breaking))
@@ -138,7 +137,7 @@ def notes(tag: str, repo: Optional[str] = None, cwd: Optional[str] = None) -> st
     return "\n\n".join(parts) + "\n"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("tag", help="the version tag to describe, e.g. v1.2.0")
     p.add_argument("--repo", help="owner/name on GitHub, for the full changelog link")

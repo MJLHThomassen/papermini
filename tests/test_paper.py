@@ -11,8 +11,16 @@ from papermini.cli import main
 from papermini.geometry import CutPath
 from papermini.mini import Mini
 from papermini.settings import Project, SheetSettings, load_project, save_project
-from papermini.sheet import (PAPER, PAPER_CHOICES, fits_mat, mat_warning, pack, paper_size,
-                             paper_text, write_cut_files, write_pdf)
+from papermini.sheet import (
+    PAPER_CHOICES,
+    fits_mat,
+    mat_warning,
+    pack,
+    paper_size,
+    paper_text,
+    write_cut_files,
+    write_pdf,
+)
 from papermini.svg import write_svg
 
 

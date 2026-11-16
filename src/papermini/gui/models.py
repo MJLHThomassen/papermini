@@ -10,9 +10,20 @@ import urllib.parse
 
 from PySide6.QtCore import QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QLayout,
-                               QMessageBox, QProgressBar, QPushButton, QScrollArea,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import remote, segment
 
@@ -229,7 +240,7 @@ class ModelCard(QFrame):
     """One built-in model on the Models and cache page: what it is, where it is,
     actions."""
 
-    def __init__(self, model: str, dialog: "CachePage"):
+    def __init__(self, model: str, dialog: CachePage):
         super().__init__()
         self.setObjectName("ModelCard")
         self.model, self.dialog = model, dialog

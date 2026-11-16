@@ -5,8 +5,14 @@ from pathlib import Path
 import pytest
 
 from papermini import __version__, sizes
-from papermini.settings import (FigureEntry, FigureSettings, Project, SheetSettings,
-                                load_project, save_project)
+from papermini.settings import (
+    FigureEntry,
+    FigureSettings,
+    Project,
+    SheetSettings,
+    load_project,
+    save_project,
+)
 
 
 def test_from_dict_accepts_dashes_and_rejects_unknown():

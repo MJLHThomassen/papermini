@@ -17,13 +17,12 @@ import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("papermini")
 HERE = Path(__file__).resolve().parent
 DEFAULT = "Times"
 # the bundled fonts: name -> (regular, bold or None), relative to this folder
-BUNDLED: Dict[str, Tuple[str, Optional[str]]] = {
+BUNDLED: dict[str, tuple[str, str | None]] = {
     "Fira Sans": ("firasans/FiraSans-Regular.ttf", "firasans/FiraSans-Bold.ttf"),
     "Crimson Text": ("crimsontext/CrimsonText-Regular.ttf", "crimsontext/CrimsonText-Bold.ttf"),
     "Almendra": ("almendra/Almendra-Regular.ttf", "almendra/Almendra-Bold.ttf"),
@@ -41,22 +40,22 @@ class Font:
     None for Times, which PDF readers have built in; no bold file: bold uses regular)."""
 
     name: str
-    regular: Optional[Path] = None
-    bold: Optional[Path] = None
+    regular: Path | None = None
+    bold: Path | None = None
     bundled: bool = False
 
 
 TIMES = Font(DEFAULT, bundled=True)
 
 
-def bundled() -> List[Font]:
+def bundled() -> list[Font]:
     """Times and the fonts that come with papermini."""
     return [TIMES] + [Font(n, HERE / r, HERE / b if b else None, True)
                       for n, (r, b) in BUNDLED.items()]
 
 
 # ----------------------------------------------------------------- installed fonts
-def font_dirs() -> List[Path]:
+def font_dirs() -> list[Path]:
     """The folders where this system keeps its fonts."""
     home = Path.home()
     if sys.platform == "win32":
@@ -76,7 +75,7 @@ def _index_path() -> Path:
     return cache_dir() / "fonts.json"
 
 
-def _read_name(path: Path) -> Optional[Tuple[str, str]]:
+def _read_name(path: Path) -> tuple[str, str] | None:
     """(family, style) of a TrueType font file, or None when it cannot be used."""
     from PIL import ImageFont
 
@@ -88,10 +87,10 @@ def _read_name(path: Path) -> Optional[Tuple[str, str]]:
 
 
 _lock = threading.Lock()
-_installed: Optional[Dict[str, Font]] = None
+_installed: dict[str, Font] | None = None
 
 
-def installed(refresh: bool = False) -> Dict[str, Font]:
+def installed(refresh: bool = False) -> dict[str, Font]:
     """The TrueType fonts installed on this computer that papermini can print with, by
     name (the bundled ones and Times left out). The first call scans the font folders
     (reading only files that are new or changed since the index in the cache folder);
@@ -103,7 +102,7 @@ def installed(refresh: bool = False) -> Dict[str, Font]:
         return _installed
 
 
-def _scan() -> Dict[str, Font]:
+def _scan() -> dict[str, Font]:
     try:
         old = json.loads(_index_path().read_text(encoding="utf-8"))
         if old.get("version") != INDEX_VERSION:
@@ -111,7 +110,7 @@ def _scan() -> Dict[str, Font]:
     except (OSError, ValueError):
         old = {}
     known = old.get("files", {})
-    files: Dict[str, list] = {}
+    files: dict[str, list] = {}
     for d in font_dirs():
         if not d.is_dir():
             continue
@@ -134,7 +133,7 @@ def _scan() -> Dict[str, Font]:
                                  encoding="utf-8")
     except OSError as e:
         logger.debug("could not save the font index: %s", e)
-    styles: Dict[str, Dict[str, Path]] = {}
+    styles: dict[str, dict[str, Path]] = {}
     for key, (_, _, family, style) in files.items():
         if family:
             styles.setdefault(family, {}).setdefault(style, Path(key))
@@ -150,7 +149,7 @@ def _scan() -> Dict[str, Font]:
 
 
 # ----------------------------------------------------------------- finding a font
-def find(name: str) -> Optional[Font]:
+def find(name: str) -> Font | None:
     """The font called ``name``, or None when it is not on this computer (Times and the
     bundled fonts always are; looking for an installed one may scan the font folders)."""
     for f in bundled():
@@ -159,13 +158,13 @@ def find(name: str) -> Optional[Font]:
     return installed().get(name)
 
 
-def resolve(name: str) -> Tuple[Font, bool]:
+def resolve(name: str) -> tuple[Font, bool]:
     """The font to print ``name`` with, and whether it was found (if not: Times)."""
     f = find(name) if name else TIMES
     return (f, True) if f is not None else (TIMES, False)
 
 
-_registered: Dict[Tuple[str, bool], str] = {}
+_registered: dict[tuple[str, bool], str] = {}
 
 
 def pdf_name(name: str, bold: bool = False) -> str:
@@ -211,7 +210,7 @@ def from_svg_family(family: str) -> str:
     return DEFAULT if first in ("", "Times New Roman", "Times", "serif") else first
 
 
-def file_for(name: str, bold: bool = False) -> Optional[Path]:
+def file_for(name: str, bold: bool = False) -> Path | None:
     """The font file to draw ``name`` with (None for Times)."""
     font, _ = resolve(name)
     return font.bold if bold and font.bold else font.regular

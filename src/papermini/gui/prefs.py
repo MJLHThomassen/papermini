@@ -3,7 +3,6 @@ recent projects, how a folder of images is added, the size of exported PNGs)."""
 
 import os
 from pathlib import Path
-from typing import List
 
 from PySide6.QtCore import QSettings
 
@@ -27,7 +26,7 @@ def _same(a: Path, b: Path) -> bool:
     return os.path.normcase(str(a)) == os.path.normcase(str(b))
 
 
-def recent_projects() -> List[Path]:
+def recent_projects() -> list[Path]:
     """The projects opened or saved last, newest first. A project whose file is gone is
     left out (and forgotten)."""
     stored = store().value(RECENT_KEY, [])

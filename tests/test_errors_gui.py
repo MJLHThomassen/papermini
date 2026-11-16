@@ -15,11 +15,11 @@ from PIL import Image
 pytest.importorskip("PySide6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt, QTimer, qInstallMessageHandler  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import Qt, QTimer, qInstallMessageHandler
+from PySide6.QtWidgets import QApplication
 
-from papermini import log  # noqa: E402
-from papermini.settings import FigureSettings  # noqa: E402
+from papermini import log
+from papermini.settings import FigureSettings
 
 
 @pytest.fixture(scope="module")
@@ -186,7 +186,7 @@ def test_an_error_while_starting_offers_quit_and_exits(app, handler, monkeypatch
 
 
 def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
-    import papermini.gui as gui
+    from papermini import gui
     from papermini.gui import errors
 
     shown, exits = [], []
@@ -203,8 +203,8 @@ def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
     finally:
         qInstallMessageHandler(None)
     assert len(shown) == 1 and exits == [1]
-    assert "RuntimeError: no window" in Path(sorted(Path(os.environ[log.LOG_ENV]).glob(
-        "papermini-*.log"))[-1]).read_text(encoding="utf-8")
+    assert "RuntimeError: no window" in Path(max(Path(os.environ[log.LOG_ENV]).glob(
+        "papermini-*.log"))).read_text(encoding="utf-8")
 
 
 def test_a_crash_is_offered_once_and_names_its_files(app, opened, monkeypatch):
@@ -243,7 +243,7 @@ def test_report_a_problem_in_the_menu_names_the_newest_log(app, opened):
 
         assert PreferencesDialog(w, "logging").detailed_log.isEnabled()
         w.a_report.trigger()
-        issue, folder = opened["urls"]
+        issue, _folder = opened["urls"]
         assert issue.startswith(log.ISSUE_URL) and "traceback=" not in issue
         assert s.log.name in opened["info"][0]
     finally:
@@ -291,10 +291,10 @@ def _image(path: Path) -> Path:
 
 
 @pytest.mark.parametrize("error, expected", [
-    (ValueError("the figure is too small"), "WARNING papermini.build: Building hero.png failed: "
-                                            "the figure is too small (height_mm=45)"),
-    (RuntimeError("bug"), "ERROR papermini.build: Building hero.png failed unexpectedly "
-                          "(height_mm=45)"),
+    (ValueError("the figure is too small"), ("WARNING papermini.build: Building hero.png failed: "
+                                            "the figure is too small (height_mm=45)")),
+    (RuntimeError("bug"), ("ERROR papermini.build: Building hero.png failed unexpectedly "
+                          "(height_mm=45)")),
 ])
 def test_build_errors_are_logged_with_the_figures_settings(app, tmp_path, monkeypatch,
                                                            error, expected):

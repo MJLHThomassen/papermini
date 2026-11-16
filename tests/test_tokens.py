@@ -2,7 +2,6 @@
 SVG and PNG output, the command line and the print sheet, and the app. No model: the
 test images carry their own transparency."""
 
-import math
 import os
 import time
 from dataclasses import replace
@@ -15,17 +14,24 @@ from PIL import Image, ImageDraw
 pytest.importorskip("PySide6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPointF, QSettings, Qt  # noqa: E402
-from PySide6.QtTest import QTest  # noqa: E402
-from PySide6.QtWidgets import QApplication, QFileDialog  # noqa: E402
+from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QFileDialog
 
-from papermini import cli, sizes  # noqa: E402
-from papermini import token as tok  # noqa: E402
-from papermini.png import piece_image, px_per_mm, write_pngs  # noqa: E402
-from papermini.settings import (FigureEntry, FigureSettings, Project, build_mini,  # noqa: E402
-                                load_project, save_project, settings_with_size)
-from papermini.sheet import pack, write_pdf  # noqa: E402
-from papermini.svg import read_svg, to_svg, write_svgs  # noqa: E402
+from papermini import cli
+from papermini import token as tok
+from papermini.png import piece_image, px_per_mm, write_pngs
+from papermini.settings import (
+    FigureEntry,
+    FigureSettings,
+    Project,
+    build_mini,
+    load_project,
+    save_project,
+    settings_with_size,
+)
+from papermini.sheet import pack, write_pdf
+from papermini.svg import read_svg, to_svg, write_svgs
 
 
 def _figure(path: Path, size=(300, 400)) -> Path:
@@ -130,7 +136,7 @@ def test_a_printed_cut_line_lies_outside_the_ring(tmp_path):
     assert m.style.cut_line
     assert np.hypot(*(m.cut.points - (t.cx, t.cy)).T) == pytest.approx(12.5 + 0.2)
     # cut by machine (with bleed) the cut follows the ring
-    s = settings_with_size(dict(kind="token", model="alpha", token_cut_line=True))
+    s = settings_with_size({"kind": "token", "model": "alpha", "token_cut_line": True})
     m = build_mini(img, s, bleed_mm=1.0, log=lambda *a: None)
     assert np.hypot(*(m.cut.points - (m.token.cx, m.token.cy)).T) == pytest.approx(12.5)
 
@@ -249,7 +255,7 @@ def window(app, prefs, tmp_path):
     w = MainWindow()
     w.resize(1300, 820)
     w.add_images([_figure(tmp_path / "goblin.png")],
-                 settings_with_size(dict(kind="token", model="alpha")))
+                 settings_with_size({"kind": "token", "model": "alpha"}))
     w.list.setCurrentRow(0)
     w.tabs.setCurrentIndex(w.MINI)
     assert _wait(app, lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
@@ -272,7 +278,7 @@ def test_kind_switches_the_groups(app, prefs):
     p.changed.connect(got.append)
     p.set_settings(FigureSettings(label="Boss"), "x", "x")
     p.set_step(MINIATURE)
-    shown = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]  # noqa: E731
+    shown = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]
     assert "Back side" in shown() and "Token" not in shown()
     assert p.kind_row.isVisibleTo(p) and p.is_shown("dimensions")
     p._w["kind"][1].buttons["token"].click()

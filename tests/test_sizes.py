@@ -10,8 +10,14 @@ from PIL import Image
 
 from papermini import sizes
 from papermini.cli import main
-from papermini.settings import (FigureEntry, FigureSettings, Project, load_project,
-                                save_project, settings_with_size)
+from papermini.settings import (
+    FigureEntry,
+    FigureSettings,
+    Project,
+    load_project,
+    save_project,
+    settings_with_size,
+)
 from papermini.svg import read_svg
 
 
