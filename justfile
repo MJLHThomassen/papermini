@@ -31,6 +31,10 @@ test *args:
 coverage *args:
     {{ uv_run }} python -m pytest --cov {{ args }}
 
+# check the types with ty (extra arguments go to ty, e.g. `just typecheck src`)
+typecheck *args:
+    {{ uv_run }} ty check {{ args }}
+
 # check the code with ruff (extra arguments go to ruff, e.g. `just lint --fix`)
 lint *args:
     uv run ruff check {{ args }}

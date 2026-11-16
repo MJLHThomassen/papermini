@@ -260,6 +260,13 @@ just lint
 just format
 ```
 
+Check the types with [ty](https://docs.astral.sh/ty/). CI runs it too, but its
+findings don't block a merge yet:
+
+```bash
+just typecheck
+```
+
 Commits that only reformat code are listed in
 [.git-blame-ignore-revs](.git-blame-ignore-revs). GitHub skips them in its
 blame view; to skip them in `git blame` too, run once:

@@ -30,6 +30,7 @@ dev = [
     "pytest>=7",
     "pytest-cov>=6",
     "ruff==0.17.5",
+    "ty==0.0.104",  # beta: a new version can report new problems
 ]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
 
@@ -70,6 +71,9 @@ cache-keys = [
 ignore = [
     "TRY004",  # invalid input from a project file raises ValueError, which the CLI and GUI catch
 ]
+
+[tool.ty.environment]
+extra-paths = ["scripts"]  # tests import the release scripts
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
