@@ -1077,6 +1077,9 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
 ]
+release = [
+    { name = "cryptography" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1100,6 +1103,7 @@ dev = [
     { name = "ruff", specifier = "==0.17.5" },
     { name = "ty", specifier = "==0.0.104" },
 ]
+release = [{ name = "cryptography", specifier = ">=42" }]
 
 [[package]]
 name = "pefile"

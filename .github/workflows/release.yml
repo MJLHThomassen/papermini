@@ -6,9 +6,13 @@
 #   created with the archives, the Windows installer (Inno Setup,
 #   packaging/papermini.iss), their SHA-256 checksums, and notes listing every
 #   commit since the previous version tag (scripts/release_notes.py). A run by hand
-#   tags the commit it ran on (v1.2.0) once every build has passed.
+#   tags the commit it ran on (v1.2.0) just before it creates the release. A pushed
+#   tag must be on main and newer than the latest version tag, like a version
+#   entered by hand.
 # - Run it by hand without a version to build the binaries as workflow artifacts
-#   without making a release.
+#   without making a release. On main, such a run also writes the release notes,
+#   the checksums and their signature, so it tests every step but tagging and
+#   publishing.
 name: Release
 
 on:
@@ -68,19 +72,28 @@ jobs:
               fail "Run the release on main (this run is on $GITHUB_REF_NAME)"
             ! git rev-parse -q --verify "refs/tags/$tag" > /dev/null ||
               fail "$tag exists already: pick a new version"
-            # newer than the latest version tag (a release may follow its own pre-release)
-            latest=$(git tag -l 'v[0-9]*' --sort=-v:refname |
-                     grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' | head -n 1)
-            if [[ -n "$latest" ]]; then
-              lcore="${latest#v}"; lcore="${lcore%%-*}"
-              newest=$(printf '%s\n%s\n' "$core" "$lcore" | sort -V | tail -n 1)
-              if [[ "$core" == "$lcore" ]]; then
-                [[ "$latest" == *-* ]] || fail "$tag is not newer than $latest"
-              elif [[ "$newest" != "$core" ]]; then
-                fail "$tag is not newer than $latest"
-              fi
+          else
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+              fail "$tag is not on main: tag a commit on main"
+          fi
+          # newer than the latest other version tag (a release may follow its own
+          # pre-release)
+          latest=$(git tag -l 'v[0-9]*' --sort=-v:refname |
+                   grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' |
+                   grep -vxF "$tag" | head -n 1 || true)
+          if [[ -n "$latest" ]]; then
+            lcore="${latest#v}"; lcore="${lcore%%-*}"
+            newest=$(printf '%s\n%s\n' "$core" "$lcore" | sort -V | tail -n 1)
+            if [[ "$core" == "$lcore" ]]; then
+              [[ "$latest" == *-* ]] || fail "$tag is not newer than $latest"
+            elif [[ "$newest" != "$core" ]]; then
+              fail "$tag is not newer than $latest"
             fi
-            echo "Releasing $tag from $GITHUB_SHA (tagged once every build has passed)"
+          fi
+          if [[ "$new" == true ]]; then
+            echo "Releasing $tag from $GITHUB_SHA (tagged just before the release is created)"
+          else
+            echo "Releasing $tag from $GITHUB_SHA"
           fi
           {
             echo "release=true"
@@ -157,20 +170,41 @@ jobs:
           name="${{ needs.version.outputs.version }}"
           if [[ "${{ needs.version.outputs.release }}" != "true" ]]; then name="$version"; fi
           echo "name=${name//+/-}" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: uv run --no-sync pyinstaller packaging/papermini.spec --noconfirm
 
       - name: Smoke test
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           case "$RUNNER_OS" in
             Windows) cli=dist/papermini/papermini.exe ;;
             macOS)   cli=dist/papermini.app/Contents/MacOS/papermini ;;
             *)       cli=dist/papermini/papermini ;;
           esac
-          "$cli" --version
-          "$cli" make --help > /dev/null
+          got=$("$cli" --version)
+          [[ "$got" == "papermini $VERSION" ]] ||
+            { echo "::error::$cli --version says '$got', expected 'papermini $VERSION'"; exit 1; }
+          # make a mini from a cut-out figure and put it on a sheet: this loads the
+          # writers and the bundled fonts, which a missing file would break
+          smoke="$RUNNER_TEMP/smoke"
+          mkdir -p "$smoke"
+          uv run --no-sync python -c "
+          import sys
+          from PIL import Image, ImageDraw
+          im = Image.new('RGBA', (200, 300), (0, 0, 0, 0))
+          ImageDraw.Draw(im).ellipse((20, 20, 180, 280), fill=(200, 60, 40, 255))
+          im.save(sys.argv[1])
+          " "$smoke/fig.png"
+          "$cli" make "$smoke/fig.png" --model alpha --format both -o "$smoke/out"
+          ls -l "$smoke/out"
+          "$cli" sheet "$smoke"/out/*.svg -o "$smoke/sheet.pdf"
+          for f in "$smoke"/out/*.png "$smoke/sheet.pdf"; do
+            [[ -s "$f" ]] || { echo "::error::the smoke test made no $(basename "$f")"; exit 1; }
+          done
           if [[ "$RUNNER_OS" == macOS ]]; then  # a regular app: it shows in the Dock
             plist=dist/papermini.app/Contents/Info.plist
             bg=$(plutil -extract LSBackgroundOnly raw "$plist" 2>/dev/null || echo false)
@@ -180,13 +214,19 @@ jobs:
       - name: Package
         id: pkg
         shell: bash
+        env:
+          NAME: ${{ steps.ver.outputs.name }}
+          TARGET: ${{ matrix.target }}
         run: |
-          base="papermini-${{ steps.ver.outputs.name }}-${{ matrix.target }}"
+          # the name installed copies look for when they update
+          archive=$(uv run --no-sync python -c \
+            "import sys; from papermini import update; print(update.asset_name(*sys.argv[1:]))" \
+            "$NAME" "$TARGET")
           mkdir -p out
           case "$RUNNER_OS" in
-            Windows) (cd dist && 7z a -tzip -mx=9 "../out/$base.zip" papermini > /dev/null) ;;
-            macOS)   ditto -c -k --sequesterRsrc --keepParent dist/papermini.app "out/$base.zip" ;;
-            *)       tar -C dist -czf "out/$base.tar.gz" papermini ;;
+            Windows) (cd dist && 7z a -tzip -mx=9 "../out/$archive" papermini > /dev/null) ;;
+            macOS)   ditto -c -k --sequesterRsrc --keepParent dist/papermini.app "out/$archive" ;;
+            *)       tar -C dist -czf "out/$archive" papermini ;;
           esac
           ls -l out
 
@@ -205,9 +245,11 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish GitHub release
+    name: Sign and publish
     needs: [version, build]
-    if: needs.version.outputs.release == 'true'
+    # a build-only run on main also tests the notes, checksums and signing; other
+    # branches never get the signing key
+    if: needs.version.outputs.release == 'true' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -219,20 +261,12 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.3
 
-      - name: Tag (a release run by hand)
-        if: needs.version.outputs.new == 'true'
-        env:
-          TAG: ${{ needs.version.outputs.tag }}
-        run: |
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "refs/tags/$TAG"
-
       - name: Release notes
         env:
-          TAG: ${{ needs.version.outputs.tag }}
+          TAG: ${{ needs.version.outputs.tag || 'HEAD' }}  # (HEAD: the notes so far)
         run: |
-          python3 scripts/release_notes.py "$TAG" --repo "$GITHUB_REPOSITORY" \
-            -o "$RUNNER_TEMP/notes.md"
+          uv run --locked --only-group release python scripts/release_notes.py "$TAG" \
+            --repo "$GITHUB_REPOSITORY" -o "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
 
       - uses: actions/download-artifact@v8
@@ -248,9 +282,18 @@ jobs:
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          uv run --no-project --with "cryptography>=42" python scripts/sign_release.py out/SHA256SUMS.txt
+          uv run --locked --only-group release python scripts/sign_release.py out/SHA256SUMS.txt
+
+      - name: Tag (a release run by hand)
+        if: needs.version.outputs.new == 'true'
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
 
       - name: Create release
+        if: needs.version.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
