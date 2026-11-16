@@ -60,6 +60,25 @@ jobs:
       - name: Ruff format
         run: uv run --locked --only-group dev ruff format --diff
 
+  types:
+    name: Types
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked --all-extras --no-install-project  # ty reads papermini from src/
+
+      - name: ty
+        continue-on-error: true  # ty is in beta, and the code doesn't pass it yet
+        run: uv run --no-sync ty check --output-format github
+
   # The Linux tests run in papermini's CI image (.github/ci-image): Python and Qt's
   # system libraries, ready made, instead of downloading them from the Ubuntu mirror
   # every run. The image is tagged with a hash of its Dockerfile and built only when
