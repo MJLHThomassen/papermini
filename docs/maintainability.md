@@ -52,11 +52,7 @@ catch. Report what needs judgement.
 guide, either it isn't a maintainability problem, or this guide is missing a
 rule. In the second case, propose the rule.
 
-## Where things are
-
-The map shows folders and what they hold, not individual modules, because
-modules move as the code is restructured. Each module starts with a docstring
-that says what it holds.
+## Project Structure
 
 ```
 src/papermini/   the package
@@ -369,7 +365,7 @@ them.
 
 These must match what the code does:
 
-- the layout map in this guide;
+- the project structure map in this guide;
 - the options table and the settings guide in `docs/reference.md`;
 - the command line basics and the development setup in `README.md`;
 - docstrings and comments.
