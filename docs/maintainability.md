@@ -63,9 +63,8 @@ src/papermini/   the package
   fonts/         the bundled fonts and their licences
 tests/           the pytest suite: synthetic masks, no network or model, GUI
                  tests off-screen (T4)
-scripts/         developer tools: setting up the environment, screenshots,
-                 release notes, release signing, trying updates locally,
-                 building the Windows installer
+scripts/         developer tools: screenshots, release notes, release signing,
+                 trying updates locally, building the Windows installer
 packaging/       the PyInstaller build and the Windows installer
 examples/        a batch example, and the images, project and sample outputs
                  of the README and the sample checks (D3)
@@ -74,6 +73,7 @@ docs/            the user reference, this guide and the README screenshots
                  issue forms
 justfile         the common tasks (R1)
 pyproject.toml   package metadata, dependencies and tool settings
+uv.lock          the locked versions of every dependency (R3)
 README.md        what papermini does and how to use it
 AGENTS.md        extra rules for coding agents
 ```

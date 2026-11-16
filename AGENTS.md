@@ -14,11 +14,12 @@ it.
   and including `*Disclaimer: This tool is 100% vibecoded!*` belongs to the
   maintainer. Leave those lines byte for byte as they are (wording, spacing,
   line endings). Edit only what comes after them.
-- **Run everything in the project venv.** Never install Python packages
-  globally. Set the venv up with `python scripts/setup_venv.py --dev` (it lives
-  at `~/.venvs/papermini`) and run everything with its interpreter, for example
-  `~/.venvs/papermini/Scripts/python -m pytest` (`bin/python` on macOS and
-  Linux).
+- **Run everything in the project environment.** Never install Python
+  packages globally, and never with pip. Run tasks through `just` (`just setup`,
+  `just test`, `just gui`), which runs uv with the environment in
+  `~/.venvs/papermini`. Run other commands with `uv run --all-extras ...`, with
+  `UV_PROJECT_ENVIRONMENT` set to `~/.venvs/papermini`. Add dependencies with
+  `uv add`.
 - **Do not commit, push or open pull requests unless asked.** When you do
   commit, follow rule R7 of the guide.
 - **Never start a release, or create or push tags, unless asked.** Releases
@@ -28,8 +29,8 @@ it.
 
 - **New features: get the design approved first.** After building a new
   feature, stop and ask the maintainer to run the app and try it. Say how to
-  start it (for example `~/.venvs/papermini/Scripts/python -m papermini gui
-  examples/dragons/dragons.yaml`) and what to look at. Only once they approve
+  start it (for example `just gui examples/dragons/dragons.yaml`) and what to
+  look at. Only once they approve
   how the feature looks and works, run the test suite, update the docs and
   regenerate the samples and screenshots (rule D3). Until then, leave those
   steps undone, so they are not redone after every change to the design.
