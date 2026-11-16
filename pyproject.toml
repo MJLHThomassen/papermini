@@ -33,6 +33,7 @@ dev = [
     "ty==0.0.104",  # beta: a new version can report new problems
 ]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
+release = ["cryptography>=42"]  # signs the checksums of a release
 
 [project.scripts]
 papermini = "papermini.cli:main"
