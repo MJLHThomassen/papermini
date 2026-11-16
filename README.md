@@ -193,7 +193,9 @@ stands and bases, double-sided minis and tips for tricky drawings.
 
 ## Run from source
 
-You need Python 3.10 or newer. Clone the repository:
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/). It
+installs Python 3.10 or newer by itself when your system doesn't have it. Clone
+the repository:
 
 ```bash
 git clone https://github.com/MJLHThomassen/papermini.git
@@ -203,41 +205,45 @@ git clone https://github.com/MJLHThomassen/papermini.git
 cd papermini
 ```
 
-The setup script creates a virtual environment in `~/.venvs/papermini` and
-installs papermini with the desktop app:
+Start the app with uv. The first run sets up an environment with papermini and
+the desktop app:
 
 ```bash
-python scripts/setup_venv.py
+uv run --all-extras papermini-gui
 ```
-
-Then start `~/.venvs/papermini/Scripts/papermini-gui` (Windows) or
-`~/.venvs/papermini/bin/papermini-gui` (macOS, Linux).
 
 ## Set up your environment
 
-To work on papermini, install it in editable mode with the test dependencies:
+The [justfile](justfile) has the common tasks, the same on every system (with
+[just](https://just.systems)). Set up the environment with the test and build
+tools:
 
 ```bash
-python scripts/setup_venv.py --dev
+just setup
 ```
 
-The venv points at `src/` in your clone, so code changes take effect the next
-time you start papermini. Re-run the setup only when `pyproject.toml` changes.
+The environment lives in `~/.venvs/papermini`, outside the clone, so that a
+synced folder such as OneDrive doesn't sync its thousands of files. Set
+`UV_PROJECT_ENVIRONMENT` to put it somewhere else. Without just, set
+`UV_PROJECT_ENVIRONMENT` to `~/.venvs/papermini` yourself and run
+`uv sync --all-extras --all-groups`.
 
-Run the app from a terminal, so its warnings and tracebacks show up there (on
-Windows, `papermini-gui` has no console):
+papermini is installed in editable mode, so code changes take effect the next
+time you start it. uv updates the environment by itself when `pyproject.toml`
+or `uv.lock` changes. Add a dependency with `uv add`, or a development tool with
+`uv add --group dev`, and commit the updated `uv.lock` with it.
+
+Run the app from a terminal, so its warnings and tracebacks show up there:
 
 ```bash
-~/.venvs/papermini/Scripts/python -m papermini gui
+just gui
 ```
 
 Run the tests. They need no model download; the GUI tests run off-screen:
 
 ```bash
-~/.venvs/papermini/Scripts/python -m pytest
+just test
 ```
-
-On macOS and Linux, use `~/.venvs/papermini/bin/python`.
 
 After changing the look of the app, regenerate the screenshots in
 [docs/screenshots](docs/screenshots). They show the dragons in
@@ -245,13 +251,11 @@ After changing the look of the app, regenerate the screenshots in
 birefnet models:
 
 ```bash
-~/.venvs/papermini/Scripts/python scripts/screenshots.py
+just screenshots
 ```
 
-The [justfile](justfile) has the common tasks, the same on every system (with
-[just](https://just.systems)): `just setup`, `just test`, `just gui`, `just
-build`, `just installer`, `just screenshots` and `just samples`; `just` lists
-them all.
+The other tasks are `just build`, `just installer` and `just samples`; `just`
+lists them all.
 
 To try the automatic update locally, `just try-update` builds papermini, copies
 the build to a test folder, makes a fake signed release of it and starts the
@@ -302,15 +306,15 @@ the old public key no longer update themselves.
 ## Building the binaries locally
 
 ```bash
-python scripts/setup_venv.py --dev --build
+just setup
 ```
 
 ```bash
-~/.venvs/papermini/Scripts/pyinstaller packaging/papermini.spec --noconfirm
+just build
 ```
 
 The result is in `dist/`. PyInstaller builds for the system it runs on only.
 
-On Windows, `python scripts/build_installer.py` (or `just installer`) then builds
+On Windows, `just installer` then builds
 the installer from `dist/papermini` with [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 ([packaging/papermini.iss](packaging/papermini.iss)), into `dist/`.

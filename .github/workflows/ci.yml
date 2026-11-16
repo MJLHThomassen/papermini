@@ -30,17 +30,16 @@ jobs:
         with:
           fetch-depth: 0  # setuptools-scm reads the version from the tags
 
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
+          enable-cache: true
 
       - name: Install
-        run: python -m pip install -e ".[gui,dev]"
+        run: uv sync --locked --all-extras
 
       - name: Test
-        run: python -m pytest -q
+        run: uv run --no-sync python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
 
@@ -108,16 +107,15 @@ jobs:
         with:
           fetch-depth: 0  # setuptools-scm reads the version from the tags
 
-      - uses: actions/cache@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
-          path: ~/.cache/pip
-          key: pip-linux-py${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: pip-linux-py${{ matrix.python }}-
+          python-version: ${{ matrix.python }}  # the image's Python
+          enable-cache: true
 
       - name: Install
-        run: python -m pip install -e ".[gui,dev]"
+        run: uv sync --locked --all-extras
 
       - name: Test
-        run: python -m pytest -q
+        run: uv run --no-sync python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen

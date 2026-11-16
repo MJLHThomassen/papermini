@@ -22,6 +22,10 @@ dependencies = [
 
 [project.optional-dependencies]
 gui = ["PySide6-Essentials>=6.8", "cryptography>=42"]  # (cryptography: signed updates)
+
+# Development only, not published: uv installs the dev group by default; the build
+# group with `--group build` (see the justfile).
+[dependency-groups]
 dev = ["pytest>=7"]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
 
@@ -43,6 +47,19 @@ where = ["src"]
 # a tag get a development version such as 1.2.4.dev3+g1a2b3c4.
 version_file = "src/papermini/_version.py"
 fallback_version = "0.0.0"
+
+[tool.uv]
+# uv rebuilds papermini when any of these change, so that its version from
+# setuptools-scm stays current:
+# - pyproject.toml
+# - the current git commit
+# - the git tags
+# - SETUPTOOLS_SCM_PRETEND_VERSION
+cache-keys = [
+    { file = "pyproject.toml" },
+    { git = { commit = true, tags = true } },
+    { env = "SETUPTOOLS_SCM_PRETEND_VERSION" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
