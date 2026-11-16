@@ -117,6 +117,7 @@ jobs:
         include:
           - os: ubuntu-latest
             python: "3.12"
+            coverage: true
           - os: ubuntu-22.04
             python: "3.10"  # the oldest version pyproject.toml promises
     steps:
@@ -133,6 +134,11 @@ jobs:
         run: uv sync --locked --all-extras
 
       - name: Test
-        run: uv run --no-sync python -m pytest -q
+        run: uv run --no-sync python -m pytest -q ${{ matrix.coverage && '--cov' || '' }}
         env:
           QT_QPA_PLATFORM: offscreen
+          COVERAGE_CORE: sysmon  # also measures the threads Qt starts
+
+      - name: Coverage report
+        if: matrix.coverage
+        run: uv run --no-sync coverage report --format markdown >> "$GITHUB_STEP_SUMMARY"

@@ -27,6 +27,10 @@ setup:
 test *args:
     {{ uv_run }} python -m pytest {{ args }}
 
+# run the tests and report which lines they cover (extra arguments go to pytest)
+coverage *args:
+    {{ uv_run }} python -m pytest --cov {{ args }}
+
 # check the code with ruff (extra arguments go to ruff, e.g. `just lint --fix`)
 lint *args:
     uv run ruff check {{ args }}

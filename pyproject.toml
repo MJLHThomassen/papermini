@@ -28,6 +28,7 @@ gui = ["PySide6-Essentials>=6.8", "cryptography>=42"]  # (cryptography: signed u
 [dependency-groups]
 dev = [
     "pytest>=7",
+    "pytest-cov>=6",
     "ruff==0.17.5",
 ]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
@@ -72,3 +73,11 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source_pkgs = ["papermini"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 1
