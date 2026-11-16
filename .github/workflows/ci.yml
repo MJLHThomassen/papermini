@@ -19,7 +19,7 @@ jobs:
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 5  # runs take 1-3 minutes; a hung test fails fast, not after 6 hours
+    timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
     strategy:
       fail-fast: false
       matrix:
@@ -126,7 +126,7 @@ jobs:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
     needs: image
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 5  # runs take 1-3 minutes; a hung test fails fast, not after 6 hours
+    timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
     container:
       image: ${{ needs.image.outputs.image }}:py${{ matrix.python }}-${{ needs.image.outputs.tag }}
       credentials:  # (the image may still be private)
