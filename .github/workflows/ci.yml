@@ -66,6 +66,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # setuptools-scm reads the version from the tags
 
       - uses: astral-sh/setup-uv@v10.3.3
         with:
@@ -73,7 +75,7 @@ jobs:
           enable-cache: true
 
       - name: Install
-        run: uv sync --locked --all-extras --no-install-project  # ty reads papermini from src/
+        run: uv sync --locked --all-extras
 
       - name: ty
         continue-on-error: true  # ty is in beta, and the code doesn't pass it yet
