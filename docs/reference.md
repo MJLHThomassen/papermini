@@ -26,16 +26,16 @@ the desktop app in depth, and how the pipeline works.
   the middle of the window (**1 Source**, **2 Miniature**, **3 Print sheet**);
   the ☰ menu on the right. The steps are in the order you usually work, but you
   can open any of them at any time. Export and print are in the step they
-  belong to: **Export SVG…** at the bottom of the Miniature settings, **Print…**
-  and **Export…** at the bottom of the Print sheet settings. The ☰ menu has
-  them too, and holds everything else: new project, **Open recent**, **Add folder…**,
-  save as, export all SVGs, **View**
+  belong to: **Export…** at the bottom of the Miniature settings (an SVG or a PNG of
+  the figure), **Print…** and **Export…** at the bottom of the Print sheet settings.
+  The ☰ menu has them too, and holds everything else: new project, **Open recent**,
+  **Add folder…**, save as, **Export all…**, **View**
   (show or hide the side panels, zoom), **Preferences…**, **Check for updates…**,
   **Report a problem…**, **Open log folder** and about. Keyboard shortcuts work without
   opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+Shift+I add a folder, Ctrl+L add
   an image from a link,
-  Ctrl+V paste images, Ctrl+S save, Ctrl+Shift+P print, Ctrl+E export SVG, Ctrl+P export
-  the sheet, Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings,
+  Ctrl+V paste images, Ctrl+S save, Ctrl+Shift+P print, Ctrl+E export the figure,
+  Ctrl+Shift+E export all figures, Ctrl+P export the sheet, Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings,
   Ctrl+, preferences.
 - **Start screen.** A new window shows how to begin: **Add images…**, **Open
   project…**, *or add from a link…* and *or add a folder…*. Under them,
@@ -72,16 +72,22 @@ the desktop app in depth, and how the pipeline works.
     filling, detached parts), then *Image adjustments* (greyscale,
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
     [Color adjustments](#color-adjustments)).
-  - **Miniature:** *Size* (figure height and width, image resolution), then
-    *Back side*, *Outline and cut line* and *Tab*, with
+  - **Miniature:** at the top, the **Kind**: *Standing mini* or *Token* (see
+    [Tokens](#tokens)). A standing mini has *Size* (figure height and width, image
+    resolution), then *Back side*, *Image outline*, *Cut line* and *Tab*, with
     *Label* as an indented sub-group at the end of *Tab* (the label is
     printed on the tab). *Back side*, *Tab* and *Label* each have a checkbox
     at the right of their header that turns the whole group on or off
     (*Print a back side*, *Print a tab*, *Print a label*); all three are on
     by default. A group that is off shows only its header and cannot be
-    opened; turning the tab off also hides *Label*. **Export SVG…** at the
-    bottom saves this figure's piece as an SVG; a figure that shows numbers
-    gets one SVG per copy, each with its number.
+    opened; turning the tab off also hides *Label*. A token has *Size* (its
+    diameter), *Token*, *Token text*, *Image outline* and *Cut line*; its *Token
+    text*, *Image outline* and *Cut line* have a checkbox in their header too, all
+    off by default. **Export…** at the bottom saves this figure as an SVG (the piece
+    with its cut line, to print or cut) or a PNG (a picture of the piece, for a
+    virtual tabletop): pick the file type in the save dialog. A figure that shows
+    numbers gets one file per copy, each with its number. **Export all…** (☰ menu)
+    asks for SVG, PNG or both, and saves every figure.
   - **Print sheet:** instead of a figure's settings, the sheet's own: *Paper
     and layout* (paper, title, margin, gap) and *Cutting* (by hand, or by
     [cutting machine](#cutting-by-machine), with its bleed, marks and fold
@@ -162,9 +168,13 @@ the desktop app in depth, and how the pipeline works.
   take effect at once; the window can be resized.
   - **Creature sizes:** the size table presets. See
     [Creature sizes](#creature-sizes).
-  - **Adding images:** **Also add the images in subfolders** (on by default): whether
-    adding a folder also adds the images in its subfolders. See
-    [Adding a folder](#adding-a-folder).
+  - **Images:** **Also add the images in subfolders** (on by default): whether
+    adding a folder also adds the images in its subfolders (see
+    [Adding a folder](#adding-a-folder)); and the **PNG size** of exported PNGs:
+    *For a virtual tabletop*, in pixels per grid square (256 by default, so a Medium
+    figure covers one square of a 256-pixel grid and a Large one two), or *At the
+    size it prints*, in dpi (300 by default). It is a preference, not saved in the
+    project.
   - **Appearance:** the theme: follow the system, light or dark.
   - **Updates:** **Update automatically** turns the daily check and background
     download on or off. See [Updates](#updates).
@@ -199,7 +209,7 @@ every image in it as a figure:
 - **Order:** the folder's own images first, then each subfolder's, in natural order
   (*goblin 2* before *goblin 10*).
 - **Subfolders** are included unless you turn off **Also add the images in
-  subfolders** in **Preferences… → Adding images**. Hidden files and folders (a name
+  subfolders** in **Preferences… → Images**. Hidden files and folders (a name
   starting with a dot) are skipped, and so are files that are not images.
 - **Names:** a figure is named after its file, as usual. When files in different
   subfolders share a name, the subfolder goes in front: `goblins/leader.png` and
@@ -357,6 +367,13 @@ green, as in the picture above.
 
 ### Step 2, Miniature
 
+##### Kind
+`--kind mini|token` [Standing mini]\
+A standing paper miniature, or a flat round token.
+
+At the top of the step. A token has its own groups (*Token* and *Token text*) and
+no back side or tab; see [Tokens](#tokens).
+
 #### Size
 
 ##### Creature size
@@ -364,8 +381,8 @@ green, as in the picture above.
 The D&D size of the creature: it fills in the figure height and the tab.
 
 Picking a size fills in *Figure height*, the tab's *Width*, *Height* and
-*Radius* from the project's size table, for example 48 mm tall on a 50 mm
-base for *Large*. The values stay editable: changing one by hand makes the
+*Radius* (and a token's *Diameter*) from the project's size table, for example 48 mm
+tall on a 50 mm base for *Large*. The values stay editable: changing one by hand makes the
 figure *Custom*. A hint under it shows the size's squares and base, and which
 table they come from; a warning shows when the figure is wider than its
 squares. See [Creature sizes](#creature-sizes).
@@ -386,11 +403,89 @@ The width of the drawing itself, without the margin.
 Linked, setting the width sets the height. With the link button off, the
 figure is stretched to both the height and the width.
 
+##### Diameter
+`--token-diameter-mm` [25 mm, from the creature size]\
+A token's diameter, ring included.
+
+Shown for a token, in place of the figure's height and width. The creature size
+fills it in with its base (50 mm for *Large*); changing it by hand makes the token
+*Custom*.
+
 ##### Image resolution
 `--dpi` [300 dpi]\
 The resolution of the printed picture.
 
 300 suits most printers; lower values make smaller files.
+
+#### Token
+
+A token's picture and ring. Shown for a token.
+
+##### Area
+`--token-area x0,y0,x1,y1` [the whole figure, fitted]\
+The square of the picture that fills the circle, as fractions of the picture.
+
+Empty, the whole figure is fitted in the circle, with 8% of its width free on
+each side (above the nameplate, when there is one). In the Miniature view, drag the
+figure to move it and drag a corner of the box around it to make it bigger or
+smaller; the figure moves with the mouse, and the token is built again when you
+let go. *Clear* fits it again.
+
+##### Background
+`--token-fill color|image` [Color]\
+What fills the circle behind the figure: one color, or the original image.
+
+![A token on a color, on the original image, and with an image outline](screenshots/settings/token-fill.png)
+
+##### Background color
+`--token-fill-color` [#ffffff (white)]\
+The color behind the figure. Shown when *Background* is *Color*.
+
+##### Ring width
+`--token-border-mm` [2 mm]\
+The width of the ring around the token; 0 for none.
+
+With curved text the ring is at least as wide as the text needs (about 1.4 times
+the text size); the field stops there and says so.
+
+##### Ring color
+`--token-border-color` [#000000 (black)]\
+The color of the ring, the nameplate and the number badge.
+
+#### Token text
+
+Text on a token. The checkbox in the header (`--token-text`) turns it on or off;
+off by default.
+
+![A token's label and number on a nameplate and badge, and curved along the ring](screenshots/settings/token-text.png)
+
+##### Shows
+`--token-text label|number|label_number` [off]\
+The label, the copy's number, or both. See [Numbered copies](#numbered-copies).
+
+##### Style
+`--token-text-style nameplate|curved` [Nameplate and badge]\
+Where the text goes.
+
+*Nameplate and badge*: the label on a band across the bottom of the circle, the
+number in a round badge on the ring. *Curved along the ring*: the label along the
+bottom of the ring, the number at its top.
+
+##### Size
+`--token-text-mm` [2.5 mm]\
+The size of the token's text.
+
+It decides how much of the token the text covers: the nameplate is a little taller
+than the text, and curved text needs a ring about 1.4 times as wide. A label too
+long for the nameplate shrinks to fit.
+
+##### Label
+`--label` [the file name]\
+The label on the token, the same as a standing mini's.
+
+##### Color
+`--token-text-color` [#ffffff (white)]\
+The color of the token's text.
 
 #### Back side
 
@@ -436,7 +531,10 @@ The color of the text and the number on the back.
 
 Shown when *Shows* has text or a number.
 
-#### Outline and cut line
+#### Image outline
+
+The paper around the drawing: a standing mini always has it, a token only with the
+checkbox in the header (`--token-outline`, off by default).
 
 ##### Margin
 `--margin-mm` [1.6 mm]\
@@ -471,6 +569,12 @@ More smoothing gives a calmer line with fewer bends to cut, but it also pulls
 the line closer to thin tips, which then lose their margin.
 
 ![The flying dragon's right wing with 0.6 and 2.5 mm smoothing](screenshots/settings/smoothing.png)
+
+#### Cut line
+
+The line to cut along. A standing mini always prints it (when cut by hand); a token
+only with the checkbox in the header (`--token-cut-line`, off by default), since its
+ring's edge shows where to cut. A token's cut line lies just outside the ring.
 
 ##### Straight segments only (no curves)
 `--no-smooth` [off]\
@@ -781,7 +885,8 @@ and it is kept when *Cut by* goes back to *By hand*.
 ### `papermini make IMAGE... [options]`
 
 Makes one SVG per image, saved next to the image or in `-o DIR` (or
-`-o name.svg` for a single image). An image can also be a link (an `http://` or
+`-o name.svg` for a single image); `--format png` or `both` writes a PNG of each
+piece too (see [Tokens](#tokens) for the PNG size). An image can also be a link (an `http://` or
 `https://` URL) to a PNG, JPG, WebP, BMP or TIFF on the web; it is downloaded
 once and cached, and its SVG is saved in the current folder.
 
@@ -842,7 +947,7 @@ papermini make Monsters -o minis
 | `--label` | file name | text on the tab; `--label ""` for none |
 | `--tab-front` / `--tab-back` | label / label | what the front and back tab show: `label`, `number` (the copy's number) or `label_number` (the number above the label) |
 | `--font` | Times | font of all the text: Times, a bundled font (Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua, Kalam) or an installed one; a font that is not found prints in Times |
-| `--copies` | 1 | a figure with numbers: one SVG per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
+| `--copies` | 1 | a figure with numbers: one file per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
 | `--dpi` | 300 | resolution of the embedded artwork |
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
 | `--no-smooth` | | straight segments only (by default the cut line uses Bézier curves) |
@@ -850,6 +955,18 @@ papermini make Monsters -o minis
 | `--bleed-mm` | 0 | print the edge colors this far beyond the cut line, for a sheet cut by machine (`papermini sheet --cut machine`) |
 | `--debug` | | write intermediate masks and a red overlay preview to `debug/` |
 | `--no-subfolders` | | a folder: only its own images, not those in its subfolders |
+| `--format` | svg | what to write: `svg` (the piece with its cut line), `png` (a picture of the piece, transparent around it) or `both` |
+| `--png-px` / `--png-dpi` | 256 / | PNG size: pixels per grid square (`--grid-mm`), or a resolution in dpi for the size it prints |
+| `--kind` | mini | `mini` (a standing miniature) or `token` (a flat round token; see [Tokens](#tokens)) |
+| `--token-diameter-mm` | 25 (Medium) | a token's diameter, ring included; filled in from the creature size's base |
+| `--token-area` | | `x0,y0,x1,y1`: the square of the picture that fills the circle, as fractions (default: the figure fitted) |
+| `--token-fill` / `--token-fill-color` | color / #ffffff | behind the figure: a color, or the original `image` |
+| `--token-border-mm` / `--token-border-color` | 2 / #000000 | the ring; 0 for none |
+| `--token-outline` | | an image outline around the figure, made with `--margin-mm`, `--margin-fill` and `--margin-color` |
+| `--token-cut-line` | | print the cut line (by default the ring's edge shows where to cut) |
+| `--token-text` | | `label`, `number` or `label_number` on the token (default: none) |
+| `--token-text-style` | nameplate | `nameplate` (a band and a badge) or `curved` (along the ring) |
+| `--token-text-mm` / `--token-text-color` | 2.5 / #ffffff | the size and color of the token's text |
 
 ### `papermini sheet SVG... [-o minis.pdf]`
 
@@ -918,8 +1035,8 @@ version to update to. A project from a newer papermini of the same format opens,
 unless it uses an option this papermini does not know yet.
 
 A figure takes every option of `papermini make` under its own name, with
-underscores: for example `tab_front: number`, `back: text_number` and
-`font: Almendra`. A figure that shows numbers writes one SVG per copy
+underscores: for example `tab_front: number`, `back: text_number`,
+`font: Almendra` and `kind: token`. A figure that shows numbers writes one SVG per copy
 (`goblin-1.svg` to `goblin-4.svg` for `copies: 4`), each with its number.
 
 An `image` can also be a link, such as `image: https://example.com/goblin.webp`.
@@ -954,10 +1071,10 @@ sizes:
 ```
 
 [examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
-sample outputs in [examples/dragons/samples](../examples/dragons/samples), five
+sample outputs in [examples/dragons/samples](../examples/dragons/samples), six
 ways to print the same dragon: a default (double-sided) mini, a single-sided
 mini on a round colored base, a mini with back text, a mini with a dark margin
-and a green tab, and two numbered copies in Kalam. Their sheet is
+and a green tab, two numbered copies in Kalam, and two numbered round tokens. Their sheet is
 [samples-sheet.pdf](../examples/dragons/samples/samples-sheet.pdf).
 [samples-machine.yaml](../examples/dragons/samples-machine.yaml) makes a sheet
 cut by machine:
@@ -1119,6 +1236,8 @@ choose. By default no number is printed, also when there are several copies.
   number above the label.
 - **On the back:** `--back number` or `--back text_number` (in the app, *Shows*
   under *Back side*).
+- **On a token:** `--token-text number` or `label_number` (in the app, *Shows*
+  under *Token text*), on a badge or along the ring.
 
 Once a figure shows its number, it is printed on every copy, also on a single
 copy ("1"). Numbers are bold, in the font and color of the label; on the back,
@@ -1134,6 +1253,37 @@ The number is written into the SVG file, so `papermini sheet "minis/goblin-*.svg
 prints copies 1 to 6. A project numbers its figures' copies itself:
 `papermini batch` and the app's sheet print each figure's `copies` with the
 numbers 1 to `copies`, and saving SVGs writes one file per copy.
+
+## Tokens
+
+A token is a flat round piece: the cut-out figure in a circle, with a ring, for the
+table or a virtual tabletop (Foundry, Roll20, Owlbear Rodeo). Set **Kind** to
+*Token* at the top of the Miniature step (`--kind token`, `kind: token` in a
+project). Background removal and the Source step are the same as for a standing
+mini; a figure is either a mini or a token, so add an image twice for both.
+
+```bash
+papermini make goblin.png --kind token --token-text number --copies 6 -o tokens
+```
+
+- **Size:** the creature size gives the diameter, its base: 25 mm for Medium, 50 mm
+  for Large, 75 mm for Huge.
+- **Framing:** the whole figure is fitted in the circle, with room around it. Drag
+  it in the Miniature view to move it, or drag a corner of its box to make it
+  bigger or smaller (`--token-area`, the square of the picture that fills the
+  circle).
+- **Look:** the background (a color or the original picture), the ring (width and
+  color), an optional image outline around the figure, and text: the label and the
+  copy's number, on a nameplate and badge or curved along the ring.
+- **Print sheet:** tokens go on the same sheet as standing minis, each copy with its
+  own number. By default no cut line is printed: cut along the ring's edge. With a
+  cut line (`--token-cut-line`) it lies just outside the ring. Cut by machine, the
+  cut file has the circles and the bleed carries the ring's color past the cut.
+- **Virtual tabletop:** export a PNG (**Export…** in the app and pick PNG, or
+  `--format png`): the piece, transparent around it, 256 pixels per grid square by
+  default (*PNG size* in **Preferences… → Images**, `--png-px`), so a Medium token
+  covers one square and a Large one two. Set it to your tabletop's grid size, or
+  use a dpi (`--png-dpi`) for the size it prints. Standing minis export as PNG too.
 
 ## Color adjustments
 

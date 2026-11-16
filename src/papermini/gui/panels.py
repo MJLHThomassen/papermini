@@ -8,13 +8,15 @@ from typing import Any, Dict, Optional
 
 from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFileDialog,
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QColorDialog, QComboBox,
+                               QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit,
+                               QLineEdit, QRadioButton,
                                QPushButton, QScrollArea, QSlider, QSpinBox, QStyle,
                                QStyleOptionSlider, QToolButton, QVBoxLayout, QWidget)
 
 from .. import fonts, remote, segment, sizes
+from .. import token as tok
 from ..settings import FigureSettings, SheetSettings
 from ..sheet import CUSTOM_PAPER_MM, MAT_LABELS, PAPER_CHOICES, PAPER_LABELS, paper_size
 from . import prefs, theme
@@ -36,12 +38,16 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 STEPS = ["Source", "Miniature", "Print sheet"]
 SOURCE, MINIATURE, PRINT = range(3)
 TAB_CHOICES = [("label", "Label"), ("number", "Number"), ("label_number", "Label and number")]
+TOKEN_TEXT_CHOICES = [("label", "Label"), ("number", "Number"),
+                      ("label_number", "Label and number")]  # (off: the group's switch)
 STEP_HINTS = [
     "Crop the picture first: background removal only looks inside the box.",
     "How big the figure prints, and the paper piece around it: back side, margin, cut "
     "line and stand tab.",
     "The paper, the layout and how the pieces are cut.",
 ]
+TOKEN_STEP_HINT = ("How big the token prints, how the figure sits in it, and its ring and "
+                   "text.")
 SECTIONS = [
     (SOURCE, "Crop", [
         ("crop", "Area", "crop", None),
@@ -63,10 +69,27 @@ SECTIONS = [
         ("_reset_adjust", "Reset adjustments", "reset",
          ("greyscale", "brightness", "contrast", "saturation", "hue")),
     ]),
-    (MINIATURE, "Size", [  # first: how big the figure prints
+    (MINIATURE, "Size", [  # first (after the Kind): how big the figure prints
         ("size", "Creature size", "c", [(s, sizes.label(s)) for s in sizes.SIZE_CHOICES]),
         ("dimensions", "Size", "size", None),
+        ("token_diameter_mm", "Diameter", "f", (5, 300, 0.5, 1, " mm")),
         ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
+    ]),
+    (MINIATURE, "Token", [  # a token: the figure in a circle, inside a ring
+        ("token_area", "Area", "tokenarea", None),
+        ("token_fill", "Background", "c", [("color", "Color"), ("image", "Original image")]),
+        ("token_fill_color", "Background color", "col", None),
+        ("token_border_mm", "Ring width", "f", (0, 30, 0.5, 1, " mm")),
+        ("token_border_color", "Ring color", "col", None),
+    ]),
+    (MINIATURE, "Token text", [
+        ("token_text_on", "Print text", "tokentext", None),
+        ("token_text", "Shows", "c", TOKEN_TEXT_CHOICES),
+        ("token_text_style", "Style", "c", [("nameplate", "Nameplate and badge"),
+                                            ("curved", "Curved along the ring")]),
+        ("token_text_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
+        ("token_label", "Label", "tlabel", None),
+        ("token_text_color", "Color", "col", None),
     ]),
     (MINIATURE, "Back side", [  # it decides what the rest of the piece is
         ("double_sided", "Print a back side", "switch", None),
@@ -77,12 +100,15 @@ SECTIONS = [
         ("back_text", "Text", "s", None),
         ("back_text_color", "Text color", "col", None),
     ]),
-    (MINIATURE, "Outline and cut line", [
+    (MINIATURE, "Image outline", [  # around the drawing: a mini's margin, a token's outline
+        ("token_outline", "Print an outline", "switch", None),  # (a token's; a mini has one)
         ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
         ("margin_fill", "Margin fill type", "c", [("color", "Color"), ("image", "Original image")]),
         ("margin_color", "Margin fill color", "col", None),
         ("smooth_mm", "Outline smoothing", "f", (0, 5, 0.1, 2, " mm")),
-        ("_cut_line", "Cut line", "heading", None),
+    ]),
+    (MINIATURE, "Cut line", [
+        ("token_cut_line", "Print a cut line", "switch", None),  # (a token's; a mini has one)
         ("no_smooth", "Straight segments only (no curves)", "b", None),
         ("simplify_mm", "Simplify", "f", (0.01, 2, 0.05, 3, " mm")),
         ("cut_color", "Color", "col", None),
@@ -118,24 +144,66 @@ SECTIONS = [
 SUBSECTIONS = {"Label": "Tab", "Number": "Tab"}
 SUB_INDENT = 14
 
-# the settings each field sets ("dimensions" sets two, "no_label" is the label ""), and
-# the creature size also fills in the height and the tabs
+# the settings each field sets ("dimensions" sets two, "no_label" is the label "", the
+# Token text switch off is token_text "none"), and the creature size also fills in the
+# height, the tabs and a token's diameter
 FIELD_SETTINGS = {"dimensions": ("height_mm", "width_mm"), "no_label": ("label",),
-                  "size": sizes.FILLS}
+                  "size": ("size",) + sizes.FILLS, "token_label": ("label",),
+                  "token_text_on": ("token_text",)}
+# a token's field that sets the same setting as a mini's (shown for the kind in use)
+TWINS = {"token_label": "label"}
+# the switches of groups a token can turn off but a mini always has (hidden for a mini)
+TOKEN_SWITCHES = ("token_outline", "token_cut_line")
+# groups that only one kind of figure has (the others belong to both)
+KIND_SECTIONS = {"Back side": "mini", "Tab": "mini", "Token": "token", "Token text": "token"}
 
 
 # kept per figure by "Apply to all"
-PER_IMAGE = {"label", "crop", "mask", "copies"}
+PER_IMAGE = {"label", "crop", "mask", "copies", "token_area"}
 
 
 def step_settings(step: int) -> set:
-    """The FigureSettings fields edited in ``step``."""
+    """The FigureSettings fields edited in ``step`` (the Kind is at the top of Miniature)."""
     return {k for st, _, items in SECTIONS if st == step
             for name, _, kind, _ in items if kind not in ("heading", "reset")
-            for k in FIELD_SETTINGS.get(name, (name,))}
+            for k in FIELD_SETTINGS.get(name, (name,))} | ({"kind"} if step == MINIATURE else set())
 
 
 TIPS = {
+    "kind": "Standing mini: a paper figure that stands up, on a tab or a base.\n"
+            "Token: a flat round token, the figure in a circle, for the table or a virtual\n"
+            "tabletop.",
+    "token_diameter_mm": "The token's diameter, ring included. The creature size fills it in\n"
+                         "(the size's base); changing it by hand makes it Custom.",
+    "token_area": "The square of the picture that fills the circle (x0,y0,x1,y1, fractions).\n"
+                  "Empty: the whole figure, fitted with room around it. In the view, drag the\n"
+                  "figure to move it and drag a corner of its box to make it bigger or smaller.\n"
+                  "Clear fits it again.",
+    "token_fill": "What fills the circle behind the figure:\n"
+                  "Color: one solid color (Background color).\n"
+                  "Original image: the picture around the figure, as it is in the image.",
+    "token_fill_color": "The color behind the figure.",
+    "token_border_mm": "Width of the ring around the token (0 = no ring). With curved text the\n"
+                       "ring is at least as wide as the text needs.",
+    "token_border_color": "Color of the ring, and of the nameplate and the number badge.",
+    "token_outline": "Print an outline around the figure on the token, made like a standing\n"
+                     "mini's margin.",
+    "token_text_on": "Print text on the token: its label, its copy number or both.",
+    "token_cut_line": "Print the cut line around the token. Off: the ring's edge shows where to\n"
+                      "cut. A sheet cut by machine never prints cut lines.",
+    "token_text": "What the token shows: the label, the copy's number, or both. Each\n"
+                  "copy on the sheet gets its own number, 1, 2, 3…; this preview shows # where\n"
+                  "it goes.",
+    "token_text_style": "Nameplate and badge: the label on a band across the bottom, the number\n"
+                        "in a round badge on the ring.\n"
+                        "Curved along the ring: the label along the bottom of the ring, the\n"
+                        "number at its top. The ring is then at least as wide as the text needs.",
+    "token_text_mm": "Size of the token's text. It decides how much of the token the text\n"
+                     "covers: the nameplate is a little taller than the text, and curved text\n"
+                     "needs a ring about 1.4 times as wide. A label too long for the nameplate\n"
+                     "shrinks to fit.",
+    "token_label": "The label on the token (empty = the file name).",
+    "token_text_color": "Color of the token's text, on the ring, the nameplate and the badge.",
     "size": "The D&D creature size: fills in the figure height and the tabs (round base\n"
             "and stand tab) from the project's size table (☰ menu > Preferences… >\n"
             "Creature sizes).\n"
@@ -514,6 +582,36 @@ class Section(QWidget):
             prefs.store().setValue(self._key, open_)
 
 
+class KindChoice(QWidget):
+    """Standing mini or token: two radio buttons in a row."""
+
+    valueChanged = Signal(str)
+    KINDS = (("mini", "Standing mini"), ("token", "Token"))
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(16)
+        self.group = QButtonGroup(self)
+        self.buttons = {}
+        for value, text in self.KINDS:
+            b = QRadioButton(text)
+            b.setCursor(Qt.PointingHandCursor)
+            self.group.addButton(b)
+            self.buttons[value] = b
+            h.addWidget(b)
+            b.toggled.connect(lambda on, v=value: on and self.valueChanged.emit(v))
+        h.addStretch(1)
+        self.buttons["mini"].setChecked(True)
+
+    def value(self) -> str:
+        return next(v for v, b in self.buttons.items() if b.isChecked())
+
+    def setValue(self, v: str) -> None:
+        self.buttons.get(v, self.buttons["mini"]).setChecked(True)
+
+
 class ColorButton(QPushButton):
     colorChanged = Signal(str)
 
@@ -660,7 +758,7 @@ class FigurePanel(QScrollArea):
     changed = Signal(object)
     applyToAll = Signal(object)  # the settings to copy (those of the shown step)
     clearCrop = Signal()
-    exportSvg = Signal()         # the Miniature step's Export SVG button
+    exportPiece = Signal()       # the Miniature step's Export button (SVG or PNG)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -715,14 +813,32 @@ class FigurePanel(QScrollArea):
 
         sections = []
         self._section_steps = []
+        self._section_titles = []
         extra_labels = []  # labels inside compound fields, lined up with the form labels
 
         forms, boxes, sub_labels = {}, {}, []
+        # the Kind, above the groups of the Miniature step
+        self.kind_row = QWidget()
+        kh = QHBoxLayout(self.kind_row)
+        kh.setContentsMargins(2, 0, 0, 12)
+        kh.setSpacing(12)
+        kind_label = QLabel("Kind")
+        kind_label.setObjectName("FormLabel")
+        kind_label.setToolTip(TIPS["kind"])
+        kind = KindChoice()
+        kind.setToolTip(TIPS["kind"])
+        kind.valueChanged.connect(self._emit)
+        kh.addWidget(kind_label)
+        kh.addWidget(kind, 1)
+        lay.addWidget(self.kind_row)
+        self._w["kind"] = ("radio", kind)
+        extra_labels.append(kind_label)
         for step, title, items in SECTIONS:
             box = Section(title, sub=title in SUBSECTIONS)
             boxes[title] = box
             sections.append(box)
             self._section_steps.append(step)
+            self._section_titles.append(title)
             form = QFormLayout(box.body)
             form.setContentsMargins(2, 0, 0, 0)
             form.setHorizontalSpacing(12)
@@ -747,7 +863,7 @@ class FigurePanel(QScrollArea):
                     self._resets[name] = (b, extra)
                     continue
                 w = self._make(name, kind, extra)
-                if kind in ("switch", "nolabel"):  # in the header, for the whole group
+                if kind in ("switch", "nolabel", "tokentext"):  # in the header, for the group
                     w.setObjectName("SectionSwitch")
                     w.setAccessibleName(label)
                     w.setToolTip(TIPS[name])
@@ -801,6 +917,12 @@ class FigurePanel(QScrollArea):
                     self.licence_hint.setTextFormat(Qt.RichText)
                     self.licence_hint.setVisible(False)
                     form.addRow(self.licence_hint)
+                if name == "token_border_mm":  # curved text: the ring's least width
+                    self.ring_hint = QLabel()
+                    self.ring_hint.setWordWrap(True)
+                    self.ring_hint.setObjectName("Hint")
+                    self.ring_hint.setVisible(False)
+                    form.addRow(self.ring_hint)
                 if name == "tab_overlap_mm":
                     self.overlap_hint = QLabel()
                     self.overlap_hint.setWordWrap(True)
@@ -825,12 +947,14 @@ class FigurePanel(QScrollArea):
         self.apply_all.clicked.connect(lambda: self.applyToAll.emit(self.step_settings()))
         lay.addWidget(self.apply_all)
         lay.addSpacing(8)
-        self.export_svg = QPushButton("Export SVG…")  # (Miniature step: this figure's piece)
-        self.export_svg.setToolTip("Save this miniature as an SVG: the piece with its cut "
-                                   "line, for Inkscape or a cutting machine  (Ctrl+E)")
-        self.export_svg.setCursor(Qt.PointingHandCursor)
-        self.export_svg.clicked.connect(self.exportSvg)
-        lay.addWidget(self.export_svg)
+        self.export_piece = QPushButton("Export…")  # (Miniature step: this figure's piece)
+        self.export_piece.setToolTip(
+            "Save this figure as an SVG (the piece with its cut line, for Inkscape or a "
+            "cutting machine) or a PNG (a picture of the piece, for a virtual tabletop)  "
+            "(Ctrl+E)")
+        self.export_piece.setCursor(Qt.PointingHandCursor)
+        self.export_piece.clicked.connect(self.exportPiece)
+        lay.addWidget(self.export_piece)
         lay.addStretch()
         self.setWidget(body)
         self._empty = True
@@ -844,6 +968,7 @@ class FigurePanel(QScrollArea):
         body = self.widget()
         widths = []
         self._empty = False
+        self._measuring = True  # (the groups of both kinds of figure)
         for box in self.sections:  # (a folded group still needs its room when opened)
             box.body.setVisible(True)
         for step in range(len(STEPS)):
@@ -851,6 +976,7 @@ class FigurePanel(QScrollArea):
             self._sync_sections()
             body.layout().activate()
             widths.append(body.minimumSizeHint().width())
+        self._measuring = False
         for box in self.sections:
             box._toggle(box.header.isChecked(), remember=False)
         frame = 2 * self.frameWidth() + self.verticalScrollBar().sizeHint().width()
@@ -866,7 +992,7 @@ class FigurePanel(QScrollArea):
         self._empty = empty
         for w in (self.title, self.subtitle, self.step_hint, self.apply_all):
             w.setVisible(not empty)
-        self.export_svg.setVisible(not empty and self._step == MINIATURE)
+        self.export_piece.setVisible(not empty and self._step == MINIATURE)
         self.empty_box.setVisible(empty)
         self.empty_text.setText(message)
         self._sync_sections()
@@ -874,8 +1000,7 @@ class FigurePanel(QScrollArea):
     def set_step(self, step: int):
         """Show the settings of one workflow step (SOURCE, MINIATURE or PRINT)."""
         self._step = step
-        self.step_hint.setText(STEP_HINTS[step])
-        self.export_svg.setVisible(not self._empty and step == MINIATURE)
+        self.export_piece.setVisible(not self._empty and step == MINIATURE)
         self._sync_sections()
         self.verticalScrollBar().setValue(0)
 
@@ -886,9 +1011,20 @@ class FigurePanel(QScrollArea):
         """The settings shown now, minus the per-image ones "Apply to all" never copies."""
         return step_settings(self._step) - PER_IMAGE
 
+    def is_token(self) -> bool:
+        """Whether the figure shown is a token (its Kind field)."""
+        return "kind" in self._w and self._w["kind"][1].value() == "token"
+
     def _sync_sections(self):
-        for box, step in zip(self.sections, self._section_steps):
-            box.setVisible(not self._empty and step == self._step)
+        kind = "token" if self.is_token() else "mini"
+        if hasattr(self, "kind_row"):
+            self.kind_row.setVisible(not self._empty and self._step == MINIATURE)
+        for box, step, title in zip(self.sections, self._section_steps, self._section_titles):
+            box.setVisible(not self._empty and step == self._step
+                           and (KIND_SECTIONS.get(title, kind) == kind
+                                or getattr(self, "_measuring", False)))
+        self.step_hint.setText(TOKEN_STEP_HINT if self._step == MINIATURE and kind == "token"
+                               else STEP_HINTS[self._step])
         names = {SOURCE: "source", MINIATURE: "miniature", PRINT: "size"}
         self.apply_all.setText(f"Apply {names[self._step]} settings to all figures")
         self.apply_all.setToolTip("Copies the settings shown here to every figure"
@@ -986,9 +1122,28 @@ class FigurePanel(QScrollArea):
             h.addWidget(edit)
             h.addWidget(b)
             w.edit = edit
-        elif kind == "label":
+        elif kind == "tokenarea":
+            w = QWidget()
+            h = QHBoxLayout(w)
+            h.setContentsMargins(0, 0, 0, 0)
+            edit = QLineEdit()
+            edit.setPlaceholderText("whole figure, fitted - drag it in the view")
+            edit.editingFinished.connect(self._emit)
+            b = QToolButton()
+            b.setText("Clear")
+            b.clicked.connect(lambda: (edit.clear(), self._emit()))
+            h.addWidget(edit)
+            h.addWidget(b)
+            w.edit = edit
+        elif kind in ("label", "tlabel"):
             w = QLineEdit()
             w.editingFinished.connect(self._emit)
+        elif kind == "tokentext":
+            # not a setting of its own: unticked means token_text "none" (see _read)
+            w = QCheckBox()
+            w.toggled.connect(self._emit)
+            self.token_text_switch = w
+            return w
         elif kind == "nolabel":
             # not a setting of its own: unticked means label "" (see _read)
             w = QCheckBox()
@@ -1017,8 +1172,8 @@ class FigurePanel(QScrollArea):
                 if kind == "size":
                     w.set_value(s.height_mm, s.width_mm)
                     continue
-                v = getattr(s, name)
-                if kind in ("f", "i"):
+                v = getattr(s, TWINS.get(name, name))
+                if kind in ("f", "i", "radio"):
                     w.setValue(v)
                 elif kind == "slider":
                     w.setValue(v)
@@ -1034,6 +1189,11 @@ class FigurePanel(QScrollArea):
                     w.setText(v or "")
                 elif kind == "col":
                     w.set_color(v)
+                elif kind == "tlabel":
+                    w.setPlaceholderText(stem or "file name")
+                    w.setText(v or "")
+                elif kind == "tokenarea":
+                    w.edit.setText(_crop_text(v))
                 elif kind == "model":
                     w.setCurrentText(MODEL_NAMES.get(v, v))
                 elif kind == "file":
@@ -1044,6 +1204,7 @@ class FigurePanel(QScrollArea):
                     w.setPlaceholderText(stem or "file name")
                     self.label_switch.setChecked(v != "")
                     w.setText(v or "")
+            self.token_text_switch.setChecked(s.token_text != "none")
             self._sync_visible()
             self.set_empty(False)
             self._shown = self._read()
@@ -1059,7 +1220,11 @@ class FigurePanel(QScrollArea):
 
     def _read(self) -> Dict[str, Any]:
         vals: Dict[str, Any] = {}
+        token = self.is_token()
         for name, (kind, w) in self._w.items():
+            # a setting with a field for each kind of figure: read the one in use
+            if (name in TWINS.values() and token) or (name in TWINS and not token):
+                continue
             if kind in ("f", "i"):
                 vals[name] = w.value()
             elif kind == "size":
@@ -1072,10 +1237,16 @@ class FigurePanel(QScrollArea):
                 vals[name] = w.isChecked() != (name in self._invert)
             elif kind in ("c", "font"):
                 vals[name] = w.currentData()
+            elif kind == "radio":
+                vals[name] = w.value()
             elif kind == "s":
                 vals[name] = w.text().strip() or None
             elif kind == "col":
                 vals[name] = w.color()
+            elif kind == "tlabel":
+                vals[TWINS[name]] = w.text().strip() or None
+            elif kind == "tokenarea":
+                vals[name] = _parse_area_text(w.edit.text(), self._s.token_area)
             elif kind == "model":
                 text = w.currentText().strip() or "auto"
                 vals[name] = MODEL_VALUES.get(text, text)
@@ -1085,6 +1256,8 @@ class FigurePanel(QScrollArea):
                 vals[name] = _parse_crop_text(w.edit.text(), self._s.crop)
             elif kind == "label":
                 vals[name] = "" if not self.label_switch.isChecked() else (w.text().strip() or None)
+        if not self.token_text_switch.isChecked():
+            vals["token_text"] = "none"
         return vals
 
     OVERLAP_HINTS = {
@@ -1187,7 +1360,8 @@ class FigurePanel(QScrollArea):
             w.setCurrentIndex(max(0, w.findData(s.size)))
             if s.size != sizes.CUSTOM:  # (Custom: leave the field being edited alone)
                 self._w["dimensions"][1].set_value(s.height_mm, s.width_mm)
-                for name in ("tab_radius_mm", "tab_width_mm", "tab_height_mm"):
+                for name in ("tab_radius_mm", "tab_width_mm", "tab_height_mm",
+                             "token_diameter_mm"):
                     if name in self._w:
                         self._w[name][1].setValue(getattr(s, name))
             self._sync_visible()
@@ -1204,7 +1378,8 @@ class FigurePanel(QScrollArea):
         label = getattr(self, "_size_label", "")
         self.size_hint.setText(f"{text} · {label}" if text and label else text)
         self.size_hint.setVisible(bool(text))
-        warning = sizes.width_warning(size, getattr(self, "_figure_width", None) or 0, table)
+        warning = "" if self.is_token() else sizes.width_warning(
+            size, getattr(self, "_figure_width", None) or 0, table)
         self.size_warning.setText(warning)
         self.size_warning.setVisible(bool(warning))
 
@@ -1235,6 +1410,11 @@ class FigurePanel(QScrollArea):
         self._w["crop"][1].edit.setText(_crop_text(crop))
         self._emit()
 
+    def set_token_area(self, area):
+        """A token's framing set by dragging the figure in the Miniature view."""
+        self._w["token_area"][1].edit.setText(_crop_text(area))
+        self._emit()
+
     def is_shown(self, name: str) -> bool:
         """Whether a field is shown; for a group's switch, whether it can be used."""
         if name in self._switches:  # usable unless the group it is inside is off
@@ -1249,8 +1429,14 @@ class FigurePanel(QScrollArea):
         val = lambda n: self._w[n][1].currentData()  # noqa: E731
         tab = self._w["no_tab"][1].isChecked()  # (the switch is "print a tab")
         label = tab and self.label_switch.isChecked()
+        # (a mini always has its outline, the margin, and its cut line: only a token's can
+        # be switched off)
+        token = self.is_token()
+        for name in TOKEN_SWITCHES:
+            self._switches[name].switch.setVisible(token)
+        always = set() if token else {self._switches[n] for n in TOKEN_SWITCHES}
         for box in set(self._switches.values()):  # off: only the header, not openable
-            box.set_active(box.switch.isChecked())
+            box.set_active(box.switch.isChecked() or box in always)
         square = val("tab_shape") == "square"
         double = self._w["double_sided"][1].isChecked()
         model = self._w["model"][1].currentText().strip()
@@ -1276,6 +1462,20 @@ class FigurePanel(QScrollArea):
         }
         grey = self._w["greyscale"][1].isChecked()
         show["saturation"] = show["hue"] = not grey
+        # a token: its own fields instead of the mini's; the margin makes its outline
+        text = val("token_text") if self.token_text_switch.isChecked() else "none"
+        show.update({
+            "dimensions": not token,
+            "token_diameter_mm": token,
+            "token_fill_color": val("token_fill") == "color",
+            "token_text_style": text != "none",
+            "token_text_mm": text != "none",
+            "token_label": text in ("label", "label_number"),
+            "token_text_color": text != "none",
+            "no_smooth": not token,
+            "simplify_mm": not token,
+        })
+        self._sync_ring(token and text != "none" and val("token_text_style") == "curved")
         for name, visible in show.items():
             form, w = self._rows[name]
             form.setRowVisible(w, visible)
@@ -1284,8 +1484,30 @@ class FigurePanel(QScrollArea):
             b.setEnabled(any(read[n] != getattr(d, n) for n in names))
         if not tab:
             self.overlap_hint.setVisible(False)
+        self._sync_sections()
         self._sync_auto_hint()
         self._sync_size_hint()
+
+    def _sync_ring(self, curved: bool) -> None:
+        """Curved text needs a ring at least this wide: the field stops there, and says so."""
+        w = self._w["token_border_mm"][1]
+        least = tok.min_ring_mm(self._w["token_text_mm"][1].value()) if curved else 0.0
+        w.blockSignals(True)
+        w.setMinimum(least)
+        w.blockSignals(False)
+        self.ring_hint.setText(f"Curved text of this size needs a ring of at least {least:g} "
+                               "mm. A smaller text size allows a narrower ring." if curved
+                               else "")
+        self.ring_hint.setVisible(curved)
+
+    def _sync_twins(self, s: FigureSettings) -> None:
+        """Show ``s`` in the field of the kind not in use too (the label has a field for
+        minis and one for tokens), so switching kind keeps what was typed."""
+        if self.is_token():
+            self._w["label"][1].setText(s.label or "")
+            self.label_switch.setChecked(s.label != "")
+        else:
+            self._w["token_label"][1].setText(s.label or "")
 
     def _reset(self, names):
         """Put ``names`` back to their defaults, as one change."""
@@ -1307,6 +1529,11 @@ class FigurePanel(QScrollArea):
             return
         self._sync_visible()
         new = self.settings()
+        self._loading = True
+        try:
+            self._sync_twins(new)
+        finally:
+            self._loading = False
         self._shown = self._read()
         if new != self._s:
             self._s = new
@@ -1319,6 +1546,16 @@ def _crop_text(crop) -> str:
     if isinstance(crop, str):
         return crop
     return ", ".join(f"{v:g}" for v in crop)
+
+
+def _parse_area_text(text: str, old):
+    """A token area typed in its field (None when empty; the old one when it cannot be read)."""
+    if not text.strip():
+        return None
+    try:
+        return tok.parse_area(text)
+    except ValueError:
+        return old
 
 
 def _parse_crop_text(text: str, old):

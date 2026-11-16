@@ -247,7 +247,7 @@ def test_the_other_pages(window):
 
     dlg = PreferencesDialog(window, "appearance")
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
-        "Creature sizes", "Adding images", "Appearance", "Updates", "Logging",
+        "Creature sizes", "Images", "Appearance", "Updates", "Logging",
         "Models and cache"]
     assert dlg.stack.currentIndex() == 2
     dark = [b for b in dlg.theme_group.buttons() if b.text() == "Dark"][0]

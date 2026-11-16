@@ -446,6 +446,26 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
         (mini(red, hue=120, **plain), None, "Hue +120°", "a green dragon"),
     ])
 
+    # step 2, Token: what fills the circle, and the text on the ring
+    tk = dict(kind="token")
+    square = [1 / 6, 0.0, 5 / 6, 1.0]  # (the picture's middle, as tall as it is: it fills
+    #                                     the circle; the wide picture's own edges stay out)
+    compare("token-fill", [
+        (mini(fly, **tk), None, "Color", "white, the default"),
+        (mini(fly, token_fill="image", token_area=square, **tk), None, "Original image",
+         "the picture around the figure"),
+        (mini(fly, token_fill="image", token_area=square, token_outline=True, **tk), None,
+         "Image outline", "a white outline, on the picture"),
+    ], mm=8)
+    numbered = dict(tk, label="Red dragon", token_text="label_number")
+    compare("token-text", [
+        (replace(mini(red, **numbered), number=3), None, "Nameplate and badge",
+         "the label and copy 3"),
+        (replace(mini(red, token_text_style="curved", token_border_color="#7a1f1f",
+                      **numbered), number=3), None, "Curved along the ring",
+         "the ring as wide as the text needs"),
+    ], mm=8)
+
 
 if __name__ == "__main__":
     main()

@@ -308,7 +308,9 @@ def test_groups_are_switched_on_and_off_in_their_header(app):
         assert box.switch.accessibleName().startswith("Print a ")
         assert box.switch.parent() is box                          # in the header row
         assert box.switch.toolTip().startswith("Print a ")
-    assert heads["Outline and cut line"].switch is None
+    # a mini always has its outline and cut line: their switches are a token's only
+    for title in ("Image outline", "Cut line"):
+        assert heads[title].active() and not heads[title].switch.isVisibleTo(p)
     tab, label = heads["Tab"].switch, heads["Label"].switch
     label.setChecked(False)
     assert p.settings().label == "" and not p.is_shown("label_size_mm")
@@ -1297,7 +1299,7 @@ def test_settings_panel_follows_the_step(app, tmp_path):
         p = w.panel
         titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]  # noqa: E731
         expected = [["Crop", "Background removal", "Image adjustments"],
-                    ["Size", "Back side", "Outline and cut line", "Tab", "Label", "Text",
+                    ["Size", "Back side", "Image outline", "Cut line", "Tab", "Label", "Text",
                          "Number"],
                     []]
         for i, want in enumerate(expected):
@@ -1305,7 +1307,8 @@ def test_settings_panel_follows_the_step(app, tmp_path):
             assert w.tabs.currentIndex() == i and p.step() == i and titles() == want
             # the Print sheet step shows the sheet's own settings instead
             assert w.side.currentWidget() is (w.sheet_panel if i == PRINT else p)
-            assert p.export_svg.isVisibleTo(p) == (i == MINIATURE)  # (this figure's SVG)
+            assert p.export_piece.isVisibleTo(p) == (i == MINIATURE)  # (this figure's file)
+            assert p.kind_row.isVisibleTo(p) == (i == MINIATURE)
         w.tabs.setCurrentIndex(w.SOURCE)
         assert "Crop" in p.step_hint.text() and p.step() == SOURCE
 
@@ -1317,6 +1320,7 @@ def test_settings_panel_follows_the_step(app, tmp_path):
         assert "miniature" in p.apply_all.text()
         p.apply_all.click()
         assert b.entry.settings.height_mm == 30            # the Miniature step's settings...
+        assert b.entry.settings.size == a.entry.settings.size == "custom"  # (and its size)
         assert b.entry.settings.margin_mm == 3
         assert b.entry.settings.strength == FigureSettings().strength  # ...not the others
         assert b.entry.settings.copies == 1                # copies stay per figure

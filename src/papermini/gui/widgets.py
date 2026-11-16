@@ -496,6 +496,15 @@ class EmptyState(QFrame):
             row.clicked.connect(self.recentClicked)
             self.recent_list.addWidget(row)
         self.recent_box.setVisible(self.recent_list.count() > 0)
+        self.updateGeometry()
+
+    def sizeHint(self) -> QSize:
+        """Always its full width (its contents fit any width up to it: the text wraps and
+        the recent projects' folders are shortened), so it never changes size while they
+        are laid out; as tall as its contents are at that width."""
+        w = self.maximumWidth()
+        return QSize(w, self.layout().heightForWidth(w) if self.layout().hasHeightForWidth()
+                     else super().sizeHint().height())
 
     def refresh_icons(self):
         self.icon.setPixmap(theme.logo_pixmap(104))

@@ -25,7 +25,8 @@ def test_the_builtin_table():
                     "huge": (64, 75, 75, 37.5), "gargantuan": (80, 100, 100, 50)}
     assert t.calculated()
     assert t.row("large").values() == {"height_mm": 48, "tab_radius_mm": 25,
-                                       "tab_width_mm": 50, "tab_height_mm": 25}
+                                       "tab_width_mm": 50, "tab_height_mm": 25,
+                                       "token_diameter_mm": 50}
     # the figure defaults are Medium's
     d = FigureSettings()
     assert (d.size, d.height_mm, d.tab_radius_mm, d.tab_width_mm, d.tab_height_mm) == (
