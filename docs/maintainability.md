@@ -445,8 +445,8 @@ commands, so that what passes locally passes in CI.
 
 CI runs the tests, the lint and format checks, the coverage report and the type
 check, on every Python version and platform the project supports.
-Run the same checks locally before a change is finished, such as `just test`
-and `just lint`.
+Run the same checks locally before a change is finished, such as `just test`,
+`just lint` and `just format`.
 
 ### R3. Builds are reproducible
 
@@ -488,6 +488,8 @@ figure list` or `fix(sheet): keep the scale bar on the first page`.
 - Mark a breaking change with `!` after the type or scope (`feat(cli)!: ...`)
   or with a `BREAKING CHANGE:` footer.
 - Make one logical change per commit.
+- A commit that only reformats code changes nothing else, and its hash goes
+  in `.git-blame-ignore-revs`.
 - Pull request titles follow the same format.
 
 ### R8. What released versions depend on stays stable

@@ -245,11 +245,20 @@ Run the tests. They need no model download; the GUI tests run off-screen:
 just test
 ```
 
-Check the code with [ruff](https://docs.astral.sh/ruff/), which CI also runs.
-`just lint --fix` fixes what ruff can fix by itself:
+Check and format the code with [ruff](https://docs.astral.sh/ruff/), which CI
+also runs. `just lint --fix` fixes what ruff can fix by itself:
 
 ```bash
 just lint
+just format
+```
+
+Commits that only reformat code are listed in
+[.git-blame-ignore-revs](.git-blame-ignore-revs). GitHub skips them in its
+blame view; to skip them in `git blame` too, run once:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 After changing the look of the app, regenerate the screenshots in

@@ -31,6 +31,10 @@ test *args:
 lint *args:
     uv run ruff check {{ args }}
 
+# format the code with ruff (extra arguments go to ruff, e.g. `just format --check`)
+format *args:
+    uv run ruff format {{ args }}
+
 # start the app from source (e.g. `just gui examples/dragons/dragons.yaml`)
 gui *args:
     {{ uv_run }} python -m papermini gui {{ args }}
