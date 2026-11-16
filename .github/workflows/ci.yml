@@ -158,7 +158,6 @@ jobs:
         run: uv run --no-sync python -m pytest -q ${{ matrix.coverage && '--cov' || '' }}
         env:
           QT_QPA_PLATFORM: offscreen
-          COVERAGE_CORE: sysmon  # also measures the threads Qt starts
 
       - name: Coverage report
         if: matrix.coverage

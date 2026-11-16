@@ -194,8 +194,8 @@ stands and bases, double-sided minis and tips for tricky drawings.
 ## Run from source
 
 You need [uv](https://docs.astral.sh/uv/getting-started/installation/). It
-installs Python 3.10 or newer by itself when your system doesn't have it. Clone
-the repository:
+installs the Python version in `.python-version` by itself when your system
+doesn't have it. Clone the repository:
 
 ```bash
 git clone https://github.com/MJLHThomassen/papermini.git

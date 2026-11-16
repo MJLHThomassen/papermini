@@ -80,6 +80,7 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 source_pkgs = ["papermini"]
+core = "sysmon"  # also measures the threads Qt starts
 
 [tool.coverage.report]
 show_missing = true
