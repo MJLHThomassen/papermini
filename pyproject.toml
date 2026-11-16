@@ -49,8 +49,12 @@ version_file = "src/papermini/_version.py"
 fallback_version = "0.0.0"
 
 [tool.uv]
-# Rebuild papermini whenever setuptools-scm would give it another version: after a
-# new commit or tag, or with a pretended version.
+# uv rebuilds papermini when any of these change, so that its version from
+# setuptools-scm stays current:
+# - pyproject.toml
+# - the current git commit
+# - the git tags
+# - SETUPTOOLS_SCM_PRETEND_VERSION
 cache-keys = [
     { file = "pyproject.toml" },
     { git = { commit = true, tags = true } },
