@@ -54,52 +54,37 @@ rule. In the second case, propose the rule.
 
 ## Where things are
 
+The map shows folders and what they hold, not individual modules, because
+modules move as the code is restructured. Each module starts with a docstring
+that says what it holds.
+
 ```
-src/papermini/
-  cli.py        command line: make | sheet | batch | gui
-  settings.py   FigureSettings / Project: the options of a figure and a
-                project, shared by the CLI, batch YAML and the GUI
-  sizes.py      creature sizes: the size tables (built-in, calculated) and how a
-                size fills in a figure's height and tab
-  segment.py    background removal (RMBG-1.4 / BiRefNet ONNX, alpha, masks)
-                and the on-disk mask cache
-  geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
-  mini.py       the pipeline: image -> mask -> layout -> cut path (mm units)
-  cache.py      in-memory LRU caches for the pipeline stages
-  remote.py     images from links (downloaded once into the cache), image types
-  svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
-  update.py     the app's updates: check GitHub, download, verify the release
-                signature, install when the app closes
-  log.py        the desktop app's log (one file per session), crash files and
-                the prefilled link of Report a problem
-  gui/          PySide6 desktop app (window, panels, views, widgets, theme,
-                prefs, about, export, models: download dialog and the Models
-                and cache page; preferences: the Preferences window and the
-                creature size presets; errors: the error dialog, crash offer
-                and Report a problem)
-tests/          pytest; synthetic masks, no model download; GUI tests offscreen
-scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
-                sign_release.py (release signing); fake_update.py and
-                try_update.py (try the app's update locally); build_installer.py
-                (the Windows installer)
-justfile        the common tasks (just setup, test, gui, build, try-update, ...)
-packaging/      PyInstaller spec (one program: the app without a command, the command
-                line with one), its entry script, app icon (make_icon.py) and the
-                Inno Setup script of the Windows installer (papermini.iss)
-.github/        CI (tests on push/PR) and release (binaries on version tags);
-                ci-image/: the image the Linux tests run in (Python, Qt's libraries);
-                ISSUE_TEMPLATE/: the bug report and feature request forms
-examples/       minis.yaml (a batch example) and dragons/: the images and
-                project of the README screenshots, and the sample outputs
-docs/           reference.md (full option docs), maintainability.md (this guide)
-                and README screenshots
+src/papermini/   the package
+  (top level)    the core: options and projects, creature sizes, background
+                 removal, the pipeline from image to cut path, sheet and file
+                 output, caches, updates and logging; plain Python, no Qt (S9)
+  gui/           the PySide6 desktop app, built on the core
+  fonts/         the bundled fonts and their licences
+tests/           the pytest suite: synthetic masks, no network or model, GUI
+                 tests off-screen (T4)
+scripts/         developer tools: setting up the environment, screenshots,
+                 release notes, release signing, trying updates locally,
+                 building the Windows installer
+packaging/       the PyInstaller build and the Windows installer
+examples/        a batch example, and the images, project and sample outputs
+                 of the README and the sample checks (D3)
+docs/            the user reference, this guide and the README screenshots
+.github/         the CI and release workflows, the Linux CI image and the
+                 issue forms
+justfile         the common tasks (R1)
+pyproject.toml   package metadata, dependencies and tool settings
+README.md        what papermini does and how to use it
+AGENTS.md        extra rules for coding agents
 ```
 
 ## Code structure and readability
 
-S1, S5, S6, S7 and S8 are the SOLID principles, written for this code base.
-
-### S1. A module or class has one reason to change
+### S1. A module or class has one reason to change - SOLID (S)
 
 This is the single responsibility principle. Group code by what it is
 responsible for, so that a change to one feature touches one module or class. A
@@ -155,7 +140,7 @@ explains.
 explained in a long comment above `STEPS`. Build callbacks pass
 `(uid, gen, key)` positionally through several methods.
 
-### S5. Add a variant by adding an entry
+### S5. Add a variant by adding an entry - SOLID (O)
 
 This is the open/closed principle. Adding a new kind of something, such as a
 segmentation model or a tab shape, should mean adding one entry to one table,
@@ -166,7 +151,7 @@ variants reads them from that table.
 `gui/panels.py` lists them again in `MODELS` and in a tooltip, and the help text
 in `cli.py` lists them a third time. Adding a model means editing all of them.
 
-### S6. A subclass keeps the promises of its base class
+### S6. A subclass keeps the promises of its base class - SOLID (L)
 
 This is the Liskov substitution principle. Code that works with a base class
 must keep working when it gets a subclass. An override accepts what the base
@@ -176,7 +161,7 @@ ignore part of the base class's behaviour, it probably shouldn't be a subclass.
 This matters most for Qt widgets. A subclass of `QSpinBox` or `QListWidget` is
 passed to Qt code that expects the base class's behaviour.
 
-### S7. Depend only on what you use
+### S7. Depend only on what you use - SOLID (I)
 
 This is the interface segregation principle. Give a function or class the
 values it needs, not a large object that contains them. A widget gets the data
@@ -186,7 +171,7 @@ settings gets those two settings, or a small object with just those fields.
 Narrow inputs make it clear what a piece of code depends on, and make it easy
 to test.
 
-### S8. Pass collaborators in
+### S8. Pass collaborators in - SOLID (D)
 
 This is the dependency inversion principle. Code that decides what happens
 doesn't create the things that do slow or outside work, such as downloading,
@@ -260,6 +245,7 @@ otherwise surprise a reader. They don't repeat what the code already says.
   formats in words instead.
 - Don't write comments about history ("now", "new", "used to"). Describe the
   code as it is.
+- Give every module a docstring that says what it holds.
 - Give public functions in the core modules a docstring. A private helper needs
   one only when its name and signature aren't enough.
 
