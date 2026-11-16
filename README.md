@@ -245,6 +245,13 @@ Run the tests. They need no model download; the GUI tests run off-screen:
 just test
 ```
 
+See which lines the tests don't run. CI shows the same report in the summary
+of its Linux Python 3.12 test job:
+
+```bash
+just coverage
+```
+
 Check and format the code with [ruff](https://docs.astral.sh/ruff/), which CI
 also runs. `just lint --fix` fixes what ruff can fix by itself:
 

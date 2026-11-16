@@ -314,8 +314,9 @@ The parts where a mistake costs the most need the most tests:
 - sheet packing and the PDF and SVG output;
 - creature sizes and how they fill in a figure.
 
-Untested branches in these parts are findings. Use the coverage report to find
-them. Untested GUI glue matters less, unless it holds logic.
+Untested lines in these parts are findings. `just coverage` lists them, and so
+does the summary of the Linux Python 3.12 test job in CI. Untested GUI glue
+matters less, unless it holds logic.
 
 ### T2. Tests check behaviour, not implementation
 
