@@ -14,11 +14,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "src"))
 
-from PySide6.QtCore import QRectF, Qt  # noqa: E402
-from PySide6.QtGui import QGuiApplication, QImage, QPainter  # noqa: E402
-from PySide6.QtSvg import QSvgRenderer  # noqa: E402
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QGuiApplication, QImage, QPainter
+from PySide6.QtSvg import QSvgRenderer
 
-from papermini.gui.theme import LOGO  # noqa: E402
+from papermini.gui.theme import LOGO
 
 SIZE = 1024
 MARGIN = 0.03  # the logo's white sticker border already gives it room
