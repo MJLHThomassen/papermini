@@ -1,9 +1,13 @@
 # Maintainability guide
 
-This guide describes what makes papermini easy to maintain, and how to check
-it. It is written for two readers: a newcomer who has to understand and change
-the code from the code and docs alone, and the maintainer, who reads code that
-was mostly written by coding agents.
+This guide is the single source of truth for how papermini is kept
+maintainable. It covers how the code is structured, how it is tested, how it is
+documented and how it is built and released. Everyone who works on the code
+follows it, whether they are a person or a coding agent.
+
+It is written for two readers: a newcomer who has to understand the code from
+the code and docs alone, and the maintainer, who reads code that was mostly
+written by coding agents.
 
 The guide is used in three ways:
 
@@ -13,57 +17,103 @@ The guide is used in three ways:
 - **In a periodic audit.** Check the whole repository against these rules, rank
   what you find, and fix it in small batches.
 
-The hard rules in [AGENTS.md](../AGENTS.md) come first. Where this guide and
-AGENTS.md disagree, AGENTS.md wins and this guide should be corrected.
+[AGENTS.md](../AGENTS.md) adds only what coding agents need on top of this
+guide, such as when they may commit. It doesn't repeat or override the rules
+here. A rule about the code that turns up somewhere else belongs in this guide.
 
 ## What a maintainer needs
 
-Every rule below serves one of these four needs:
+Every rule below serves one of these needs:
 
-1. **Understand one part without reading everything.** A module, class or
-   function can be read on its own, and its name says what it does.
-2. **Change one thing in one place.** A piece of knowledge, such as an option, a
-   unit or a default, lives in one place, or in a fixed set of places that a
-   rule names.
+1. **Understand one part without reading everything.** A piece of code can be
+   read on its own, and its name says what it does.
+2. **Change one thing in one place.** Every piece of knowledge, such as an
+   option or a default, is defined once.
 3. **Know when something broke.** The tests fail when behaviour changes, and
    they keep passing when only the structure changes.
-4. **Trust the docs.** What the docs, comments and agent rules say matches what
-   the code does.
+4. **Trust the docs.** What the docs and comments say matches what the code
+   does.
 
 ## How to apply the rules
 
-Each rule has an id (S1, T2 and so on), a statement of what good looks like, the
-reason, and, where useful, an example from this repository.
+Each rule has an id, such as S1 or T2. It says what good looks like and why.
+Many rules also give an example from this repository.
 
 **Soft triggers** are numbers such as "a function over about 60 lines". A
 trigger is a reason to look closer, not a finding by itself. A 90-line function
 that reads top to bottom as one clear sequence is fine. A 40-line function that
-mixes three jobs is not. The few hard limits are enforced by the tools.
+mixes several jobs is not. The few hard limits are enforced by the tools.
 
-**Leave mechanical checks to the tools.** Formatting, import order, unused names,
-simple bug patterns and type errors are the job of ruff and ty. Don't report
-them by hand. Report what needs judgement.
+**Leave mechanical checks to the tools.** Ruff checks formatting, import order,
+unused names and simple bug patterns. Ty checks types. Don't report what they
+catch. Report what needs judgement.
 
 **A finding must cite a rule.** If you can't tie a problem to a rule in this
 guide, either it isn't a maintainability problem, or this guide is missing a
 rule. In the second case, propose the rule.
 
+## Where things are
+
+```
+src/papermini/
+  cli.py        command line: make | sheet | batch | gui
+  settings.py   FigureSettings / Project: the options of a figure and a
+                project, shared by the CLI, batch YAML and the GUI
+  sizes.py      creature sizes: the size tables (built-in, calculated) and how a
+                size fills in a figure's height and tab
+  segment.py    background removal (RMBG-1.4 / BiRefNet ONNX, alpha, masks)
+                and the on-disk mask cache
+  geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
+  mini.py       the pipeline: image -> mask -> layout -> cut path (mm units)
+  cache.py      in-memory LRU caches for the pipeline stages
+  remote.py     images from links (downloaded once into the cache), image types
+  svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
+  update.py     the app's updates: check GitHub, download, verify the release
+                signature, install when the app closes
+  log.py        the desktop app's log (one file per session), crash files and
+                the prefilled link of Report a problem
+  gui/          PySide6 desktop app (window, panels, views, widgets, theme,
+                prefs, about, export, models: download dialog and the Models
+                and cache page; preferences: the Preferences window and the
+                creature size presets; errors: the error dialog, crash offer
+                and Report a problem)
+tests/          pytest; synthetic masks, no model download; GUI tests offscreen
+scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
+                sign_release.py (release signing); fake_update.py and
+                try_update.py (try the app's update locally); build_installer.py
+                (the Windows installer)
+justfile        the common tasks (just setup, test, gui, build, try-update, ...)
+packaging/      PyInstaller spec (one program: the app without a command, the command
+                line with one), its entry script, app icon (make_icon.py) and the
+                Inno Setup script of the Windows installer (papermini.iss)
+.github/        CI (tests on push/PR) and release (binaries on version tags);
+                ci-image/: the image the Linux tests run in (Python, Qt's libraries);
+                ISSUE_TEMPLATE/: the bug report and feature request forms
+examples/       minis.yaml (a batch example) and dragons/: the images and
+                project of the README screenshots, and the sample outputs
+docs/           reference.md (full option docs), maintainability.md (this guide)
+                and README screenshots
+```
+
 ## Code structure and readability
+
+S1, S5, S6, S7 and S8 are the SOLID principles, written for this code base.
 
 ### S1. A module or class has one reason to change
 
-Group code by what it is responsible for, so that a change to one feature touches
-one module or class. A module that holds unrelated jobs forces every reader to
-skip past the jobs they don't care about.
+This is the single responsibility principle. Group code by what it is
+responsible for, so that a change to one feature touches one module or class. A
+module that holds unrelated jobs makes every reader skip past the jobs they
+don't care about.
 
-*Soft triggers:* a file over about 800 lines, a class over about 400 lines or
-about 40 methods.
+*Soft triggers:* a file over about 800 lines, or a class over about 400 lines
+or about 40 methods.
 
 *Example:* `MainWindow` in `gui/window.py` builds the layout, queues builds and
-handles their results, exports, prints, manages recent files and folders,
+handles their results, exports and prints, manages recent files and folders,
 handles drag and drop, and checks for updates. Someone who wants to change how
 exporting works has to find their way through a class of about 2,000 lines.
-Better: separate collaborators, such as an export controller or an update
+Better: separate collaborators, such as an export controller and an update
 controller, that the window creates and wires together.
 
 ### S2. A function does one thing at one level of detail
@@ -71,105 +121,200 @@ controller, that the window creates and wires together.
 A function either coordinates steps or does one step, not both. Its body should
 read as a short sequence of named steps.
 
-*Soft triggers:* a function over about 60 lines, nesting deeper than about three
-levels, more than about six parameters.
+*Soft triggers:* a function over about 60 lines, nesting deeper than about
+three levels, or more than about six parameters.
 
-*Example:* `make_mini` in `mini.py` takes twenty keyword arguments and runs
-the whole pipeline in one body. Related parameters, such as the segmentation
-options or the text options, could travel together in small dataclasses, the way
-`geo.Params` and `Style` already do.
+*Example:* `make_mini` in `mini.py` takes twenty keyword arguments and runs the
+whole pipeline in one body. Related parameters, such as the segmentation
+options, could travel together in a small dataclass, the way `geo.Params` and
+`Style` already do.
 
 ### S3. Names say what things are
 
-A name should tell a newcomer what a value is without reading where it was made.
-Short names are fine in a tight scope (`x`, `y`, `i`, a loop over pixels) and for
+A name should tell a newcomer what a value is without reading where it was
+made. Short names are fine in a tight scope, such as a loop over pixels, and for
 well-known maths. They are not fine for values that travel across a long
 function or between functions.
 
 Keep abbreviations consistent across modules. Put the unit in the name when a
-number could be in more than one unit (`width_mm`, `close_px`). The code already
-does this well; keep it that way.
+number could be in more than one unit, as in `width_mm` and `close_px`. The code
+already does this well.
 
-*Example:* `prm`, `fm`, `lay` and `s` stand for parameters, figure mask, layout
-and settings, and they are used across long functions.
+*Example:* `prm` and `lay` stand for parameters and layout, and they are used
+across long functions.
 
 ### S4. Put structure in types, not in strings and tuples
 
-When data has fields, give it a dataclass, a `NamedTuple` or an `Enum`, so that
-the fields have names, editors can complete them, and ty can check them. Avoid
-lists of positional tuples and one-letter codes that only a comment explains.
+When data has fields, give it a dataclass. When a value is one of a fixed set,
+give it an `Enum`. Names can then be completed by editors and checked by ty.
+Avoid lists of positional tuples and one-letter codes that only a comment
+explains.
 
 *Example:* the field specs in `gui/panels.py` are tuples of
-`(field, label, kind, extra)`, where `kind` is a code such as `"f"`, `"i"` or
-`"col"`, explained in a long comment above `STEPS`. Build callbacks pass
+`(field, label, kind, extra)`, where `kind` is a code such as `"f"` or `"col"`,
+explained in a long comment above `STEPS`. Build callbacks pass
 `(uid, gen, key)` positionally through several methods.
 
-### S5. One source of truth
+### S5. Add a variant by adding an entry
 
-A piece of knowledge lives in one place. Copies of a constant, a default, a
-list of choices or a calculation drift apart over time.
+This is the open/closed principle. Adding a new kind of something, such as a
+segmentation model or a tab shape, should mean adding one entry to one table,
+not editing `if` chains in several modules. Code that needs to know about all
+variants reads them from that table.
 
-Where knowledge must live in several places, a rule must say so, and say where.
-AGENTS.md does this for options, which live in five places. Proposing to derive
-some of those places from `FigureSettings` is a valid finding. Until then,
-follow the rule.
+*Example:* the segmentation models are described in `segment.py`, but
+`gui/panels.py` lists them again in `MODELS` and in a tooltip, and the help text
+in `cli.py` lists them a third time. Adding a model means editing all of them.
 
-### S6. Dependencies point one way
+### S6. A subclass keeps the promises of its base class
 
-The core modules (`settings`, `sizes`, `mini`, `geometry`, `segment`, `sheet`,
-`svg`, `token` and the rest outside `gui/`) never import `gui` or Qt. The GUI
-depends on the core, never the other way round. This keeps the pipeline usable
-from the command line and testable without a display.
+This is the Liskov substitution principle. Code that works with a base class
+must keep working when it gets a subclass. An override accepts what the base
+method accepts and returns what it returns. If a subclass has to refuse or
+ignore part of the base class's behaviour, it probably shouldn't be a subclass.
+
+This matters most for Qt widgets. A subclass of `QSpinBox` or `QListWidget` is
+passed to Qt code that expects the base class's behaviour.
+
+### S7. Depend only on what you use
+
+This is the interface segregation principle. Give a function or class the
+values it needs, not a large object that contains them. A widget gets the data
+and signals it works with, not the whole main window. A helper that needs two
+settings gets those two settings, or a small object with just those fields.
+
+Narrow inputs make it clear what a piece of code depends on, and make it easy
+to test.
+
+### S8. Pass collaborators in
+
+This is the dependency inversion principle. Code that decides what happens
+doesn't create the things that do slow or outside work, such as downloading,
+running a model, reading preferences or logging. It receives them as arguments
+or callbacks. Tests then pass in fakes, and there is no need to patch module
+globals.
+
+*Example:* `make_mini` takes `log` and `on_stage` callbacks instead of printing
+or signalling the GUI itself. Do the same for new outside work.
+
+### S9. Dependencies point one way
+
+The core modules, which are everything outside `gui/`, never import `gui` or
+Qt. The GUI depends on the core, never the other way round. This keeps the
+pipeline usable from the command line and testable without a display.
 
 Inside `gui/`, widgets and panels don't reach into the main window. They emit
 signals, and the window connects them.
 
-### S7. Failures are explicit
+### S10. One source of truth
+
+A piece of knowledge, such as a default or a list of choices, lives in one
+place. Copies drift apart over time.
+
+*Options* are the main exception today, and they should stop being one. The
+goal is one definition per option: its name, type, default, limits, label and
+help text. The CLI flags, the GUI fields, the validation and the options table
+in `docs/reference.md` should all be built from that definition, or checked
+against it by a test.
+
+Until then, an option lives in five places, and a change must keep them in
+sync:
+
+- `FigureSettings` in `settings.py`, with its validation in `from_dict`;
+- the CLI flags in `cli.py`;
+- the GUI field in `gui/panels.py` (`SECTIONS`, `TIPS` and the visibility
+  rules);
+- the options table in `docs/reference.md`;
+- its entry in the settings guide there, with a comparison picture from
+  `scripts/screenshots.py` when its values look different.
+
+Add a test for every new option.
+
+### S11. Failures are explicit
 
 Don't catch bare exceptions, and don't swallow errors silently. Catch the
 exceptions you expect, and let the rest reach the error dialog or the command
-line's error output. Workers report every failure back to the UI (see AGENTS.md).
+line's error output.
 
 An error message says what went wrong in the user's terms and what they can do
 about it.
 
-### S8. No dead code
+### S12. No dead code
 
 Remove unused functions, options, parameters, branches and commented-out code.
-Git keeps the history. Before 1.0, don't keep compatibility code for old project
-files or old flags. From 1.0, keep the migrations that AGENTS.md requires, and
+Git keeps the history. Before 1.0, don't keep compatibility code for old
+project files or old flags. From 1.0, keep the migrations that R8 requires, and
 nothing else.
 
-### S9. Comments explain behaviour and reasons
+### S13. Comments explain behaviour and reasons
 
 Docstrings say what a function or class does, as an action or a purpose ("Build
 the cut path for…"). Comments explain why the code does something that would
-otherwise surprise a reader. Comments don't repeat what the code already says.
+otherwise surprise a reader. They don't repeat what the code already says.
 
-- Don't quote user-interface text or use example version numbers in comments
-  and docstrings. Describe formats in words instead.
+- Don't describe what a result is used for elsewhere. A docstring doesn't
+  explain that its output has a certain shape because a function several calls
+  away expects it. Describe what the function does. If a caller depends on a
+  detail, the caller's code or a test says so.
+- Don't quote user-interface text or use example version numbers. Describe
+  formats in words instead.
 - Don't write comments about history ("now", "new", "used to"). Describe the
   code as it is.
-- Give public functions in the core modules a docstring. Private helpers need
-  one only when their name and signature aren't enough.
+- Give public functions in the core modules a docstring. A private helper needs
+  one only when its name and signature aren't enough.
 
-### S10. Keep GUI construction apart from GUI behaviour
+### S14. Name the numbers
 
-Code that builds widgets and layouts is long and flat. Code that reacts to events
-holds the logic. Keep them in separate methods, so that the logic can be read
-and tested without wading through layout code. Split a long `__init__` that
+A number that means something, such as a margin or a timeout, gets a named
+constant with its unit. The exception is a number used once whose meaning is
+obvious from its line.
+
+## Qt and the GUI
+
+### G1. Keep GUI construction apart from GUI behaviour
+
+Code that builds widgets and layouts is long and flat. Code that reacts to
+events holds the logic. Keep them in separate methods, so that the logic can be
+read and tested without wading through layout code. Split a long `__init__` that
 builds a whole panel into one builder method per section.
-
-Follow the GUI pitfalls in AGENTS.md. A change that breaks one of them is a
-finding, even if it works today.
 
 *Soft trigger:* an `__init__` over about 60 lines.
 
-### S11. Name the numbers
+### G2. Preferences go through `gui.prefs.store()`
 
-A number that means something, such as a size, a margin, a timeout or a
-threshold, gets a named constant with its unit, unless it is used once and its
-meaning is obvious from the line it is on.
+Read and write preferences only through `gui.prefs.store()`, never with
+`QSettings("papermini", "papermini")` directly. The tests redirect the store to
+a temporary folder. A direct `QSettings` would write to the user's real
+settings.
+
+### G3. Builds are debounced and matched to their settings
+
+Builds run on a single worker thread, and each result is matched to the
+settings it was started for. Keep the 250 ms debounce. Never call
+`QTimer.start(0)` on the debounce timer, because that sets its interval to 0
+for good. Use `QTimer.singleShot(0, ...)` to run something soon.
+
+### G4. Workers report every failure
+
+A worker reports every failure back to the UI as a `ModelError`, never as a
+`SystemExit` or a silent exception. Otherwise the UI waits forever on a build.
+
+### G5. No graphics effects on scene items in the zoom views
+
+Never put a `QGraphicsEffect`, such as a drop shadow or a blur, on scene items
+in the zoom views. Qt renders the whole item off-screen at the current zoom,
+which makes deep zoom take seconds per frame. Paint such effects in the item's
+`paint()` instead.
+
+### G6. Style sheets are scoped
+
+Child widgets inherit style sheets. Scope every style sheet with `#ObjectName`
+or a class selector, especially on widgets that open dialogs.
+
+### G7. Hide spin box buttons with style rules
+
+A `QSpinBox` with `NoButtons` collapses its text field under a style sheet.
+Hide the buttons with zero-width button rules instead.
 
 ## Tests
 
@@ -178,23 +323,22 @@ meaning is obvious from the line it is on.
 The parts where a mistake costs the most need the most tests:
 
 - the pipeline: geometry, layout, cut paths and bleed;
-- loading and saving projects, and their compatibility rules;
+- loading and saving projects, and their compatibility rules (R8);
 - the update check and the release signature;
 - sheet packing and the PDF and SVG output;
 - creature sizes and how they fill in a figure.
 
 Untested branches in these parts are findings. Use the coverage report to find
-them. Untested GUI glue is lower priority, unless it holds logic.
+them. Untested GUI glue matters less, unless it holds logic.
 
 ### T2. Tests check behaviour, not implementation
 
-A test checks what a user or caller can observe: return values, files written,
-the text and state of widgets, signals emitted. It doesn't call private methods
-or check private attributes, unless there is no other way to reach the
-behaviour.
+A test checks what a user or caller can observe, such as return values or
+the state of a widget. It doesn't call private methods or check private
+attributes, unless there is no other way to reach the behaviour.
 
-The test of this rule: a refactor that keeps behaviour the same keeps the tests
-passing without editing them.
+A refactor that keeps behaviour the same keeps the tests passing without
+editing them. If it doesn't, the tests are checking implementation.
 
 ### T3. Tests are easy to find and read
 
@@ -204,65 +348,101 @@ passing without editing them.
 - Put shared setup in fixtures in `conftest.py`, not in copied code.
 - A test's name says the behaviour it checks and under what condition.
 
-*Soft trigger:* a test file over about 1,000 lines. `tests/test_gui.py` is about
-2,400 lines.
+*Soft trigger:* a test file over about 1,000 lines. `tests/test_gui.py` is
+about 2,400 lines.
 
-### T4. Tests are fast, isolated and repeatable
+### T4. Tests run in isolation
 
-- No network and no segmentation model. `tests/conftest.py` enforces this.
-- No sleeping and no dependence on timing.
-- Temporary folders, not the repository or the user's home folder.
-- Preferences go through `gui.prefs.store()`.
+- Tests never need the network or the segmentation model. `tests/conftest.py`
+  gives every test an empty model cache and blocks `urlopen`, and the GUI tests
+  get a fake default model.
+- No sleeping, and no dependence on timing.
+- Files go in temporary folders, never in the repository or the user's home
+  folder.
+- Preferences go through `gui.prefs.store()` (G2).
 - GUI tests run off-screen.
 
-### T5. Every fixed bug gets a regression test
+### T5. The whole suite passes before a change is finished
+
+Run the whole suite, not only the tests near the change.
+
+### T6. Every fixed bug gets a regression test
 
 The test fails without the fix and passes with it. Its name or docstring says
 what went wrong.
 
-### T6. Pin behaviour down before refactoring
+### T7. Pin behaviour down before refactoring
 
-Before restructuring code that is poorly tested, add characterisation tests:
-tests that record what the code does now, so that the refactor can be checked
-against them.
+Before restructuring code that is poorly tested, add characterisation tests.
+They record what the code does now, so that the refactor can be checked against
+them.
 
-## Docs and agent rules
+## Docs and writing
 
 ### D1. Docs match the code
 
 These must match what the code does:
 
-- the layout map in AGENTS.md;
+- the layout map in this guide;
 - the options table and the settings guide in `docs/reference.md`;
 - the command line basics and the development setup in `README.md`;
 - docstrings and comments.
 
 A mismatch is a finding, whichever side is wrong.
 
-### D2. A newcomer can get started
+### D2. Each kind of doc has one home
+
+- User-facing behaviour goes in `docs/reference.md`.
+- `README.md` stays short: features, usage with screenshots, command line
+  basics and development setup.
+- How the code is kept maintainable goes in this guide.
+- What only coding agents need goes in `AGENTS.md`.
+
+### D3. Pictures and samples follow the code
+
+- After a visible change to the app, regenerate the README screenshots with
+  `scripts/screenshots.py`.
+- When the output format or a default changes, regenerate the samples in
+  `examples/dragons/samples/` with `papermini batch
+  examples/dragons/samples.yaml` and `papermini batch
+  examples/dragons/samples-machine.yaml`.
+
+### D4. A newcomer can get started
 
 - The development section of the README takes a newcomer from a fresh clone to
   running the tests and the app in a few commands.
-- The non-obvious designs are explained somewhere a newcomer will look: the
-  stages of the pipeline, how the app runs builds on a worker thread and matches
-  them to the settings they were started for, and how the caches work.
+- The non-obvious designs are explained where a newcomer will look, such as
+  the stages of the pipeline and how the app matches builds to their settings
+  (G3).
 
 A non-obvious design that is explained nowhere is a finding. Explain it next to
-the code, or in AGENTS.md when it spans modules.
+the code, or in this guide when it spans modules.
 
-### D3. Agent rules are current and give their reasons
+### D5. Write plainly
 
-Every rule in AGENTS.md is still true, doesn't contradict another rule, and says
-why when the reason isn't obvious. Remove a rule, or make it point to the tool,
-once a tool enforces it.
+This applies to docs, comments, docstrings, user-visible text, commit messages
+and pull request descriptions.
 
-### D4. User-visible text is plain
+- Write plain, direct sentences. Say what a thing is first, then what it does
+  or what the reader can do.
+- Don't pad lists to three. Name as many items as there really are. One or two
+  is fine. Write "a module or class", not "a module, class or function", unless
+  all three are meant. When there are exactly three things, as in "applies to
+  classes, functions and fields", list them.
+- Don't stack qualifiers. Write "the reason" instead of "the reason, and, where
+  useful, an example".
+- When a list is long or its items are long, use bullet points instead of a
+  sentence.
 
-Dialog intros, hints, tooltips and error messages are plain, direct sentences.
-They first say what the thing is, then what the user can do. Text that reads
-like a heading fragment or a riddle gets rewritten.
+Text that reads like a heading fragment or a riddle gets rewritten.
 
-### D5. This guide stays current
+### D6. User-visible text is plain
+
+Dialog intros, hints, tooltips and error messages follow D5. A dialog opens
+with a plain statement of what it is, and then says what the user can do in
+short imperative sentences.
+
+### D7. This guide stays current
 
 When a review finds a problem that no rule covers, or a rule that no longer
 fits, update this guide in the same pull request.
@@ -271,9 +451,9 @@ fits, update this guide in the same pull request.
 
 ### R1. One command per common task
 
-Common tasks (set up, test, lint, format, type-check, run the app, build) each
-have a recipe in the `justfile`. CI and the docs use the same commands, so that
-what passes locally passes in CI.
+Common tasks, such as setting up, testing, linting, running the app and
+building, each have a recipe in the `justfile`. CI and the docs use the same
+commands, so that what passes locally passes in CI.
 
 ### R2. CI runs every check
 
@@ -283,41 +463,88 @@ check, on every Python version and platform the project supports.
 ### R3. Builds are reproducible
 
 Dependencies are locked, and the versions of the development tools are pinned.
-A fresh clone on another machine gets the same environment.
+A fresh clone on another machine gets the same environment. Python packages are
+never installed globally; everything runs in the project's environment.
 
 ### R4. Scripts follow the same rules as the app
 
-The code in `scripts/` and `packaging/` is maintained like the rest. It isn't
-exempt from the rules above.
+The code in `scripts/` and `packaging/` is not exempt from this guide.
 
 *Example:* `main()` in `scripts/screenshots.py` is about 300 lines long.
 
-### R5. The release and update path is documented and tested
+### R5. Updating stays safe
 
-Signing, the update check and the installer each have a way to try them locally
-(see AGENTS.md). A change to them that skips that path is a finding.
+- Never weaken the release signature check in `update.py`.
+- Never commit a private release key.
+- Try a change to updating with `just try-update` (a real build) or
+  `just try-update-source`.
+- Try a change to the Windows installer, or to how an installed copy updates,
+  with `just try-update-installer`.
 
 ### R6. Packaging stays in sync
 
-A new runtime dependency or data file is added to the PyInstaller spec, and
-tried in a local build.
+A new runtime dependency or data file must also work in the PyInstaller build
+(`packaging/papermini.spec`). After such a change, build locally and run the
+frozen `papermini --version` and a `papermini make`.
+
+### R7. Commits follow Conventional Commits
+
+Every commit message follows
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+`type(scope): description`, for example `feat(gui): add a link bar to the
+figure list` or `fix(sheet): keep the scale bar on the first page`.
+
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`,
+  `ci`, `chore`, `revert`.
+- The scope is optional (`gui`, `cli`, `sheet`, `segment`, ...).
+- Mark a breaking change with `!` after the type or scope (`feat(cli)!: ...`)
+  or with a `BREAKING CHANGE:` footer.
+- Make one logical change per commit.
+- Pull request titles follow the same format.
+
+### R8. What released versions depend on stays stable
+
+- **Project files.** Project files saved by 1.0 must keep opening in every 1.x
+  version. From 1.0, renaming or removing an option, CLI flag or YAML key needs
+  a migration, or must wait for 2.0. Before 1.0, no compatibility code is kept
+  (S12).
+- **The bug report form.** The app's *Report a problem* fills in fields of
+  `.github/ISSUE_TEMPLATE/bug_report.yml` through the URL, by their ids:
+  `version`, `os`, `runs-as` and `traceback`. Released versions rely on them.
+  Never rename or remove those ids, and keep them text fields.
+
+### R9. The version comes from git tags
+
+Never hard-code a version number. The version comes from git tags through
+setuptools-scm, and `src/papermini/_version.py` is generated and ignored.
+Releases are cut by the maintainer, either by running the release workflow
+with a version, which tags the commit, or by pushing a `vMAJOR.MINOR.PATCH`
+tag.
+
+### R10. The repository holds source, not bulk
+
+Never commit virtual environments, caches, model weights, `debug/` output or
+other generated files. Model weights are downloaded to `~/.cache/papermini/` on
+first use.
+
+Respect the model licences. The default segmentation model, BRIA RMBG-1.4, is
+for non-commercial use only. BiRefNet is MIT licensed.
 
 ## Proving a change is safe
 
 A clean-up must not change behaviour. Each clean-up proves that:
 
 1. **The whole test suite passes.**
-2. **The samples come out the same.** Regenerate `examples/dragons/samples/`
-   with the two sample batches. The outputs must be identical. If a difference
-   is intended, explain each one.
+2. **The samples come out the same.** Regenerate the samples (D3). The outputs
+   must be identical. Explain every intended difference.
 3. **The window looks the same.** Render the window off-screen in the light and
    dark themes, before and after the change, and compare the images.
 4. **Weakly tested code is pinned down first** with characterisation tests
-   (T6).
+   (T7).
 
-A clean-up that changes nothing the user can see doesn't need the design
-approval that AGENTS.md asks for new features. A change that alters how
-anything looks or works does: stop and ask the maintainer to try it.
+A clean-up that changes nothing the user can see needs no design approval. A
+change that alters how anything looks or works does: the maintainer tries it
+before it is finished.
 
 ## Reporting findings
 
@@ -328,7 +555,7 @@ A review reports each finding with these fields:
 | Rule | The id of the rule it breaks, such as S2. |
 | Where | `path:line`, or a list of them. |
 | Problem | What is wrong, in one or two sentences. |
-| Why it matters | How it slows down or misleads a maintainer: a newcomer, the maintainer, or both. |
+| Why it matters | How it slows down or misleads a newcomer or the maintainer. |
 | Change | What to change, concretely enough to start on. |
 | Benefit | High, medium or low: how much easier maintenance gets. |
 | Effort | Small (under an hour), medium (a few hours) or large (a day or more). |
@@ -345,5 +572,5 @@ of `MainWindow`". It is reviewed and merged as one pull request.
 - Anything ruff or ty checks.
 - Personal taste that no rule supports.
 - Rewrites of working code without a clear gain for a maintainer.
-- Renaming an option, command line flag or project file key without the
-  migration that AGENTS.md requires from 1.0.
+- Renaming an option, CLI flag or project file key without the migration that
+  R8 requires.

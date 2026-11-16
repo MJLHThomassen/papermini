@@ -1,6 +1,12 @@
 # AGENTS.md
 
-Rules for anyone, human or coding agent, working in this repository.
+Extra rules for coding agents working in this repository.
+
+[docs/maintainability.md](docs/maintainability.md) is the single source of
+truth for how the code is kept maintainable: its structure, tests, docs,
+tooling and releases, and where things are in the repository. Read it before
+changing code, and follow it. This file only adds what agents need on top of
+it.
 
 ## Hard rules
 
@@ -8,136 +14,39 @@ Rules for anyone, human or coding agent, working in this repository.
   and including `*Disclaimer: This tool is 100% vibecoded!*` belongs to the
   maintainer. Leave those lines byte for byte as they are (wording, spacing,
   line endings). Edit only what comes after them.
-- **Never install Python packages globally.** Use the project venv
-  (`python scripts/setup_venv.py --dev`, at `~/.venvs/papermini`) and run
-  everything with its interpreter, e.g. `~/.venvs/papermini/Scripts/python -m
-  pytest` (`bin/python` on macOS and Linux).
-- **Do not commit, push or open pull requests unless asked.** Never commit
-  venvs, caches, model weights, `debug/` output or other generated bulk.
-- **Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)**
-  for every commit message: `type(scope): description`, for example
-  `feat(gui): add a link bar to the figure list` or `fix(sheet): keep the
-  scale bar on the first page`. Types: `feat`, `fix`, `docs`, `style`,
-  `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. The scope is
-  optional (`gui`, `cli`, `sheet`, `segment`, ...). Mark a breaking change with
-  `!` after the type or scope (`feat(cli)!: ...`) or a `BREAKING CHANGE:`
-  footer. One logical change per commit; pull request titles follow the same
-  format.
-- **Project compatibility from 1.0.** Project files saved by 1.0 must keep
-  opening in every 1.x version. From 1.0, renaming or removing an option, CLI
-  flag or YAML key needs a migration, or must wait for 2.0. The no
-  backwards-compatibility-code rule applies only before 1.0.
-- **Never hard-code a version number.** The version comes from git tags
-  through setuptools-scm (`src/papermini/_version.py` is generated and
-  ignored). Releases are cut only by the maintainer: by running the release
-  workflow with a version (it tags the commit) or by pushing a
-  `vMAJOR.MINOR.PATCH` tag. Never start a release, or create or push tags,
-  yourself unless asked.
-- **Respect the model licences.** The default segmentation model, BRIA
-  RMBG-1.4, is non-commercial; BiRefNet is MIT. Never add model weights to the
-  repository; they are downloaded to `~/.cache/papermini/` on first use.
+- **Run everything in the project venv.** Never install Python packages
+  globally. Set the venv up with `python scripts/setup_venv.py --dev` (it lives
+  at `~/.venvs/papermini`) and run everything with its interpreter, for example
+  `~/.venvs/papermini/Scripts/python -m pytest` (`bin/python` on macOS and
+  Linux).
+- **Do not commit, push or open pull requests unless asked.** When you do
+  commit, follow rule R7 of the guide.
+- **Never start a release, or create or push tags, unless asked.** Releases
+  are cut by the maintainer (rule R9 of the guide).
 
-## Layout
-
-```
-src/papermini/
-  cli.py        command line: make | sheet | batch | gui
-  settings.py   FigureSettings / Project: the one definition of every option,
-                shared by the CLI, batch YAML and the GUI
-  sizes.py      creature sizes: the size tables (built-in, calculated) and how a
-                size fills in a figure's height and tab
-  segment.py    background removal (RMBG-1.4 / BiRefNet ONNX, alpha, masks)
-                and the on-disk mask cache
-  geometry.py   mask clean-up, margin, tab, cut-line tracing, bleed
-  mini.py       the pipeline: image -> mask -> layout -> cut path (mm units)
-  cache.py      in-memory LRU caches for the pipeline stages
-  remote.py     images from links (downloaded once into the cache), image types
-  svg.py        SVG writer/reader;  sheet.py  PDF sheet packing and output
-  update.py     the app's updates: check GitHub, download, verify the release
-                signature, install when the app closes
-  log.py        the desktop app's log (one file per session), crash files and
-                the prefilled link of Report a problem
-  gui/          PySide6 desktop app (window, panels, views, widgets, theme,
-                prefs, about, export, models: download dialog and the Models
-                and cache page; preferences: the Preferences window and the
-                creature size presets; errors: the error dialog, crash offer
-                and Report a problem)
-tests/          pytest; synthetic masks, no model download; GUI tests offscreen
-scripts/        setup_venv.py, screenshots.py, release_notes.py; release_key.py and
-                sign_release.py (release signing); fake_update.py and
-                try_update.py (try the app's update locally); build_installer.py
-                (the Windows installer)
-justfile        the common tasks (just setup, test, gui, build, try-update, ...)
-packaging/      PyInstaller spec (one program: the app without a command, the command
-                line with one), its entry script, app icon (make_icon.py) and the
-                Inno Setup script of the Windows installer (papermini.iss)
-.github/        CI (tests on push/PR) and release (binaries on version tags);
-                ci-image/: the image the Linux tests run in (Python, Qt's libraries);
-                ISSUE_TEMPLATE/: the bug report and feature request forms
-examples/       minis.yaml (a batch example) and dragons/: the images and
-                project of the README screenshots, and the sample outputs
-docs/           reference.md (full option docs), maintainability.md (what keeps the
-                code maintainable, used by reviews) and README screenshots
-```
-
-## Making changes
+## How to work
 
 - **New features: get the design approved first.** After building a new
-  feature, stop and ask the maintainer to run the app and try it: say how to
+  feature, stop and ask the maintainer to run the app and try it. Say how to
   start it (for example `~/.venvs/papermini/Scripts/python -m papermini gui
   examples/dragons/dragons.yaml`) and what to look at. Only once they approve
   how the feature looks and works, run the test suite, update the docs and
-  samples, and (re)generate the screenshots. Until then, keep those steps
-  undone, so they are not redone after every change to the design.
-- **An option lives in five places; keep them in sync:** `FigureSettings` in
-  `settings.py` (with validation in `from_dict`), the CLI flags in `cli.py`,
-  the GUI field in `gui/panels.py` (`SECTIONS`, `TIPS`, visibility rules), the
-  options table in `docs/reference.md`, and its entry in the settings guide
-  there (with a comparison picture from `scripts/screenshots.py` when values
-  look different). Add a test.
-- **Test before you finish.** Run the whole suite with the venv's Python. Add
-  a regression test for every bug you fix. Tests must not need the network or
-  the segmentation model: `tests/conftest.py` gives every test an empty model
-  cache and blocks `urlopen`, and the GUI tests get a fake default model.
-- **Look at GUI changes.** Render the window off-screen (`WA_DontShowOnScreen`
-  plus `grab()`) and check the image, in both light and dark themes. After a
-  visible change, regenerate the README screenshots with
-  `scripts/screenshots.py`.
-- **Regenerate the samples** in `examples/dragons/samples/` with
-  `papermini batch examples/dragons/samples.yaml` and
-  `papermini batch examples/dragons/samples-machine.yaml` when the output
-  format or defaults change.
-- **Binaries:** new runtime dependencies or data files must also work in the
-  PyInstaller build (`packaging/papermini.spec`). After such a change, build
-  locally and run the frozen `papermini --version` and a `papermini make`.
-- **Updates:** never weaken the release signature check in `update.py`, and
-  never commit a private release key. Try a change to updating with
-  `just try-update` (a real build) or `just try-update-source`, and a change to
-  the Windows installer or to how an installed copy updates with
-  `just try-update-installer`.
-- **Docs:** user-facing behaviour goes in `docs/reference.md`; keep `README.md`
-  short (features, usage with screenshots, CLI basics, development setup).
-- **Issue forms:** the app's *Report a problem* fills in fields of
-  `.github/ISSUE_TEMPLATE/bug_report.yml` through the URL, by their ids
-  (`version`, `os`, `runs-as`, `traceback`). Released versions rely on them:
-  never rename or remove those ids, and keep them text fields.
+  regenerate the samples and screenshots (rule D3). Until then, leave those
+  steps undone, so they are not redone after every change to the design.
+- **Look at GUI changes yourself.** Render the window off-screen
+  (`WA_DontShowOnScreen` plus `grab()`) and check the image, in both the light
+  and the dark theme.
 
-## GUI pitfalls (learned the hard way)
+## Mistakes agents often make
 
-- Read and write preferences only through `gui.prefs.store()`, never
-  `QSettings("papermini", "papermini")` directly. The tests redirect it to a
-  temporary folder; a direct `QSettings` would write to the user's real
-  settings.
-- Builds run on a single worker thread and are matched to the settings they
-  were started for. Keep the 250 ms debounce. Never call `QTimer.start(0)` on
-  the debounce timer, because that sets its interval to 0 for good; use
-  `QTimer.singleShot(0, ...)` for "run soon".
-- Never put a `QGraphicsEffect` (drop shadow, blur) on scene items in the zoom
-  views. It renders the whole item off-screen at the current zoom and makes
-  deep zoom take seconds per frame. Paint such effects in the item's `paint()`.
-- Workers must report every failure back (`ModelError`, never `SystemExit` or
-  silent exceptions), so the UI never waits forever on a build.
-- Style sheets are inherited by child widgets: scope them (`#ObjectName` or a
-  class selector), especially on widgets that open dialogs.
-- A `QSpinBox` with `NoButtons` collapses its text field under a style sheet;
-  hide the buttons with zero-width button rules instead.
+Check your work for these before you finish. Each one breaks a rule in the
+guide.
+
+- **Padding lists to three** (rule D5). Name as many items as there really
+  are. This applies to code comments, docs, commit messages, pull request
+  descriptions and your replies.
+- **Explaining what a result is used for elsewhere** (rule S13). A docstring
+  says what its function does, not that a caller several calls away needs the
+  output in a certain shape.
+- **Quoting user-interface text or example version numbers in comments**
+  (rule S13).
