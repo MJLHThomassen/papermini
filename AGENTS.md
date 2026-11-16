@@ -37,6 +37,10 @@ it.
 - **Look at GUI changes yourself.** Render the window off-screen
   (`WA_DontShowOnScreen` plus `grab()`) and check the image, in both the light
   and the dark theme.
+- **Before opening a pull request, review the branch** with the steps in
+  [.claude/skills/maintainability/pr.md](.claude/skills/maintainability/pr.md),
+  which the maintainer runs as `/maintainability pr`. Fix what belongs in the
+  change, and list the other findings in the pull request description.
 
 ## Mistakes agents often make
 

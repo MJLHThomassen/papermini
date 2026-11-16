@@ -17,6 +17,9 @@ The guide is used in three ways:
 - **In a periodic audit.** Check the whole repository against these rules, rank
   what you find, and fix it in small batches.
 
+Coding agents run the last two with the `/maintainability pr` and
+`/maintainability audit` commands, from `.claude/skills/maintainability`.
+
 [AGENTS.md](../AGENTS.md) adds only what coding agents need on top of this
 guide, such as when they may commit. It doesn't repeat or override the rules
 here. A rule about the code that turns up somewhere else belongs in this guide.
@@ -71,6 +74,8 @@ examples/        a batch example, and the images, project and sample outputs
 docs/            the user reference, this guide and the README screenshots
 .github/         the CI and release workflows, the Linux CI image and the
                  issue forms
+.claude/         the maintainability command and its reviewer agent, for
+                 coding agents
 justfile         the common tasks (R1)
 pyproject.toml   package metadata, dependencies and tool settings
 uv.lock          the locked versions of every dependency (R3)
