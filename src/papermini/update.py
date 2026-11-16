@@ -28,11 +28,11 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.request
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple
-import urllib.request
 
 REPO = "MJLHThomassen/papermini"
 LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
@@ -65,12 +65,12 @@ class UpdateError(Exception):
 class Release:
     version: str                     # the release's version, without the "v" of its tag
     url: str                         # the release page
-    assets: Dict[str, str] = field(default_factory=dict)  # file name -> download link
+    assets: dict[str, str] = field(default_factory=dict)  # file name -> download link
 
 
 # --------------------------------------------------------------------------- versions
 
-def parse_version(v: str) -> Optional[Tuple[int, int, int]]:
+def parse_version(v: str) -> tuple[int, int, int] | None:
     """Parse a release version (with or without "v") into (major, minor, patch); None
     for anything else, such as a development version or a pre-release."""
     m = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", v.strip())
@@ -87,7 +87,7 @@ def is_newer(latest: str, current: str) -> bool:
 
 # --------------------------------------------------------------------------- this app
 
-def target() -> Optional[str]:
+def target() -> str | None:
     """The download that fits this computer: windows-x64, macos-arm64, macos-x64 or
     linux-x64 (None for anything else)."""
     machine = platform.machine().lower()
@@ -115,7 +115,7 @@ SETUP_KEY = (r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
              r"\{8ABD2E9A-F789-4350-88F8-2565C60699F0}_is1")
 
 
-def setup_install_dir() -> Optional[Path]:
+def setup_install_dir() -> Path | None:
     """The folder the Windows installer installed papermini in, for this user, as its
     entry in Apps & features says (None when it did not install papermini)."""
     if sys.platform != "win32":
@@ -142,7 +142,7 @@ def installed_with_setup() -> bool:
             and os.path.normcase(installed) == os.path.normcase(where))
 
 
-def install_dir() -> Optional[Path]:
+def install_dir() -> Path | None:
     """What an update replaces: the app's folder (Windows, Linux) or papermini.app
     (macOS). None when papermini runs from source (unless a test sets a pretend one)."""
     pretend = os.environ.get(INSTALL_ENV, "").strip()
@@ -157,7 +157,7 @@ def install_dir() -> Optional[Path]:
     return exe.parent
 
 
-def unsupported() -> Optional[str]:
+def unsupported() -> str | None:
     """Why this copy of papermini cannot update itself, or None when it can."""
     if install_dir() is None:
         return "papermini runs from source; update it with git or pip."
@@ -194,7 +194,7 @@ def latest_release(timeout: float = 10.0) -> Release:
 
 
 def _fetch(url: str, dest: Path, timeout: float,
-           progress: Optional[Callable[[int, int], None]] = None) -> Path:
+           progress: Callable[[int, int], None] | None = None) -> Path:
     tmp = dest.with_name(dest.name + ".part")
     try:
         with _open(url, timeout) as r, open(tmp, "wb") as f:
@@ -277,8 +277,8 @@ def _unpack(archive: Path, dest: Path) -> Path:
     raise UpdateError(f"{name} does not hold papermini.")
 
 
-def download(release: Release, progress: Optional[Callable[[int, int], None]] = None,
-             timeout: float = 30.0, step: Optional[Callable[[str], None]] = None) -> Path:
+def download(release: Release, progress: Callable[[int, int], None] | None = None,
+             timeout: float = 30.0, step: Callable[[str], None] | None = None) -> Path:
     """Download this computer's archive of ``release``, verify it and unpack it, ready to
     install; returns the unpacked app. A papermini installed with the Windows installer
     downloads the new installer instead, and gets that back. ``progress(done, total)``
@@ -311,7 +311,7 @@ def download(release: Release, progress: Optional[Callable[[int, int], None]] = 
     return app
 
 
-def _new_app(new: Path) -> Optional[Path]:
+def _new_app(new: Path) -> Path | None:
     """The update in a download's ``new`` folder: the unpacked app, or the installer."""
     for app in ("papermini.app", "papermini"):
         if (new / app).exists():
@@ -319,7 +319,7 @@ def _new_app(new: Path) -> Optional[Path]:
     return next(iter(sorted(new.glob("papermini-*-setup.exe"))), None) if new.is_dir() else None
 
 
-def pending() -> Optional[Tuple[str, Path]]:
+def pending() -> tuple[str, Path] | None:
     """(version, unpacked app or installer) of a downloaded update that is newer than
     this one."""
     from . import __version__
@@ -350,7 +350,7 @@ def forget_old() -> None:
 
 # --------------------------------------------------------------------------- install
 
-def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> Tuple[Path, list]:
+def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> tuple[Path, list]:
     """Write the helper that replaces ``old_app`` with ``new_app`` once the process
     ``pid`` (papermini) has quit; returns (script, command to start it). When
     ``new_app`` is the Windows installer, the helper runs it silently instead (it
@@ -363,15 +363,15 @@ def install_script(new_app: Path, old_app: Path, pid: int, restart: bool) -> Tup
             install = [f'"{new_app}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
                        f'if %ERRORLEVEL% EQU 0 rmdir /s /q "{new_app.parent}"']
         else:
-            install = [f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
-                       "/NFL /NDL /NJH /NJS /NP >NUL",
+            install = [(f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
+                       "/NFL /NDL /NJH /NJS /NP >NUL"),
                        f'if %ERRORLEVEL% LSS 8 rmdir /s /q "{new_app.parent}"']
         lines = [
             "@echo off",
             ":wait",  # until papermini has quit (its files are locked while it runs)
-            f'{sys32}\\tasklist.exe /FI "PID eq {pid}" /NH 2>NUL | '
+            (f'{sys32}\\tasklist.exe /FI "PID eq {pid}" /NH 2>NUL | '
             f'{sys32}\\find.exe "{pid}" >NUL && '
-            f"({sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)",
+            f"({sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)"),
             *install,
         ]
         if restart:
@@ -405,8 +405,8 @@ def install_on_exit(new_app: Path, restart: bool = False) -> None:
     if old is None:
         raise UpdateError("papermini runs from source; it does not install updates.")
     _, cmd = install_script(new_app, old, os.getpid(), restart)
-    quiet = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                 stderr=subprocess.DEVNULL, close_fds=True)
+    quiet = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+                 "stderr": subprocess.DEVNULL, "close_fds": True}
     if sys.platform == "win32":  # a hidden console: a batch script needs one to run
         flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         subprocess.Popen(cmd, creationflags=flags, **quiet)

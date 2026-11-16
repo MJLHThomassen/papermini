@@ -12,9 +12,9 @@ from PIL import Image
 pytest.importorskip("PySide6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication
 
-from papermini.settings import FigureSettings  # noqa: E402
+from papermini.settings import FigureSettings
 
 
 @pytest.fixture(scope="module")
@@ -148,7 +148,7 @@ def test_bad_model_reports_error_and_recovers(app, tmp_path):
 
 def test_crop_handles(app):
     """Draw a crop box, then resize it by a corner handle, move it, and clear it."""
-    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtCore import Qt
     from PySide6.QtGui import QImage
     from PySide6.QtTest import QTest
 
@@ -813,7 +813,7 @@ def test_cache_page_scrolls_when_short(app, model_cache):
         dlg.resize(dlg.width(), 300)  # (as short as the other pages allow)
         app.processEvents()
         assert dlg.height() < 450 and dlg.cache.scroll.verticalScrollBar().isVisible()
-        close = [b for b in dlg.findChildren(QPushButton) if b.text() == "Close"][0]
+        close = next(b for b in dlg.findChildren(QPushButton) if b.text() == "Close")
         assert not dlg.cache.scroll.isAncestorOf(close)
         dlg.close()
     finally:
@@ -898,7 +898,7 @@ def test_no_figure_hides_the_settings(app, tmp_path):
     w = MainWindow()
     try:
         p = w.panel
-        shown = lambda x: x.isVisibleTo(p)  # noqa: E731
+        shown = lambda x: x.isVisibleTo(p)
         assert len(p.sections) > 3
         assert shown(p.empty_box) and p.empty_title.text() == "No figure selected"
         assert "Add images" in p.empty_text.text()
@@ -1191,7 +1191,7 @@ def test_image_adjustments_panel(app):
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
     p.set_step(SOURCE)
-    box = [b for b in p.sections if b.header.text() == "Image adjustments"][0]
+    box = next(b for b in p.sections if b.header.text() == "Image adjustments")
     assert box.isVisibleTo(p)
     reset = p._resets["_reset_adjust"][0]
     assert not reset.isEnabled()                         # nothing to reset yet
@@ -1297,7 +1297,7 @@ def test_settings_panel_follows_the_step(app, tmp_path):
     try:
         w.add_images([tmp_path / "a.png", tmp_path / "b.png"])
         p = w.panel
-        titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]  # noqa: E731
+        titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]
         expected = [["Crop", "Background removal", "Image adjustments"],
                     ["Size", "Back side", "Image outline", "Cut line", "Tab", "Label", "Text",
                          "Number"],
@@ -1681,7 +1681,6 @@ def test_start_card_offers_images_and_a_project(app, monkeypatch):
 def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_path):
     import io
     import urllib.request
-
     from pathlib import Path
 
     from PySide6.QtCore import QMimeData, QUrl
@@ -1790,9 +1789,9 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     """The printed sheet must be exactly to scale: its 50 mm bar is 50 mm on paper."""
     from PySide6.QtGui import QColor, QImage
 
+    from papermini.geometry import CutPath
     from papermini.gui.views import print_sheet
     from papermini.mini import Mini
-    from papermini.geometry import CutPath
     from papermini.sheet import pack
 
     class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
@@ -1984,7 +1983,7 @@ def test_copies_on_the_figure_card(app, tmp_path):
         _, num, _ = lst.itemDelegate()._copies_rects(lst.visualItemRect(lst.item(0)))
         QTest.mouseClick(lst.viewport(), Qt.LeftButton, Qt.NoModifier, num.center().toPoint())
         app.processEvents()
-        box = [b for b in lst.findChildren(QSpinBox) if b.isVisible()][0]
+        box = next(b for b in lst.findChildren(QSpinBox) if b.isVisible())
         QTest.keyClicks(box, "12")
         QTest.keyClick(box, Qt.Key_Return)
         app.processEvents()
@@ -2199,7 +2198,7 @@ def test_the_font_field(app):
 
     p = FigurePanel()
     w = p._w["font"][1]
-    names = lambda: [w.itemData(i) for i in range(w.count()) if w.itemData(i)]  # noqa: E731
+    names = lambda: [w.itemData(i) for i in range(w.count()) if w.itemData(i)]
     assert names() == [f.name for f in fonts.bundled()]
     s = FigureSettings(font="Kalam")
     p.set_settings(s, "x", "x")
@@ -2326,7 +2325,7 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
     w = MainWindow()
     try:
         w.add_images([tmp_path / "hero.png", tmp_path / "imp.png"])
-        hero, imp = w.figures
+        hero, _imp = w.figures
         hero.entry.settings = replace(hero.entry.settings, height_mm=150, label="Hero")
         w.tabs.setCurrentIndex(w.SHEET)
         w._refresh_sheet()                                 # (builds what is missing)

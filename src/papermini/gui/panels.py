@@ -4,16 +4,33 @@ from __future__ import annotations
 
 import html
 from dataclasses import replace
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar
 
 from PySide6.QtCore import QLocale, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QColorDialog, QComboBox,
-                               QDoubleSpinBox, QFileDialog,
-                               QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit, QRadioButton,
-                               QPushButton, QScrollArea, QSlider, QSpinBox, QStyle,
-                               QStyleOptionSlider, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QSlider,
+    QSpinBox,
+    QStyle,
+    QStyleOptionSlider,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import fonts, remote, segment, sizes
 from .. import token as tok
@@ -42,8 +59,8 @@ TOKEN_TEXT_CHOICES = [("label", "Label"), ("number", "Number"),
                       ("label_number", "Label and number")]  # (off: the group's switch)
 STEP_HINTS = [
     "Crop the picture first: background removal only looks inside the box.",
-    "How big the figure prints, and the paper piece around it: back side, margin, cut "
-    "line and stand tab.",
+    ("How big the figure prints, and the paper piece around it: back side, margin, cut "
+    "line and stand tab."),
     "The paper, the layout and how the pieces are cut.",
 ]
 TOKEN_STEP_HINT = ("How big the token prints, how the figure sits in it, and its ring and "
@@ -765,12 +782,12 @@ class FigurePanel(QScrollArea):
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
-        self._w: Dict[str, Any] = {}
-        self._shown: Dict[str, Any] = {}  # widget values as last shown/emitted
-        self._rows: Dict[str, Any] = {}   # name -> (form layout, row widget), to hide rows
-        self._switches: Dict[str, Any] = {}  # name -> Section whose header holds it
+        self._w: dict[str, Any] = {}
+        self._shown: dict[str, Any] = {}  # widget values as last shown/emitted
+        self._rows: dict[str, Any] = {}   # name -> (form layout, row widget), to hide rows
+        self._switches: dict[str, Any] = {}  # name -> Section whose header holds it
         self._invert: set = set()          # switches whose setting is the opposite
-        self._resets: Dict[str, Any] = {}  # name -> (button, fields it resets)
+        self._resets: dict[str, Any] = {}  # name -> (button, fields it resets)
         self._loading = False
         body = QWidget()
         lay = QVBoxLayout(body)
@@ -1061,7 +1078,7 @@ class FigurePanel(QScrollArea):
             w = SliderField(lo, hi, slider_hi, suffix, auto)
             w.valueChanged.connect(self._emit)
         elif kind == "b":
-            w = QCheckBox(dict((n, l) for _, _, its in SECTIONS for n, l, *_ in its)[name])
+            w = QCheckBox({n: l for _, _, its in SECTIONS for n, l, *_ in its}[name])
             w.toggled.connect(self._emit)
         elif kind == "switch":
             w = QCheckBox()  # ticked = the group is on, whatever the setting is called
@@ -1173,9 +1190,7 @@ class FigurePanel(QScrollArea):
                     w.set_value(s.height_mm, s.width_mm)
                     continue
                 v = getattr(s, TWINS.get(name, name))
-                if kind in ("f", "i", "radio"):
-                    w.setValue(v)
-                elif kind == "slider":
+                if kind in ("f", "i", "radio") or kind == "slider":
                     w.setValue(v)
                 elif kind == "b":
                     w.setChecked(bool(v))
@@ -1218,8 +1233,8 @@ class FigurePanel(QScrollArea):
         changed = {k: v for k, v in read.items() if v != self._shown.get(k)}
         return replace(self._s, **changed)
 
-    def _read(self) -> Dict[str, Any]:
-        vals: Dict[str, Any] = {}
+    def _read(self) -> dict[str, Any]:
+        vals: dict[str, Any] = {}
         token = self.is_token()
         for name, (kind, w) in self._w.items():
             # a setting with a field for each kind of figure: read the one in use
@@ -1260,7 +1275,7 @@ class FigurePanel(QScrollArea):
             vals["token_text"] = "none"
         return vals
 
-    OVERLAP_HINTS = {
+    OVERLAP_HINTS: ClassVar = {
         "unused": "No effect on this figure: its bottom is wider than the tab, so the overlap "
                   "is already inside the outline. It only matters for narrow feet or tails.",
         "narrow": "Only {joint:.1f} mm of paper joins the tab to the figure (its bottom is "
@@ -1285,7 +1300,7 @@ class FigurePanel(QScrollArea):
             chosen = f"{html.escape(method)} (the image has no transparency)"
         return f"<b>Chosen method:</b> {chosen}"
 
-    def set_auto_method(self, method: Optional[str]):
+    def set_auto_method(self, method: str | None):
         """Note under 'Model': how "auto" found the selected figure (the method of its
         last build), or None while that is not known yet."""
         self._auto_method = method
@@ -1337,14 +1352,14 @@ class FigurePanel(QScrollArea):
                                   f"{fonts.DEFAULT}." if missing else "")
         self.font_warning.setVisible(missing)
 
-    def set_size_table(self, table: "sizes.SizeTable", label: str = ""):
+    def set_size_table(self, table: sizes.SizeTable, label: str = ""):
         """The project's creature size table and its name (its preset, or that it is the
         project's own), for the hint under Creature size."""
         self._size_table = table
         self._size_label = label
         self._sync_size_hint()
 
-    def set_figure_width(self, width_mm: Optional[float]):
+    def set_figure_width(self, width_mm: float | None):
         """The width the selected figure was built at (None while not known), for the
         warning when it is wider than its creature size's squares."""
         self._figure_width = width_mm
@@ -1426,7 +1441,7 @@ class FigurePanel(QScrollArea):
     def _sync_visible(self):
         """Only show the fields that do something in the current state; a group that
         is switched off shows only its header."""
-        val = lambda n: self._w[n][1].currentData()  # noqa: E731
+        val = lambda n: self._w[n][1].currentData()
         tab = self._w["no_tab"][1].isChecked()  # (the switch is "print a tab")
         label = tab and self.label_switch.isChecked()
         # (a mini always has its outline, the margin, and its cut line: only a token's can

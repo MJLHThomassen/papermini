@@ -21,7 +21,6 @@ import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 from PIL import Image
@@ -72,7 +71,7 @@ for _name, _title, _about, _mb, _file in (
         "post": "sigmoid",  # the model outputs logits
     }
 
-Box = Tuple[int, int, int, int]
+Box = tuple[int, int, int, int]
 
 
 class ModelError(RuntimeError):
@@ -182,7 +181,7 @@ def clear_masks() -> int:
 
 
 def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
-             cancel: Optional[threading.Event] = None) -> Path:
+             cancel: threading.Event | None = None) -> Path:
     """Download ``url`` to ``dest`` with progress (atomic via a .part file).
 
     Works without a console (``papermini-gui`` has no stderr), times out on a
@@ -230,7 +229,7 @@ def download(url: str, dest: Path, timeout: float = 30.0, progress=None,
     return dest
 
 
-def parse_crop(spec, width: int, height: int) -> Optional[Box]:
+def parse_crop(spec, width: int, height: int) -> Box | None:
     """Parse ``x0,y0,x1,y1`` (fractions 0-1 or pixels) into a pixel box.
 
     ``spec`` may be a string or a sequence of four numbers. If every value is
@@ -246,7 +245,7 @@ def parse_crop(spec, width: int, height: int) -> Optional[Box]:
         raise ValueError(f"crop needs 4 values x0,y0,x1,y1, got {spec!r}")
     if all(v <= 1.0 for v in vals):
         vals = [vals[0] * width, vals[1] * height, vals[2] * width, vals[3] * height]
-    x0, y0, x1, y1 = (int(round(v)) for v in vals)
+    x0, y0, x1, y1 = (round(v) for v in vals)
     x0, x1 = max(0, min(x0, x1)), min(width, max(x0, x1))
     y0, y1 = max(0, min(y0, y1)), min(height, max(y0, y1))
     if x1 - x0 < 8 or y1 - y0 < 8:
@@ -268,7 +267,7 @@ class OnnxSegmenter:
 
         try:
             self.sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
-        except Exception as e:  # noqa: BLE001 - e.g. a truncated or foreign file
+        except Exception as e:
             raise ModelError(f"cannot load the model {path.name}: {e}") from e
         inp = self.sess.get_inputs()[0]
         self.input_name = inp.name
@@ -340,7 +339,7 @@ def model_path(model: str) -> Path:
 
 
 def fetch_model(model: str, force: bool = False, progress=None,
-                cancel: Optional[threading.Event] = None) -> Path:
+                cancel: threading.Event | None = None) -> Path:
     """Download the built-in ``model`` unless it is already there (always with
     ``force``, e.g. to replace a damaged file). One download per model at a time."""
     with _MODEL_LOCKS[model]:
@@ -412,9 +411,9 @@ def has_alpha(im: Image.Image) -> bool:
 def compute_mask(
     im: Image.Image,
     model: str = DEFAULT_MODEL,
-    crop: Optional[Box] = None,
+    crop: Box | None = None,
     use_cache: bool = True,
-    image_bytes: Optional[bytes] = None,
+    image_bytes: bytes | None = None,
 ) -> np.ndarray:
     """Return a full-size greyscale mask (uint8 0-255) for ``im``.
 

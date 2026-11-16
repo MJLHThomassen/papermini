@@ -53,7 +53,7 @@ def main() -> None:
         pass
     text = UPDATE_PY.read_text(encoding="utf-8")
     new, n = re.subn(r'^PUBLIC_KEY = ".*"$', f'PUBLIC_KEY = "{base64.b64encode(pub).decode()}"',
-                     text, count=1, flags=re.M)
+                     text, count=1, flags=re.MULTILINE)
     if n != 1:
         sys.exit(f"PUBLIC_KEY not found in {UPDATE_PY}")
     UPDATE_PY.write_text(new, encoding="utf-8", newline="\n")

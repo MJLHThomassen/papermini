@@ -7,8 +7,15 @@ import html
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLayout, QProgressBar,
-                               QPushButton, QVBoxLayout)
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QProgressBar,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from .. import __version__, fonts
 from . import theme

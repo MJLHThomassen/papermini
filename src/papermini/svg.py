@@ -8,7 +8,6 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import replace
 from pathlib import Path
-from typing import List
 from xml.sax.saxutils import escape, quoteattr
 
 import numpy as np
@@ -48,12 +47,12 @@ def to_svg(m: Mini) -> str:
     W, H = _f(m.width_mm), _f(m.height_mm)
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}" '
-        f'width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}">',
+        (f'<svg xmlns="{SVG_NS}" xmlns:xlink="{XLINK_NS}" '
+        f'width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}">'),
         f"<title>{escape(m.label or m.name)}</title>",
         f'<metadata id="papermini">{escape(m.name)}</metadata>',
-        f'<image id="art" x="0" y="0" width="{W}" height="{H}" preserveAspectRatio="none" '
-        f'xlink:href="data:image/png;base64,{b64}"/>',
+        (f'<image id="art" x="0" y="0" width="{W}" height="{H}" preserveAspectRatio="none" '
+        f'xlink:href="data:image/png;base64,{b64}"/>'),
     ]
     for i, (x0, x1, y) in enumerate(m.folds):
         out.append(
@@ -88,7 +87,7 @@ def write_svg(m: Mini, path: Path) -> Path:
     return path
 
 
-def write_svgs(m: Mini, path: Path, copies: int = 1) -> List[Path]:
+def write_svgs(m: Mini, path: Path, copies: int = 1) -> list[Path]:
     """The SVG file of a miniature at ``path``; a numbered one gets a file per copy, each
     with its number: ``goblin-1.svg`` to ``goblin-6.svg`` (one copy: ``goblin-1.svg``)."""
     path = Path(path)
@@ -106,8 +105,8 @@ _NUM = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
 def parse_path_d(d: str) -> CutPath:
     """Parse the absolute M/L/C/Z paths written by :func:`path_d`."""
     tokens = re.findall(rf"[MLCZmlcz]|{_NUM}", d)
-    pts: List[List[float]] = []
-    ctrls: List[List[List[float]]] = []
+    pts: list[list[float]] = []
+    ctrls: list[list[list[float]]] = []
     has_curve = False
     i, cmd = 0, None
     while i < len(tokens):
@@ -165,9 +164,7 @@ def read_svg(path: Path) -> Mini:
 
     def el(tag, id_=None, cls=None):
         for e in root.iter(f"{{{SVG_NS}}}{tag}"):
-            if id_ and e.get("id") == id_:
-                yield e
-            elif cls and cls in (e.get("class") or "").split():
+            if id_ and e.get("id") == id_ or cls and cls in (e.get("class") or "").split():
                 yield e
 
     img = next(el("image", id_="art"), None)

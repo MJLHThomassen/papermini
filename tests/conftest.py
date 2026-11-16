@@ -49,5 +49,5 @@ def no_installed_fonts(monkeypatch):
     own."""
     from papermini import fonts
 
-    monkeypatch.setattr(fonts, "font_dirs", lambda: [])
+    monkeypatch.setattr(fonts, "font_dirs", list)
     monkeypatch.setattr(fonts, "_installed", None)

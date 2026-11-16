@@ -26,7 +26,10 @@ gui = ["PySide6-Essentials>=6.8", "cryptography>=42"]  # (cryptography: signed u
 # Development only, not published: uv installs the dev group by default; the build
 # group with `--group build` (see the justfile).
 [dependency-groups]
-dev = ["pytest>=7"]
+dev = [
+    "pytest>=7",
+    "ruff==0.17.5",
+]
 build = ["pyinstaller>=6.10"]  # standalone binaries, see packaging/
 
 [project.scripts]
@@ -59,6 +62,12 @@ cache-keys = [
     { file = "pyproject.toml" },
     { git = { commit = true, tags = true } },
     { env = "SETUPTOOLS_SCM_PRETEND_VERSION" },
+]
+
+[tool.ruff.lint]
+# Ruff's default rule set, except:
+ignore = [
+    "TRY004",  # invalid input from a project file raises ValueError, which the CLI and GUI catch
 ]
 
 [tool.pytest.ini_options]

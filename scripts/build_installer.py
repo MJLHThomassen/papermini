@@ -17,13 +17,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 
-def find_iscc() -> Optional[Path]:
+def find_iscc() -> Path | None:
     """Inno Setup's command-line compiler, or None when it is not installed."""
     on_path = shutil.which("iscc")
     if on_path:
@@ -55,7 +54,7 @@ def build(version: str, dist: Path, out: Path) -> Path:
     done = subprocess.run([str(iscc), "/Qp", f"/DAppVersion={version}",
                            f"/DSourceDir={dist.resolve()}", f"/DOutputDir={out.resolve()}",
                            f"/DOutputBaseFilename={Path(name).stem}",
-                           str(ROOT / "packaging" / "papermini.iss")])
+                           str(ROOT / "packaging" / "papermini.iss")], check=False)
     if done.returncode:
         sys.exit(f"Inno Setup could not build the installer (exit code {done.returncode})")
     return out / name

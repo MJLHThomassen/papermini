@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from . import geometry as geo
 from . import remote, sizes
@@ -27,8 +27,17 @@ from . import token as tok
 from .adjust import RANGES as ADJUST_RANGES
 from .adjust import Adjustments
 from .mini import TAB_SHOWS, Mini, Style, make_mini
-from .sheet import (CUSTOM_PAPER_MM, CUT_MODES, MARKS, MATS, ORIENTATIONS, PAPER_CHOICES,
-                    Paper, mat_warning, paper_text)
+from .sheet import (
+    CUSTOM_PAPER_MM,
+    CUT_MODES,
+    MARKS,
+    MATS,
+    ORIENTATIONS,
+    PAPER_CHOICES,
+    Paper,
+    mat_warning,
+    paper_text,
+)
 
 # Saved projects carry this format and the papermini version that saved them. The format
 # changes only when a project from an older papermini could no longer be read as it is.
@@ -48,8 +57,8 @@ class FigureSettings:
     # size and shape: a creature size fills in the height and the tabs (see sizes.py);
     # height or width keeps the proportions, both stretch the figure
     size: str = sizes.DEFAULT_SIZE   # tiny ... gargantuan, or custom
-    height_mm: Optional[float] = _MEDIUM.height_mm
-    width_mm: Optional[float] = None
+    height_mm: float | None = _MEDIUM.height_mm
+    width_mm: float | None = None
     margin_mm: float = 1.6
     smooth_mm: float = 0.6
     tab_width_mm: float = _MEDIUM.tab_width_mm    # square tab (a stand)
@@ -63,15 +72,15 @@ class FigureSettings:
     double_sided: bool = True        # front and back, joined at a fold above the head
     back: str = "mirror"             # double-sided back: "mirror", "blank", "text",
     #                                  "number" (large) or "text_number" (number above text)
-    back_text: Optional[str] = None  # back with text: None = the label (or file name)
+    back_text: str | None = None  # back with text: None = the label (or file name)
     back_color: str = "#ffffff"      # color of a back that is not the mirrored drawing
     back_text_color: str = "#2f5597"
     # mask
     model: str = "auto"
-    mask: Optional[str] = None
+    mask: str | None = None
     crop: Any = None                 # "x0,y0,x1,y1" or [x0, y0, x1, y1], fractions or px
     strength: int = 40               # mask threshold 0-254: higher removes more background
-    fill_gaps: Optional[int] = None  # closing radius in px; None = scales with the image
+    fill_gaps: int | None = None  # closing radius in px; None = scales with the image
     keep_all: bool = False
     min_area: int = 1000
     margin_fill: str = "color"       # "color" (margin_color) or "image"
@@ -83,7 +92,7 @@ class FigureSettings:
     saturation: int = 0              # -100..100
     hue: int = 0                     # -180..180 degrees
     # output
-    label: Optional[str] = None      # None = file name, "" = no label
+    label: str | None = None      # None = file name, "" = no label
     tab_front: str = "label"         # what the front tab shows: "label", "number" or
     tab_back: str = "label"          # "label_number" (the copy number above the label)
     dpi: int = 300
@@ -112,7 +121,7 @@ class FigureSettings:
     token_text_color: str = "#ffffff"  # (on the ring, the nameplate and the badge)
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "FigureSettings":
+    def from_dict(cls, d: dict[str, Any]) -> FigureSettings:
         d = norm_keys(d)
         unknown = set(d) - FIGURE_OPTIONS
         if unknown:
@@ -159,8 +168,8 @@ class FigureSettings:
             d["token_area"] = tok.parse_area(d["token_area"])
         return cls(**d)
 
-    def to_dict(self, base: Optional["FigureSettings"] = None,
-                with_size: bool = True) -> Dict[str, Any]:
+    def to_dict(self, base: FigureSettings | None = None,
+                with_size: bool = True) -> dict[str, Any]:
         """Options that differ from ``base`` (default: the built-in defaults) and, with
         ``with_size`` (as a project saves them), always the size with the values it
         fills in."""
@@ -194,7 +203,7 @@ class FigureSettings:
                            saturation=self.saturation, hue=self.hue,
                            greyscale=self.greyscale)
 
-    def token_options(self) -> "tok.TokenOptions":
+    def token_options(self) -> tok.TokenOptions:
         """What a token is made of (kind "token"); the outline uses the margin."""
         return tok.TokenOptions(
             diameter_mm=self.token_diameter_mm, border_mm=self.token_border_mm,
@@ -216,7 +225,7 @@ class FigureSettings:
 FIGURE_OPTIONS = {f.name for f in fields(FigureSettings)}
 
 
-def settings_with_size(options: Dict[str, Any],
+def settings_with_size(options: dict[str, Any],
                        table: sizes.SizeTable = sizes.BUILTIN) -> FigureSettings:
     """Figure settings from ``options`` (a project's figure, or command-line flags): the
     figure's size fills in the values not given, from ``table``; a given value that
@@ -233,12 +242,12 @@ def settings_with_size(options: Dict[str, Any],
     return s if sizes.matches(s, table) else replace(s, size=sizes.CUSTOM)
 
 
-def norm_keys(d: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def norm_keys(d: dict[str, Any] | None) -> dict[str, Any]:
     return {str(k).replace("-", "_"): v for k, v in (d or {}).items()}
 
 
 def build_mini(image: Path, s: FigureSettings, *, bleed_mm: float = 0.0, use_cache: bool = True,
-               debug_dir: Optional[Path] = None,
+               debug_dir: Path | None = None,
                log=print, on_stage=None) -> Mini:
     """Build one figure. ``bleed_mm``: print the edge colors this far beyond the cut
     line (a sheet cut by machine, see ``SheetSettings.figure_bleed``)."""
@@ -276,10 +285,10 @@ def safe_name(stem: str) -> str:
 
 @dataclass
 class SheetSettings:
-    output: Optional[str] = None     # default: <output>/sheet.pdf
+    output: str | None = None     # default: <output>/sheet.pdf
     paper: str = "a4"                # a name in sheet.PAPER, or "custom"
-    paper_width_mm: Optional[float] = None   # paper "custom": its width and height
-    paper_height_mm: Optional[float] = None
+    paper_width_mm: float | None = None   # paper "custom": its width and height
+    paper_height_mm: float | None = None
     orientation: str = "portrait"    # "portrait" or "landscape" (named paper only)
     copies: int = 1                  # default copies for figures that set none
     preview: bool = False
@@ -291,7 +300,7 @@ class SheetSettings:
     bleed_mm: float = 1.0            # cut by machine: edge colors printed beyond the cut line
     marks: str = "corners"           # cut by machine: "corners" or "silhouette" alignment marks
     cut_folds: bool = False          # cut by machine: fold lines in the cut file too
-    mat: Optional[str] = None        # cut by machine: the cutting mat ("12x12" or "12x24"),
+    mat: str | None = None        # cut by machine: the cutting mat ("12x12" or "12x24"),
                                      # only to warn when the paper is bigger; None: any size
 
     @property
@@ -319,7 +328,7 @@ class SheetSettings:
         return self.bleed_mm if self.machine else 0.0
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "SheetSettings":
+    def from_dict(cls, d: dict[str, Any]) -> SheetSettings:
         d = norm_keys(d)
         unknown = set(d) - {f.name for f in fields(cls)}
         if unknown:
@@ -351,8 +360,8 @@ class SheetSettings:
 class FigureEntry:
     image: Path                      # absolute (for a link: the downloaded copy)
     settings: FigureSettings = field(default_factory=FigureSettings)
-    name: Optional[str] = None       # output file name (default: label or image name)
-    source: Optional[str] = None     # the link the image came from; saved instead of the path
+    name: str | None = None       # output file name (default: label or image name)
+    source: str | None = None     # the link the image came from; saved instead of the path
 
     def svg_name(self) -> str:
         return safe_name(self.name or self.settings.label or self.image.stem) + ".svg"
@@ -364,10 +373,10 @@ class FigureEntry:
 
 @dataclass
 class Project:
-    path: Optional[Path] = None      # the YAML file, if saved
+    path: Path | None = None      # the YAML file, if saved
     output: str = "minis"
     sheet: SheetSettings = field(default_factory=SheetSettings)
-    figures: List[FigureEntry] = field(default_factory=list)
+    figures: list[FigureEntry] = field(default_factory=list)
     debug: bool = False
     sizes: sizes.SizeTable = sizes.BUILTIN  # the project's creature size table
 
@@ -425,14 +434,14 @@ def load_project(path: Path) -> Project:
                    bool(cfg.get("debug", False)), table)
 
 
-def _release(version: Any) -> Optional[Tuple[int, int, int]]:
+def _release(version: Any) -> tuple[int, int, int] | None:
     """The leading MAJOR.MINOR.PATCH of a papermini version (a development version such
     as 1.2.1.dev3+g1a2b3c4 counts as 1.2.1), or None when it has none."""
     m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", str(version).strip())
     return (int(m[1]), int(m[2]), int(m[3])) if m else None
 
 
-def _check_format(cfg: Dict[str, Any], name: str) -> str:
+def _check_format(cfg: dict[str, Any], name: str) -> str:
     """Refuse a project in a format this papermini cannot read, naming the papermini that
     saved it. Returns the note for errors in a project saved by a newer papermini of the
     same format (which may use options this one does not know), or ""."""
@@ -490,7 +499,7 @@ def save_project(p: Project, path: Path) -> Path:
     sheet = {k: v for k, v in asdict(p.sheet).items() if v != getattr(SheetSettings(), k)}
     figures = []
     for f in p.figures:
-        d: Dict[str, Any] = {"image": f.source or rel(f.image)}
+        d: dict[str, Any] = {"image": f.source or rel(f.image)}
         if f.name:
             d["name"] = f.name
         o = f.settings.to_dict()
@@ -505,7 +514,7 @@ def save_project(p: Project, path: Path) -> Path:
         figures.append(d)
     from . import __version__
 
-    cfg: Dict[str, Any] = {"papermini": __version__, "format": _PROJECT_FORMAT,
+    cfg: dict[str, Any] = {"papermini": __version__, "format": _PROJECT_FORMAT,
                            "output": p.output}
     if sheet:
         cfg["sheet"] = sheet

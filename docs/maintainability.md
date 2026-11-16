@@ -445,6 +445,8 @@ commands, so that what passes locally passes in CI.
 
 CI runs the tests, the lint and format checks, the coverage report and the type
 check, on every Python version and platform the project supports.
+Run the same checks locally before a change is finished, such as `just test`
+and `just lint`.
 
 ### R3. Builds are reproducible
 

@@ -6,10 +6,21 @@ import html
 
 from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel,
-                               QLayout, QPushButton, QSizePolicy, QSpinBox, QStyle,
-                               QStyledItemDelegate, QToolButton, QToolTip, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QPushButton,
+    QSpinBox,
+    QStyle,
+    QStyledItemDelegate,
+    QToolButton,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+)
 
 from . import theme
 

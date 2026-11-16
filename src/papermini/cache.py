@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
+from collections.abc import Callable, Hashable
 from pathlib import Path
-from typing import Any, Callable, Hashable, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -42,7 +43,7 @@ class LRU:
 
     def __init__(self, max_bytes: int):
         self.max_bytes = max_bytes
-        self._d: "OrderedDict[Hashable, Tuple[Any, int]]" = OrderedDict()
+        self._d: OrderedDict[Hashable, tuple[Any, int]] = OrderedDict()
         self._bytes = 0
         self._lock = threading.Lock()
         self.hits = self.misses = 0
@@ -89,7 +90,7 @@ adjusted = LRU(200 * MB)  # the working picture with color adjustments
 layouts = LRU(300 * MB)
 
 
-def file_key(path) -> Tuple[str, int, int]:
+def file_key(path) -> tuple[str, int, int]:
     """Identity of a file's current contents (path, size, mtime)."""
     p = Path(path).resolve()
     st = p.stat()

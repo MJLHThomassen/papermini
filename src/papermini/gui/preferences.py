@@ -12,14 +12,30 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import replace
-from typing import List, Optional, Tuple
 
 from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog, QGridLayout,
-                               QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
-                               QMessageBox, QPushButton, QRadioButton, QStackedWidget, QStyle,
-                               QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QCheckBox,
+    QDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QStackedWidget,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import log, sizes
 from . import errors, prefs, theme
@@ -36,7 +52,7 @@ NOTES_ROLE = Qt.UserRole + 1  # a preset entry's notes: what it is used for, a l
 
 
 # ----------------------------------------------------------------- presets
-def user_presets() -> List[sizes.SizeTable]:
+def user_presets() -> list[sizes.SizeTable]:
     """The user's own size table presets (entries that cannot be read are left out)."""
     text = prefs.store().value(PRESETS_KEY, "", type=str)
     try:
@@ -55,11 +71,11 @@ def user_presets() -> List[sizes.SizeTable]:
     return out
 
 
-def save_user_presets(tables: List[sizes.SizeTable]) -> None:
+def save_user_presets(tables: list[sizes.SizeTable]) -> None:
     prefs.store().setValue(PRESETS_KEY, json.dumps([t.to_dict() for t in tables]))
 
 
-def presets() -> List[sizes.SizeTable]:
+def presets() -> list[sizes.SizeTable]:
     """Every preset: the built-in one first, then the user's own."""
     return [sizes.BUILTIN] + user_presets()
 
@@ -77,11 +93,11 @@ def default_table() -> sizes.SizeTable:
     return find(presets(), default_name()) or sizes.BUILTIN
 
 
-def find(tables: List[sizes.SizeTable], name: str) -> Optional[sizes.SizeTable]:
+def find(tables: list[sizes.SizeTable], name: str) -> sizes.SizeTable | None:
     return next((t for t in tables if t.name == name), None)
 
 
-def preset_of(table: sizes.SizeTable, tables: Optional[List[sizes.SizeTable]] = None) -> str:
+def preset_of(table: sizes.SizeTable, tables: list[sizes.SizeTable] | None = None) -> str:
     """The name of the preset ``table`` is (same name and values), or ""."""
     p = find(tables if tables is not None else presets(), table.name)
     return p.name if p is not None and p.same_values(table) else ""
@@ -125,13 +141,13 @@ class _EntryDelegate(QStyledItemDelegate):
     PAD_X, PAD_Y = 8, 5
 
     @staticmethod
-    def _fonts(option) -> Tuple[QFont, QFont]:
+    def _fonts(option) -> tuple[QFont, QFont]:
         notes = QFont(option.font)
         notes.setPointSizeF(8.5)  # (as #Hint)
         return QFont(option.font), notes
 
     @staticmethod
-    def _lines(index) -> List[str]:
+    def _lines(index) -> list[str]:
         return [n for n in (index.data(NOTES_ROLE) or "").split("\n") if n]
 
     def sizeHint(self, option, index) -> QSize:
@@ -301,30 +317,30 @@ class SizesPage(QWidget):
     def project_table(self) -> sizes.SizeTable:
         return self._project
 
-    def _all(self) -> List[sizes.SizeTable]:
+    def _all(self) -> list[sizes.SizeTable]:
         return [sizes.BUILTIN] + self._user
 
     def _project_preset(self) -> str:
         return preset_of(self._project, self._all())
 
-    def _key_of_project(self) -> Tuple[str, str]:
+    def _key_of_project(self) -> tuple[str, str]:
         name = self._project_preset()
         return ("preset", name) if name else (PROJECT, "")
 
-    def _entries(self) -> List[Tuple[str, str]]:
+    def _entries(self) -> list[tuple[str, str]]:
         keys = [("preset", t.name) for t in self._all()]
         return keys if self._project_preset() else keys + [(PROJECT, "")]
 
-    def _key(self) -> Tuple[str, str]:
+    def _key(self) -> tuple[str, str]:
         item = self.list.currentItem()
         return item.data(Qt.UserRole) if item is not None else ("preset", sizes.BUILTIN_NAME)
 
-    def _table(self, key: Tuple[str, str]) -> sizes.SizeTable:
+    def _table(self, key: tuple[str, str]) -> sizes.SizeTable:
         if key[0] == PROJECT:
             return self._project
         return find(self._all(), key[1]) or sizes.BUILTIN
 
-    def _notes(self, key: Tuple[str, str]) -> str:
+    def _notes(self, key: tuple[str, str]) -> str:
         used = key == self._key_of_project()
         notes = []
         if key == ("preset", sizes.BUILTIN_NAME):
@@ -337,7 +353,7 @@ class SizesPage(QWidget):
             notes.append("default for new projects")
         return "\n".join(n[:1].upper() + n[1:] for n in notes)  # (a line each)
 
-    def _rebuild(self, select: Tuple[str, str]) -> None:
+    def _rebuild(self, select: tuple[str, str]) -> None:
         """Fill the list again (after an entry was added, removed, renamed or marked)."""
         self.list.blockSignals(True)
         self.list.clear()
@@ -586,7 +602,7 @@ class PreferencesDialog(QDialog):
         keys = [k for k, _ in self.PAGES]
         self.nav.setCurrentRow(keys.index(key) if key in keys else 0)
 
-    def _page(self, title: str) -> Tuple[QWidget, QVBoxLayout]:
+    def _page(self, title: str) -> tuple[QWidget, QVBoxLayout]:
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)

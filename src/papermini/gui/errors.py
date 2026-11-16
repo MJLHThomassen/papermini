@@ -10,12 +10,27 @@ import sys
 import threading
 import traceback
 from pathlib import Path
-from typing import List, Optional
 
-from PySide6.QtCore import QObject, Qt, QtMsgType, QTimer, QUrl, Signal, qInstallMessageHandler
+from PySide6.QtCore import (
+    QObject,
+    Qt,
+    QTimer,
+    QtMsgType,
+    QUrl,
+    Signal,
+    qInstallMessageHandler,
+)
 from PySide6.QtGui import QDesktopServices, QFontDatabase, QGuiApplication
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit,
-                               QPushButton, QStyle, QVBoxLayout)
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QStyle,
+    QVBoxLayout,
+)
 
 from .. import log
 
@@ -188,7 +203,7 @@ class ErrorHandler:
             os._exit(1)
 
 
-_handler: Optional[ErrorHandler] = None
+_handler: ErrorHandler | None = None
 
 
 def install() -> ErrorHandler:
@@ -207,7 +222,7 @@ def open_log_folder() -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
 
-def report_problem(parent=None, details: str = "", files: Optional[List[Path]] = None) -> None:
+def report_problem(parent=None, details: str = "", files: list[Path] | None = None) -> None:
     """Open a new bug report on GitHub with the version, the operating system and how
     papermini runs filled in (and ``details``, a traceback, when given), open the log
     folder, and say which file to attach: ``files``, or the newest log."""

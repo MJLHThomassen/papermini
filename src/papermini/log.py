@@ -27,7 +27,7 @@ import time
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, List, Optional, Tuple
+from typing import IO
 
 LOG_ENV = "PAPERMINI_LOG_DIR"
 KEEP_DAYS = 30
@@ -54,7 +54,7 @@ def log_dir() -> Path:
     return Path(state) / "papermini"
 
 
-def _home_pattern() -> Optional[re.Pattern]:
+def _home_pattern() -> re.Pattern | None:
     home = str(Path.home()).rstrip("\\/")
     if len(home) < 2:  # (no real home folder to hide)
         return None
@@ -115,13 +115,13 @@ class Session:
     log: Path
     crash: Path
     handler: logging.Handler
-    crash_file: Optional[IO] = None
+    crash_file: IO | None = None
 
 
-_session: Optional[Session] = None
+_session: Session | None = None
 
 
-def session() -> Optional[Session]:
+def session() -> Session | None:
     """The running session, or None when papermini runs without a log."""
     return _session
 
@@ -189,7 +189,7 @@ def _tidy_crash_files(folder: Path) -> None:
             continue
 
 
-def crashes() -> List[Tuple[Path, Path]]:
+def crashes() -> list[tuple[Path, Path]]:
     """The crashes of earlier sessions not yet offered for a report, newest first, as
     (crash file, that session's log)."""
     s = _session
@@ -228,7 +228,7 @@ def mark_offered(crash: Path) -> None:
             pass
 
 
-def start(qt_version: str = "") -> Optional[Session]:
+def start(qt_version: str = "") -> Session | None:
     """Start this session's log and crash file, after deleting old sessions. Returns the
     session, or None (and the app runs without a log) when the folder cannot be written."""
     global _session
@@ -248,7 +248,7 @@ def start(qt_version: str = "") -> Optional[Session]:
     handler.setFormatter(_Formatter("%(asctime)s %(process)d %(levelname)s %(name)s: %(message)s"))
     s = Session(folder / f"{stem}.log", folder / f"{stem}{CRASH}", handler)
     try:
-        s.crash_file = open(s.crash, "w", encoding="utf-8")
+        s.crash_file = open(s.crash, "w", encoding="utf-8")  # noqa: SIM115 - faulthandler writes to it until the session ends
         faulthandler.enable(s.crash_file, all_threads=True)
     except Exception:  # noqa: BLE001 - run without catching native crashes
         s.crash_file = None

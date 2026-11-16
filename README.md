@@ -245,6 +245,13 @@ Run the tests. They need no model download; the GUI tests run off-screen:
 just test
 ```
 
+Check the code with [ruff](https://docs.astral.sh/ruff/), which CI also runs.
+`just lint --fix` fixes what ruff can fix by itself:
+
+```bash
+just lint
+```
+
 After changing the look of the app, regenerate the screenshots in
 [docs/screenshots](docs/screenshots). They show the dragons in
 [examples/dragons](examples/dragons) and need the rmbg-1.4, birefnet-lite and

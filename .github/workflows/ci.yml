@@ -43,6 +43,20 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+
+      - name: Ruff
+        run: uv run --locked --only-group dev ruff check --output-format github
+
   # The Linux tests run in papermini's CI image (.github/ci-image): Python and Qt's
   # system libraries, ready made, instead of downloading them from the Ubuntu mirror
   # every run. The image is tagged with a hash of its Dockerfile and built only when

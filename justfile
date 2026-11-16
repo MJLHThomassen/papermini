@@ -27,6 +27,10 @@ setup:
 test *args:
     {{ uv_run }} python -m pytest {{ args }}
 
+# check the code with ruff (extra arguments go to ruff, e.g. `just lint --fix`)
+lint *args:
+    uv run ruff check {{ args }}
+
 # start the app from source (e.g. `just gui examples/dragons/dragons.yaml`)
 gui *args:
     {{ uv_run }} python -m papermini gui {{ args }}
