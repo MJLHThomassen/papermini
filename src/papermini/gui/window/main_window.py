@@ -1,4 +1,4 @@
-"""Main window: figure list, live previews (miniature / source / sheet), settings."""
+"""MainWindow: the figure list, the live previews and the settings."""
 
 from __future__ import annotations
 
@@ -9,21 +9,11 @@ import os
 import re
 import threading
 import time
-import traceback
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import ClassVar
 
-from PySide6.QtCore import (
-    QByteArray,
-    QObject,
-    QRunnable,
-    QSize,
-    Qt,
-    QThreadPool,
-    QTimer,
-    Signal,
-)
+from PySide6.QtCore import QByteArray, QSize, Qt, QThreadPool, QTimer
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -51,92 +41,48 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, fonts, log, remote, segment, sizes
-from ..mini import Mini
-from ..png import write_pngs
-from ..segment import Cancelled, ModelError
-from ..settings import (
-    FigureEntry,
-    FigureSettings,
-    Project,
-    build_mini,
-    load_project,
-    save_project,
-)
-from ..sheet import default_cut_file, pack, write_cut_files, write_pdf
-from ..svg import write_svgs
-from . import errors, prefs, theme
-from .export import ExportDialog
-from .models import DownloadDialog
-from .panels import PER_IMAGE, FigurePanel, Section, SheetPanel
-from .views import (
-    CropView,
-    MiniView,
-    SourceLegend,
-    ZoomView,
-    adjusted_preview,
-    draw_mini_page,
-    draw_sheet,
-    load_qimage,
-    pil_to_qimage,
-    print_sheet,
-)
-from .widgets import (
-    COPIES_ROLE,
-    SUBTITLE_ROLE,
-    Banner,
-    EmptyState,
-    FigureDelegate,
-    Segmented,
-    WorkCard,
-    ZoomBar,
-    overlay_wrap,
-)
+from ... import __version__, fonts, log, remote, segment, sizes
+from ...mini import Mini
+from ...png import write_pngs
+from ...settings import FigureEntry, FigureSettings, Project, load_project, save_project
+from ...sheet import default_cut_file, pack, write_cut_files, write_pdf
+from ...svg import write_svgs
+from .. import errors, prefs, theme
+from ..dialogs.download_dialog import DownloadDialog
+from ..dialogs.export_dialog import ExportDialog
+from ..panels.figure_fields import PER_IMAGE
+from ..panels.figure_panel import FigurePanel
+from ..panels.section import Section
+from ..panels.sheet_panel import SheetPanel
+from ..views.crop_view import CropView
+from ..views.drawing import draw_mini_page, draw_sheet, print_sheet
+from ..views.images import adjusted_preview, load_qimage, pil_to_qimage
+from ..views.mini_view import MiniView
+from ..views.source_legend import SourceLegend
+from ..views.zoom_view import ZoomView
+from ..widgets.banner import Banner
+from ..widgets.empty_state import EmptyState
+from ..widgets.figure_delegate import COPIES_ROLE, SUBTITLE_ROLE, FigureDelegate
+from ..widgets.overlay import overlay_wrap
+from ..widgets.segmented import Segmented
+from ..widgets.work_card import WorkCard
+from ..widgets.zoom_bar import ZoomBar
+from .build_job import BuildJob
+from .figure import Figure
+from .signals import Signals
 
 IMAGE_FILTER = remote.IMAGE_FILTER
+
+
 IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+
+
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
-# settings that "apply to all" leaves alone
 
 
-@dataclass
-class Figure:
-    uid: int
-    entry: FigureEntry
-    mini: Mini | None = None
-    built_key: str | None = None
-    gen: int = 0
-    error: str | None = None
-    pixmap: QPixmap | None = None  # art of ``mini`` as a QPixmap (cached for the sheet)
-    queued: str | None = None  # key of the job waiting in the pool
-    cancelled: str | None = None  # mask_key whose background removal the user cancelled
-    bleed_mm: float = 0.0  # from the sheet: only when it is cut by machine
-
-    def key(self) -> str:
-        d = asdict(self.entry.settings)
-        d.pop("copies")  # only matters for the sheet, never a reason to rebuild
-        return f"{self.entry.image}|{sorted(d.items())}|bleed={self.bleed_mm}"
-
-    def mask_key(self) -> str:
-        """What the background removal depends on: a cancelled run stays cancelled
-        until one of these changes (other settings do not start the model again)."""
-        s = self.entry.settings
-        return f"{self.entry.image}|{s.model}|{s.mask}|{s.crop}"
-
-    @property
-    def up_to_date(self) -> bool:
-        return self.mini is not None and self.built_key == self.key()
-
-    @property
-    def stopped(self) -> bool:
-        """The user cancelled the background removal for the current image and crop."""
-        return self.cancelled is not None and self.cancelled == self.mask_key()
-
-
-# --------------------------------------------------------------------------- worker
-
-logger = logging.getLogger("papermini.build")
 update_log = logging.getLogger("papermini.update")
+
+
 ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 
@@ -159,84 +105,6 @@ def _log_update(state: str, data) -> None:
         )
     elif state == "error":
         update_log.warning("Update failed: %s", data)
-
-
-class Signals(QObject):
-    update = Signal(
-        str, object, str
-    )  # update check: state, data, who asked (see check_updates)
-    done = Signal(int, int, str, object)  # uid, gen, key, Mini
-    failed = Signal(int, int, str, str)  # uid, gen, key, message
-    cancelled = Signal(int, int, str)  # uid, gen, key: the user stopped the model
-    stage = Signal(
-        int, str, str, str, object
-    )  # uid, key, mask_key, stage name, data (see make_mini)
-    status = Signal(str)
-    ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
-    link_done = Signal(
-        str, object, str, object
-    )  # link, downloaded path or None, error, settings
-    fonts_found = Signal(object)  # the names of the fonts installed on this computer
-
-
-class BuildJob(QRunnable):
-    def __init__(self, sig: Signals, fig: Figure, is_current):
-        super().__init__()
-        self.sig, self.uid, self.gen = sig, fig.uid, fig.gen
-        self.image, self.settings, self.key = (
-            fig.entry.image,
-            fig.entry.settings,
-            fig.key(),
-        )
-        self.bleed_mm = fig.bleed_mm
-        self.mask_key = fig.mask_key()
-        self.is_current = is_current
-
-    def run(self):
-        if not self.is_current(self.uid, self.key):
-            return  # settings changed while queued, or the user cancelled it
-        self.sig.status.emit(f"Building {self.image.name}…")
-        logger.debug("Building %s", self.image.name)
-        t0 = time.perf_counter()
-        try:
-            with segment.cancellable():  # Cancel also stops it while the model loads
-                m = build_mini(
-                    self.image,
-                    self.settings,
-                    bleed_mm=self.bleed_mm,
-                    log=lambda *_: None,
-                    on_stage=lambda name, data: self.sig.stage.emit(
-                        self.uid, self.key, self.mask_key, name, data
-                    ),
-                )
-        except Cancelled:
-            self.sig.cancelled.emit(self.uid, self.gen, self.key)
-        except (Exception, SystemExit) as e:
-            expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
-            if isinstance(e, expected):
-                msg = str(e)
-                logger.warning(
-                    "Building %s failed: %s (%s)",
-                    self.image.name,
-                    e,
-                    log.settings_text(self.settings.to_dict(with_size=False)),
-                )
-            else:
-                msg = f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"
-                logger.exception(
-                    "Building %s failed unexpectedly (%s)",
-                    self.image.name,
-                    log.settings_text(self.settings.to_dict(with_size=False)),
-                )
-            self.sig.failed.emit(self.uid, self.gen, self.key, msg)
-        else:
-            logger.debug(
-                "Built %s in %.1f s", self.image.name, time.perf_counter() - t0
-            )
-            self.sig.done.emit(self.uid, self.gen, self.key, m)
-
-
-# --------------------------------------------------------------------------- window
 
 
 class MainWindow(QMainWindow):
@@ -968,7 +836,7 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _fresh_project() -> Project:
         """A new project, with the user's default creature size preset."""
-        from .preferences import default_table
+        from ..size_presets import default_table
 
         return Project(sizes=default_table())
 
@@ -2313,7 +2181,7 @@ class MainWindow(QMainWindow):
     def show_preferences(self, page: str = "sizes"):
         """Open the Preferences window at ``page``. When it closes, the project takes the
         size table picked or edited there; figures with a size follow it."""
-        from .preferences import PreferencesDialog
+        from ..dialogs.preferences_dialog import PreferencesDialog
 
         dlg = PreferencesDialog(self, page)
         dlg.exec()
@@ -2324,7 +2192,7 @@ class MainWindow(QMainWindow):
             self._sync_size_label()  # (a preset may have been renamed or deleted)
 
     def _sync_size_label(self) -> None:
-        from .preferences import table_label
+        from ..size_presets import table_label
 
         self.panel.set_size_table(self.project.sizes, table_label(self.project.sizes))
 
@@ -2366,7 +2234,7 @@ class MainWindow(QMainWindow):
     def show_about(self):
         """Open the About window and start an update check for it, unless an update is
         already downloaded or a check is running."""
-        from .about import AboutDialog
+        from ..dialogs.about_dialog import AboutDialog
 
         self._about = AboutDialog(self)
         try:
@@ -2421,7 +2289,7 @@ class MainWindow(QMainWindow):
 
     def _startup_updates(self):
         """At start: offer an update downloaded earlier, or look for one (once a day)."""
-        from .. import update
+        from ... import update
 
         if update.install_dir() is None:  # run from source: no updates of its own
             return
@@ -2462,7 +2330,7 @@ class MainWindow(QMainWindow):
         ).start()
 
     def _update_job(self, source: str, download: bool):  # on a worker thread
-        from .. import update
+        from ... import update
 
         try:
             rel = update.latest_release()
@@ -2479,7 +2347,7 @@ class MainWindow(QMainWindow):
         self._download_job(rel, source)
 
     def _download_job(self, rel, source: str):  # on a worker thread
-        from .. import update
+        from ... import update
 
         last = [0.0]
 
@@ -2617,7 +2485,7 @@ class MainWindow(QMainWindow):
         """Start the helper that installs a downloaded update once papermini has quit."""
         if self._update_ready is None:
             return
-        from .. import update
+        from ... import update
 
         update_log.info(
             "Installing papermini %s when papermini has closed%s",

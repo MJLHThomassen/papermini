@@ -353,7 +353,7 @@ def _wait(app, cond, timeout=60):
 @pytest.fixture
 def window(app, prefs, tmp_path):
     """The main window with one token figure, built, in the Miniature step."""
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     w.resize(1300, 820)
@@ -376,7 +376,8 @@ def _built(app, w):
 
 
 def test_kind_switches_the_groups(app, prefs):
-    from papermini.gui.panels import MINIATURE, FigurePanel
+    from papermini.gui.panels.figure_fields import MINIATURE
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     got = []
@@ -419,7 +420,7 @@ def test_kind_switches_the_groups(app, prefs):
 
 
 def test_drag_a_token_figure(app, window):
-    from papermini.gui.views import MiniView
+    from papermini.gui.views.mini_view import MiniView
 
     w = window
     m = w.figures[0].mini
@@ -466,7 +467,7 @@ def test_drag_a_token_figure(app, window):
 def test_export_a_figure_as_svg_or_png(app, window, tmp_path, monkeypatch, prefs):
     w = window
     item = w.list.item(0)
-    from papermini.gui.widgets import SUBTITLE_ROLE
+    from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
 
     assert item.data(SUBTITLE_ROLE) == "⌀ 25 mm"
     for name, filt in (
@@ -500,7 +501,7 @@ def test_export_a_figure_as_svg_or_png(app, window, tmp_path, monkeypatch, prefs
 
 
 def test_the_images_preferences(app, window, prefs):
-    from papermini.gui.preferences import PreferencesDialog
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     assert prefs.png_size_mode() == "square" and prefs.png_px_per_mm(25.4) == 256 / 25.4
     dlg = PreferencesDialog(window, "images")
@@ -516,7 +517,7 @@ def test_the_images_preferences(app, window, prefs):
 def test_the_start_card_keeps_its_width(app, prefs, tmp_path):
     """Regression: the card was as wide as its recent projects first asked, then shrank
     once their folders were shortened."""
-    from papermini.gui.widgets import EmptyState
+    from papermini.gui.widgets.empty_state import EmptyState
 
     paths = []
     for n in ("a.yaml", "a-much-longer-project-name.yaml"):

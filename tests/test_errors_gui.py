@@ -41,13 +41,13 @@ def no_blocking_dialogs(monkeypatch, isolated_model_cache):
     """The default model is "downloaded" (so nothing asks to download it), and the
     window's warnings are not shown (they would wait for a click)."""
     from papermini import segment
-    from papermini.gui import window
+    from papermini.gui.window import main_window
 
     path = segment.model_path(segment.DEFAULT_MODEL)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"not a real model")
     monkeypatch.setattr(
-        window.QMessageBox, "warning", staticmethod(lambda *a, **k: None)
+        main_window.QMessageBox, "warning", staticmethod(lambda *a, **k: None)
     )
 
 
@@ -73,14 +73,14 @@ def opened(monkeypatch):
 @pytest.fixture
 def handler(app, monkeypatch):
     """An installed error handler whose dialogs are recorded instead of shown."""
-    from papermini.gui import errors
+    from papermini.gui import error_handler
 
     shown = []
     monkeypatch.setattr(
-        errors.ErrorDialog, "exec", lambda self: shown.append(self) or 0
+        error_handler.ErrorDialog, "exec", lambda self: shown.append(self) or 0
     )
-    monkeypatch.setattr(errors, "_handler", None)
-    h = errors.install()
+    monkeypatch.setattr(error_handler, "_handler", None)
+    h = error_handler.install()
     h.shown_dialogs = shown
     yield h
     qInstallMessageHandler(None)
@@ -143,7 +143,7 @@ def test_errors_from_threads_reach_the_dialog(app, handler):
 
 
 def test_the_error_dialog_unfolds_its_details_in_a_resizable_window(app):
-    from papermini.gui.errors import ErrorDialog
+    from papermini.gui.dialogs.error_dialog import ErrorDialog
 
     details = "Traceback (most recent call last):\n" + '  File "x.py", line 1\n' * 40
     dlg = ErrorDialog(None, "RuntimeError: boom", details)
@@ -168,12 +168,14 @@ def test_the_error_dialog_unfolds_its_details_in_a_resizable_window(app):
 def test_report_a_problem_from_the_error_dialog_fills_in_the_traceback(
     app, handler, opened, monkeypatch
 ):
-    from papermini.gui import errors
+    from papermini.gui import error_handler
 
     log.start()
     handler.started(None)
     monkeypatch.setattr(
-        errors.ErrorDialog, "exec", lambda self: setattr(self, "reported", True) or 0
+        error_handler.ErrorDialog,
+        "exec",
+        lambda self: setattr(self, "reported", True) or 0,
     )
     _raise_later(app, "reported error")
     issue, folder = opened["urls"]
@@ -191,10 +193,10 @@ def _folder_name() -> str:
 
 
 def test_an_error_while_starting_offers_quit_and_exits(app, handler, monkeypatch):
-    from papermini.gui import errors
+    from papermini.gui import error_handler
 
     exits = []
-    monkeypatch.setattr(errors.os, "_exit", exits.append)
+    monkeypatch.setattr(error_handler.os, "_exit", exits.append)
     log.start()
     try:
         raise RuntimeError("cannot start")
@@ -206,22 +208,22 @@ def test_an_error_while_starting_offers_quit_and_exits(app, handler, monkeypatch
 
 
 def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
-    from papermini import gui
-    from papermini.gui import errors
+    from papermini.gui import app as gui_app
+    from papermini.gui import error_handler
 
     shown, exits = [], []
     monkeypatch.setattr(
-        errors.ErrorDialog, "exec", lambda self: shown.append(self) or 0
+        error_handler.ErrorDialog, "exec", lambda self: shown.append(self) or 0
     )
-    monkeypatch.setattr(errors.os, "_exit", exits.append)
-    monkeypatch.setattr(errors, "_handler", None)
+    monkeypatch.setattr(error_handler.os, "_exit", exits.append)
+    monkeypatch.setattr(error_handler, "_handler", None)
 
     def fail(app, files):
         raise RuntimeError("no window")
 
-    monkeypatch.setattr(gui, "_start", fail)
+    monkeypatch.setattr(gui_app, "_start", fail)
     try:
-        assert gui.run([]) == 1
+        assert gui_app.run([]) == 1
     finally:
         qInstallMessageHandler(None)
     assert len(shown) == 1 and exits == [1]
@@ -258,13 +260,13 @@ def test_a_crash_is_offered_once_and_names_its_files(app, opened, monkeypatch):
 
 
 def test_report_a_problem_in_the_menu_names_the_newest_log(app, opened):
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     s = log.start()
     w = MainWindow()
     try:
         assert w.a_open_logs.isEnabled()
-        from papermini.gui.preferences import PreferencesDialog
+        from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
         assert PreferencesDialog(w, "logging").detailed_log.isEnabled()
         w.a_report.trigger()
@@ -276,7 +278,7 @@ def test_report_a_problem_in_the_menu_names_the_newest_log(app, opened):
 
 
 def test_without_a_log_the_menu_still_reports(app, opened, tmp_path, monkeypatch):
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     blocker = tmp_path / "file"
     blocker.write_text("x", encoding="utf-8")
@@ -294,8 +296,8 @@ def test_without_a_log_the_menu_still_reports(app, opened, tmp_path, monkeypatch
 def test_about_shows_where_the_log_is(app):
     from PySide6.QtWidgets import QLabel
 
-    from papermini.gui.about import AboutDialog
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs.about_dialog import AboutDialog
+    from papermini.gui.window.main_window import MainWindow
 
     s = log.start()
     w = MainWindow()
@@ -337,13 +339,13 @@ def _image(path: Path) -> Path:
 def test_build_errors_are_logged_with_the_figures_settings(
     app, tmp_path, monkeypatch, error, expected
 ):
-    from papermini.gui import window as window_mod
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window import build_job
+    from papermini.gui.window.main_window import MainWindow
 
     def fail(*a, **k):
         raise error
 
-    monkeypatch.setattr(window_mod, "build_mini", fail)
+    monkeypatch.setattr(build_job, "build_mini", fail)
     log.start()
     w = MainWindow()
     try:
@@ -361,11 +363,11 @@ def test_build_errors_are_logged_with_the_figures_settings(
 def test_settings_changes_go_to_the_detailed_log_once_they_settle(
     app, tmp_path, monkeypatch
 ):
-    from papermini.gui import window as window_mod
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window import build_job
+    from papermini.gui.window.main_window import MainWindow
 
     monkeypatch.setattr(
-        window_mod,
+        build_job,
         "build_mini",
         lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
     )
@@ -377,7 +379,7 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         w._settings_changed(
             replace(fig.entry.settings, height_mm=50)
         )  # not detailed yet
-        from papermini.gui.preferences import PreferencesDialog
+        from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
         prefs_dlg = PreferencesDialog(
             w, "logging"

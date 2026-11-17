@@ -69,7 +69,7 @@ src/papermini/       the package, one class per file (S15)
   cli/               the command line
   fonts/             the bundled font files and their licences
   gui/               the PySide6 desktop app, built on the core; the theme,
-                     preferences and start-up
+                     preferences, error handling and start-up
     widgets/         small reusable widgets
     fields/          the input widgets of the settings panels
     panels/          the figure and sheet settings panels
@@ -108,10 +108,11 @@ don't care about.
 *Soft triggers:* a file over about 800 lines, or a class over about 400 lines
 or about 40 methods.
 
-*Example:* `MainWindow` in `gui/window.py` builds the layout, queues builds and
-handles their results, exports and prints, manages recent files and folders,
-handles drag and drop, and checks for updates. Someone who wants to change how
-exporting works has to find their way through a class of about 2,000 lines.
+*Example:* `MainWindow` in `gui/window/main_window.py` builds the layout,
+queues builds and handles their results, exports and prints, manages recent
+files and folders, handles drag and drop, and checks for updates. Someone who
+wants to change how exporting works has to find their way through a class of
+about 2,000 lines.
 Better: separate collaborators, such as an export controller and an update
 controller, that the window creates and wires together.
 
@@ -149,7 +150,7 @@ give it an `Enum`. Names can then be completed by editors and checked by ty.
 Avoid lists of positional tuples and one-letter codes that only a comment
 explains.
 
-*Example:* the field specs in `gui/panels.py` are tuples of
+*Example:* the field specs in `gui/panels/figure_fields.py` are tuples of
 `(field, label, kind, extra)`, where `kind` is a code such as `"f"` or `"col"`,
 explained in a long comment above `STEPS`. Build callbacks pass
 `(uid, gen, key)` positionally through several methods.
@@ -162,8 +163,9 @@ not editing `if` chains in several modules. Code that needs to know about all
 variants reads them from that table.
 
 *Example:* the segmentation models are described in `segment.py`, but
-`gui/panels.py` lists them again in `MODELS` and in a tooltip, and the help text
-in `cli.py` lists them a third time. Adding a model means editing all of them.
+`gui/panels/figure_fields.py` lists them again in `MODELS` and in a tooltip,
+and the help text in `cli.py` lists them a third time. Adding a model means
+editing all of them.
 
 ### S6. A subclass keeps the promises of its base class - SOLID (L)
 
@@ -224,8 +226,8 @@ sync:
 
 - `FigureSettings` in `settings.py`, with its validation in `from_dict`;
 - the CLI flags in `cli.py`;
-- the GUI field in `gui/panels.py` (`SECTIONS`, `TIPS` and the visibility
-  rules);
+- the GUI field in `gui/panels/figure_fields.py` (`SECTIONS`, `TIPS` and the
+  visibility rules);
 - the options table in `docs/reference.md`;
 - its entry in the settings guide there, with a comparison picture from
   `scripts/screenshots.py` when its values look different.
@@ -288,10 +290,9 @@ follow T3.
 The file name then says where a class is, and the file's imports list exactly
 what that class uses.
 
-*Example:* `gui/panels.py` holds twelve classes, from small input widgets to the
-two settings panels. Finding `ColorButton` means knowing which module it landed
-in, and the module's imports don't say which class needs them. Better:
-`gui/fields/color_button.py`.
+*Example:* `ColorButton` lives in `gui/fields/color_button.py`, beside the
+other input widgets of the settings panels, and its imports are only what it
+uses.
 
 ### S16. Behaviour lives in service classes
 

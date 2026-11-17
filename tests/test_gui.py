@@ -75,7 +75,7 @@ def wait(
 
 
 def test_build_edit_and_save(app, tmp_path):
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((900, 700, 3), 255, np.uint8)
     cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
@@ -132,7 +132,7 @@ def test_bad_model_reports_error_and_recovers(app, tmp_path):
     figure never rebuilt again."""
     from dataclasses import replace
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.circle(im, (250, 300), 150, (60, 60, 60), -1)
@@ -169,7 +169,7 @@ def test_crop_handles(app):
     from PySide6.QtGui import QImage
     from PySide6.QtTest import QTest
 
-    from papermini.gui.views import CropView
+    from papermini.gui.views.crop_view import CropView
 
     v = CropView()
     v.resize(600, 600)
@@ -226,7 +226,7 @@ def test_review_regressions(app, tmp_path):
     from PySide6.QtCore import QPoint, QPointF, Qt
     from PySide6.QtGui import QWheelEvent
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.circle(im, (250, 300), 150, (60, 60, 60), -1)
@@ -289,7 +289,7 @@ def test_review_regressions(app, tmp_path):
 
 def test_panel_choices_round_trip(app):
     """Combo boxes show readable names but store the setting values."""
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     s = FigureSettings(
@@ -341,7 +341,7 @@ def test_groups_are_switched_on_and_off_in_their_header(app):
     """Back side, Tab and Label each have a checkbox at the right of their header:
     ticked = the group is on (for the tab and label too, whose settings are "no_tab"
     and an empty label); unticked, the group shows only its header."""
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
@@ -386,7 +386,7 @@ def test_settings_side_never_cuts_off_controls(app, tmp_path):
     header checkboxes and fields stay visible; a long figure name does not widen it."""
     from PySide6.QtCore import Qt
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
     w = MainWindow()
@@ -421,7 +421,7 @@ def test_color_dialog_does_not_inherit_button_color(app):
     """Regression: the button's style sheet colored the whole color dialog."""
     from PySide6.QtWidgets import QWidget
 
-    from papermini.gui.panels import ColorButton
+    from papermini.gui.fields.color_button import ColorButton
 
     b = ColorButton()
     b.set_color("#3b6e2a")
@@ -431,7 +431,7 @@ def test_color_dialog_does_not_inherit_button_color(app):
 
 
 def test_mask_file_is_a_model_choice(app):
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
@@ -452,7 +452,7 @@ def test_mask_file_is_a_model_choice(app):
 
 def test_sheet_bar_cut_by_machine(app):
     """Bleed, marks and the cut file only show (and only matter) when cut by machine."""
-    from papermini.gui.panels import SheetPanel
+    from papermini.gui.panels.sheet_panel import SheetPanel
     from papermini.settings import SheetSettings
 
     p = SheetPanel()
@@ -477,7 +477,7 @@ def test_sheet_bar_cut_by_machine(app):
 def test_new_window_shows_sheet_settings(app):
     """Regression: a new project's sheet bar showed 0 mm margins and an empty title
     (and editing it would have saved those)."""
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -495,7 +495,7 @@ def test_side_panels_can_be_resized_freely(app):
     could hardly be dragged wider."""
     from PySide6.QtCore import Qt
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -520,7 +520,7 @@ def test_side_panel_toggles(app):
     and follow panels that were dragged shut."""
     from PySide6.QtCore import Qt
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -560,7 +560,8 @@ def test_paper_has_no_graphics_effect(app):
     from PySide6.QtCore import QRectF
     from PySide6.QtWidgets import QGraphicsScene
 
-    from papermini.gui.views import PaperItem, _paper
+    from papermini.gui.views.drawing import _paper
+    from papermini.gui.views.paper_item import PaperItem
 
     sc = QGraphicsScene()
     item = _paper(sc, QRectF(0, 0, 50, 70))
@@ -575,7 +576,8 @@ def test_source_image_lies_on_paper_with_a_shadow(app):
     from PySide6.QtCore import QRectF
     from PySide6.QtGui import QImage
 
-    from papermini.gui.views import CropView, PaperItem
+    from papermini.gui.views.crop_view import CropView
+    from papermini.gui.views.paper_item import PaperItem
 
     v = CropView()
     img = QImage(400, 300, QImage.Format_RGB32)
@@ -593,7 +595,7 @@ def test_source_image_lies_on_paper_with_a_shadow(app):
 def test_drag_closed_panel_reopens_at_dragged_width(app):
     from PySide6.QtCore import Qt
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -619,7 +621,7 @@ def test_panel_layout_is_remembered(app):
     from PySide6.QtCore import QSettings, Qt
 
     from papermini.gui import prefs
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     assert prefs.store().format() == QSettings.IniFormat  # not the real settings
 
@@ -678,7 +680,7 @@ def test_download_dialog_asks_then_downloads(app, model_cache):
     from PySide6.QtWidgets import QDialog
 
     from papermini import segment
-    from papermini.gui.models import DownloadDialog
+    from papermini.gui.dialogs.download_dialog import DownloadDialog
 
     d = DownloadDialog("rmbg-1.4")
     assert "Download the BRIA RMBG-1.4 model?" in d.title.text()
@@ -708,7 +710,7 @@ def test_download_dialog_cancel(app, model_cache, monkeypatch):
     from PySide6.QtWidgets import QDialog
 
     from papermini import segment
-    from papermini.gui.models import DownloadDialog
+    from papermini.gui.dialogs.download_dialog import DownloadDialog
 
     gate = threading.Event()
     real = segment.download
@@ -732,8 +734,8 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
     from PySide6.QtWidgets import QDialog
 
     from papermini import segment
-    from papermini.gui import models
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs import cache_page
+    from papermini.gui.window.main_window import MainWindow
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "plain.png")
     asked = []
@@ -745,7 +747,7 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         def exec(self):
             return QDialog.Rejected
 
-    monkeypatch.setattr("papermini.gui.window.DownloadDialog", Refuse)
+    monkeypatch.setattr("papermini.gui.window.main_window.DownloadDialog", Refuse)
     w = MainWindow()
     try:
         w.add_images([tmp_path / "plain.png"], FigureSettings(model="birefnet-lite"))
@@ -763,14 +765,14 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         assert asked == ["birefnet-lite"]
 
         # the Models and cache page lists every model, downloads one, and the figure is retried
-        from papermini.gui.preferences import PreferencesDialog
+        from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
         dlg = PreferencesDialog(w, "cache").cache
         assert set(dlg.cards) == set(segment.ONNX_MODELS)
         card = dlg.cards["birefnet-lite"]
         assert "Not downloaded" in card.state.text() and not card.btn_del.isEnabled()
         monkeypatch.setattr(
-            models.DownloadDialog,
+            cache_page.DownloadDialog,
             "exec",
             lambda self: segment.fetch_model(self.model, self.force) and 1,
         )
@@ -786,7 +788,9 @@ def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
         assert "birefnet-lite" not in w._declined and fig.error is None
 
         monkeypatch.setattr(
-            models.QMessageBox, "question", lambda *a, **k: models.QMessageBox.Yes
+            cache_page.QMessageBox,
+            "question",
+            lambda *a, **k: cache_page.QMessageBox.Yes,
         )
         card.btn_del.click()
         assert not segment.model_path("birefnet-lite").exists()
@@ -801,7 +805,7 @@ def test_preferences_menu_entry(app):
     items: the theme, automatic updates, the detailed log and cache management."""
     from PySide6.QtGui import QKeySequence
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -827,7 +831,7 @@ def test_cache_management_clears_masks_images_and_everything(
     """The Models and cache page counts the masks and images from links, clears each,
     keeps the images open figures use, and Clear cache also deletes the models."""
     from papermini import remote, segment
-    from papermini.gui import models
+    from papermini.gui.dialogs import cache_page
 
     masks = segment.masks_dir()
     masks.mkdir(parents=True)
@@ -841,7 +845,7 @@ def test_cache_management_clears_masks_images_and_everything(
     model = segment.model_path(segment.DEFAULT_MODEL)
     model.write_bytes(b"model")
 
-    dlg = models.CachePage(in_use=lambda: [images[0]])
+    dlg = cache_page.CachePage(in_use=lambda: [images[0]])
     assert str(segment.cache_dir()) in dlg.folder.text()
     assert dlg.masks.state.text().startswith("3 masks")
     assert dlg.images.state.text().startswith("2 images")
@@ -857,9 +861,9 @@ def test_cache_management_clears_masks_images_and_everything(
     dlg.changed.connect(changed.append)
     asked = []
     monkeypatch.setattr(
-        models.QMessageBox,
+        cache_page.QMessageBox,
         "question",
-        lambda *a, **k: asked.append(a[2]) or models.QMessageBox.Yes,
+        lambda *a, **k: asked.append(a[2]) or cache_page.QMessageBox.Yes,
     )
     dlg.btn_all.click()
     assert "also deletes the downloaded models" in asked[0]
@@ -874,8 +878,8 @@ def test_cache_page_scrolls_when_short(app, model_cache):
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QPushButton
 
-    from papermini.gui.preferences import PreferencesDialog
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -896,7 +900,8 @@ def test_cache_page_scrolls_when_short(app, model_cache):
 
 def test_licences_are_links(app, model_cache):
     from papermini import segment
-    from papermini.gui.models import CachePage, DownloadDialog
+    from papermini.gui.dialogs.cache_page import CachePage
+    from papermini.gui.dialogs.download_dialog import DownloadDialog
 
     for model, spec in segment.ONNX_MODELS.items():
         assert spec["licence_url"].startswith("https://")
@@ -919,7 +924,8 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cac
     downloads."""
     from PySide6.QtWidgets import QDialog
 
-    from papermini.gui.models import CachePage, DownloadDialog
+    from papermini.gui.dialogs.cache_page import CachePage
+    from papermini.gui.dialogs.download_dialog import DownloadDialog
 
     d = DownloadDialog("rmbg-1.4", ask=False)  # the Models and cache page's Download
     assert d.accept_licence is not None and not d.btn_go.isEnabled()
@@ -937,7 +943,7 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cac
 
 def test_the_settings_show_the_licence_of_the_model_in_use(app, tmp_path, model_cache):
     from papermini import segment
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     Image.new("RGB", (300, 400), (40, 40, 40)).save(tmp_path / "a.png")
     w = MainWindow()
@@ -972,7 +978,7 @@ def test_the_settings_show_the_licence_of_the_model_in_use(app, tmp_path, model_
 def test_no_figure_hides_the_settings(app, tmp_path):
     """Regression: with no figure selected the whole form stayed visible, greyed out,
     under a small heading (the sections were looked up before they had a parent)."""
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
     w = MainWindow()
@@ -1012,7 +1018,8 @@ def test_decimal_fields_take_a_point_in_any_locale(app):
     from PySide6.QtCore import QLocale, Qt
     from PySide6.QtTest import QTest
 
-    from papermini.gui.panels import DoubleSpinBox, FigurePanel
+    from papermini.gui.fields.double_spin_box import DoubleSpinBox
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     old = QLocale()
     QLocale.setDefault(QLocale(QLocale.Dutch, QLocale.Netherlands))
@@ -1034,8 +1041,8 @@ def test_decimal_fields_take_a_point_in_any_locale(app):
 def test_source_view_shows_the_detected_outline(app, tmp_path):
     """Step 1 shows what background removal found, without the margin and tab of the
     miniature, and forgets it when another image is shown."""
-    from papermini.gui.views import load_qimage
-    from papermini.gui.window import MainWindow
+    from papermini.gui.views.images import load_qimage
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((900, 700, 3), 255, np.uint8)
     cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
@@ -1080,7 +1087,7 @@ def _crop_view(app, size=(400, 300)):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QImage
 
-    from papermini.gui.views import CropView
+    from papermini.gui.views.crop_view import CropView
 
     v = CropView()
     v.setAttribute(Qt.WA_DontShowOnScreen)
@@ -1171,7 +1178,7 @@ def test_a_click_on_the_crop_view_changes_nothing(app):
 def test_crop_changes_can_be_undone_and_cleared(app, tmp_path):
     """Ctrl+Z puts the crop back as it was (also for another figure); the Clear crop
     button on the canvas removes it, and shows only on the Source view with a crop."""
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     for n in "ab":
         Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / f"{n}.png")
@@ -1217,7 +1224,8 @@ def test_color_sliders_snap_to_their_centre(app):
     from PySide6.QtGui import QColor, QMouseEvent
 
     from papermini.gui import theme
-    from papermini.gui.panels import SNAP_PX, SliderField
+    from papermini.gui.fields.slider import SNAP_PX
+    from papermini.gui.fields.slider_field import SliderField
 
     theme.apply(app, "light")  # (as the window does)
     assert SliderField(0, 254, 254).slider.centre is None
@@ -1304,7 +1312,8 @@ def test_color_sliders_snap_to_their_centre(app):
 def test_image_adjustments_panel(app):
     """Step 1 has color sliders; greyscale hides saturation and hue (nothing to turn);
     Reset puts all of them back in one change, and is off while there is nothing to reset."""
-    from papermini.gui.panels import SOURCE, FigurePanel
+    from papermini.gui.panels.figure_fields import SOURCE
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
@@ -1337,8 +1346,8 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     and a color change rebuilds the miniature from the cached mask: the model does not
     run again and the outline stays."""
     from papermini import segment
-    from papermini.gui.views import PREVIEW_PX
-    from papermini.gui.window import MainWindow
+    from papermini.gui.views.images import PREVIEW_PX
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((2400, 1800, 3), 255, np.uint8)  # larger than a preview
     cv2.circle(im, (900, 1200), 500, (200, 40, 40), -1)
@@ -1383,7 +1392,7 @@ def test_source_view_has_a_legend(app, tmp_path):
     not. It lets the mouse through to the crop handles under it."""
     from PySide6.QtCore import Qt
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
     w = MainWindow()
@@ -1412,8 +1421,8 @@ def test_source_view_has_a_legend(app, tmp_path):
 
 def test_settings_panel_follows_the_step(app, tmp_path):
     """Each step shows its own settings; "Apply to all" copies only those."""
-    from papermini.gui.panels import MINIATURE, PRINT, SOURCE
-    from papermini.gui.window import MainWindow
+    from papermini.gui.panels.figure_fields import MINIATURE, PRINT, SOURCE
+    from papermini.gui.window.main_window import MainWindow
 
     for n in "ab":
         Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / f"{n}.png")
@@ -1474,7 +1483,7 @@ def test_settings_panel_follows_the_step(app, tmp_path):
 def test_size_fields_keep_proportions_until_unlinked(app):
     """Linked, the field typed in sets the size and the other follows the figure's
     proportions; unlinked, both are set (the figure is stretched)."""
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     p.set_settings(FigureSettings(height_mm=40), "x", "x")
@@ -1534,7 +1543,7 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     import threading
 
     from papermini import segment
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
@@ -1568,7 +1577,7 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
             w.work.button.text() == "Run again" and "cancelled" in w.work.title.text()
         )
         assert not w.crop_view._busy and not fig.up_to_date
-        from papermini.gui.widgets import SUBTITLE_ROLE
+        from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
 
         assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
         w._build_current()  # nothing restarts on its own
@@ -1609,8 +1618,8 @@ def test_cancel_works_while_the_model_loads(app, tmp_path, monkeypatch):
     import threading
 
     from papermini import segment
-    from papermini.gui.widgets import SUBTITLE_ROLE
-    from papermini.gui.window import MainWindow
+    from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
+    from papermini.gui.window.main_window import MainWindow
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowLoadSegmenter)
     SlowLoadSegmenter.loading, SlowLoadSegmenter.loaded = (
@@ -1661,8 +1670,8 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(app, tmp_path, monkey
     import threading
 
     from papermini import segment
-    from papermini.gui.widgets import SUBTITLE_ROLE
-    from papermini.gui.window import MainWindow
+    from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
+    from papermini.gui.window.main_window import MainWindow
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
@@ -1708,7 +1717,7 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(app, tmp_path, monkey
 
 
 def test_stretched_figure_gets_both_sizes(app, tmp_path):
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((900, 700, 3), 255, np.uint8)
     cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
@@ -1740,7 +1749,7 @@ def test_closed_window_never_asks_to_download(app, monkeypatch):
     left the question queued, and a later event loop opened a real dialog for it."""
     from PySide6.QtCore import QRunnable
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     asked = []  # (an exception raised in a Qt slot would only be printed)
 
@@ -1751,7 +1760,7 @@ def test_closed_window_never_asks_to_download(app, monkeypatch):
         def exec(self):
             return 0
 
-    monkeypatch.setattr("papermini.gui.window.DownloadDialog", Dialog)
+    monkeypatch.setattr("papermini.gui.window.main_window.DownloadDialog", Dialog)
     w = MainWindow()
     got = []
     w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
@@ -1769,7 +1778,7 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
     from PySide6.QtCore import QSize
 
     from papermini.gui import theme
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     def colors(pm):
         img = pm.toImage()
@@ -1807,7 +1816,7 @@ def test_logo_in_the_header_welcome_card_and_window_icon(app):
 def test_strength_and_gap_filling_sliders(app):
     """Strength and gap filling are sliders with a number box; gap filling has an
     Auto checkbox (it used to be a spin box where 0 meant auto, so 0 = off was impossible)."""
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     p.set_settings(FigureSettings(strength=60, fill_gaps=None), "x", "x")
@@ -1840,12 +1849,12 @@ def test_strength_and_gap_filling_sliders(app):
 
 
 def test_start_card_offers_images_and_a_project(app, monkeypatch):
-    from papermini.gui import window
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window import main_window
+    from papermini.gui.window.main_window import MainWindow
 
     asked = []
     monkeypatch.setattr(
-        window.QFileDialog,
+        main_window.QFileDialog,
         "getOpenFileNames",
         lambda parent, caption, folder, filters: (
             asked.append((caption, filters)),
@@ -1859,7 +1868,9 @@ def test_start_card_offers_images_and_a_project(app, monkeypatch):
         w.empty.button.click()
         w.empty.open_button.click()
         assert asked[0][0] == "Add images"
-        assert asked[1][1].startswith(window.PROJECT_FILTER)  # projects listed first
+        assert asked[1][1].startswith(
+            main_window.PROJECT_FILTER
+        )  # projects listed first
     finally:
         w.close()
 
@@ -1872,8 +1883,8 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
     from PySide6.QtCore import QMimeData, QUrl
 
     from papermini import remote
-    from papermini.gui import window
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window import main_window
+    from papermini.gui.window.main_window import MainWindow
 
     buf = io.BytesIO()
     Image.new("RGBA", (200, 300), (200, 40, 30, 255)).save(buf, "WEBP")
@@ -1897,7 +1908,9 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     warned = []
-    monkeypatch.setattr(window.QMessageBox, "warning", lambda *a: warned.append(a[2]))
+    monkeypatch.setattr(
+        main_window.QMessageBox, "warning", lambda *a: warned.append(a[2])
+    )
     w = MainWindow()
     try:
         url = "https://example.com/img/goblin.webp"
@@ -1940,7 +1953,7 @@ def test_link_bar_on_top_of_the_figure_list(app, monkeypatch):
     The add-images button sits in the figure list, not in the header."""
     from PySide6.QtWidgets import QFrame, QToolButton
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -1990,7 +2003,7 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     from PySide6.QtGui import QColor, QImage
 
     from papermini.geometry import CutPath
-    from papermini.gui.views import print_sheet
+    from papermini.gui.views.drawing import print_sheet
     from papermini.mini import Mini
     from papermini.sheet import pack
 
@@ -2039,7 +2052,7 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
 def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
     from PySide6.QtPrintSupport import QPrinter
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
     from PIL import ImageDraw
@@ -2076,7 +2089,7 @@ def test_auto_model_says_which_method_it_used(app, tmp_path):
     """Model "auto" shows under the model box how it found the figure: the image's own
     transparency, or the default model for an image without it."""
     from papermini import segment
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.ellipse(im, (250, 300), (150, 220), 0, 0, 360, (60, 60, 60), -1)
@@ -2117,7 +2130,7 @@ def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(
 ):
     """Switching the sheet to machine cutting builds every figure with the bleed, and
     Export PDF also writes the cut file."""
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.ellipse(im, (250, 300), (150, 220), 0, 0, 360, (60, 60, 60), -1)
@@ -2176,8 +2189,8 @@ def test_copies_on_the_figure_card(app, tmp_path):
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QSpinBox
 
-    from papermini.gui.widgets import COPIES_ROLE
-    from papermini.gui.window import MainWindow
+    from papermini.gui.widgets.figure_delegate import COPIES_ROLE
+    from papermini.gui.window.main_window import MainWindow
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
     w = MainWindow()
@@ -2216,7 +2229,7 @@ def test_export_dialog(app, tmp_path):
     writes only what is ticked, and remembers the ticks."""
     from PySide6.QtWidgets import QDialog
 
-    from papermini.gui.export import ExportDialog
+    from papermini.gui.dialogs.export_dialog import ExportDialog
 
     d = ExportDialog(tmp_path, "My minis", pages=3, machine=True)
     assert d.pdf_path() == tmp_path / "My minis.pdf"
@@ -2248,7 +2261,7 @@ def test_header_steps_stay_centred(app, tmp_path):
     """The step buttons sit in the middle of the window, whatever the header holds."""
     from PySide6.QtCore import Qt
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     w.setAttribute(Qt.WA_DontShowOnScreen)
@@ -2299,8 +2312,8 @@ def fake_updates(monkeypatch, tmp_path):
 
 
 def test_about_window_shows_each_update_state(app):
-    from papermini.gui.about import AboutDialog
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs.about_dialog import AboutDialog
+    from papermini.gui.window.main_window import MainWindow
     from papermini.update import Release
 
     w = MainWindow()
@@ -2339,8 +2352,8 @@ def test_about_window_shows_each_update_state(app):
 def test_update_from_the_about_window(app, fake_updates):
     """About checks, Update downloads with progress, the bar shows it is ready, and
     closing papermini installs it (and starts it again after Restart now)."""
-    from papermini.gui.about import AboutDialog
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs.about_dialog import AboutDialog
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -2371,7 +2384,7 @@ def test_daily_update_check(app, fake_updates, monkeypatch, tmp_path):
     it announces the new version instead of downloading it."""
     from papermini import update
     from papermini.gui import prefs
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -2406,8 +2419,8 @@ def test_update_menu_items(app):
     """Check for updates is in the menu; Update automatically is in Preferences, on by
     default, and its tick box sets the preference."""
     from papermini.gui import prefs
-    from papermini.gui.preferences import PreferencesDialog
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
+    from papermini.gui.window.main_window import MainWindow
 
     w = MainWindow()
     try:
@@ -2431,7 +2444,7 @@ def test_the_font_field(app):
     """The bundled fonts first, the installed ones once found; a font this computer does
     not have is kept, marked and warned about."""
     from papermini import fonts
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     w = p._w["font"][1]
@@ -2460,7 +2473,7 @@ def test_the_font_field(app):
 
 
 def test_number_fields_follow_the_back_side(app):
-    from papermini.gui.panels import FigurePanel
+    from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel()
     p.set_settings(
@@ -2484,8 +2497,8 @@ def test_about_names_the_font_licence(app, monkeypatch):
     from PySide6.QtWidgets import QLabel
 
     from papermini import fonts
-    from papermini.gui.about import AboutDialog
-    from papermini.gui.window import MainWindow
+    from papermini.gui.dialogs.about_dialog import AboutDialog
+    from papermini.gui.window.main_window import MainWindow
 
     opened = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
@@ -2507,7 +2520,7 @@ def test_about_names_the_font_licence(app, monkeypatch):
 def test_sheet_panel_paper_orientation_and_custom_size(app):
     """Orientation for a named paper, a width and height for Custom (starting at the
     paper chosen before); the mat only when cut by machine, with its warning."""
-    from papermini.gui.panels import SheetPanel
+    from papermini.gui.panels.sheet_panel import SheetPanel
     from papermini.settings import SheetSettings
 
     p = SheetPanel()
@@ -2563,7 +2576,7 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
     Print asks before leaving them off."""
     from PySide6.QtWidgets import QMessageBox
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
     from papermini.settings import SheetSettings
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
@@ -2617,7 +2630,7 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
 def test_print_sets_the_paper_size_and_orientation(app, tmp_path, monkeypatch):
     from PySide6.QtGui import QPageLayout
 
-    from papermini.gui.window import MainWindow
+    from papermini.gui.window.main_window import MainWindow
     from papermini.settings import SheetSettings
 
     Image.new("RGBA", (300, 450), (200, 40, 30, 255)).save(tmp_path / "hero.png")

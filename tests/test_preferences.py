@@ -40,10 +40,11 @@ def no_presets(app):
 @pytest.fixture
 def window(app, monkeypatch):
     """The main window; figures fail to build at once (no model in these tests)."""
-    from papermini.gui import window as window_mod
+    from papermini.gui.window import build_job
+    from papermini.gui.window import main_window as window_mod
 
     monkeypatch.setattr(
-        window_mod,
+        build_job,
         "build_mini",
         lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
     )
@@ -62,7 +63,7 @@ def _image(path):
 
 def _names(page):
     """The list as shown: (name, notes) per entry."""
-    from papermini.gui.preferences import NOTES_ROLE
+    from papermini.gui.dialogs.sizes_page import NOTES_ROLE
 
     return [
         (
@@ -80,23 +81,23 @@ def _answer(monkeypatch, name):
 
 
 def test_presets_in_the_preferences(app):
-    from papermini.gui import preferences, prefs
+    from papermini.gui import prefs, size_presets
 
-    assert preferences.presets() == [sizes.BUILTIN]
-    assert preferences.default_table() == sizes.BUILTIN
+    assert size_presets.presets() == [sizes.BUILTIN]
+    assert size_presets.default_table() == sizes.BUILTIN
     mine = replace(sizes.calculate(30), name="Mine")
-    preferences.save_user_presets([mine])
-    preferences.set_default_name("Mine")
-    assert preferences.presets() == [sizes.BUILTIN, mine]
-    assert preferences.default_table() == mine
-    assert preferences.preset_of(mine) == "Mine"
-    assert preferences.preset_of(replace(mine, medium_mm=40)) == ""  # changed since
-    assert preferences.table_label(mine) == "Mine"
-    assert preferences.table_label(sizes.calculate(28)) == "this project's table"
+    size_presets.save_user_presets([mine])
+    size_presets.set_default_name("Mine")
+    assert size_presets.presets() == [sizes.BUILTIN, mine]
+    assert size_presets.default_table() == mine
+    assert size_presets.preset_of(mine) == "Mine"
+    assert size_presets.preset_of(replace(mine, medium_mm=40)) == ""  # changed since
+    assert size_presets.table_label(mine) == "Mine"
+    assert size_presets.table_label(sizes.calculate(28)) == "this project's table"
     # entries that cannot be read, or would hide the built-in one, are left out
     good = mine.to_dict()
     prefs.store().setValue(
-        preferences.PRESETS_KEY,
+        size_presets.PRESETS_KEY,
         json.dumps(
             [
                 good,
@@ -107,16 +108,16 @@ def test_presets_in_the_preferences(app):
             ]
         ),
     )
-    assert preferences.user_presets() == [mine]
-    prefs.store().setValue(preferences.PRESETS_KEY, "not json")
+    assert size_presets.user_presets() == [mine]
+    prefs.store().setValue(size_presets.PRESETS_KEY, "not json")
     assert (
-        preferences.user_presets() == []
-        and preferences.default_table() == sizes.BUILTIN
+        size_presets.user_presets() == []
+        and size_presets.default_table() == sizes.BUILTIN
     )
 
 
 def test_the_builtin_preset_is_read_only(app):
-    from papermini.gui.preferences import SizesPage
+    from papermini.gui.dialogs.sizes_page import SizesPage
 
     page = SizesPage(sizes.BUILTIN)
     assert _names(page) == [
@@ -137,8 +138,8 @@ def test_the_builtin_preset_is_read_only(app):
 
 
 def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
-    from papermini.gui import preferences
-    from papermini.gui.preferences import SizesPage
+    from papermini.gui import size_presets
+    from papermini.gui.dialogs.sizes_page import SizesPage
 
     page = SizesPage(sizes.BUILTIN)
     page.copy_preset()
@@ -148,8 +149,8 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
     assert page.spins["large", "base_mm"].value() == pytest.approx(59.06)
     _answer(monkeypatch, "My 30 mm grid")
     page.rename_preset()
-    assert [t.name for t in preferences.user_presets()] == ["My 30 mm grid"]
-    assert preferences.user_presets()[0].grid_mm == 30  # saved at once
+    assert [t.name for t in size_presets.user_presets()] == ["My 30 mm grid"]
+    assert size_presets.user_presets()[0].grid_mm == 30  # saved at once
     page.use_in_project()
     page.make_default()
     assert _names(page) == [
@@ -157,12 +158,12 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
         ("My 30 mm grid", "Used in this project · Default for new projects"),
     ]
     assert page.project_table().name == "My 30 mm grid"
-    assert preferences.default_name() == "My 30 mm grid"
+    assert size_presets.default_name() == "My 30 mm grid"
     assert "uses this preset" in page.status.text()
     # editing the project's preset changes the project too
     page.spins["large", "tab_width_mm"].setValue(52)
     assert page.project_table().row("large").tab_width_mm == 52
-    assert preferences.user_presets()[0].row("large").tab_width_mm == 52
+    assert size_presets.user_presets()[0].row("large").tab_width_mm == 52
     # a name in use is refused
     warned = []
     monkeypatch.setattr(
@@ -178,12 +179,12 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
     page.list.setCurrentRow(1)
     _answer(monkeypatch, "Club")
     page.rename_preset()
-    assert page.project_table().name == "Club" and preferences.default_name() == "Club"
+    assert page.project_table().name == "Club" and size_presets.default_name() == "Club"
     monkeypatch.setattr(
         QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes)
     )
     page.delete_preset()
-    assert preferences.default_name() == "Standard 1-inch"
+    assert size_presets.default_name() == "Standard 1-inch"
     assert page.project_table().name == "Club"  # (the project keeps its copy)
     assert _names(page)[-1] == (
         "This project's table",
@@ -193,10 +194,10 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
 
 
 def test_a_project_table_that_matches_no_preset(app, monkeypatch):
-    from papermini.gui import preferences
-    from papermini.gui.preferences import SizesPage
+    from papermini.gui import size_presets
+    from papermini.gui.dialogs.sizes_page import SizesPage
 
-    preferences.save_user_presets([replace(sizes.calculate(30), name="Club")])
+    size_presets.save_user_presets([replace(sizes.calculate(30), name="Club")])
     page = SizesPage(replace(sizes.calculate(28), name="Club"))  # Club, changed since
     assert _names(page)[-1] == (
         "This project's table",
@@ -208,7 +209,7 @@ def test_a_project_table_that_matches_no_preset(app, monkeypatch):
     assert page.b_save.isVisibleTo(page) and not page.b_default.isEnabled()
     page.spins["huge", "height_mm"].setValue(70)  # edits change only the project
     assert page.project_table().row("huge").height_mm == 70
-    assert preferences.user_presets()[0].row("huge").height_mm != 70
+    assert size_presets.user_presets()[0].row("huge").height_mm != 70
     _answer(monkeypatch, "Club 28 mm")
     page.save_as_preset()
     assert page.project_table().name == "Club 28 mm"
@@ -221,7 +222,7 @@ def test_a_project_table_that_matches_no_preset(app, monkeypatch):
 
 
 def test_closing_preferences_gives_the_project_its_table(window, tmp_path, monkeypatch):
-    from papermini.gui.preferences import PreferencesDialog
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     w = window
     w.add_images(
@@ -256,11 +257,11 @@ def test_closing_preferences_gives_the_project_its_table(window, tmp_path, monke
 
 
 def test_a_new_project_starts_with_the_default_preset(window):
-    from papermini.gui import preferences
+    from papermini.gui import size_presets
 
     mine = replace(sizes.calculate(30), name="Mine")
-    preferences.save_user_presets([mine])
-    preferences.set_default_name("Mine")
+    size_presets.save_user_presets([mine])
+    size_presets.set_default_name("Mine")
     window.new_project()
     assert window.project.sizes == mine
 
@@ -305,7 +306,7 @@ def test_the_width_warning(window, tmp_path):
 
 def test_the_other_pages(window):
     from papermini.gui import prefs
-    from papermini.gui.preferences import PreferencesDialog
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     dlg = PreferencesDialog(window, "appearance")
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
@@ -335,7 +336,7 @@ def test_a_sizes_page_is_freed(app):
     import gc
     import weakref
 
-    from papermini.gui.preferences import SizesPage
+    from papermini.gui.dialogs.sizes_page import SizesPage
 
     page = SizesPage(sizes.BUILTIN)
     page.copy_preset()  # (the list is filled again)

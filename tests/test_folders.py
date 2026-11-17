@@ -168,10 +168,11 @@ def prefs(app):
 @pytest.fixture
 def window(prefs, monkeypatch):
     """The main window; figures fail to build at once (no model in these tests)."""
-    from papermini.gui import window as window_mod
+    from papermini.gui.window import build_job
+    from papermini.gui.window import main_window as window_mod
 
     monkeypatch.setattr(
-        window_mod,
+        build_job,
         "build_mini",
         lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
     )
@@ -351,7 +352,7 @@ def test_a_recent_project_that_is_gone(window, tmp_path, monkeypatch):
 def test_start_screen_rows_open_from_anywhere(app, tmp_path):
     """Regression: only the name was a link, and a path with & (D&D) came back as
     &amp; and was not found."""
-    from papermini.gui.widgets import EmptyState
+    from papermini.gui.widgets.empty_state import EmptyState
 
     paths = _projects(tmp_path, *[f"D&D/p{i}.yaml" for i in range(7)])
     e = EmptyState()
@@ -373,7 +374,7 @@ def test_start_screen_rows_open_from_anywhere(app, tmp_path):
 
 
 def test_preferences_images_page(window, prefs):
-    from papermini.gui.preferences import PreferencesDialog
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     dlg = PreferencesDialog(window, "images")
     assert dlg.subfolders.isChecked()
