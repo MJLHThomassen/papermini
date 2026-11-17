@@ -400,27 +400,12 @@ def test_cli_width_alone_scales_by_width(figure, tmp_path):
     assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 32, abs=0.5)
 
 
-def _square_mini(name="sq", w=30.0, h=40.0):
-    from papermini.pipeline.cut_path import CutPath
-    from papermini.pipeline.mini import Mini
-
-    sq = CutPath(np.array([[0, 0], [w, 0], [w, h], [0, h]], float))
-    return Mini(
-        name,
-        w,
-        h,
-        Image.new("RGBA", (int(w * 10), int(h * 10)), (200, 40, 30, 255)),
-        sq,
-        folds=[(0.0, w, h - 5)],
-    )
-
-
-def test_machine_sheet_keeps_clear_of_the_marks():
+def test_machine_sheet_keeps_clear_of_the_marks(square_mini):
     """The pieces keep MARK_CLEAR_MM away from the corner marks only, so a machine sheet
     holds as many pieces as one cut by hand; the header starts beside the marks."""
     from papermini.output.sheet import MARK_CLEAR_MM
 
-    m = _square_mini()
+    m = square_mini(folds=[(0.0, 30.0, 35.0)])
     hand = pack([(m, 40)], "a4", 12, 7)
     assert hand.mark_rects() == [] and hand.header_x == 12
     for kind in ("corners", "silhouette"):
@@ -455,7 +440,7 @@ def test_machine_sheet_keeps_clear_of_the_marks():
         pack([(m, 1)], "a4", cut="laser")
 
 
-def test_cut_files_match_the_sheet(tmp_path):
+def test_cut_files_match_the_sheet(tmp_path, square_mini):
     """Cut by machine: the PDF gets no cut lines, and a cut file per page holds the cut
     lines where the pieces are on the page plus the same marks as the PDF."""
     import re
@@ -463,7 +448,7 @@ def test_cut_files_match_the_sheet(tmp_path):
 
     from papermini.output.sheet import cut_file_paths, default_cut_file, write_cut_files
 
-    m = _square_mini()
+    m = square_mini(folds=[(0.0, 30.0, 35.0)])
     lay = pack([(m, 30)], "a4", 12, 7, cut="machine", marks="corners")
     assert lay.pages > 1 and lay.machine
     pdf = write_pdf(lay, tmp_path / "s.pdf")

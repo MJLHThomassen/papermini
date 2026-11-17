@@ -25,64 +25,32 @@ def figure_bytes(fmt="PNG", size=(300, 450)) -> bytes:
     return buf.getvalue()
 
 
-class Web(dict):
-    asked: list
-
-
-class FakeResponse(io.BytesIO):
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        self.close()
-
-
-@pytest.fixture
-def web(monkeypatch):
-    """A fake web: ``web[url] = bytes`` (or an exception); records every request."""
-    pages, asked = Web(), []
-
-    def urlopen(req, timeout=None):
-        url = req.full_url
-        asked.append((url, req.get_header("User-agent")))
-        body = pages.get(url)
-        if isinstance(body, Exception):
-            raise body
-        if body is None:
-            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
-        return FakeResponse(body)
-
-    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-    pages.asked = asked
-    return pages
-
-
-def test_link_is_downloaded_once_and_named_after_the_link(web):
+def test_link_is_downloaded_once_and_named_after_the_link(fake_web):
     url = "https://example.com/art/Red%20Goblin.webp?size=large"
-    web[url] = figure_bytes("WEBP")
+    fake_web[url] = figure_bytes("WEBP")
     p = remote.fetch_image(url)
-    assert p.name == "Red Goblin.webp" and p.read_bytes() == web[url]
-    assert web.asked == [(url, "papermini")]
-    assert remote.fetch_image(url) == p and len(web.asked) == 1  # from the cache
+    assert p.name == "Red Goblin.webp" and p.read_bytes() == fake_web[url]
+    assert fake_web.asked == [(url, "papermini")]
+    assert remote.fetch_image(url) == p and len(fake_web.asked) == 1  # from the cache
     assert remote.cached_image(url) == p
 
 
-def test_link_without_extension_gets_one_from_the_content(web):
-    web["https://example.com/image?id=7"] = figure_bytes("JPEG")
+def test_link_without_extension_gets_one_from_the_content(fake_web):
+    fake_web["https://example.com/image?id=7"] = figure_bytes("JPEG")
     assert remote.fetch_image("https://example.com/image?id=7").name == "image.jpg"
 
 
-def test_bad_links_give_readable_errors(web, monkeypatch):
+def test_bad_links_give_readable_errors(fake_web, monkeypatch):
     with pytest.raises(ValueError, match="404 Not Found"):
         remote.fetch_image("https://example.com/missing.png")
-    web["https://example.com/page"] = b"<html><body>a web page</body></html>"
+    fake_web["https://example.com/page"] = b"<html><body>a web page</body></html>"
     with pytest.raises(ValueError, match="not an image"):
         remote.fetch_image("https://example.com/page")
-    web["https://down.example/x.png"] = urllib.error.URLError("no route to host")
+    fake_web["https://down.example/x.png"] = urllib.error.URLError("no route to host")
     with pytest.raises(ValueError, match="no route to host"):
         remote.fetch_image("https://down.example/x.png")
     monkeypatch.setattr(remote, "MAX_BYTES", 1000)
-    web["https://example.com/huge.png"] = b"\0" * 5000
+    fake_web["https://example.com/huge.png"] = b"\0" * 5000
     with pytest.raises(ValueError, match="larger than"):
         remote.fetch_image("https://example.com/huge.png")
     assert not list(
@@ -99,9 +67,9 @@ def test_link_and_file_uri_helpers(tmp_path):
     assert remote.is_image_file("A.WEBP") and not remote.is_image_file("a.gif")
 
 
-def test_project_keeps_the_link_not_the_cached_file(web, tmp_path):
+def test_project_keeps_the_link_not_the_cached_file(fake_web, tmp_path):
     url = "https://example.com/goblin.png"
-    web[url] = figure_bytes()
+    fake_web[url] = figure_bytes()
     (tmp_path / "p.yaml").write_text(
         f"figures:\n  - image: {url}\n    strength: 50\n", encoding="utf-8"
     )
@@ -117,7 +85,7 @@ def test_project_keeps_the_link_not_the_cached_file(web, tmp_path):
     assert f"image: {url}" in (tmp_path / "q.yaml").read_text(encoding="utf-8")
 
 
-def test_project_with_a_dead_link_says_which(web, tmp_path):
+def test_project_with_a_dead_link_says_which(fake_web, tmp_path):
     (tmp_path / "p.yaml").write_text(
         "figures: [https://example.com/gone.png]\n", encoding="utf-8"
     )
@@ -126,10 +94,10 @@ def test_project_with_a_dead_link_says_which(web, tmp_path):
 
 
 def test_cli_makes_a_mini_from_a_link_into_the_current_folder(
-    web, tmp_path, monkeypatch
+    fake_web, tmp_path, monkeypatch
 ):
     url = "https://example.com/minis/hero.webp"
-    web[url] = figure_bytes("WEBP")
+    fake_web[url] = figure_bytes("WEBP")
     monkeypatch.chdir(tmp_path)
     assert main(["make", url, "--model", "alpha"]) == 0
     assert (tmp_path / "hero.svg").is_file()  # here, not next to the cached download
@@ -150,9 +118,9 @@ def test_webp_file_works_like_any_other(tmp_path):
     assert (tmp_path / "ogre.svg").is_file()
 
 
-def test_clear_images_keeps_the_ones_in_use(web):
-    web["https://example.com/a.png"] = figure_bytes()
-    web["https://example.com/b.png"] = figure_bytes()
+def test_clear_images_keeps_the_ones_in_use(fake_web):
+    fake_web["https://example.com/a.png"] = figure_bytes()
+    fake_web["https://example.com/b.png"] = figure_bytes()
     a = remote.fetch_image("https://example.com/a.png")
     b = remote.fetch_image("https://example.com/b.png")
     assert remote.cached_images() == sorted([a, b])

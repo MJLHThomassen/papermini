@@ -1,21 +1,18 @@
 """Release notes list every commit since the previous version tag, not just the pull
 request titles (scripts/release_notes.py, used by the release workflow)."""
 
-import importlib.util
 import shutil
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "release_notes.py"
-spec = importlib.util.spec_from_file_location("release_notes", SCRIPT)
-rn = importlib.util.module_from_spec(spec)
-sys.modules["release_notes"] = rn  # (its dataclass looks itself up there)
-spec.loader.exec_module(rn)
+
+@pytest.fixture
+def rn(scripts):
+    """Returns scripts/release_notes.py."""
+    return scripts("release_notes")
 
 
 def _git(repo, *args):
@@ -73,7 +70,7 @@ def repo(tmp_path):
     return tmp_path
 
 
-def test_notes_list_every_commit_with_its_pull_request(repo):
+def test_notes_list_every_commit_with_its_pull_request(repo, rn):
     text = rn.notes("v0.2.0", "owner/name", cwd=str(repo))
     assert "first version" not in text  # (in the previous release)
     assert "Merge pull request" not in text
@@ -91,7 +88,7 @@ def test_notes_list_every_commit_with_its_pull_request(repo):
     )
 
 
-def test_notes_can_be_read_before_tagging(repo):
+def test_notes_can_be_read_before_tagging(repo, rn):
     text = rn.notes("v0.3.0", "owner/name", cwd=str(repo))  # right on v0.2.0
     assert text.startswith("No changes.") and "compare/v0.2.0...v0.3.0" in text
     _commit(repo, "fix: one more thing")
@@ -100,12 +97,12 @@ def test_notes_can_be_read_before_tagging(repo):
     assert "a new button" not in text and "compare/v0.2.0...v0.3.0" in text
 
 
-def test_first_release_lists_everything(repo, tmp_path):
+def test_first_release_lists_everything(repo, tmp_path, rn):
     text = rn.notes("v0.1.0", "owner/name", cwd=str(repo))
     assert "- first version (" in text and "compare" not in text
 
 
-def test_writes_a_notes_file(repo, tmp_path, monkeypatch):
+def test_writes_a_notes_file(repo, tmp_path, monkeypatch, rn):
     out = tmp_path / "notes.md"
     monkeypatch.chdir(repo)
     assert rn.main(["v0.2.0", "-o", str(out)]) == 0
