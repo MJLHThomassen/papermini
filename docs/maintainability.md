@@ -96,13 +96,6 @@ README.md            what papermini does and how to use it
 AGENTS.md            extra rules for coding agents
 ```
 
-Everything in `src/papermini/` outside `gui/` is the core: plain Python, no Qt
-(S9).
-
-Issues #54 and #55 move today's code into this layout. Until they are merged,
-the core is a set of flat modules at the top level of `src/papermini/`, and the
-GUI is a set of flat modules in `gui/`.
-
 ## Code structure and readability
 
 ### S1. A module or class has one reason to change - SOLID (S)
@@ -309,10 +302,6 @@ constructor of every class that uses it (S8). A class's constructor then lists
 everything it depends on, so the dependencies can be mapped without reading
 the code. Small pure helpers are private methods of the service that uses
 them. Module-level constants are fine.
-
-Most of the code still has module-level functions. Issue #56 moves them into
-services, area by area. Don't add new ones, and don't report the existing ones
-one by one.
 
 ## Qt and the GUI
 
