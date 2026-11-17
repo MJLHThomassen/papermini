@@ -66,7 +66,7 @@ src/papermini/       the package, one class per file (S15)
   project/           options, project files and creature sizes
   support/           what the other areas share: the cache, fonts, logging,
                      links and updates
-  cli/               the command line
+  cli.py             the command line
   fonts/             the bundled font files and their licences
   gui/               the PySide6 desktop app, built on the core; the theme,
                      preferences, error handling and start-up
@@ -124,8 +124,8 @@ read as a short sequence of named steps.
 *Soft triggers:* a function over about 60 lines, nesting deeper than about
 three levels, or more than about six parameters.
 
-*Example:* `make_mini` in `mini.py` takes twenty keyword arguments and runs the
-whole pipeline in one body. Related parameters, such as the segmentation
+*Example:* `make_mini` in `pipeline/mini.py` takes twenty keyword arguments and
+runs the whole pipeline in one body. Related parameters, such as the segmentation
 options, could travel together in a small dataclass, the way `geo.Params` and
 `Style` already do.
 
@@ -162,10 +162,10 @@ segmentation model or a tab shape, should mean adding one entry to one table,
 not editing `if` chains in several modules. Code that needs to know about all
 variants reads them from that table.
 
-*Example:* the segmentation models are described in `segment.py`, but
-`gui/panels/figure_fields.py` lists them again in `MODELS` and in a tooltip,
-and the help text in `cli.py` lists them a third time. Adding a model means
-editing all of them.
+*Example:* the segmentation models are described in
+`pipeline/segmentation/segment.py`, but `gui/panels/figure_fields.py` lists them
+again in `MODELS` and in a tooltip, and the help text in `cli.py` lists them a
+third time. Adding a model means editing all of them.
 
 ### S6. A subclass keeps the promises of its base class - SOLID (L)
 
@@ -224,7 +224,8 @@ against it by a test.
 Until then, an option lives in five places, and a change must keep them in
 sync:
 
-- `FigureSettings` in `settings.py`, with its validation in `from_dict`;
+- `FigureSettings` in `project/figure_settings.py`, with its validation in
+  `from_dict`;
 - the CLI flags in `cli.py`;
 - the GUI field in `gui/panels/figure_fields.py` (`SECTIONS`, `TIPS` and the
   visibility rules);
@@ -382,8 +383,8 @@ editing them. If it doesn't, the tests are checking implementation.
 
 ### T3. Tests are easy to find and read
 
-- Test files follow the modules they test, so the tests for `geometry.py` are
-  in `test_geometry.py`.
+- Test files follow the modules they test, so the tests for
+  `pipeline/geometry.py` are in `test_geometry.py`.
 - Split a large test file by feature.
 - Put shared setup in fixtures in `conftest.py`, not in copied code.
 - A test's name says the behaviour it checks and under what condition.
@@ -517,7 +518,7 @@ The code in `scripts/` and `packaging/` is not exempt from this guide.
 
 ### R5. Updating stays safe
 
-- Never weaken the release signature check in `update.py`.
+- Never weaken the release signature check in `support/update.py`.
 - Never commit a private release key.
 - Try a change to updating with `just try-update` (a real build) or
   `just try-update-source`.

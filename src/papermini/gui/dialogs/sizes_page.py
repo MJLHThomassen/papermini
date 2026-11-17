@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import sizes
+from ...project import sizes
 from .. import theme
 from ..fields.double_spin_box import DoubleSpinBox
 from ..size_presets import (

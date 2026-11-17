@@ -21,8 +21,14 @@ from PIL import Image
 
 # image types papermini reads (Pillow and Qt both handle these)
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
+
+
 IMAGE_FILTER = "Images (" + " ".join("*" + e for e in IMAGE_EXT) + ")"
+
+
 READABLE = "PNG, JPG, WebP, BMP and TIFF"
+
+
 _EXT_FOR = {
     "PNG": ".png",
     "JPEG": ".jpg",
@@ -31,6 +37,8 @@ _EXT_FOR = {
     "BMP": ".bmp",
     "TIFF": ".tif",
 }
+
+
 MAX_BYTES = (
     100 << 20
 )  # no illustration is this big; stops a wrong link filling the disk
@@ -112,7 +120,7 @@ def local_path(s: str | Path) -> Path:
 
 
 def _cache_dir() -> Path:
-    from .segment import cache_dir
+    from ..pipeline.segmentation.segment import cache_dir
 
     return cache_dir() / "images"
 

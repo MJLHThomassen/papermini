@@ -63,7 +63,7 @@ def set_add_subfolders(on: bool) -> None:
 def png_px_per_square() -> int:
     """The size of exported PNGs: pixels per grid square (a preference, never saved in a
     project: it depends on the virtual tabletop)."""
-    from ..png import PX_PER_SQUARE
+    from ..output.png import PX_PER_SQUARE
 
     try:
         v = int(store().value(PNG_PX_KEY, PX_PER_SQUARE))
@@ -88,7 +88,7 @@ def set_png_size_mode(mode: str) -> None:
 
 
 def png_dpi() -> int:
-    from ..png import DPI
+    from ..output.png import DPI
 
     try:
         v = int(store().value(PNG_DPI_KEY, DPI))
@@ -104,7 +104,7 @@ def set_png_dpi(dpi: int) -> None:
 def png_px_per_mm(grid_mm: float) -> float:
     """The scale of exported PNGs (pixels per mm), as the preferences set it: from the
     pixels per square of a ``grid_mm`` grid, or from the dpi."""
-    from ..png import px_per_mm
+    from ..output.png import px_per_mm
 
     if png_size_mode() == "dpi":
         return png_dpi() / 25.4

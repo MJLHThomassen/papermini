@@ -8,13 +8,15 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini import fonts
-from papermini import geometry as geo
 from papermini.cli import main
-from papermini.mini import Style, fit_label_size, make_mini
-from papermini.settings import FigureSettings, build_mini
-from papermini.sheet import pack, write_pdf
-from papermini.svg import read_svg, write_svg
+from papermini.output.sheet import pack, write_pdf
+from papermini.output.svg import read_svg, write_svg
+from papermini.pipeline import geometry as geo
+from papermini.pipeline.mini import fit_label_size, make_mini
+from papermini.pipeline.style import Style
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.settings import build_mini
+from papermini.support import fonts
 
 
 @pytest.fixture

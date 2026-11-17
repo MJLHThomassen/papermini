@@ -15,14 +15,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...settings import SheetSettings
-from ...sheet import (
+from ...output.sheet import (
     CUSTOM_PAPER_MM,
     MAT_LABELS,
     PAPER_CHOICES,
     PAPER_LABELS,
     paper_size,
 )
+from ...project.sheet_settings import SheetSettings
 from ..fields.combo_box import ComboBox
 from ..fields.double_spin_box import DoubleSpinBox
 from .section import Section

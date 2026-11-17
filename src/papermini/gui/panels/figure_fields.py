@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ... import sizes
+from ...project import sizes
 
 # value -> what the (editable) model box shows, where they differ
 MODEL_NAMES = {"mask": "mask image file"}

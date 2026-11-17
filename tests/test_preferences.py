@@ -9,8 +9,8 @@ import pytest
 from PIL import Image
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
-from papermini import sizes
-from papermini.settings import FigureSettings
+from papermini.project import sizes
+from papermini.project.figure_settings import FigureSettings
 
 
 @pytest.fixture(scope="module")

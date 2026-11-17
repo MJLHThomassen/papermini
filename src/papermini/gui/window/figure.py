@@ -4,8 +4,8 @@ from dataclasses import asdict, dataclass
 
 from PySide6.QtGui import QPixmap
 
-from ...mini import Mini
-from ...settings import FigureEntry
+from ...pipeline.mini import Mini
+from ...project.figure_entry import FigureEntry
 
 
 @dataclass

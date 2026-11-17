@@ -10,7 +10,7 @@ import traceback
 
 from PySide6.QtCore import QObject, QtMsgType, Signal, qInstallMessageHandler
 
-from .. import log
+from ..support import log
 from .dialogs.error_dialog import ErrorDialog
 from .errors import report_problem
 

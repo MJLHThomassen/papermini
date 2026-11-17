@@ -176,7 +176,7 @@ class CropView(ZoomView):
 
     def set_crop(self, crop):
         """Show ``crop`` (fractions/px list or string); ignored while dragging."""
-        from ...segment import parse_crop
+        from ...pipeline.segmentation.segment import parse_crop
 
         if self._img_size is None or self._drag is not None:
             return

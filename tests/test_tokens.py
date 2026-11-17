@@ -19,19 +19,16 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QFileDialog
 
 from papermini import cli
-from papermini import token as tok
-from papermini.png import piece_image, px_per_mm, write_pngs
-from papermini.settings import (
-    FigureEntry,
-    FigureSettings,
-    Project,
-    build_mini,
-    load_project,
-    save_project,
-    settings_with_size,
-)
-from papermini.sheet import pack, write_pdf
-from papermini.svg import read_svg, to_svg, write_svgs
+from papermini.output.png import piece_image, px_per_mm, write_pngs
+from papermini.output.sheet import pack, write_pdf
+from papermini.output.svg import read_svg, to_svg, write_svgs
+from papermini.pipeline import token as tok
+from papermini.pipeline.token_options import min_ring_mm
+from papermini.project.figure_entry import FigureEntry
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.project import Project
+from papermini.project.project_files import load_project, save_project
+from papermini.project.settings import build_mini, settings_with_size
 
 
 def _figure(path: Path, size=(300, 400)) -> Path:
@@ -123,7 +120,7 @@ def test_a_project_keeps_its_tokens(tmp_path):
 
 
 def test_curved_text_has_a_least_ring():
-    assert tok.min_ring_mm(2.5) == 3.5 and tok.min_ring_mm(1.8) == 2.5
+    assert min_ring_mm(2.5) == 3.5 and min_ring_mm(1.8) == 2.5
     o = tok.TokenOptions(border_mm=2, text="label", text_style="curved", text_mm=2.5)
     assert o.ring_mm() == 3.5
     assert replace(o, text_style="nameplate").ring_mm() == 2
@@ -407,9 +404,7 @@ def test_kind_switches_the_groups(app, prefs):
     style = p._w["token_text_style"][1]
     style.setCurrentIndex(style.findData("curved"))
     ring = p._w["token_border_mm"][1]
-    assert ring.minimum() == tok.min_ring_mm(2.5) and ring.value() == tok.min_ring_mm(
-        2.5
-    )
+    assert ring.minimum() == min_ring_mm(2.5) and ring.value() == min_ring_mm(2.5)
     assert p.ring_hint.isVisibleTo(p) and "3.5 mm" in p.ring_hint.text()
     # a token can switch its outline and cut line off; both off by default
     for name in ("token_outline", "token_cut_line"):

@@ -5,11 +5,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini import geometry as geo
 from papermini.cli import main
-from papermini.mini import make_mini
-from papermini.sheet import pack, write_pdf
-from papermini.svg import read_svg, write_svg
+from papermini.output.sheet import pack, write_pdf
+from papermini.output.svg import read_svg, write_svg
+from papermini.pipeline import geometry as geo
+from papermini.pipeline.mini import make_mini
 
 
 @pytest.fixture
@@ -167,7 +167,8 @@ def test_double_sided_back_text(figure, tmp_path):
 
 
 def test_back_text_has_its_own_color(figure, tmp_path):
-    from papermini.settings import FigureSettings, build_mini
+    from papermini.project.figure_settings import FigureSettings
+    from papermini.project.settings import build_mini
 
     img, mask = figure
     s = FigureSettings(
@@ -185,7 +186,8 @@ def test_back_text_has_its_own_color(figure, tmp_path):
 
 
 def test_mask_model_choice(figure):
-    from papermini.settings import FigureSettings, build_mini
+    from papermini.project.figure_settings import FigureSettings
+    from papermini.project.settings import build_mini
 
     img, mask = figure
     m = build_mini(
@@ -198,7 +200,8 @@ def test_mask_model_choice(figure):
 
 def test_bleed(figure):
     """A bleed (for a sheet cut by machine) prints the edge colors beyond the cut line."""
-    from papermini.settings import FigureSettings, build_mini
+    from papermini.project.figure_settings import FigureSettings
+    from papermini.project.settings import build_mini
 
     img, mask = figure
     s = FigureSettings(
@@ -233,7 +236,8 @@ def test_bleed(figure):
 def test_cut_line_in_source_pixels(tmp_path, size, double_sided):
     """The cut line drawn on the Source view: in source-image pixels, around the drawing
     by the margin, with the tab below it (and a double-sided back above the image)."""
-    from papermini.settings import FigureSettings, build_mini
+    from papermini.project.figure_settings import FigureSettings
+    from papermini.project.settings import build_mini
 
     W, H = size
     im = np.full((H, W, 3), 255, np.uint8)
@@ -360,7 +364,7 @@ def test_cli_makes_double_sided_minis_unless_told_not_to(figure, tmp_path):
 
 
 def test_cli_width_alone_scales_by_width(figure, tmp_path):
-    from papermini.settings import FigureSettings
+    from papermini.project.figure_settings import FigureSettings
 
     img, mask = figure
     out = tmp_path / "w.svg"
@@ -393,8 +397,8 @@ def test_cli_width_alone_scales_by_width(figure, tmp_path):
 
 
 def _square_mini(name="sq", w=30.0, h=40.0):
-    from papermini.geometry import CutPath
-    from papermini.mini import Mini
+    from papermini.pipeline.cut_path import CutPath
+    from papermini.pipeline.mini import Mini
 
     sq = CutPath(np.array([[0, 0], [w, 0], [w, h], [0, h]], float))
     return Mini(
@@ -410,7 +414,7 @@ def _square_mini(name="sq", w=30.0, h=40.0):
 def test_machine_sheet_keeps_clear_of_the_marks():
     """The pieces keep MARK_CLEAR_MM away from the corner marks only, so a machine sheet
     holds as many pieces as one cut by hand; the header starts beside the marks."""
-    from papermini.sheet import MARK_CLEAR_MM
+    from papermini.output.sheet import MARK_CLEAR_MM
 
     m = _square_mini()
     hand = pack([(m, 40)], "a4", 12, 7)
@@ -453,7 +457,7 @@ def test_cut_files_match_the_sheet(tmp_path):
     import re
     import xml.etree.ElementTree as ET
 
-    from papermini.sheet import cut_file_paths, default_cut_file, write_cut_files
+    from papermini.output.sheet import cut_file_paths, default_cut_file, write_cut_files
 
     m = _square_mini()
     lay = pack([(m, 30)], "a4", 12, 7, cut="machine", marks="corners")
@@ -539,7 +543,7 @@ def test_batch_cut_by_machine_builds_the_bleed(figure, tmp_path):
     assert (tmp_path / "out" / "s.pdf").exists() and (
         tmp_path / "out" / "s-cut.svg"
     ).exists()
-    from papermini.svg import read_svg
+    from papermini.output.svg import read_svg
 
     plain = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
     bled = read_svg(tmp_path / "out" / "b.svg")

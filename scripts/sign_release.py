@@ -4,7 +4,7 @@
 
 Writes FILE.sig: the base64 Ed25519 signature of FILE, made with the private key in
 the environment variable RELEASE_SIGNING_KEY (see scripts/release_key.py). The app
-checks it with the public key in src/papermini/update.py before installing an update,
+checks it with the public key in src/papermini/support/update.py before installing an update,
 so this script checks the new signature with that key too, and fails when the secret
 does not belong to it (a release the app would refuse to install).
 """
@@ -18,7 +18,13 @@ import re
 import sys
 from pathlib import Path
 
-UPDATE_PY = Path(__file__).resolve().parent.parent / "src" / "papermini" / "update.py"
+UPDATE_PY = (
+    Path(__file__).resolve().parent.parent
+    / "src"
+    / "papermini"
+    / "support"
+    / "update.py"
+)
 
 
 def sign(data: bytes, private_key_b64: str) -> bytes:
@@ -31,7 +37,7 @@ def sign(data: bytes, private_key_b64: str) -> bytes:
 
 
 def app_public_key() -> str:
-    """The public key built into the app (PUBLIC_KEY in src/papermini/update.py)."""
+    """The public key built into the app (PUBLIC_KEY in src/papermini/support/update.py)."""
     m = re.search(
         r'^PUBLIC_KEY = "(.*)"$', UPDATE_PY.read_text(encoding="utf-8"), re.MULTILINE
     )

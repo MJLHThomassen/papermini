@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from papermini import update
+from papermini.support import update
 
 
 @pytest.fixture

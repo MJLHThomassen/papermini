@@ -15,10 +15,11 @@ from PySide6.QtCore import QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from papermini import cli, remote
-from papermini.geometry import CutPath
-from papermini.mini import Mini
-from papermini.settings import load_project
+from papermini import cli
+from papermini.pipeline.cut_path import CutPath
+from papermini.pipeline.mini import Mini
+from papermini.project.project_files import load_project
+from papermini.support import remote
 
 
 def _image(path: Path) -> Path:
@@ -294,7 +295,8 @@ def test_add_folder_in_the_menu_and_the_figure_list(window):
 
 
 def test_opening_and_saving_count_as_recent(window, tmp_path):
-    from papermini.settings import Project, save_project
+    from papermini.project.project import Project
+    from papermini.project.project_files import save_project
 
     a = tmp_path / "D&D" / "a.yaml"
     a.parent.mkdir()

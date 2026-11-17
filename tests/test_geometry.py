@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
-from papermini import geometry as geo
+from papermini.pipeline import geometry as geo
 
 
 def ghost(h=1400, w=1100, touch_border=False, ring=False):

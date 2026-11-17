@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import log
+from ...support import log
 from .. import errors, prefs
 from ..fields.spin_box import SpinBox
 from .cache_page import CachePage

@@ -8,10 +8,7 @@ import pytest
 from PIL import Image
 
 from papermini.cli import main
-from papermini.geometry import CutPath
-from papermini.mini import Mini
-from papermini.settings import Project, SheetSettings, load_project, save_project
-from papermini.sheet import (
+from papermini.output.sheet import (
     PAPER_CHOICES,
     fits_mat,
     mat_warning,
@@ -21,7 +18,12 @@ from papermini.sheet import (
     write_cut_files,
     write_pdf,
 )
-from papermini.svg import write_svg
+from papermini.output.svg import write_svg
+from papermini.pipeline.cut_path import CutPath
+from papermini.pipeline.mini import Mini
+from papermini.project.project import Project
+from papermini.project.project_files import load_project, save_project
+from papermini.project.sheet_settings import SheetSettings
 
 
 def _mini(name="m", w=30.0, h=40.0) -> Mini:

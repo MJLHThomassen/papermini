@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .. import sizes
+from ..project import sizes
 from . import prefs
 
 PRESETS_KEY = "sizes/presets"

@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from papermini import log
-from papermini.settings import FigureSettings, SheetSettings
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.sheet_settings import SheetSettings
+from papermini.support import log
 
 
 def _folder() -> Path:

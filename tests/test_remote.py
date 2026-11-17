@@ -8,9 +8,10 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw
 
-from papermini import remote
 from papermini.cli import main
-from papermini.settings import FigureSettings, load_project, save_project
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.project_files import load_project, save_project
+from papermini.support import remote
 
 
 def figure_bytes(fmt="PNG", size=(300, 450)) -> bytes:
@@ -138,7 +139,7 @@ def test_cli_makes_a_mini_from_a_link_into_the_current_folder(
 
 
 def test_webp_file_works_like_any_other(tmp_path):
-    from papermini.settings import build_mini
+    from papermini.project.settings import build_mini
 
     (tmp_path / "ogre.webp").write_bytes(figure_bytes("WEBP"))
     m = build_mini(tmp_path / "ogre.webp", FigureSettings())

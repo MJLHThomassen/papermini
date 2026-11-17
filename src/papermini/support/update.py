@@ -31,16 +31,30 @@ import tempfile
 import urllib.request
 import zipfile
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
 
+from .release import Release
+from .update_error import UpdateError
+
 REPO = "MJLHThomassen/papermini"
+
+
 LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
+
+
 CHECKSUMS = "SHA256SUMS.txt"
+
+
 SIGNATURE = CHECKSUMS + ".sig"
+
+
 # the release workflow's public signing key, base64 (scripts/release_key.py sets it)
 PUBLIC_KEY = "1tcgNayNKgRQi2eWKy0RMuAC4vx9R/ovBGmproIi0AQ="
+
+
 READY = "READY"  # marks a downloaded, verified and unpacked update
+
+
 FEED_ENV, KEY_ENV, INSTALL_ENV = (
     "PAPERMINI_UPDATE_FEED",
     "PAPERMINI_UPDATE_KEY",
@@ -60,20 +74,6 @@ def _public_key() -> str:
     return os.environ.get(KEY_ENV, "").strip() or PUBLIC_KEY
 
 
-class UpdateError(Exception):
-    """An update could not be checked, downloaded or verified (the message says why)."""
-
-
-@dataclass
-class Release:
-    version: str  # the release's version, without the "v" of its tag
-    url: str  # the release page
-    assets: dict[str, str] = field(default_factory=dict)  # file name -> download link
-
-
-# --------------------------------------------------------------------------- versions
-
-
 def parse_version(v: str) -> tuple[int, int, int] | None:
     """Parse a release version (with or without "v") into (major, minor, patch); None
     for anything else, such as a development version or a pre-release."""
@@ -87,9 +87,6 @@ def is_newer(latest: str, current: str) -> bool:
     a = parse_version(latest)
     m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", current.strip())
     return a is not None and m is not None and a > tuple(int(x) for x in m.groups())
-
-
-# --------------------------------------------------------------------------- this app
 
 
 def target() -> str | None:
@@ -185,11 +182,8 @@ def unsupported() -> str | None:
     return None
 
 
-# --------------------------------------------------------------------------- GitHub
-
-
 def _open(url: str, timeout: float):
-    from . import __version__
+    from .. import __version__
 
     req = urllib.request.Request(
         url,
@@ -240,9 +234,6 @@ def _fetch(
     return dest
 
 
-# --------------------------------------------------------------------------- verify
-
-
 def verify(
     checksums: bytes, signature: bytes, archive: Path, public_key: str = ""
 ) -> None:
@@ -277,11 +268,8 @@ def verify(
         )
 
 
-# --------------------------------------------------------------------------- download
-
-
 def updates_dir() -> Path:
-    from .segment import cache_dir
+    from ..pipeline.segmentation.segment import cache_dir
 
     return cache_dir() / "updates"
 
@@ -366,7 +354,7 @@ def _new_app(new: Path) -> Path | None:
 def pending() -> tuple[str, Path] | None:
     """(version, unpacked app or installer) of a downloaded update that is newer than
     this one."""
-    from . import __version__
+    from .. import __version__
 
     root = updates_dir()
     if not root.is_dir():
@@ -384,16 +372,13 @@ def pending() -> tuple[str, Path] | None:
 
 def forget_old() -> None:
     """Remove downloads that are not newer than this version (installed, or skipped)."""
-    from . import __version__
+    from .. import __version__
 
     root = updates_dir()
     if root.is_dir():
         for d in root.iterdir():
             if d.is_dir() and not is_newer(d.name, __version__):
                 shutil.rmtree(d, ignore_errors=True)
-
-
-# --------------------------------------------------------------------------- install
 
 
 def install_script(

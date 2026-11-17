@@ -87,7 +87,7 @@ def installed_version() -> str:
     """The version of papermini in Apps & features ("" when it is not installed)."""
     import winreg
 
-    from papermini.update import SETUP_KEY
+    from papermini.support.update import SETUP_KEY
 
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, SETUP_KEY) as k:

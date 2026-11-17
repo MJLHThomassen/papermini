@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ... import segment
+from ...pipeline.segmentation import segment
 from .model_info import MB, _host, _label, licence_link, ui_log
 
 

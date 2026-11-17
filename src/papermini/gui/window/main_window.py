@@ -39,12 +39,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import __version__, fonts, log, remote, segment, sizes
-from ...mini import Mini
-from ...png import write_pngs
-from ...settings import FigureEntry, FigureSettings, Project, load_project, save_project
-from ...sheet import default_cut_file, pack, write_cut_files, write_pdf
-from ...svg import write_svgs
+from ... import __version__
+from ...output.png import write_pngs
+from ...output.sheet import default_cut_file, pack, write_cut_files, write_pdf
+from ...output.svg import write_svgs
+from ...pipeline.mini import Mini
+from ...pipeline.segmentation import segment
+from ...project import sizes
+from ...project.figure_entry import FigureEntry
+from ...project.figure_settings import FigureSettings
+from ...project.project import Project
+from ...project.project_files import load_project, save_project
+from ...support import fonts, log, remote
 from .. import errors, prefs, theme
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.export_dialog import ExportDialog
@@ -2289,7 +2295,7 @@ class MainWindow(QMainWindow):
 
     def _startup_updates(self):
         """At start: offer an update downloaded earlier, or look for one (once a day)."""
-        from ... import update
+        from ...support import update
 
         if update.install_dir() is None:  # run from source: no updates of its own
             return
@@ -2330,7 +2336,7 @@ class MainWindow(QMainWindow):
         ).start()
 
     def _update_job(self, source: str, download: bool):  # on a worker thread
-        from ... import update
+        from ...support import update
 
         try:
             rel = update.latest_release()
@@ -2347,7 +2353,7 @@ class MainWindow(QMainWindow):
         self._download_job(rel, source)
 
     def _download_job(self, rel, source: str):  # on a worker thread
-        from ... import update
+        from ...support import update
 
         last = [0.0]
 
@@ -2485,7 +2491,7 @@ class MainWindow(QMainWindow):
         """Start the helper that installs a downloaded update once papermini has quit."""
         if self._update_ready is None:
             return
-        from ... import update
+        from ...support import update
 
         update_log.info(
             "Installing papermini %s when papermini has closed%s",

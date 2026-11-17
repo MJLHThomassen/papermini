@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,96 +21,45 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from ..support import cache, fonts
 from . import adjust as adj_mod
-from . import cache, fonts
 from . import geometry as geo
 from .mini import (
     NUMBER_PLACEHOLDER,
     Mini,
-    Style,
-    TextItem,
     check_font,
     figure_mask,
     fit_label_size,
     fit_number_size,
 )
+from .style import Style
+from .text_item import TextItem
+from .token_info import TokenInfo
+from .token_options import TokenOptions
 
 TOKEN_FILLS = ("color", "image")  # behind the figure: a color, or the picture
+
+
 TOKEN_TEXTS = ("none", "label", "number", "label_number")
+
+
 TOKEN_TEXT_STYLES = ("nameplate", "curved")
+
+
 FIT_FREE = (
     0.08  # a fitted figure leaves this share of the inner diameter free on each side
 )
+
+
 PX_PER_MM = (
     16.0  # working resolution of a token (about 400 dpi; the art is resized to dpi)
 )
-CURVED_TEXT = (
-    0.72  # curved text: its height as a share of the narrowest ring that holds it
-)
+
+
 PLATE = 1.35  # the nameplate's height, as a multiple of the text size
+
+
 BADGE = 1.35  # the number badge's radius, as a multiple of the text size
-
-
-@dataclass(frozen=True)
-class TokenOptions:
-    """What a token is made of (see ``FigureSettings`` for each option's meaning)."""
-
-    diameter_mm: float = 25.0
-    border_mm: float = 2.0
-    border_color: str = "#000000"
-    fill: str = "color"
-    fill_color: str = "#ffffff"
-    outline: bool = False  # an outline around the figure, made like a mini's margin
-    margin_mm: float = 1.6
-    margin_fill: str = "color"
-    margin_color: str = "#ffffff"
-    smooth_mm: float = 0.6
-    area: tuple[float, float, float, float] | None = None
-    text: str = "none"
-    text_style: str = "nameplate"
-    text_mm: float = 2.5  # the text's size (the nameplate shrinks a long label)
-    text_color: str = "#ffffff"
-
-    @property
-    def curved(self) -> bool:
-        """Text curved along the ring (the ring then has a minimum width)."""
-        return self.text != "none" and self.text_style == "curved"
-
-    def ring_mm(self) -> float:
-        """The ring's width as printed: never below what curved text needs."""
-        return (
-            max(self.border_mm, min_ring_mm(self.text_mm))
-            if self.curved
-            else self.border_mm
-        )
-
-
-@dataclass
-class TokenInfo:
-    """Where a token's parts are on its piece (mm, origin top-left), for its text and for
-    framing it in the app."""
-
-    cx: float
-    cy: float
-    radius_mm: float  # the cut line
-    inner_mm: float  # inside the ring
-    text: str = "none"
-    text_style: str = "nameplate"
-    color: str = "#ffffff"  # the text's color
-    size_mm: float = 0.0  # the text's height (nameplate: at most)
-    plate: tuple[float, float, float, float] | None = (
-        None  # the label's box (cx, cy, w, h)
-    )
-    badge: tuple[float, float, float] | None = None  # the number badge (cx, cy, r)
-    # the square of the picture that fills the circle, as fractions of the image (what
-    # token_area holds), and the figure's box on the piece (mm)
-    area: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
-    figure_box: tuple[float, float, float, float] | None = None
-
-
-def min_ring_mm(text_mm: float) -> float:
-    """The narrowest ring that holds curved text of this size (to 0.1 mm, rounded up)."""
-    return math.ceil(round(text_mm / CURVED_TEXT * 10, 6)) / 10
 
 
 def parse_area(v) -> list[float]:
@@ -132,15 +80,12 @@ def parse_area(v) -> list[float]:
     return vals
 
 
-# --------------------------------------------------------------------------- text
-
-
 @lru_cache(maxsize=256)
 def _middle(text: str, font: str, bold: bool = False) -> float:
     """Where the middle of ``text``'s letters is (ascenders to descenders), below a text
     item's centre, as a share of the text size. A text item is drawn with its baseline
     0.35 x the size below its centre; letters with descenders sit lower."""
-    from .sheet import _font
+    from ..output.sheet import _font
 
     try:
         _, top, _, bottom = _font(
@@ -255,9 +200,6 @@ def token_text_items(
     return items
 
 
-# --------------------------------------------------------------------------- framing
-
-
 def fit_frame(
     contours: Sequence[np.ndarray], inner_mm: float, outline_mm: float = 0.0
 ) -> tuple[float, float, float]:
@@ -337,9 +279,6 @@ def circle_path(cx: float, cy: float, r: float, n: int = 8) -> geo.CutPath:
     nxt = np.roll(np.arange(n), -1)
     ctrl = np.stack([pts + h * tang, pts[nxt] - h * tang[nxt]], axis=1)
     return geo.CutPath(pts, ctrl)
-
-
-# --------------------------------------------------------------------------- building
 
 
 def _render(

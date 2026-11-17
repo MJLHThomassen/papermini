@@ -4,15 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from papermini import __version__, sizes
-from papermini.settings import (
-    FigureEntry,
-    FigureSettings,
-    Project,
-    SheetSettings,
-    load_project,
-    save_project,
-)
+from papermini import __version__
+from papermini.project import sizes
+from papermini.project.figure_entry import FigureEntry
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.project import Project
+from papermini.project.project_files import load_project, save_project
+from papermini.project.sheet_settings import SheetSettings
 
 
 def test_from_dict_accepts_dashes_and_rejects_unknown():
@@ -42,7 +40,7 @@ def test_to_dict_only_non_defaults():
 
 
 def test_sheet_settings_cut_by_machine():
-    from papermini.settings import SheetSettings
+    from papermini.project.sheet_settings import SheetSettings
 
     assert SheetSettings().figure_bleed == 0.0  # cut by hand: no bleed
     s = SheetSettings.from_dict(

@@ -9,7 +9,7 @@ import urllib.parse
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
-from ... import segment
+from ...pipeline.segmentation import segment
 
 ui_log = logging.getLogger("papermini.ui")
 

@@ -7,22 +7,27 @@ import glob
 import sys
 from pathlib import Path
 
-from . import __version__, fonts, remote, sizes
-from . import geometry as geo
-from . import token as tok
-from .mini import TAB_SHOWS
-from .segment import ModelError
-from .settings import (
-    FIGURE_OPTIONS,
-    FigureSettings,
-    Project,
-    SheetSettings,
-    build_mini,
-    load_project,
-    safe_name,
-    settings_with_size,
+from . import __version__
+from .output.sheet import (
+    CUSTOM_PAPER_MM,
+    CUT_MODES,
+    MARKS,
+    MATS,
+    ORIENTATIONS,
+    PAPER_CHOICES,
 )
-from .sheet import CUSTOM_PAPER_MM, CUT_MODES, MARKS, MATS, ORIENTATIONS, PAPER_CHOICES
+from .pipeline import geometry as geo
+from .pipeline import token as tok
+from .pipeline.mini import TAB_SHOWS
+from .pipeline.segmentation.model_error import ModelError
+from .project import sizes
+from .project.figure_entry import safe_name
+from .project.figure_settings import FIGURE_OPTIONS, FigureSettings
+from .project.project import Project
+from .project.project_files import load_project
+from .project.settings import build_mini, settings_with_size
+from .project.sheet_settings import SheetSettings
+from .support import fonts, remote
 
 D = FigureSettings()  # defaults shown in --help
 DS = SheetSettings()
@@ -352,8 +357,8 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
 
 
 def cmd_make(a: argparse.Namespace) -> int:
-    from .png import PX_PER_SQUARE, px_per_mm, write_pngs
-    from .svg import write_svgs
+    from .output.png import PX_PER_SQUARE, px_per_mm, write_pngs
+    from .output.svg import write_svgs
 
     images, folders = [], {}  # an image from a folder: the folder it came from
     for src in _expand(a.images):
@@ -425,7 +430,7 @@ def cmd_make(a: argparse.Namespace) -> int:
 
 
 def cmd_sheet(a: argparse.Namespace) -> int:
-    from .svg import read_svg
+    from .output.svg import read_svg
 
     minis = [(read_svg(Path(p)), a.copies) for p in _expand(a.svgs)]
     custom = {
@@ -463,7 +468,7 @@ def cmd_sheet(a: argparse.Namespace) -> int:
 
 def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -> int:
     """The PDF sheet, its PNG previews, and cut by machine its cut files."""
-    from .sheet import (
+    from .output.sheet import (
         default_cut_file,
         pack,
         write_cut_files,
@@ -511,7 +516,7 @@ def _warn_width(name: str, s: FigureSettings, m, table: sizes.SizeTable) -> None
 def run_project(
     proj: Project, debug: bool = False, preview: bool = False, use_cache: bool = True
 ) -> int:
-    from .svg import write_svgs
+    from .output.svg import write_svgs
 
     if not proj.figures:
         raise SystemExit(f"{proj.path}: no 'figures' listed")
