@@ -192,7 +192,8 @@ def test_closing_preferences_gives_the_project_its_table(
     big, small, own = w.figures
     big.entry.settings = sizes.apply(big.entry.settings, "large")
     own.entry.settings = replace(own.entry.settings, size="custom", height_mm=40)
-    w._modified = False
+    w.project.path = tmp_path / "project.yaml"
+    assert w.save()  # no unsaved changes
     mine = replace(sizes.calculate(30, 40), name="Mine")
 
     def pick(dlg):
@@ -202,7 +203,7 @@ def test_closing_preferences_gives_the_project_its_table(
 
     monkeypatch.setattr(PreferencesDialog, "exec", pick)
     w.show_preferences()
-    assert w.project.sizes == mine and w._modified
+    assert w.project.sizes == mine and " * " in w.windowTitle()
     assert (big.entry.settings.size, big.entry.settings.height_mm) == ("large", 60)
     assert (
         small.entry.settings.height_mm == 40
@@ -230,7 +231,7 @@ def test_picking_a_size_fills_in_and_an_edit_makes_it_custom(
     w.add_images([figure_image(tmp_path / "a.png", (200, 300), mask=False)[0]])
     fig = w.current()
     assert fig.entry.settings.size == "medium" and fig.entry.settings.height_mm == 32
-    combo = w.panel._w["size"][1]
+    combo = w.panel.field("size")
     assert [combo.itemData(i) for i in range(combo.count())] == list(sizes.SIZE_CHOICES)
     assert w.panel.size_hint.text() == "1 × 1 square · 25 mm base · Standard 1-inch"
     combo.setCurrentIndex(combo.findData("huge"))
@@ -243,7 +244,7 @@ def test_picking_a_size_fills_in_and_an_edit_makes_it_custom(
     )
     assert (
         w.panel.size_field.h.value() == 64
-        and w.panel._w["tab_width_mm"][1].value() == 75
+        and w.panel.field("tab_width_mm").value() == 75
     )
     assert w.panel.size_hint.text().startswith("3 × 3 squares · 75 mm base")
     w.panel.size_field.h.setValue(50)
