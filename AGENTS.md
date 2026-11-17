@@ -58,3 +58,7 @@ guide.
 - **Commenting on a change made for a review** (rule S13). When you change code
   to answer a review comment, change only the code. Don't add a comment about
   what used to be there.
+- **Putting a second public class in a file** (rule S15). Give each new class
+  its own file, in the subpackage for its area.
+- **Adding a module-level function** (rule S16). Put new behaviour in a service
+  class that is passed in, or in a private method of the class that uses it.
