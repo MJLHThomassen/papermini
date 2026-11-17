@@ -575,8 +575,8 @@ def test_no_command_opens_the_app(monkeypatch):
 
 
 def _two_figures(tmp_path, alpha=False):
-    """A picture with a dark figure on each side, and its mask; with ``alpha`` the
-    background is transparent."""
+    """Saves a picture with a dark figure on each side, and its mask. With ``alpha``
+    the background is transparent."""
     h, w = 400, 600
     im = np.full((h, w, 4), (255, 255, 255, 0 if alpha else 255), np.uint8)
     mask = np.zeros((h, w), np.uint8)
@@ -620,7 +620,7 @@ def _svg(
     href=None,
     cut='<path id="cut" d="M 0 0 L 10 0 L 10 10 Z"/>',
 ):
-    """A small SVG in papermini's form, with one part as given."""
+    """Writes a small SVG in papermini's form, with one part as given."""
     if href is None:
         buf = io.BytesIO()
         Image.new("RGBA", (1, 1)).save(buf, "PNG")

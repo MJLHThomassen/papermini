@@ -321,7 +321,8 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys):
 
 
 def _count(art, channel):
-    """Pixels of the art that are clearly red, green or blue (channel 0, 1 or 2)."""
+    """Counts the pixels of the art that are clearly red, green or blue (channel 0, 1
+    or 2)."""
     a = np.asarray(art.convert("RGB")).astype(int)
     others = [c for c in range(3) if c != channel]
     return int(((a[..., channel] > 200) & (a[..., others] < 80).all(-1)).sum())
@@ -349,7 +350,8 @@ def test_a_token_filled_with_the_picture(tmp_path):
     }
 
     def background(**kw):
-        """The token's art inside the ring and over 1 mm from the figure's box."""
+        """Builds the token and keeps only its art inside the ring and over 1 mm from
+        the figure's box."""
         s = settings_with_size({**common, **kw})
         m = build_mini(tmp_path / "goblin.png", s, log=lambda *a: None)
         t, a = m.token, np.asarray(m.art.convert("RGB")).copy()
