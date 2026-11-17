@@ -375,7 +375,8 @@ def install_script(
     new_app: Path, old_app: Path, pid: int, restart: bool
 ) -> tuple[Path, list]:
     """Write the helper that replaces ``old_app`` with ``new_app`` once the process
-    ``pid`` (papermini) has quit; returns (script, command to start it). When
+    ``pid`` (papermini) has quit; returns (script, command to start it). The helper
+    prints ``waiting`` each time it finds papermini still running. When
     ``new_app`` is the Windows installer, the helper runs it silently instead (it
     installs over the previous install)."""
     folder = Path(tempfile.mkdtemp(prefix="papermini-update-"))
@@ -401,7 +402,7 @@ def install_script(
             (
                 f'{sys32}\\tasklist.exe /FI "PID eq {pid}" /NH 2>NUL | '
                 f'{sys32}\\find.exe "{pid}" >NUL && '
-                f"({sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)"
+                f"(echo waiting& {sys32}\\PING.EXE -n 2 127.0.0.1 >NUL & goto wait)"
             ),
             *install,
         ]
@@ -416,7 +417,8 @@ def install_script(
     old, new = str(old_app), str(new_app)
     lines = [
         "#!/bin/sh",
-        f"while kill -0 {pid} 2>/dev/null; do sleep 0.3; done",  # until papermini has quit
+        # until papermini has quit
+        f"while kill -0 {pid} 2>/dev/null; do echo waiting; sleep 0.3; done",
         f'rm -rf "{old}.old"',
         f'if mv "{old}" "{old}.old"; then',
         f'  if mv "{new}" "{old}"; then rm -rf "{old}.old"; else mv "{old}.old" "{old}"; fi',
