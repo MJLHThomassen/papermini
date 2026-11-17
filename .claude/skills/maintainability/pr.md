@@ -16,9 +16,10 @@ Don't start subagents for it.
 Check each changed part against every rule that applies to it. Look in
 particular at:
 
-- **Structure (S1 to S14, G1 to G7):** a class or function that took on a
+- **Structure (S1 to S16, G1 to G7):** a class or function that took on a
   second job; a new option or variant that has to be added in several places;
-  the core importing Qt.
+  the core importing Qt; a new class that shares a file, or a new module-level
+  function.
 - **Tests (T1 to T7):** a change in behaviour without a test; a fixed bug
   without a regression test; a refactor of weakly tested code without
   characterisation tests first.

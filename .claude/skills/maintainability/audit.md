@@ -17,7 +17,7 @@ the aspect, its rules and where to look:
 
 | Aspect | Rules | Where to look |
 |--------|-------|---------------|
-| Structure and readability | S1 to S14, G1 to G7 | `src/papermini`, `scripts`, `packaging` |
+| Structure and readability | S1 to S16, G1 to G7 | `src/papermini`, `scripts`, `packaging` |
 | Tests | T1 to T7 | `tests`, and `just coverage` for what the risky parts of `src/papermini` leave untested |
 | Docs and writing | D1 to D7 | `README.md`, `docs`, `AGENTS.md`, docstrings and comments, CLI help, user-visible text in the GUI, `examples` |
 | Tooling and release | R1 to R10 | `pyproject.toml`, `justfile`, `.github`, `packaging`, `scripts` |
@@ -51,13 +51,18 @@ link. It contains:
 Then wait. The maintainer replies with the batches they approve, and may
 change them.
 
+Once they have approved batches, ask before creating one tracking issue for the
+audit. It lists every batch, approved or not, with its findings in the guide's
+format, so that the work can be picked up later without this session.
+
 ## 5. Fix the approved batches
 
 Work through the approved batches one at a time, in the order of the report,
 unless the maintainer picks another order. For each batch:
 
 1. **Open an issue.** Ask the maintainer before creating it. The issue holds
-   the batch's findings in the guide's format.
+   the batch's findings in the guide's format. Add it as a sub-issue of the
+   audit's tracking issue.
 2. **Branch** from the latest `main`.
 3. **Pin down weakly tested code first** with characterisation tests (T7).
 4. **Make the change.** Prove it is safe as "Proving a change is safe" in the
