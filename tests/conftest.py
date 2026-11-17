@@ -1,10 +1,12 @@
 """Shared test setup. No test may use the real models, the network, the user's cache,
 the user's log folder or the user's preferences, and the desktop app runs off-screen."""
 
+import base64
 import importlib
 import io
 import logging
 import os
+import re
 import sys
 import threading
 import time
@@ -16,7 +18,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -98,7 +100,7 @@ def app(tmp_path_factory):
 @pytest.fixture(autouse=True)
 def fresh_app(request):
     """Clears the preferences before each test of the desktop app, and deletes the
-    windows and dialogs the test left behind."""
+    windows and dialogs the test left behind. It undoes a theme the test applied."""
     if "app" not in request.fixturenames:
         yield
         return
@@ -108,12 +110,19 @@ def fresh_app(request):
     from papermini.gui import prefs
 
     prefs.store().clear()
+    look = app.style().name(), app.font(), app.palette(), app.styleSheet()
     yield
     for widget in app.topLevelWidgets():
         widget.deleteLater()
     app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
     prefs.store().clear()
+    if (app.style().name(), app.font(), app.palette(), app.styleSheet()) != look:
+        style, font, palette, sheet = look
+        app.setStyleSheet(sheet)
+        app.setStyle(style)
+        app.setFont(font)
+        app.setPalette(palette)
 
 
 @pytest.fixture
@@ -184,6 +193,82 @@ def no_builds(monkeypatch):
         raise ValueError("not built in this test")
 
     monkeypatch.setattr(build_job, "build_mini", fail)
+
+
+@pytest.fixture
+def crop_view_marks():
+    """Returns ``crop_view_marks(view)``, which returns the marks a crop view
+    draws between its picture and the crop box: the washed-out background and the
+    figure's outline, or the dimming while a model runs."""
+
+    def crop_view_marks(view):
+        from PySide6.QtWidgets import QGraphicsPathItem
+
+        marks = [
+            it
+            for it in view.scene().items()
+            if isinstance(it, QGraphicsPathItem) and 0 < it.zValue() < 1
+        ]
+        return sorted(marks, key=lambda it: it.zValue())
+
+    return crop_view_marks
+
+
+@pytest.fixture
+def crop_view_dimmed(crop_view_marks):
+    """Returns ``crop_view_dimmed(view)``, which tells whether a crop view dims
+    its picture, as it does while a model runs."""
+
+    def crop_view_dimmed(view):
+        return len(crop_view_marks(view)) == 1
+
+    return crop_view_dimmed
+
+
+@pytest.fixture
+def unsaved():
+    """Returns ``unsaved(w)``, which tells whether the title of the window ``w``
+    marks unsaved changes."""
+
+    def unsaved(w):
+        return " * " in w.windowTitle()
+
+    return unsaved
+
+
+class DarkSegmenter:
+    """Stands in for a real model: everything darker than mid-grey is the figure."""
+
+    def __init__(self, path, *a, **k):
+        self.path = path
+
+    def __call__(self, im):
+        return np.where(np.asarray(im.convert("L")) < 128, 255, 0).astype(np.uint8)
+
+
+@pytest.fixture
+def fake_default_model(monkeypatch, downloaded_default_model):
+    """The default model is "downloaded" (a dummy file) and segments by darkness, so
+    figures build without the real model and without a download prompt; the other
+    models stay missing."""
+    from papermini.pipeline.segmentation import segment
+
+    monkeypatch.setattr(segment, "OnnxSegmenter", DarkSegmenter)
+
+
+@pytest.fixture
+def built_window(window, wait, tmp_path, figure_image):
+    """Opens a main window with one figure, built from ``figure_image`` and its mask at
+    42.25 mm and 3000 dpi."""
+    from papermini.project.figure_settings import FigureSettings
+
+    image, mask = figure_image(tmp_path / "hero.png")
+    window.add_images(
+        [image], FigureSettings(mask=str(mask), height_mm=42.25, dpi=3000)
+    )
+    fig = window.current()
+    assert wait(lambda: fig.up_to_date), fig.error
+    return window
 
 
 # endregion
@@ -260,6 +345,163 @@ def scripts(monkeypatch):
     """Returns ``scripts(name)``, which imports ``scripts/<name>.py``."""
     monkeypatch.syspath_prepend(str(SCRIPTS))
     return importlib.import_module
+
+
+@pytest.fixture
+def hero_figure(tmp_path):
+    """A dark figure on white, exactly 700 px high, plus its mask."""
+    im = np.full((1000, 800, 3), 255, np.uint8)
+    cv2.ellipse(im, (400, 300), (150, 120), 0, 0, 360, (40, 40, 40), -1)
+    cv2.rectangle(
+        im, (300, 300), (500, 899), (40, 40, 40), -1
+    )  # rows 180..899 -> 720 px
+    mask = np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)
+    Image.fromarray(im).save(tmp_path / "hero.png")
+    Image.fromarray(mask).save(tmp_path / "hero_mask.png")
+    return tmp_path / "hero.png", tmp_path / "hero_mask.png"
+
+
+@pytest.fixture
+def goblin_figure(tmp_path, figure_image):
+    """A dark figure on white, plus its mask."""
+    return figure_image(tmp_path / "goblin.png")
+
+
+@pytest.fixture
+def red_disc(tmp_path):
+    """A red disc on white, with its own mask (no model)."""
+    import cv2
+
+    im = np.full((600, 500, 3), 255, np.uint8)
+    cv2.circle(im, (250, 300), 150, (200, 40, 40), -1)
+    Image.fromarray(im).save(tmp_path / "f.png")
+    mask = np.zeros((600, 500), np.uint8)
+    cv2.circle(mask, (250, 300), 150, 255, -1)
+    Image.fromarray(mask).save(tmp_path / "m.png")
+    return tmp_path / "f.png", tmp_path / "m.png"
+
+
+@pytest.fixture
+def transparent_figure():
+    """Returns ``transparent_figure(path, size)``, which saves a red figure (an
+    ellipse) on a transparent background at ``path``. It returns ``path``."""
+
+    def transparent_figure(path: Path, size=(300, 400)) -> Path:
+        im = Image.new("RGBA", size, (0, 0, 0, 0))
+        w, h = size
+        ImageDraw.Draw(im).ellipse(
+            [w * 0.2, h * 0.1, w * 0.8, h * 0.9], fill=(200, 40, 30, 255)
+        )
+        im.save(path)
+        return path
+
+    return transparent_figure
+
+
+@pytest.fixture
+def build_token():
+    """Returns ``build_token(path, **settings)``, which builds a token of the
+    picture at ``path``, cut out by the picture's transparency."""
+    from papermini.project.settings import build_mini, settings_with_size
+
+    def build_token(path, **kw):
+        s = settings_with_size(dict(kind="token", model="alpha", **kw))
+        return build_mini(path, s, log=lambda *a: None)
+
+    return build_token
+
+
+@pytest.fixture
+def numbered_mini():
+    """Returns ``numbered_mini(figure, **settings)``, which builds the mini of
+    ``figure``, an image and its mask, labelled Goblin."""
+    from papermini.project.figure_settings import FigureSettings
+    from papermini.project.settings import build_mini
+
+    def numbered_mini(figure, **settings):
+        img, mask = figure
+        return build_mini(
+            img,
+            FigureSettings(mask=str(mask), label="Goblin", **settings),
+            log=lambda *_: None,
+        )
+
+    return numbered_mini
+
+
+@pytest.fixture
+def media_box_mm():
+    """Returns ``media_box_mm(pdf)``, which reads the page size of a PDF file in
+    whole millimetres."""
+
+    def media_box_mm(pdf) -> tuple:
+        w, h = re.search(
+            rb"/MediaBox \[ 0 0 ([\d.]+) ([\d.]+) \]", pdf.read_bytes()
+        ).groups()
+        return round(float(w) / 72 * 25.4), round(float(h) / 72 * 25.4)
+
+    return media_box_mm
+
+
+@pytest.fixture
+def figure_bytes():
+    """Returns ``figure_bytes(fmt, size)``, which encodes a red oval on a
+    transparent background as an image file. The alpha channel is the mask, so no
+    model is needed."""
+
+    def figure_bytes(fmt="PNG", size=(300, 450)) -> bytes:
+        im = Image.new("RGBA", size, (0, 0, 0, 0))
+        ImageDraw.Draw(im).ellipse(
+            (30, 30, size[0] - 30, size[1] - 30), fill=(200, 40, 30, 255)
+        )
+        buf = io.BytesIO()
+        (im.convert("RGB") if fmt == "JPEG" else im).save(buf, fmt)
+        return buf.getvalue()
+
+    return figure_bytes
+
+
+@pytest.fixture
+def monsters(tmp_path, figure_image) -> Path:
+    """A folder with images directly in it and in subfolders, two files with the same
+    name in different subfolders, a hidden folder and files that are not images."""
+    root = tmp_path / "Monsters"
+    for rel in (
+        "leader.png",
+        "goblins/goblin 10.png",
+        "goblins/goblin 2.png",
+        "goblins/leader.png",
+        "orcs/leader.webp",
+        ".hidden/x.png",
+    ):
+        figure_image(root / rel, (80, 120), mask=False)
+    (root / "notes.txt").write_text("not an image")
+    (root / "orcs" / "readme.md").write_text("not an image")
+    return root
+
+
+@pytest.fixture
+def keys():
+    """A throwaway release key pair: (private, public), base64."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    k = Ed25519PrivateKey.generate()
+    priv = k.private_bytes(
+        serialization.Encoding.Raw,
+        serialization.PrivateFormat.Raw,
+        serialization.NoEncryption(),
+    )
+    pub = k.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    )
+    return base64.b64encode(priv).decode(), base64.b64encode(pub).decode()
+
+
+@pytest.fixture
+def sign(scripts):
+    """Returns ``sign(data, private)``, which signs ``data`` as a release is signed."""
+    return scripts("sign_release").sign
 
 
 # endregion

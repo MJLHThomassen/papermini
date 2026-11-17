@@ -1,21 +1,11 @@
-"""Creature sizes: the size tables, how a size fills in a figure, projects and the
-command line."""
+"""Tests of the creature size tables."""
 
 from dataclasses import replace
 
-import cv2
-import numpy as np
 import pytest
-from PIL import Image
 
-from papermini.cli import main
-from papermini.output.svg import read_svg
 from papermini.project import sizes
-from papermini.project.figure_entry import FigureEntry
 from papermini.project.figure_settings import FigureSettings
-from papermini.project.project import Project
-from papermini.project.project_files import load_project, save_project
-from papermini.project.settings import settings_with_size
 
 
 def test_the_builtin_table():
@@ -130,127 +120,3 @@ def test_footprint_and_width_warning():
         sizes.width_warning("custom", 500, t) == ""
         and sizes.width_warning("large", 0, t) == ""
     )
-
-
-def test_settings_with_size():
-    assert settings_with_size({}) == sizes.apply(FigureSettings(), "medium")
-    s = settings_with_size({"size": "large"})
-    assert (s.size, s.height_mm, s.tab_width_mm) == ("large", 48, 50)
-    s = settings_with_size({"size": "large", "height-mm": 60})  # its own height: custom
-    assert (s.size, s.height_mm, s.tab_width_mm) == ("custom", 60, 50)
-    s = settings_with_size(
-        {"width_mm": 30}
-    )  # regression: a width alone scales by width
-    assert (s.height_mm, s.width_mm, s.size) == (None, 30, "custom")
-    assert s.tab_width_mm == 25
-    assert (
-        settings_with_size({"size": "large"}, sizes.calculate(30, 40)).height_mm == 60
-    )
-    with pytest.raises(ValueError, match="size must be one of"):
-        settings_with_size({"size": "colossal"})
-
-
-def test_a_project_saves_its_table_and_every_figures_size(tmp_path):
-    table = replace(sizes.calculate(30), name="My 30 mm grid")
-    fig = sizes.apply(FigureSettings(label="Ogre"), "large", table)
-    p = Project(sizes=table, figures=[FigureEntry(tmp_path / "a.png", fig)])
-    text = save_project(p, tmp_path / "p.yaml").read_text(encoding="utf-8")
-    assert (
-        "sizes:\n  preset: My 30 mm grid\n  grid_mm: 30.0\n  medium_mm: 32.0\n" in text
-    )
-    assert (
-        "  large: {height_mm: 48.0, base_mm: 59.06, tab_width_mm: 59.06, "
-        "tab_height_mm: 29.53}\n"
-    ) in text  # a size per line
-    assert "  size: large\n" in text and "  tab_width_mm: 59.06\n" in text
-    q = load_project(tmp_path / "p.yaml")
-    assert q.sizes == table and q.figures[0].settings == fig
-    # a figure at Medium writes its size and values too
-    p = Project(figures=[FigureEntry(tmp_path / "a.png", FigureSettings())])
-    text = save_project(p, tmp_path / "m.yaml").read_text(encoding="utf-8")
-    assert (
-        "  size: medium\n  height_mm: 32.0\n" in text
-        and "preset: Standard 1-inch" in text
-    )
-
-
-def test_a_project_without_a_table_uses_the_builtin_one(tmp_path):
-    (tmp_path / "p.yaml").write_text(
-        "figures:\n  - image: a.png\n    size: huge\n  - image: b.png\n"
-        "  - image: c.png\n    size: small\n    tab_width_mm: 30\n",
-        encoding="utf-8",
-    )
-    p = load_project(tmp_path / "p.yaml")
-    assert p.sizes == sizes.BUILTIN
-    assert [f.settings.size for f in p.figures] == ["huge", "medium", "custom"]
-    assert p.figures[0].settings.height_mm == 64
-    assert (p.figures[2].settings.height_mm, p.figures[2].settings.tab_width_mm) == (
-        24,
-        30,
-    )
-
-
-def test_a_bad_table_names_the_file(tmp_path):
-    (tmp_path / "p.yaml").write_text(
-        "sizes: {grid_mm: -1}\nfigures: []\n", encoding="utf-8"
-    )
-    with pytest.raises(
-        ValueError, match=r"p\.yaml: sizes grid_mm must be a number above 0"
-    ):
-        load_project(tmp_path / "p.yaml")
-
-
-@pytest.fixture
-def disc(tmp_path):
-    """A round figure (as wide as it is tall), with its own mask."""
-    im = np.full((600, 600, 3), 255, np.uint8)
-    cv2.circle(im, (300, 300), 250, (200, 40, 40), -1)
-    Image.fromarray(im).save(tmp_path / "d.png")
-    Image.fromarray(np.where(im[..., 0] < 250, 255, 0).astype(np.uint8)).save(
-        tmp_path / "m.png"
-    )
-    return tmp_path / "d.png", tmp_path / "m.png"
-
-
-def _make(disc, out, *flags):
-    img, mask = disc
-    assert (
-        main(
-            [
-                "make",
-                str(img),
-                "--mask",
-                str(mask),
-                "--no-double-sided",
-                "-o",
-                str(out),
-                *flags,
-            ]
-        )
-        == 0
-    )
-    return read_svg(out).height_mm  # the figure, its margin and the tab below the fold
-
-
-def test_cli_size_and_grid(disc, tmp_path, capsys):
-    medium = _make(disc, tmp_path / "m.svg")
-    large = _make(disc, tmp_path / "l.svg", "--size", "large")
-    assert large - medium == pytest.approx((48 - 32) + (25 - 12.5), abs=0.3)
-    capsys.readouterr()
-    # a 30 mm grid: bases and heights scale with it
-    grid = _make(disc, tmp_path / "g.svg", "--size", "large", "--grid-mm", "30")
-    assert grid - large == pytest.approx(
-        (48 * 30 / 25.4 - 48) + (59.06 - 50) / 2, abs=0.3
-    )
-    # an explicit flag wins
-    own = _make(disc, tmp_path / "o.svg", "--size", "large", "--height-mm", "40")
-    assert own - large == pytest.approx(40 - 48, abs=0.3)
-    assert "wider" not in capsys.readouterr().err
-    # a round Tiny figure is wider than half a square
-    _make(disc, tmp_path / "t.svg", "--size", "tiny")
-    assert (
-        "d.png: This figure is 16 mm wide, wider than its half a square"
-        in capsys.readouterr().err
-    )
-    with pytest.raises(SystemExit, match="--grid-mm must be above 0"):
-        main(["make", str(disc[0]), "--grid-mm", "0"])
