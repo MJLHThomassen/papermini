@@ -779,6 +779,10 @@ class FigurePanel(QScrollArea):
         self._w["token_area"][1].edit.setText(_crop_text(area))
         self._emit()
 
+    def field(self, name: str) -> Any:
+        """Return the input widget of the setting ``name``."""
+        return self._w[name][1]
+
     def is_shown(self, name: str) -> bool:
         """Whether a field is shown; for a group's switch, whether it can be used."""
         if name in self._switches:  # usable unless the group it is inside is off
