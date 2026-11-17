@@ -76,8 +76,9 @@ src/papermini/       the package, one class per file (S15)
     views/           the zoom, crop and mini views
     dialogs/         the dialogs and their pages
     window/          the main window and its build jobs
-tests/               the pytest suite: synthetic masks, no network or model,
-                     GUI tests off-screen (T4)
+tests/               the pytest suite, one file per module (T3): synthetic masks,
+                     no network or model (T4)
+  gui/               the GUI tests, one file per feature, off-screen
 scripts/             developer tools: screenshots, release notes, release
                      signing, trying updates locally, building the Windows
                      installer
@@ -391,13 +392,18 @@ editing them. If it doesn't, the tests are checking implementation.
 ### T3. Tests are easy to find and read
 
 - Test files follow the modules they test, so the tests for
-  `pipeline/geometry.py` are in `test_geometry.py`.
+  `pipeline/geometry.py` are in `test_geometry.py`. A test goes in the file of
+  the module it tests, even when its feature spans modules: every command line
+  test is in `test_cli.py`.
+- The GUI tests are in `tests/gui/`, one file per feature of the app, such as
+  `test_figure_panel.py`. Each starts with `pytest.importorskip("PySide6")`,
+  because the desktop app is an optional extra. File names stay unique across
+  `tests/` and `tests/gui/`, because pytest imports the files by name.
 - Split a large test file by feature.
 - Put shared setup in fixtures in `conftest.py`, not in copied code.
 - A test's name says the behaviour it checks and under what condition.
 
-*Soft trigger:* a test file over about 1,000 lines. `tests/test_gui.py` is
-about 2,400 lines.
+*Soft trigger:* a test file over about 1,000 lines.
 
 ### T4. Tests run in isolation
 
