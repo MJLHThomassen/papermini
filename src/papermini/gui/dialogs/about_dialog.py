@@ -1,5 +1,4 @@
-"""The About window: the version, whether a newer papermini is out (with Update and its
-progress), and the licences."""
+"""The About dialog, and opening the folder of the bundled fonts."""
 
 from __future__ import annotations
 
@@ -17,8 +16,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from .. import __version__, fonts
-from . import theme
+from ... import __version__, fonts
+from .. import theme
 
 
 def _font_note() -> str:
@@ -116,8 +115,8 @@ class AboutDialog(QDialog):
     @staticmethod
     def _log_label() -> QLabel:
         """Where this session's log is, as a link that opens the log folder."""
-        from .. import log
-        from .errors import open_log_folder
+        from ... import log
+        from ..errors import open_log_folder
 
         s = log.session()
         if s is None:

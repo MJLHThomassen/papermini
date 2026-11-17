@@ -549,12 +549,12 @@ def test_batch_cut_by_machine_builds_the_bleed(figure, tmp_path):
 def test_no_command_opens_the_app(monkeypatch):
     """One program for both: without a command (double-clicked, or with files dropped on
     it) papermini opens the desktop app; with a command it runs the command line."""
-    import papermini.gui
+    import papermini.gui.app
     from papermini import cli
 
     opened = []
     monkeypatch.setattr(
-        papermini.gui, "run", lambda files=None: opened.append(list(files)) or 0
+        papermini.gui.app, "run", lambda files=None: opened.append(list(files)) or 0
     )
     assert cli.main([]) == 0 and opened[-1] == []
     assert cli.main(["hero.png", "lair.yaml"]) == 0 and opened[-1] == [

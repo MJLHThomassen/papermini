@@ -1,5 +1,3 @@
-"""The Export dialog of the print sheet: where to save the sheet's files, and which."""
-
 from __future__ import annotations
 
 import html
@@ -21,9 +19,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..settings import safe_name
-from ..sheet import cut_file_paths, default_cut_file
-from . import prefs
+from ...settings import safe_name
+from ...sheet import cut_file_paths, default_cut_file
+from .. import prefs
 
 
 class ExportDialog(QDialog):

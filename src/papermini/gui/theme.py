@@ -27,6 +27,8 @@ from PySide6.QtWidgets import QApplication
 
 @dataclass(frozen=True)
 class Theme:
+    """The colors of a theme."""
+
     name: str
     bg: str  # window
     surface: str  # panels, cards

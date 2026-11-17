@@ -71,8 +71,8 @@ def main() -> None:
 
     from papermini import segment
     from papermini.gui import theme
-    from papermini.gui.views import draw_mini
-    from papermini.gui.window import MainWindow
+    from papermini.gui.views.drawing import draw_mini
+    from papermini.gui.window.main_window import MainWindow
     from papermini.settings import FigureSettings, build_mini
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -323,7 +323,7 @@ def main() -> None:
         from PySide6.QtSvg import QSvgRenderer
 
         from papermini import sizes
-        from papermini.gui.views import draw_sheet
+        from papermini.gui.views.drawing import draw_sheet
         from papermini.settings import load_project
         from papermini.sheet import cut_file_svg, pack
 

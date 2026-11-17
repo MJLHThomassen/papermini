@@ -541,7 +541,7 @@ def cmd_batch(a: argparse.Namespace) -> int:
 
 def cmd_gui(a: argparse.Namespace) -> int:
     try:
-        from .gui import run
+        from .gui.app import run
     except ImportError as e:
         raise SystemExit(
             f"The GUI needs PySide6: pip install 'papermini[gui]'  ({e})"

@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+from PySide6.QtCore import Qt
+
+
+class _WheelGuard:
+    """Only react to the mouse wheel when focused, so scrolling the settings
+    panel never changes a value by accident (and the panel scrolls instead)."""
+
+    def _init_guard(self):
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, e):
+        if self.hasFocus():
+            super().wheelEvent(e)
+        else:
+            e.ignore()
