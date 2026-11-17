@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import log
+from ...support import log
 from .. import errors, prefs
 from ..fields.spin_box import SpinBox
 from .cache_page import CachePage
@@ -25,7 +25,6 @@ from .page_parts import _hint, _page_title
 from .sizes_page import SizesPage
 
 
-# ----------------------------------------------------------------- the window
 class PreferencesDialog(QDialog):
     """The Preferences window for ``window`` (the main window), opened at ``page``."""
 

@@ -8,17 +8,14 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini import sizes
 from papermini.cli import main
-from papermini.settings import (
-    FigureEntry,
-    FigureSettings,
-    Project,
-    load_project,
-    save_project,
-    settings_with_size,
-)
-from papermini.svg import read_svg
+from papermini.output.svg import read_svg
+from papermini.project import sizes
+from papermini.project.figure_entry import FigureEntry
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.project import Project
+from papermini.project.project_files import load_project, save_project
+from papermini.project.settings import settings_with_size
 
 
 def test_the_builtin_table():

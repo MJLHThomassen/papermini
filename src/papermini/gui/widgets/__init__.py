@@ -1,1 +1,1 @@
-"""Small building blocks of the window: figure cards, canvas overlays, header bits."""
+"""This module contains small widgets the window is built from."""

@@ -6,12 +6,12 @@ so it can be tested with synthetic masks and no model.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import cv2
 import numpy as np
 
-# --------------------------------------------------------------------------- helpers
+from .cut_path import CutPath
+from .layout import Layout
+from .params import Params
 
 
 def disk(r: float) -> np.ndarray:
@@ -158,9 +158,6 @@ def smooth_outline(m: np.ndarray, sigma: float) -> np.ndarray:
     return ((big > 127) * 255).astype(np.uint8)
 
 
-# --------------------------------------------------------------------------- clean-up
-
-
 def default_close_px(width: int, height: int) -> int:
     """Closing radius that scales with the image: ~9 px at 1400 px long side."""
     return max(1, round(9 * max(width, height) / 1400))
@@ -194,79 +191,6 @@ def clean_mask(
     if stages is not None:
         stages["4_clean"] = m
     return m
-
-
-# --------------------------------------------------------------------------- layout
-
-
-@dataclass
-class Params:
-    height_mm: float | None = 42.0  # figure height, excluding margin and tab
-    width_mm: float | None = None  # figure width; see figure_size()
-    margin_mm: float = 1.6  # distance between drawing and cut line
-    smooth_mm: float = 0.6  # Gaussian sigma that rounds the outline
-    tab: bool = True
-    tab_width_mm: float = 22.0  # square tab
-    tab_radius_mm: float = 12.5  # round tab (a half disc; 12.5 = a 25 mm base)
-    tab_height_mm: float = 12.0  # below the fold line
-    tab_overlap_mm: float = 0.0  # how far the tab reaches up into the figure
-    fold_mm: float = 0.0  # fold line above the silhouette's lowest point
-    tab_band_mm: float = 6.0  # bottom band used to centre the tab
-    fillet_mm: float = 1.0  # rounds inner corners (closing) - never removes paper
-    keep_all: bool = False
-    bridge_mm: float = 2.5  # width of bridges joining separate parts (--keep-all)
-    margin_fill: str = (
-        "color"  # "color" (margin_color) or "image": what shows in the margin
-    )
-    margin_color: str = "#ffffff"  # color of the margin around the drawing
-    tab_shape: str = (
-        "square"  # "square" (slots into a stand) or "round" (folds out to a base)
-    )
-    tab_color: str = "#ffffff"  # tab background, independent of the margin color
-    double_sided: bool = False
-    back: str = "mirror"  # double-sided back: "mirror" (image), "blank", "text",
-    #                               "number" or "text_number"
-    back_color: str = "#ffffff"  # color of a blank/text back
-    max_px_per_mm: float = 24.0  # working resolution cap (~600 dpi; output is 300 dpi)
-    top_bridge_width_mm: float = 12.0  # double-sided: joint at the top fold
-    top_bridge_depth_mm: float = 3.0
-
-
-@dataclass
-class Layout:
-    """Result of :func:`build_layout`, all in pixels of one canvas."""
-
-    rgb: np.ndarray  # HxWx3 artwork (white outside the figure)
-    cut: np.ndarray  # HxW 0/255 cut shape
-    figure: np.ndarray  # HxW 0/255 clean figure mask (drawing that must not be cut)
-    px_per_mm: float
-    folds: list[tuple[float, float, float]] = field(default_factory=list)  # (x0, x1, y)
-    labels: list[tuple[float, float, float]] = field(
-        default_factory=list
-    )  # (cx, cy, rot)
-    tab_width_px: float = 0.0
-    tab_height_px: float = 0.0
-    figure_height_px: int = 0  # one side, also for double-sided layouts
-    # double-sided with a back of text or a number: where it may go (cx, cy, max_w, max_h), px
-    back_box: tuple[float, float, float, float] | None = None
-    # False when the tab's overlap lies entirely inside the silhouette (a figure whose
-    # bottom is wider than the tab), i.e. tab_overlap_mm has no visible effect
-    tab_overlap_used: bool = True
-    tab_joint_px: float = (
-        0.0  # width of paper joining tab and figure, just above the fold
-    )
-    label_max_w_px: float = 0.0  # room for the tab label (depends on the tab shape)
-    # round tabs: exact circles (cx, cy, r, side) in pixel-edge coordinates; side +1 =
-    # the half below cy, -1 = above (the mirrored back). The traced cut line is snapped
-    # onto them so a round tab is a true circle, not a traced pixel staircase.
-    tab_circles: list[tuple[float, float, float, int]] = field(default_factory=list)
-    label_max_h_px: float = 0.0
-    paper: tuple[int, int, int] = (255, 255, 255)  # margin color, RGB
-    tabfill: np.ndarray | None = None  # HxW bool: tab area (painted in the tab color)
-    # where this canvas lies in the image given to build_layout, for the front side:
-    # (sx, sy, dx, dy) with image pixel = ((x - dx) * sx, (y - dy) * sy)
-    src: tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0)
-    front_top: float = 0.0  # canvas row where the front starts (double-sided: the fold)
 
 
 def _overlap_matters(cut: np.ndarray, sil: np.ndarray, tab, fillet_px: float) -> bool:
@@ -742,53 +666,6 @@ def _text_box(fig: np.ndarray) -> tuple[float, float, float, float]:
             widths.append(max(0, right - left))
     w = float(np.percentile(widths, 20)) if widths else float(x1 - x0 + 1)
     return cx, cy, w * 0.82, (y1 - y0 + 1) * 0.6
-
-
-# --------------------------------------------------------------------------- cut path
-
-
-@dataclass
-class CutPath:
-    """Closed path: ``points`` (N x 2) and optional cubic ``controls`` (N x 2 x 2).
-
-    Segment i runs from points[i] to points[(i+1) % N], with control points
-    controls[i, 0] and controls[i, 1] when ``controls`` is set, else straight.
-    """
-
-    points: np.ndarray
-    controls: np.ndarray | None = None
-
-    def transformed(self, scale: float, dx: float = 0.0, dy: float = 0.0) -> CutPath:
-        f = lambda a: (a - np.array([dx, dy])) * scale
-        return CutPath(
-            f(self.points), None if self.controls is None else f(self.controls)
-        )
-
-    def flatten(self, steps: int = 12) -> np.ndarray:
-        """Polyline approximation (closed, last point not repeated)."""
-        if self.controls is None:
-            return self.points.copy()
-        p0 = self.points
-        p3 = np.roll(self.points, -1, axis=0)
-        c1, c2 = self.controls[:, 0], self.controls[:, 1]
-        t = np.linspace(0, 1, steps, endpoint=False)[None, :, None]
-        mt = 1 - t
-        pts = (
-            mt**3 * p0[:, None]
-            + 3 * mt**2 * t * c1[:, None]
-            + 3 * mt * t**2 * c2[:, None]
-            + t**3 * p3[:, None]
-        )
-        return pts.reshape(-1, 2)
-
-    def extent(self) -> tuple[float, float, float, float]:
-        a = self.flatten()
-        return (
-            float(a[:, 0].min()),
-            float(a[:, 1].min()),
-            float(a[:, 0].max()),
-            float(a[:, 1].max()),
-        )
 
 
 def bezier_controls(

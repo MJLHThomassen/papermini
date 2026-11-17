@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ... import __version__, fonts
+from ... import __version__
+from ...support import fonts
 from .. import theme
 
 
@@ -115,7 +116,7 @@ class AboutDialog(QDialog):
     @staticmethod
     def _log_label() -> QLabel:
         """Where this session's log is, as a link that opens the log folder."""
-        from ... import log
+        from ...support import log
         from ..errors import open_log_folder
 
         s = log.session()

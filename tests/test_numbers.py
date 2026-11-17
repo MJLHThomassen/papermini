@@ -7,10 +7,12 @@ import pytest
 from PIL import Image
 
 from papermini.cli import main
-from papermini.mini import NUMBER_PLACEHOLDER
-from papermini.settings import FigureSettings, build_mini, load_project
-from papermini.sheet import pack, write_pdf, write_previews
-from papermini.svg import read_svg, write_svgs
+from papermini.output.sheet import pack, write_pdf, write_previews
+from papermini.output.svg import read_svg, write_svgs
+from papermini.pipeline.mini import NUMBER_PLACEHOLDER
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.project_files import load_project
+from papermini.project.settings import build_mini
 
 
 @pytest.fixture

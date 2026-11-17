@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...settings import safe_name
-from ...sheet import cut_file_paths, default_cut_file
+from ...output.sheet import cut_file_paths, default_cut_file
+from ...project.figure_entry import safe_name
 from .. import prefs
 
 

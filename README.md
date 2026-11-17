@@ -331,7 +331,7 @@ tests every step but tagging and publishing.
 The workflow signs each release's checksum list with the release key, which the
 app's [updates](docs/reference.md#updates) check. The private key is the
 repository secret `RELEASE_SIGNING_KEY`; its public key is in
-`src/papermini/update.py`. `python scripts/release_key.py` makes a new pair (and
+`src/papermini/support/update.py`. `python scripts/release_key.py` makes a new pair (and
 says how to store the secret). The workflow stops when the secret does not
 belong to the public key in the code. A new key pair means that versions with
 the old public key no longer update themselves.

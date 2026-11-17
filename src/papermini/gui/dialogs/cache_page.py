@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import remote, segment
+from ...pipeline.segmentation import segment
+from ...support import remote
 from .cache_card import CacheCard
 from .download_dialog import DownloadDialog
 from .model_card import ModelCard

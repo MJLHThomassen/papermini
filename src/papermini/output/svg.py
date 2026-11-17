@@ -13,9 +13,11 @@ from xml.sax.saxutils import escape, quoteattr
 import numpy as np
 from PIL import Image
 
-from . import fonts
-from .geometry import CutPath
-from .mini import Mini, Style, TextItem
+from ..pipeline.cut_path import CutPath
+from ..pipeline.mini import Mini
+from ..pipeline.style import Style
+from ..pipeline.text_item import TextItem
+from ..support import fonts
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -108,8 +110,6 @@ def write_svgs(m: Mini, path: Path, copies: int = 1) -> list[Path]:
         for i in range(1, max(1, copies) + 1)
     ]
 
-
-# --------------------------------------------------------------------------- reading
 
 _NUM = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
 

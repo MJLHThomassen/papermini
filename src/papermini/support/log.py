@@ -25,16 +25,15 @@ import re
 import sys
 import time
 import urllib.parse
-from dataclasses import dataclass
 from pathlib import Path
-from typing import IO
+
+from .session import Session
 
 LOG_ENV = "PAPERMINI_LOG_DIR"
 KEEP_DAYS = 30
 ISSUE_URL = "https://github.com/MJLHThomassen/papermini/issues/new"
 MAX_URL = 8000  # (GitHub refuses much longer links)
 CRASH, REPORTED = ".crash.log", ".crash-reported.log"
-
 logger = logging.getLogger("papermini")
 
 
@@ -108,16 +107,6 @@ class _QuietFileHandler(logging.FileHandler):
 
     def handleError(self, record):
         pass
-
-
-@dataclass
-class Session:
-    """The running session's files."""
-
-    log: Path
-    crash: Path
-    handler: logging.Handler
-    crash_file: IO | None = None
 
 
 _session: Session | None = None
@@ -239,7 +228,7 @@ def start(qt_version: str = "") -> Session | None:
     """Start this session's log and crash file, after deleting old sessions. Returns the
     session, or None (and the app runs without a log) when the folder cannot be written."""
     global _session
-    from . import __version__
+    from .. import __version__
 
     if _session is not None:
         return _session
@@ -324,8 +313,8 @@ def settings_text(options: dict) -> str:
 
 
 def settings_diff(old, new) -> str:
-    """What changed between two settings dataclasses, such as ``height_mm 42 → 45``, or
-    "" when nothing did."""
+    """The changes between two settings dataclasses, such as ``height_mm 42 → 45``, or
+    "" when nothing changed."""
     from dataclasses import asdict
 
     a, b = asdict(old), asdict(new)
@@ -344,7 +333,7 @@ def issue_url(details: str = "") -> str:
     """A link that opens a new bug report on GitHub with the version, the operating
     system and how papermini runs filled in, and ``details`` (an error's traceback, home
     folder as ``~``) when given, shortened from the start to keep the link short enough."""
-    from . import __version__
+    from .. import __version__
 
     fields = {
         "template": "bug_report.yml",

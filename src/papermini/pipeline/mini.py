@@ -10,44 +10,25 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
+from ..support import cache, fonts
 from . import adjust as adj_mod
-from . import cache, fonts
 from . import geometry as geo
-from .segment import DEFAULT_MODEL, check_cancel, compute_mask, has_alpha, parse_crop
-
-
-@dataclass
-class Style:
-    cut_color: str = "#000000"
-    cut_width_mm: float = 0.3
-    fold_color: str = "#666666"
-    fold_width_mm: float = 0.25
-    label_color: str = "#2f5597"
-    back_text_color: str = "#2f5597"
-    label_size_mm: float = 3.4
-    font: str = "Times"  # all of the piece's text (see fonts.py)
-    cut_line: bool = True  # print the cut line (a token's ring edge can do instead)
-
+from .figure_mask import FigureMask
+from .segmentation.segment import (
+    DEFAULT_MODEL,
+    check_cancel,
+    compute_mask,
+    has_alpha,
+    parse_crop,
+)
+from .style import Style
+from .text_item import TextItem
 
 TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
+
 NUMBER_PLACEHOLDER = (
     "#"  # a figure's number where no copy number is known (the preview)
 )
-
-
-@dataclass
-class TextItem:
-    """One piece of text on a miniature, as every output draws it: centred on (cx, cy) mm,
-    rotated ``rot`` degrees, ``size_mm`` high. ``kind``: "label", "number" or "backtext"."""
-
-    kind: str
-    text: str
-    cx: float
-    cy: float
-    rot: float
-    size_mm: float
-    color: str
-    bold: bool = False
 
 
 def fit_number_size(
@@ -293,22 +274,6 @@ def fit_text_block(
         if size > best[0] * 1.15:  # prefer fewer lines unless clearly bigger
             best = (size, lines)
     return best
-
-
-@dataclass
-class FigureMask:
-    """What background removal found in an image, for a mini or a token: the image, its
-    pixels (RGB, or premultiplied RGBA), the clean 0/255 figure mask at the image's size,
-    its outline, and how it was found."""
-
-    image: Image.Image
-    rgb: np.ndarray
-    clean: np.ndarray
-    contours: list[np.ndarray]
-    close_px: int  # the closing radius used
-    method: str  # "alpha", "mask" or the model that ran
-    key: tuple  # identifies the clean mask in the caches
-    stages: dict[str, np.ndarray] | None = None  # debug: the intermediate masks
 
 
 def figure_mask(

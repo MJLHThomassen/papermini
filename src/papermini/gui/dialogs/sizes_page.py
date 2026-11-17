@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import sizes
+from ...project import sizes
 from .. import theme
 from ..fields.double_spin_box import DoubleSpinBox
 from ..size_presets import (
@@ -37,7 +37,6 @@ from .page_parts import _hint, _page_title
 
 ui_log = logging.getLogger("papermini.ui")
 
-
 COLUMNS = (
     ("height_mm", "Height"),
     ("base_mm", "Round base"),
@@ -45,14 +44,10 @@ COLUMNS = (
     ("tab_height_mm", "Stand tab height"),
 )
 
-
 PROJECT = "project"  # the entry of a project table that matches no preset
-
-
 NOTES_ROLE = Qt.UserRole + 1  # a preset entry's notes: what it is used for, a line each
 
 
-# ----------------------------------------------------------------- widgets
 def _spin(value: float, lo: float = 0.5, hi: float = 600.0) -> DoubleSpinBox:
     w = DoubleSpinBox()  # ("." as the decimal point, as in the settings)
     w.setRange(lo, hi)

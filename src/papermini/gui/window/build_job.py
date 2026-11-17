@@ -6,9 +6,11 @@ import traceback
 
 from PySide6.QtCore import QRunnable
 
-from ... import log, segment
-from ...segment import Cancelled, ModelError
-from ...settings import build_mini
+from ...pipeline.segmentation import segment
+from ...pipeline.segmentation.cancelled import Cancelled
+from ...pipeline.segmentation.model_error import ModelError
+from ...project.settings import build_mini
+from ...support import log
 from .figure import Figure
 from .signals import Signals
 

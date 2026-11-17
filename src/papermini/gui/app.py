@@ -10,7 +10,7 @@ def run(files: list[str] | None = None) -> int:
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
-    from .. import log
+    from ..support import log
 
     log.start(qt_version)  # first, so start-up problems are in the log
     app = QApplication.instance() or QApplication(sys.argv[:1])

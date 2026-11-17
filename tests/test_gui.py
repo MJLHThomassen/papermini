@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from papermini.settings import FigureSettings
+from papermini.project.figure_settings import FigureSettings
 
 
 @pytest.fixture(scope="module")
@@ -54,7 +54,7 @@ def fake_default_model(monkeypatch, isolated_model_cache):
     """The default model is "downloaded" (a dummy file) and segments by darkness, so
     figures build without the real model and without a download prompt; the other
     models stay missing."""
-    from papermini import segment
+    from papermini.pipeline.segmentation import segment
 
     monkeypatch.setattr(segment, "OnnxSegmenter", DarkSegmenter)
     path = segment.model_path(segment.DEFAULT_MODEL)
@@ -117,7 +117,7 @@ def test_build_edit_and_save(app, tmp_path):
 
         w.project.path = Path(tmp_path / "proj.yaml")
         assert w.save()
-        from papermini.settings import load_project
+        from papermini.project.project_files import load_project
 
         p = load_project(tmp_path / "proj.yaml")
         assert p.figures[0].settings.height_mm == 30
@@ -453,7 +453,7 @@ def test_mask_file_is_a_model_choice(app):
 def test_sheet_bar_cut_by_machine(app):
     """Bleed, marks and the cut file only show (and only matter) when cut by machine."""
     from papermini.gui.panels.sheet_panel import SheetPanel
-    from papermini.settings import SheetSettings
+    from papermini.project.sheet_settings import SheetSettings
 
     p = SheetPanel()
     got = []
@@ -656,7 +656,7 @@ def test_panel_layout_is_remembered(app):
 @pytest.fixture
 def model_cache(monkeypatch, tmp_path):
     """An empty model folder and a fake download (no network, no real model)."""
-    from papermini import segment
+    from papermini.pipeline.segmentation import segment
 
     monkeypatch.setenv("PAPERMINI_CACHE", str(tmp_path / "cache"))
     calls = []
@@ -679,8 +679,8 @@ def model_cache(monkeypatch, tmp_path):
 def test_download_dialog_asks_then_downloads(app, model_cache):
     from PySide6.QtWidgets import QDialog
 
-    from papermini import segment
     from papermini.gui.dialogs.download_dialog import DownloadDialog
+    from papermini.pipeline.segmentation import segment
 
     d = DownloadDialog("rmbg-1.4")
     assert "Download the BRIA RMBG-1.4 model?" in d.title.text()
@@ -709,8 +709,8 @@ def test_download_dialog_cancel(app, model_cache, monkeypatch):
 
     from PySide6.QtWidgets import QDialog
 
-    from papermini import segment
     from papermini.gui.dialogs.download_dialog import DownloadDialog
+    from papermini.pipeline.segmentation import segment
 
     gate = threading.Event()
     real = segment.download
@@ -733,9 +733,9 @@ def test_download_dialog_cancel(app, model_cache, monkeypatch):
 def test_build_asks_before_downloading(app, tmp_path, model_cache, monkeypatch):
     from PySide6.QtWidgets import QDialog
 
-    from papermini import segment
     from papermini.gui.dialogs import cache_page
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "plain.png")
     asked = []
@@ -830,8 +830,9 @@ def test_cache_management_clears_masks_images_and_everything(
 ):
     """The Models and cache page counts the masks and images from links, clears each,
     keeps the images open figures use, and Clear cache also deletes the models."""
-    from papermini import remote, segment
     from papermini.gui.dialogs import cache_page
+    from papermini.pipeline.segmentation import segment
+    from papermini.support import remote
 
     masks = segment.masks_dir()
     masks.mkdir(parents=True)
@@ -899,9 +900,9 @@ def test_cache_page_scrolls_when_short(app, model_cache):
 
 
 def test_licences_are_links(app, model_cache):
-    from papermini import segment
     from papermini.gui.dialogs.cache_page import CachePage
     from papermini.gui.dialogs.download_dialog import DownloadDialog
+    from papermini.pipeline.segmentation import segment
 
     for model, spec in segment.ONNX_MODELS.items():
         assert spec["licence_url"].startswith("https://")
@@ -942,8 +943,8 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(app, model_cac
 
 
 def test_the_settings_show_the_licence_of_the_model_in_use(app, tmp_path, model_cache):
-    from papermini import segment
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     Image.new("RGB", (300, 400), (40, 40, 40)).save(tmp_path / "a.png")
     w = MainWindow()
@@ -1345,9 +1346,9 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     """The Source view follows the color sliders (a preview at the original's size),
     and a color change rebuilds the miniature from the cached mask: the model does not
     run again and the outline stays."""
-    from papermini import segment
     from papermini.gui.views.images import PREVIEW_PX
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     im = np.full((2400, 1800, 3), 255, np.uint8)  # larger than a preview
     cv2.circle(im, (900, 1200), 500, (200, 40, 40), -1)
@@ -1517,7 +1518,7 @@ class SlowSegmenter(DarkSegmenter):
         terminate = False
 
     def __call__(self, im):
-        from papermini import segment
+        from papermini.pipeline.segmentation import segment
 
         SlowSegmenter.calls += 1
         if not SlowSegmenter.block:
@@ -1542,8 +1543,8 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     it and nothing restarts on its own; Run again does. A new crop stops the old run."""
     import threading
 
-    from papermini import segment
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
@@ -1617,9 +1618,9 @@ def test_cancel_works_while_the_model_loads(app, tmp_path, monkeypatch):
     (a margin) do not start it again, Run again does."""
     import threading
 
-    from papermini import segment
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowLoadSegmenter)
     SlowLoadSegmenter.loading, SlowLoadSegmenter.loaded = (
@@ -1669,9 +1670,9 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(app, tmp_path, monkey
     says so, and Cancel stops that run so the new image goes next."""
     import threading
 
-    from papermini import segment
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
@@ -1882,9 +1883,9 @@ def test_add_images_from_links_paste_and_browser_drops(app, monkeypatch, tmp_pat
 
     from PySide6.QtCore import QMimeData, QUrl
 
-    from papermini import remote
     from papermini.gui.window import main_window
     from papermini.gui.window.main_window import MainWindow
+    from papermini.support import remote
 
     buf = io.BytesIO()
     Image.new("RGBA", (200, 300), (200, 40, 30, 255)).save(buf, "WEBP")
@@ -2002,10 +2003,10 @@ def test_print_is_true_to_size_and_follows_the_page_range(app):
     """The printed sheet must be exactly to scale: its 50 mm bar is 50 mm on paper."""
     from PySide6.QtGui import QColor, QImage
 
-    from papermini.geometry import CutPath
     from papermini.gui.views.drawing import print_sheet
-    from papermini.mini import Mini
-    from papermini.sheet import pack
+    from papermini.output.sheet import pack
+    from papermini.pipeline.cut_path import CutPath
+    from papermini.pipeline.mini import Mini
 
     class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
         def __init__(self, first=0, last=0):
@@ -2088,8 +2089,8 @@ def test_print_button_prints_the_sheet(app, tmp_path, monkeypatch):
 def test_auto_model_says_which_method_it_used(app, tmp_path):
     """Model "auto" shows under the model box how it found the figure: the image's own
     transparency, or the default model for an image without it."""
-    from papermini import segment
     from papermini.gui.window.main_window import MainWindow
+    from papermini.pipeline.segmentation import segment
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.ellipse(im, (250, 300), (150, 220), 0, 0, 360, (60, 60, 60), -1)
@@ -2283,7 +2284,7 @@ def test_header_steps_stay_centred(app, tmp_path):
 def fake_updates(monkeypatch, tmp_path):
     """A newer release that this copy can install, without network or helper: records
     what would be downloaded and installed."""
-    from papermini import update
+    from papermini.support import update
 
     calls = {"download": [], "install": []}
     rel = update.Release("99.0.0", "https://example.invalid/release")
@@ -2314,7 +2315,7 @@ def fake_updates(monkeypatch, tmp_path):
 def test_about_window_shows_each_update_state(app):
     from papermini.gui.dialogs.about_dialog import AboutDialog
     from papermini.gui.window.main_window import MainWindow
-    from papermini.update import Release
+    from papermini.support.release import Release
 
     w = MainWindow()
     try:
@@ -2382,9 +2383,9 @@ def test_update_from_the_about_window(app, fake_updates):
 def test_daily_update_check(app, fake_updates, monkeypatch, tmp_path):
     """Only an installed copy checks, at most once a day; with Update automatically off
     it announces the new version instead of downloading it."""
-    from papermini import update
     from papermini.gui import prefs
     from papermini.gui.window.main_window import MainWindow
+    from papermini.support import update
 
     w = MainWindow()
     try:
@@ -2443,8 +2444,8 @@ def test_update_menu_items(app):
 def test_the_font_field(app):
     """The bundled fonts first, the installed ones once found; a font this computer does
     not have is kept, marked and warned about."""
-    from papermini import fonts
     from papermini.gui.panels.figure_panel import FigurePanel
+    from papermini.support import fonts
 
     p = FigurePanel()
     w = p._w["font"][1]
@@ -2496,9 +2497,9 @@ def test_about_names_the_font_licence(app, monkeypatch):
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import QLabel
 
-    from papermini import fonts
     from papermini.gui.dialogs.about_dialog import AboutDialog
     from papermini.gui.window.main_window import MainWindow
+    from papermini.support import fonts
 
     opened = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
@@ -2521,7 +2522,7 @@ def test_sheet_panel_paper_orientation_and_custom_size(app):
     """Orientation for a named paper, a width and height for Custom (starting at the
     paper chosen before); the mat only when cut by machine, with its warning."""
     from papermini.gui.panels.sheet_panel import SheetPanel
-    from papermini.settings import SheetSettings
+    from papermini.project.sheet_settings import SheetSettings
 
     p = SheetPanel()
     got = []
@@ -2577,7 +2578,7 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
     from papermini.gui.window.main_window import MainWindow
-    from papermini.settings import SheetSettings
+    from papermini.project.sheet_settings import SheetSettings
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
     from PIL import ImageDraw
@@ -2631,7 +2632,7 @@ def test_print_sets_the_paper_size_and_orientation(app, tmp_path, monkeypatch):
     from PySide6.QtGui import QPageLayout
 
     from papermini.gui.window.main_window import MainWindow
-    from papermini.settings import SheetSettings
+    from papermini.project.sheet_settings import SheetSettings
 
     Image.new("RGBA", (300, 450), (200, 40, 30, 255)).save(tmp_path / "hero.png")
     seen = []

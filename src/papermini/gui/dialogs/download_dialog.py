@@ -14,12 +14,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ... import segment
+from ...pipeline.segmentation import segment
 from .model_info import MB, _host, _label, licence_link, ui_log
 
 
 class _Signals(QObject):
-    """What the download thread reports to the dialog."""
+    """Signals the download thread sends to the dialog."""
 
     progress = Signal(int, int)  # done bytes, total bytes (0 = unknown)
     finished = Signal(str)  # "" on success, else the error message

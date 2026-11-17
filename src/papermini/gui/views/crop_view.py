@@ -72,7 +72,7 @@ class CropView(ZoomView):
         self._moved = False  # the press became a drag
         self.viewport().setCursor(Qt.CrossCursor)
 
-    # ----------------------------------------------------------------- image / box
+    # region image / box
     def set_image(self, img: QImage | None, size=None):
         """Show ``img``; ``size`` (w, h) is the original image's, when ``img`` is a smaller
         preview of it: the view keeps working in the original's pixels (crop, outline)."""
@@ -118,7 +118,9 @@ class CropView(ZoomView):
         pm = self._pix_item.pixmap() if self._img_size is not None else None
         return None if pm is None or pm.isNull() else (pm.width(), pm.height())
 
-    # ----------------------------------------------------------------- outline
+    # endregion
+
+    # region outline
     def set_outline(self, contours):
         """Show the detected figure: outer edges and holes as point arrays in image
         pixels, or None (not known yet)."""
@@ -176,7 +178,7 @@ class CropView(ZoomView):
 
     def set_crop(self, crop):
         """Show ``crop`` (fractions/px list or string); ignored while dragging."""
-        from ...segment import parse_crop
+        from ...pipeline.segmentation.segment import parse_crop
 
         if self._img_size is None or self._drag is not None:
             return
@@ -248,7 +250,9 @@ class CropView(ZoomView):
             "l": QPointF(r.left(), c.y()),
         }
 
-    # ----------------------------------------------------------------- hit testing
+    # endregion
+
+    # region hit testing
     def _hit(self, view_pos) -> str:
         """Part of the box under ``view_pos``: a handle name, "move" or "new"."""
         if self._box is None:
@@ -305,7 +309,9 @@ class CropView(ZoomView):
             bottom = p.y()
         return QRectF(QPointF(left, top), QPointF(right, bottom)).normalized()
 
-    # ----------------------------------------------------------------- mouse / keys
+    # endregion
+
+    # region mouse / keys
     def mousePressEvent(self, e):
         pos = e.position().toPoint()
         if e.button() == Qt.MiddleButton:
@@ -389,7 +395,9 @@ class CropView(ZoomView):
             return
         super().keyPressEvent(e)
 
-    # ----------------------------------------------------------------- guidance
+    # endregion
+
+    # region guidance
     def _image_view_rect(self) -> QRectF:
         """The image on screen (view coordinates)."""
         if self._img_size is None:
@@ -480,3 +488,5 @@ class CropView(ZoomView):
             round(r.right() / W, 4),
             round(r.bottom() / H, 4),
         ]
+
+    # endregion

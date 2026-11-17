@@ -69,11 +69,12 @@ def main() -> None:
     import numpy as np
     from PIL import Image
 
-    from papermini import segment
     from papermini.gui import theme
     from papermini.gui.views.drawing import draw_mini
     from papermini.gui.window.main_window import MainWindow
-    from papermini.settings import FigureSettings, build_mini
+    from papermini.pipeline.segmentation import segment
+    from papermini.project.figure_settings import FigureSettings
+    from papermini.project.settings import build_mini
 
     args.out.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
@@ -322,10 +323,10 @@ def main() -> None:
         # cut by machine: the PDF (no cut lines, marks) and its cut file, side by side
         from PySide6.QtSvg import QSvgRenderer
 
-        from papermini import sizes
         from papermini.gui.views.drawing import draw_sheet
-        from papermini.settings import load_project
-        from papermini.sheet import cut_file_svg, pack
+        from papermini.output.sheet import cut_file_svg, pack
+        from papermini.project import sizes
+        from papermini.project.project_files import load_project
 
         proj = load_project(args.project)
         sh = replace(proj.sheet, cut="machine")
@@ -433,7 +434,7 @@ def main() -> None:
 
 def settings_images(mini, piece, bottom, compare, QRectF) -> None:
     """One image per setting in the settings guide: the same piece with different values."""
-    from papermini import sizes
+    from papermini.project import sizes
 
     red, fly = "dragon.webp", "dragon-flying.webp"
     one = {

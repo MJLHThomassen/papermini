@@ -22,10 +22,10 @@ from PySide6.QtWidgets import (
     QGraphicsSimpleTextItem,
 )
 
-from ... import fonts
-from ...geometry import CutPath
-from ...mini import Mini
-from ...sheet import SheetLayout
+from ...output.sheet_layout import SheetLayout
+from ...pipeline.cut_path import CutPath
+from ...pipeline.mini import Mini
+from ...support import fonts
 from .images import pil_to_qimage
 from .paper_item import PaperItem
 
@@ -63,8 +63,6 @@ def print_sheet(printer, lay: SheetLayout, title: str) -> int:
 
 
 PAGE_GAP_MM = 12.0
-
-
 _qt_families: dict = {}
 
 

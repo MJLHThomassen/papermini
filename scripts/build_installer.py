@@ -40,7 +40,7 @@ def find_iscc() -> Path | None:
 def build(version: str, dist: Path, out: Path) -> Path:
     """Build the installer of the app in ``dist``, as ``version``, into ``out``;
     returns the installer."""
-    from papermini import update
+    from papermini.support import update
 
     iscc = find_iscc()
     if iscc is None:

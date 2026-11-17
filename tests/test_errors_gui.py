@@ -18,8 +18,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt, QTimer, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
 
-from papermini import log
-from papermini.settings import FigureSettings
+from papermini.project.figure_settings import FigureSettings
+from papermini.support import log
 
 
 @pytest.fixture(scope="module")
@@ -40,8 +40,8 @@ def app(tmp_path_factory):
 def no_blocking_dialogs(monkeypatch, isolated_model_cache):
     """The default model is "downloaded" (so nothing asks to download it), and the
     window's warnings are not shown (they would wait for a click)."""
-    from papermini import segment
     from papermini.gui.window import main_window
+    from papermini.pipeline.segmentation import segment
 
     path = segment.model_path(segment.DEFAULT_MODEL)
     path.parent.mkdir(parents=True, exist_ok=True)

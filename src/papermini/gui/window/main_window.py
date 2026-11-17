@@ -39,12 +39,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import __version__, fonts, log, remote, segment, sizes
-from ...mini import Mini
-from ...png import write_pngs
-from ...settings import FigureEntry, FigureSettings, Project, load_project, save_project
-from ...sheet import default_cut_file, pack, write_cut_files, write_pdf
-from ...svg import write_svgs
+from ... import __version__
+from ...output.png import write_pngs
+from ...output.sheet import default_cut_file, pack, write_cut_files, write_pdf
+from ...output.svg import write_svgs
+from ...pipeline.mini import Mini
+from ...pipeline.segmentation import segment
+from ...project import sizes
+from ...project.figure_entry import FigureEntry
+from ...project.figure_settings import FigureSettings
+from ...project.project import Project
+from ...project.project_files import load_project, save_project
+from ...support import fonts, log, remote
 from .. import errors, prefs, theme
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.export_dialog import ExportDialog
@@ -70,17 +76,9 @@ from .figure import Figure
 from .signals import Signals
 
 IMAGE_FILTER = remote.IMAGE_FILTER
-
-
 IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
-
-
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
-
-
 update_log = logging.getLogger("papermini.update")
-
-
 ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 
@@ -188,7 +186,7 @@ class MainWindow(QMainWindow):
         self.sig.fonts_found.connect(self.panel.set_installed_fonts)
         threading.Thread(target=self._find_fonts, daemon=True).start()
 
-    # ----------------------------------------------------------------- ui
+    # region ui
     # the workflow, one view per step; any step can be opened at any time
     VIEWS: ClassVar = [
         ("Source", "Step 1: the picture, and the figure found in it"),
@@ -699,7 +697,9 @@ class MainWindow(QMainWindow):
         self.menu_btn.setMenu(m)
         self._sync_sides()
 
-    # ----------------------------------------------------------------- side panels
+    # endregion
+
+    # region side panels
     SIDE_NAMES: ClassVar = {0: "figure list", 2: "settings"}
 
     def side_visible(self, i: int) -> bool:
@@ -778,7 +778,9 @@ class MainWindow(QMainWindow):
             a.setChecked(on)
             a.blockSignals(False)
 
-    # ----------------------------------------------------------------- theme
+    # endregion
+
+    # region theme
     def set_theme(self, mode: str):
         self._theme_mode = mode
         prefs.store().setValue("theme", mode)
@@ -815,7 +817,9 @@ class MainWindow(QMainWindow):
             self._show_mini(fig)  # paper shadow color
         self._sheet_timer.start()
 
-    # ----------------------------------------------------------------- figures
+    # endregion
+
+    # region figures
     def current(self) -> Figure | None:
         r = self.list.currentRow()
         return self.figures[r] if 0 <= r < len(self.figures) else None
@@ -1034,7 +1038,9 @@ class MainWindow(QMainWindow):
                 return self.list.item(i)
         return None
 
-    # ----------------------------------------------------------------- settings
+    # endregion
+
+    # region settings
     def _copies_changed(self, uid, n: int):
         """Copies set on a figure's card: only the sheet changes, nothing rebuilds."""
         fig = self._figure(uid)
@@ -1237,7 +1243,9 @@ class MainWindow(QMainWindow):
             == QMessageBox.Yes
         )
 
-    # ----------------------------------------------------------------- building
+    # endregion
+
+    # region building
     def _is_current(self, uid, key) -> bool:
         """A build is wanted iff it is for the figure's current settings, and the user
         did not cancel its background removal."""
@@ -1451,7 +1459,9 @@ class MainWindow(QMainWindow):
             msg, 0 if msg.endswith("…") or "MB" in msg else 6000
         )
 
-    # ----------------------------------------------------------------- showing
+    # endregion
+
+    # region showing
     def _show_current(self):
         fig = self.current()
         has = fig is not None
@@ -1691,7 +1701,9 @@ class MainWindow(QMainWindow):
             self.tabs.currentIndex()
         ]
 
-    # ----------------------------------------------------------------- export
+    # endregion
+
+    # region export
     def _when_built(self, figs: list[Figure], then) -> None:
         """Build stale figures in the background (UI stays responsive), then ``then()``."""
         todo = [f for f in figs if not f.up_to_date]
@@ -1963,7 +1975,9 @@ class MainWindow(QMainWindow):
         dlg.setOption(QAbstractPrintDialog.PrintPageRange, pages > 1)
         return dlg.exec() == QDialog.Accepted
 
-    # ----------------------------------------------------------------- project
+    # endregion
+
+    # region project
     def open_paths(self, paths):
         """Open a project and/or add images: files, ``file://`` URIs or web links."""
         links = [str(p).strip() for p in paths if remote.is_url(p)]
@@ -1975,7 +1989,9 @@ class MainWindow(QMainWindow):
         for folder in (p for p in paths if p.is_dir()):
             self.add_folder(folder)
 
-    # ----------------------------------------------------------------- recent projects
+    # endregion
+
+    # region recent projects
     def _remember(self, path: Path) -> None:
         """Put the project at the top of Open recent and the start screen's list."""
         prefs.add_recent(path)
@@ -2249,7 +2265,9 @@ class MainWindow(QMainWindow):
         finally:
             self._about = None
 
-    # ----------------------------------------------------------------- events
+    # endregion
+
+    # region events
     def dragEnterEvent(self, e):
         files, links = self._sources(e.mimeData())
         if files or links:
@@ -2259,7 +2277,9 @@ class MainWindow(QMainWindow):
         files, links = self._sources(e.mimeData())
         self.open_paths(files + links)
 
-    # ----------------------------------------------------------------- updates
+    # endregion
+
+    # region updates
     def _make_update_bar(self) -> QFrame:
         """Build the bar under the header that announces a new version or a downloaded
         update, with buttons for the release page and for updating or restarting."""
@@ -2289,7 +2309,7 @@ class MainWindow(QMainWindow):
 
     def _startup_updates(self):
         """At start: offer an update downloaded earlier, or look for one (once a day)."""
-        from ... import update
+        from ...support import update
 
         if update.install_dir() is None:  # run from source: no updates of its own
             return
@@ -2330,7 +2350,7 @@ class MainWindow(QMainWindow):
         ).start()
 
     def _update_job(self, source: str, download: bool):  # on a worker thread
-        from ... import update
+        from ...support import update
 
         try:
             rel = update.latest_release()
@@ -2347,7 +2367,7 @@ class MainWindow(QMainWindow):
         self._download_job(rel, source)
 
     def _download_job(self, rel, source: str):  # on a worker thread
-        from ... import update
+        from ...support import update
 
         last = [0.0]
 
@@ -2485,7 +2505,7 @@ class MainWindow(QMainWindow):
         """Start the helper that installs a downloaded update once papermini has quit."""
         if self._update_ready is None:
             return
-        from ... import update
+        from ...support import update
 
         update_log.info(
             "Installing papermini %s when papermini has closed%s",
@@ -2521,3 +2541,5 @@ class MainWindow(QMainWindow):
             e.accept()
         else:
             e.ignore()
+
+    # endregion

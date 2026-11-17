@@ -13,7 +13,7 @@ import pytest
 def isolated_log(monkeypatch, tmp_path_factory):
     """Every test gets an empty log folder, and leaves no log session, logger level or
     error hook behind."""
-    from papermini import log
+    from papermini.support import log
 
     monkeypatch.setenv(log.LOG_ENV, str(tmp_path_factory.mktemp("papermini-logs")))
     hooks = sys.excepthook, threading.excepthook
@@ -30,7 +30,7 @@ def isolated_model_cache(monkeypatch, tmp_path_factory):
 
     Tests that exercise downloads replace ``segment.download`` or ``urlopen`` with fakes.
     """
-    from papermini import segment
+    from papermini.pipeline.segmentation import segment
 
     monkeypatch.setenv(
         "PAPERMINI_CACHE", str(tmp_path_factory.mktemp("papermini-cache"))
@@ -51,7 +51,7 @@ def no_installed_fonts(monkeypatch):
     """Tests see no installed fonts (only Times and the bundled ones): the system's font
     folders are never scanned. Tests of the scan give ``fonts.font_dirs`` folders of their
     own."""
-    from papermini import fonts
+    from papermini.support import fonts
 
     monkeypatch.setattr(fonts, "font_dirs", list)
     monkeypatch.setattr(fonts, "_installed", None)

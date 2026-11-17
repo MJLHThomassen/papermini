@@ -3,7 +3,7 @@ r"""Create the key pair that signs releases, for the app's automatic updates.
     python scripts/release_key.py [PRIVATE_KEY_FILE]
 
 Writes the private key (base64) to PRIVATE_KEY_FILE, by default
-~/.papermini-release-key, and puts the public key in src/papermini/update.py
+~/.papermini-release-key, and puts the public key in src/papermini/support/update.py
 (PUBLIC_KEY). Then store the private key as the repository secret
 RELEASE_SIGNING_KEY, which the release workflow signs with:
 
@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-UPDATE_PY = ROOT / "src" / "papermini" / "update.py"
+UPDATE_PY = ROOT / "src" / "papermini" / "support" / "update.py"
 
 
 def main() -> None:

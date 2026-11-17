@@ -9,13 +9,15 @@ the same marks, to line up in the cutting machine's software.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import fonts
-from .mini import Mini
+from ..pipeline.mini import Mini
+from ..support import fonts
+from .placement import Placement
+from .sheet_layout import SheetLayout
 
 # paper sizes, portrait (width, height mm), and their names in the app
 PAPER = {
@@ -26,6 +28,7 @@ PAPER = {
     "legal": (215.9, 355.6),
     "tabloid": (279.4, 431.8),
 }
+
 PAPER_LABELS = {
     "a3": "A3 (297 \u00d7 420 mm)",
     "a4": "A4 (210 \u00d7 297 mm)",
@@ -35,11 +38,14 @@ PAPER_LABELS = {
     "tabloid": "Tabloid (11 \u00d7 17 in)",
     "custom": "Custom",
 }
+
 PAPER_CHOICES = tuple(PAPER) + ("custom",)  # "custom": a width and height of its own
 CUSTOM_PAPER_MM = (50.0, 1200.0)  # the smallest and largest side of a custom paper size
 ORIENTATIONS = ("portrait", "landscape")
+
 # cutting mats (width, height mm): a page fits one either way round
 MATS = {"12x12": (304.8, 304.8), "12x24": (304.8, 609.6)}
+
 MAT_LABELS = {
     "12x12": "12 \u00d7 12 in (305 \u00d7 305 mm)",
     "12x24": "12 \u00d7 24 in (305 \u00d7 610 mm)",
@@ -94,29 +100,11 @@ def mat_warning(paper: Paper, orientation: str, mat: str | None) -> str:
 
 
 TITLE = "Paper miniatures"
-INSTRUCTIONS = [
-    "Print at 100% / actual size (no 'fit to page'). Check: the bar below must measure 50 mm.",
-    (
-        "Cut along the solid line and fold along the dashed lines. Square tabs slot into a stand; "
-        "round tabs fold outwards into a base."
-    ),
-]
-INSTRUCTIONS_DOUBLE = (
-    "Double-sided: fold at the top dashed line and glue the halves back to back."
-)
-INSTRUCTIONS_MACHINE = [
-    INSTRUCTIONS[0],
-    "Cut by machine: line up the cut file's marks with these marks. Fold along the dashed lines.",
-]
-INSTRUCTIONS_MACHINE_NO_MARKS = [
-    INSTRUCTIONS[0],
-    "Cut by machine: line up the cut file with this page. Fold along the dashed lines.",
-]
-
 CUT_MODES = ("hand", "machine")  # how the pieces are cut: decides what the PDF holds
 MARKS = ("corners", "silhouette", "none")  # alignment marks for cutting by machine
 MARK_LINE_MM = 0.5  # thickness of the marks
 MARK_CLEAR_MM = 6.0  # the header and the pieces keep this far from the marks
+
 CUT_FILE_STYLE = {
     "cut": ("#ff0000", 0.1),
     "fold": ("#0000ff", 0.1),
@@ -164,62 +152,6 @@ def registration_marks(
         + ell(pw - inset, inset, -1, 1, arm)
         + ell(inset, ph - inset, 1, -1, arm)
     )
-
-
-@dataclass
-class Placement:
-    mini: Mini
-    page: int
-    x: float  # mm, top-left of the piece
-    y: float
-
-
-@dataclass
-class SheetLayout:
-    paper: tuple[float, float]
-    placements: list[Placement]
-    pages: int
-    header_mm: float
-    margin_mm: float = 12.0  # the page margin: where the header and the pieces start
-    cut: str = "hand"  # "hand" (cut lines on the sheet) or "machine"
-    marks: str | None = None  # alignment marks (cut by machine)
-    mark_inset: float = 0.0  # distance of the marks from the paper edges
-    header_x: float = 0.0  # left of the header (right of a top-left mark)
-    header_right: float = 0.0  # right end of the header (left of a top-right mark)
-    paper_name: str = ""  # the paper as messages name it, e.g. "A3 landscape"
-    left_out: list[Mini] = field(
-        default_factory=list
-    )  # too big for the paper (one each)
-
-    def too_big_names(self, names: dict | None = None) -> list[str]:
-        """The names of the figures too big for the paper. ``names``: the figures' names
-        by ``id(mini.art)`` (default: the minis' own)."""
-        names = names or {}
-        return [names.get(id(m.art), m.name) for m in self.left_out]
-
-    @property
-    def machine(self) -> bool:
-        return self.cut == "machine"
-
-    def mark_rects(self) -> list[tuple[float, float, float, float]]:
-        return (
-            registration_marks(self.paper, self.marks, self.mark_inset)
-            if self.marks
-            else []
-        )
-
-    def instructions(self) -> list[str]:
-        double = any(
-            len(p.mini.labels) > 1 or len(p.mini.folds) > 1 for p in self.placements
-        )
-        lines = list(
-            INSTRUCTIONS
-            if not self.machine
-            else INSTRUCTIONS_MACHINE_NO_MARKS
-            if self.marks == "none"
-            else INSTRUCTIONS_MACHINE
-        )
-        return lines + ([INSTRUCTIONS_DOUBLE] if double else [])
 
 
 def _hits(x: float, y: float, w: float, h: float, keep) -> tuple | None:
@@ -350,9 +282,6 @@ def pack(
     )
 
 
-# --------------------------------------------------------------------------- PDF
-
-
 def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
     """The sheet as a PDF. Cut by machine: without cut lines but with alignment marks
     (``write_cut_files`` writes the matching cut files)."""
@@ -464,9 +393,6 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
     c.restoreState()
 
 
-# --------------------------------------------------------------------------- cut files
-
-
 def default_cut_file(pdf: Path) -> Path:
     """The cut file that goes with the sheet ``pdf`` by default: ``name-cut.svg``."""
     pdf = Path(pdf)
@@ -543,9 +469,6 @@ def write_cut_files(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(cut_file_svg(layout, page, folds, title), encoding="utf-8")
     return paths
-
-
-# --------------------------------------------------------------------------- PNG preview
 
 
 def _font(size_px: int, serif: bool = False, path=None):

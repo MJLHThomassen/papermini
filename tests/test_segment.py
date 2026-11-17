@@ -11,8 +11,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini import segment
-from papermini.segment import ModelError, OnnxSegmenter
+from papermini.pipeline.segmentation import segment
+from papermini.pipeline.segmentation.model_error import ModelError
+from papermini.pipeline.segmentation.onnx_segmenter import OnnxSegmenter
 
 
 class FakeInput:

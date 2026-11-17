@@ -5,10 +5,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini import cache
-from papermini.adjust import Adjustments, apply
 from papermini.cli import main
-from papermini.settings import FigureSettings, build_mini
+from papermini.pipeline.adjust import apply
+from papermini.pipeline.adjustments import Adjustments
+from papermini.project.figure_settings import FigureSettings
+from papermini.project.settings import build_mini
+from papermini.support import cache
 
 COLORS = np.array(
     [

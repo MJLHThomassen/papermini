@@ -15,10 +15,11 @@ from PySide6.QtCore import QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from papermini import cli, remote
-from papermini.geometry import CutPath
-from papermini.mini import Mini
-from papermini.settings import load_project
+from papermini import cli
+from papermini.pipeline.cut_path import CutPath
+from papermini.pipeline.mini import Mini
+from papermini.project.project_files import load_project
+from papermini.support import remote
 
 
 def _image(path: Path) -> Path:
@@ -48,7 +49,7 @@ def monsters(tmp_path) -> Path:
     return root
 
 
-# ---------------------------------------------------------------- the folder's images
+# region the folder's images
 def test_natural_order():
     names = ["goblin 10", "Goblin 2", "goblin 1b", "ape"]
     assert sorted(names, key=remote.natural_key) == [
@@ -92,7 +93,10 @@ def test_same_names_get_their_subfolder(monsters):
     assert remote.figure_names(deep, monsters) == ["a-b-x", "c-x", None]
 
 
-# ---------------------------------------------------------------- papermini make FOLDER
+# endregion
+
+
+# region papermini make FOLDER
 @pytest.fixture
 def made(monkeypatch):
     """papermini make without a model: each image becomes a plain square figure."""
@@ -143,7 +147,10 @@ def test_a_project_cannot_list_a_folder(monsters, tmp_path):
         load_project(proj)
 
 
-# ---------------------------------------------------------------- the app
+# endregion
+
+
+# region the app
 @pytest.fixture(scope="module")
 def app(tmp_path_factory):
     # keep the tests away from the user's real preferences
@@ -294,7 +301,8 @@ def test_add_folder_in_the_menu_and_the_figure_list(window):
 
 
 def test_opening_and_saving_count_as_recent(window, tmp_path):
-    from papermini.settings import Project, save_project
+    from papermini.project.project import Project
+    from papermini.project.project_files import save_project
 
     a = tmp_path / "D&D" / "a.yaml"
     a.parent.mkdir()
@@ -381,3 +389,6 @@ def test_preferences_images_page(window, prefs):
     dlg.subfolders.setChecked(False)
     assert prefs.add_subfolders() is False
     dlg.close()
+
+
+# endregion

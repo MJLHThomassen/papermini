@@ -37,7 +37,7 @@ def adjusted_preview(img: QImage, adj) -> QImage:
     """``img`` with the color adjustments ``adj``, for the Source view: at most
     PREVIEW_PX on its longest side, so a slider stays smooth on a large photo (the
     view shows it at the original's size; the print uses the full image)."""
-    from ...adjust import apply
+    from ...pipeline.adjust import apply
 
     if max(img.width(), img.height()) > PREVIEW_PX:
         img = img.scaled(

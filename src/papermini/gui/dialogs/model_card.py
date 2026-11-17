@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QVBoxLayout
 
-from ... import segment
+from ...pipeline.segmentation import segment
 from .model_info import MB, _host, _label, licence_link
 
 if TYPE_CHECKING:

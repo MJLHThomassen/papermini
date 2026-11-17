@@ -1,1 +1,1 @@
-"""The main window and the jobs that build its miniatures."""
+"""This module contains the main window and the jobs that build its miniatures."""
