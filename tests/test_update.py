@@ -144,6 +144,36 @@ def test_only_an_installed_copy_updates_itself(monkeypatch, tmp_path, keys):
     assert update.unsupported() is None
 
 
+def test_a_copy_that_cannot_update_says_why(monkeypatch, tmp_path, keys):
+    monkeypatch.setenv(update.INSTALL_ENV, str(tmp_path / "papermini"))
+    (tmp_path / "papermini").mkdir()
+    monkeypatch.setenv(update.KEY_ENV, keys[1])
+    monkeypatch.setattr(update, "target", lambda: None)
+    reason = update.unsupported()
+    assert reason and "no download of papermini for this computer" in reason
+    monkeypatch.setattr(update, "target", lambda: "windows-x64")
+    monkeypatch.setattr(update.os, "access", lambda path, mode: False)
+    reason = update.unsupported()
+    assert reason and "may not write to" in reason
+
+
+def test_the_folder_a_frozen_app_replaces(monkeypatch, tmp_path):
+    monkeypatch.delenv(update.INSTALL_ENV, raising=False)
+    monkeypatch.setattr(update.sys, "frozen", True, raising=False)
+    exe = tmp_path / "papermini" / "papermini.exe"
+    monkeypatch.setattr(update.sys, "executable", str(exe))
+    monkeypatch.setattr(update.sys, "platform", "win32")
+    assert update.install_dir() == exe.parent.resolve()
+    monkeypatch.setattr(update.sys, "platform", "darwin")
+    app = tmp_path / "papermini.app"
+    monkeypatch.setattr(
+        update.sys, "executable", str(app / "Contents" / "MacOS" / "papermini")
+    )
+    assert update.install_dir() == app.resolve()
+    monkeypatch.setattr(update.sys, "executable", str(exe))  # not in an app bundle
+    assert update.install_dir() is None
+
+
 # endregion
 
 
@@ -166,6 +196,17 @@ def test_verify_takes_only_signed_matching_downloads(tmp_path, keys):
     archive.write_bytes(b"another app")
     with pytest.raises(update.UpdateError, match="checksum"):
         update.verify(sums, sig, archive, public)  # a tampered download
+
+
+def test_verify_refuses_without_a_release_key(monkeypatch, tmp_path, keys):
+    private, _ = keys
+    archive = tmp_path / "papermini-9.9.9-windows-x64.zip"
+    archive.write_bytes(b"the app")
+    sums = f"{hashlib.sha256(b'the app').hexdigest()}  {archive.name}\n".encode()
+    monkeypatch.setattr(update, "PUBLIC_KEY", "")
+    monkeypatch.delenv(update.KEY_ENV, raising=False)
+    with pytest.raises(update.UpdateError, match="No release key"):
+        update.verify(sums, sign(sums, private), archive)
 
 
 # endregion
@@ -193,6 +234,54 @@ def test_download_verifies_and_unpacks(monkeypatch, tmp_path, keys, local_files)
     with pytest.raises(update.UpdateError, match="not signed"):
         update.download(rel)
     assert update.pending() is None
+
+
+@pytest.mark.parametrize("missing", ["archive", update.CHECKSUMS, update.SIGNATURE])
+def test_a_release_missing_a_file_is_refused(
+    monkeypatch, tmp_path, keys, local_files, missing
+):
+    private, public = keys
+    monkeypatch.setenv(update.FEED_ENV, str(fake_release(tmp_path, private)))
+    monkeypatch.setenv(update.KEY_ENV, public)
+    rel = update.latest_release()
+    tgt = update.target()
+    assert tgt  # (fake_release makes the archive for this computer)
+    name = update.asset_name(rel.version, tgt) if missing == "archive" else missing
+    del rel.assets[name]
+    with pytest.raises(update.UpdateError, match=f"has no {name}"):
+        update.download(rel)
+    assert not (update.updates_dir() / rel.version).exists()  # nothing downloaded
+    assert update.pending() is None
+
+
+@pytest.mark.parametrize("suffix", [".zip", ".tar.gz"])
+def test_an_archive_without_papermini_is_refused(tmp_path, suffix):
+    other = tmp_path / "src" / "something-else"
+    other.mkdir(parents=True)
+    (other / "README.txt").write_text("not papermini")
+    archive = tmp_path / f"papermini-9.9.9-test{suffix}"
+    if suffix == ".tar.gz":
+        with tarfile.open(archive, "w:gz") as t:
+            t.add(other, arcname=other.name)
+    else:
+        with zipfile.ZipFile(archive, "w") as z:
+            z.write(other / "README.txt", f"{other.name}/README.txt")
+    with pytest.raises(update.UpdateError, match="does not hold papermini"):
+        update._unpack(archive, tmp_path / "new")
+
+
+def test_a_failed_download_leaves_no_part_file(tmp_path, local_files):
+    source = tmp_path / "source.zip"
+    source.write_bytes(b"x" * 100_000)
+    dest = tmp_path / "downloads" / "papermini.zip"
+    dest.parent.mkdir()
+
+    def fail(done, total):
+        raise OSError("the connection dropped")
+
+    with pytest.raises(update.UpdateError, match="Could not download papermini.zip"):
+        update._fetch(source.as_uri(), dest, 10.0, progress=fail)
+    assert list(dest.parent.iterdir()) == []  # neither the file nor its .part
 
 
 def test_unreachable_feed_is_one_clear_error(monkeypatch):
