@@ -10,7 +10,6 @@ import json
 import subprocess
 import sys
 import tarfile
-import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -316,16 +315,21 @@ def test_helper_installs_once_papermini_has_quit(tmp_path):
     new = tmp_path / "updates" / "9.9.9" / "new" / "papermini"
     new.mkdir(parents=True)
     (new / "app.txt").write_text("new")
-    stand_in = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(3)"])
+    stand_in = subprocess.Popen(  # (runs until its input closes)
+        [sys.executable, "-c", "import sys; sys.stdin.read()"], stdin=subprocess.PIPE
+    )
     _, cmd = update.install_script(new, old, stand_in.pid, restart=False)
-    if sys.platform == "win32":
-        helper = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
-    else:
-        helper = subprocess.Popen(cmd)
-    time.sleep(1)
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    helper = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, text=True, creationflags=flags
+    )
+    reports = helper.stdout
+    assert reports is not None
+    for _ in range(2):  # it finds papermini running, waits, and checks again
+        assert reports.readline().strip() == "waiting"
     assert (old / "app.txt").read_text() == "old"  # papermini still runs: nothing yet
-    stand_in.wait()
-    helper.wait(timeout=60)
+    stand_in.communicate()  # papermini quits
+    helper.communicate(timeout=60)
     assert (old / "app.txt").read_text() == "new"
     assert not (old / "only-old.txt").exists()
     assert not new.parent.exists()  # the download is gone
