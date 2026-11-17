@@ -1496,11 +1496,10 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
 
     assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
+    assert wait(lambda: w.pool.activeThreadCount() == 0, 30)
     w._build_current()  # nothing restarts on its own
-    for _ in range(20):
-        app.processEvents()
-        time.sleep(0.01)
-    assert SlowSegmenter.calls == 2
+    assert fig.queued is None and w.work.button.text() == "Run again"
+    assert w.pool.activeThreadCount() == 0 and SlowSegmenter.calls == 2
 
     SlowSegmenter.block = False
     w.work.button.click()  # Run again
@@ -1644,7 +1643,9 @@ def test_stretched_figure_gets_both_sizes(app, tmp_path, new_window, wait):
 def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
     """Regression: a build waiting for the download question when the window closed
     left the question queued, and a later event loop opened a real dialog for it."""
-    from PySide6.QtCore import QRunnable
+    import threading
+
+    from PySide6.QtCore import QRunnable, Qt
 
     asked = []  # (an exception raised in a Qt slot would only be printed)
 
@@ -1657,15 +1658,21 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
 
     monkeypatch.setattr("papermini.gui.window.main_window.DownloadDialog", Dialog)
     w = new_window()
+    questions = []  # the done event of each question the build asks
+    queued = threading.Event()
+
+    def question(model, answer, done):  # (on the build thread, as it asks)
+        questions.append(done)
+        queued.set()
+
+    w.sig.ask_download.connect(question, Qt.ConnectionType.DirectConnection)
     got = []
     w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
-    time.sleep(0.2)  # the question is queued; the window closes before it is shown
+    assert queued.wait(30)  # the window closes before the question is shown
     w.close()
     assert got == [False]
-    for _ in range(20):  # deliver the stale question: it must be dropped
-        app.processEvents()
-        time.sleep(0.01)
-    assert asked == []
+    app.sendPostedEvents()  # deliver the stale question: it must be dropped
+    assert questions[0].is_set() and asked == []  # (delivered, and no dialog)
 
 
 def test_logo_in_the_header_welcome_card_and_window_icon(app, new_window):
