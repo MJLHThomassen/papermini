@@ -1,4 +1,4 @@
-"""What the model dialogs say about a model: its size, host, labels and licence link."""
+"""Shared labels and texts for the model dialogs."""
 
 from __future__ import annotations
 
@@ -12,8 +12,6 @@ from PySide6.QtWidgets import QLabel
 from ...pipeline.segmentation import segment
 
 ui_log = logging.getLogger("papermini.ui")
-
-
 MB = 1024 * 1024
 
 

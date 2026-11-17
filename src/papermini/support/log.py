@@ -30,20 +30,10 @@ from pathlib import Path
 from .session import Session
 
 LOG_ENV = "PAPERMINI_LOG_DIR"
-
-
 KEEP_DAYS = 30
-
-
 ISSUE_URL = "https://github.com/MJLHThomassen/papermini/issues/new"
-
-
 MAX_URL = 8000  # (GitHub refuses much longer links)
-
-
 CRASH, REPORTED = ".crash.log", ".crash-reported.log"
-
-
 logger = logging.getLogger("papermini")
 
 
@@ -323,8 +313,8 @@ def settings_text(options: dict) -> str:
 
 
 def settings_diff(old, new) -> str:
-    """What changed between two settings dataclasses, such as ``height_mm 42 → 45``, or
-    "" when nothing did."""
+    """The changes between two settings dataclasses, such as ``height_mm 42 → 45``, or
+    "" when nothing changed."""
     from dataclasses import asdict
 
     a, b = asdict(old), asdict(new)

@@ -259,6 +259,11 @@ starting with an "-ing" word ("Starting the desktop app"). Comments explain why
 the code does something that would otherwise surprise a reader. They don't
 repeat what the code already says.
 
+Write docstrings and comments the way a person would say it, in a plain
+sentence: "This module contains shared logic used throughout the app." Don't
+start them with "What", and don't list things that can change, such as the
+features a package holds today.
+
 - Don't describe what a result is used for elsewhere. A docstring doesn't
   explain that its output has a certain shape because a function several calls
   away expects it. Describe what the function does. If a caller depends on a
@@ -274,6 +279,8 @@ repeat what the code already says.
 - Give every module a docstring that says what it holds, unless it holds one
   class. Then the class docstring says what it is, and the module needs none.
 - Give every class a docstring that says briefly what it is.
+- Mark the sections of a long module or class with `# region <name>` and
+  `# endregion`, which editors can fold, not with lines of dashes.
 - Give public functions in the core modules a docstring. A private helper needs
   one only when its name and signature aren't enough.
 

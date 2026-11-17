@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal
 
 
 class Signals(QObject):
-    """What the background jobs report to the main window."""
+    """Signals the background jobs send to the main window."""
 
     update = Signal(
         str, object, str

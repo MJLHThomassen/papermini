@@ -1,1 +1,1 @@
-"""The input widgets of the settings panels."""
+"""This module contains the input widgets of the settings panels."""

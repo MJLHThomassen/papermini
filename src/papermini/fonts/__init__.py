@@ -1,1 +1,1 @@
-"""The bundled font files and their licences."""
+"""This folder holds the fonts that come with papermini, and their licences."""

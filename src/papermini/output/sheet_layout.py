@@ -13,17 +13,14 @@ INSTRUCTIONS = [
     ),
 ]
 
-
 INSTRUCTIONS_DOUBLE = (
     "Double-sided: fold at the top dashed line and glue the halves back to back."
 )
-
 
 INSTRUCTIONS_MACHINE = [
     INSTRUCTIONS[0],
     "Cut by machine: line up the cut file's marks with these marks. Fold along the dashed lines.",
 ]
-
 
 INSTRUCTIONS_MACHINE_NO_MARKS = [
     INSTRUCTIONS[0],

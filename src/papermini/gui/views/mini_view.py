@@ -100,7 +100,7 @@ class MiniView(ZoomView):
             self._handles[name].setPos(pos)
 
     def _hit(self, view_pos) -> str | None:
-        """What a drag from ``view_pos`` would do: a corner, "move", or None (pan)."""
+        """The handle a drag from ``view_pos`` grabs: a corner, "move", or None (pan)."""
         if self._box is None:
             return None
         for name, p in self._corners(self._box).items():

@@ -1,1 +1,1 @@
-"""The pipeline from image to cut path: masks, layout, cut paths, tokens and image adjustments."""
+"""This module turns an image into a miniature's art and cut path."""

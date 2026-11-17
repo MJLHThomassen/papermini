@@ -6,13 +6,8 @@ from ...project import sizes
 
 # value -> what the (editable) model box shows, where they differ
 MODEL_NAMES = {"mask": "mask image file"}
-
-
 MODEL_VALUES = {v: k for k, v in MODEL_NAMES.items()}
-
-
 MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
-
 
 # The steps of the workflow, one view each: the settings panel shows the active
 # step's groups. (step, group title, fields); fields are (field, label, kind, extra) -
@@ -23,10 +18,7 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 # opposite, e.g. no_tab), nolabel=the Label group's switch (off = label ""),
 # reset=a button that puts the listed fields back to their defaults (not a setting)
 STEPS = ["Source", "Miniature", "Print sheet"]
-
-
 SOURCE, MINIATURE, PRINT = range(3)
-
 
 TAB_CHOICES = [
     ("label", "Label"),
@@ -34,13 +26,11 @@ TAB_CHOICES = [
     ("label_number", "Label and number"),
 ]
 
-
 TOKEN_TEXT_CHOICES = [
     ("label", "Label"),
     ("number", "Number"),
     ("label_number", "Label and number"),
 ]  # (off: the group's switch)
-
 
 STEP_HINTS = [
     "Crop the picture first: background removal only looks inside the box.",
@@ -51,11 +41,9 @@ STEP_HINTS = [
     "The paper, the layout and how the pieces are cut.",
 ]
 
-
 TOKEN_STEP_HINT = (
     "How big the token prints, how the figure sits in it, and its ring and text."
 )
-
 
 SECTIONS = [
     (
@@ -250,10 +238,8 @@ SECTIONS = [
     ),
 ]
 
-
 # groups shown inside another group (indented, at its end): sub-group -> group
 SUBSECTIONS = {"Label": "Tab", "Number": "Tab"}
-
 
 # the settings each field sets ("dimensions" sets two, "no_label" is the label "", the
 # Token text switch off is token_text "none"), and the creature size also fills in the
@@ -266,14 +252,11 @@ FIELD_SETTINGS = {
     "token_text_on": ("token_text",),
 }
 
-
 # a token's field that sets the same setting as a mini's (shown for the kind in use)
 TWINS = {"token_label": "label"}
 
-
 # the switches of groups a token can turn off but a mini always has (hidden for a mini)
 TOKEN_SWITCHES = ("token_outline", "token_cut_line")
-
 
 # groups that only one kind of figure has (the others belong to both)
 KIND_SECTIONS = {
@@ -282,7 +265,6 @@ KIND_SECTIONS = {
     "Token": "token",
     "Token text": "token",
 }
-
 
 # kept per figure by "Apply to all"
 PER_IMAGE = {"label", "crop", "mask", "copies", "token_area"}

@@ -20,13 +20,8 @@ from pathlib import Path
 from .font import Font
 
 logger = logging.getLogger("papermini")
-
-
 HERE = Path(__file__).resolve().parent.parent / "fonts"  # the bundled fonts
-
-
 DEFAULT = "Times"
-
 
 # the bundled fonts: name -> (regular, bold or None), relative to HERE
 BUNDLED: dict[str, tuple[str, str | None]] = {
@@ -41,13 +36,8 @@ BUNDLED: dict[str, tuple[str, str | None]] = {
     "Kalam": ("kalam/Kalam-Regular.ttf", "kalam/Kalam-Bold.ttf"),
 }
 
-
 REGULAR_STYLES = ("Regular", "Book", "Normal", "Roman", "Medium")
-
-
 INDEX_VERSION = 1
-
-
 TIMES = Font(DEFAULT, bundled=True)
 
 
@@ -59,7 +49,7 @@ def bundled() -> list[Font]:
     ]
 
 
-# ----------------------------------------------------------------- installed fonts
+# region installed fonts
 def font_dirs() -> list[Path]:
     """The folders where this system keeps its fonts."""
     home = Path.home()
@@ -100,8 +90,6 @@ def _read_name(path: Path) -> tuple[str, str] | None:
 
 
 _lock = threading.Lock()
-
-
 _installed: dict[str, Font] | None = None
 
 
@@ -164,7 +152,10 @@ def _scan() -> dict[str, Font]:
     return out
 
 
-# ----------------------------------------------------------------- finding a font
+# endregion
+
+
+# region finding a font
 def find(name: str) -> Font | None:
     """The font called ``name``, or None when it is not on this computer (Times and the
     bundled fonts always are; looking for an installed one may scan the font folders)."""
@@ -232,3 +223,6 @@ def file_for(name: str, bold: bool = False) -> Path | None:
     """The font file to draw ``name`` with (None for Times)."""
     font, _ = resolve(name)
     return font.bold if bold and font.bold else font.regular
+
+
+# endregion

@@ -29,7 +29,7 @@ class Figure:
         return f"{self.entry.image}|{sorted(d.items())}|bleed={self.bleed_mm}"
 
     def mask_key(self) -> str:
-        """What the background removal depends on: a cancelled run stays cancelled
+        """The settings background removal depends on: a cancelled run stays cancelled
         until one of these changes (other settings do not start the model again)."""
         s = self.entry.settings
         return f"{self.entry.image}|{s.model}|{s.mask}|{s.crop}"

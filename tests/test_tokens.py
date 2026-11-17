@@ -47,7 +47,7 @@ def _token(path, **kw):
     return build_mini(path, s, log=lambda *a: None)
 
 
-# ---------------------------------------------------------------- settings and sizes
+# region settings and sizes
 def test_token_settings_are_checked():
     d = FigureSettings()
     assert (d.kind, d.token_diameter_mm, d.token_border_mm, d.token_text) == (
@@ -134,7 +134,10 @@ def test_an_area_and_its_framing_match():
     assert tok.frame_area(fx, fy, f, (300, 400), 10.5) == pytest.approx(area, abs=1e-3)
 
 
-# ---------------------------------------------------------------- the token
+# endregion
+
+
+# region the token
 def test_a_fitted_figure_stays_inside_the_circle(tmp_path):
     img = _figure(tmp_path / "goblin.png")
     m = _token(img)
@@ -316,7 +319,10 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys):
     assert (tmp_path / "minis" / "tok-3.svg").is_file()
 
 
-# ---------------------------------------------------------------- the app
+# endregion
+
+
+# region the app
 @pytest.fixture(scope="module")
 def app(tmp_path_factory):
     QSettings.setDefaultFormat(QSettings.IniFormat)
@@ -524,3 +530,6 @@ def test_the_start_card_keeps_its_width(app, prefs, tmp_path):
     assert e.sizeHint().width() == e.maximumWidth()
     e.set_recent(paths)
     assert e.sizeHint().width() == e.maximumWidth()
+
+
+# endregion

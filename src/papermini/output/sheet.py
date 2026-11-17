@@ -29,7 +29,6 @@ PAPER = {
     "tabloid": (279.4, 431.8),
 }
 
-
 PAPER_LABELS = {
     "a3": "A3 (297 \u00d7 420 mm)",
     "a4": "A4 (210 \u00d7 297 mm)",
@@ -40,25 +39,17 @@ PAPER_LABELS = {
     "custom": "Custom",
 }
 
-
 PAPER_CHOICES = tuple(PAPER) + ("custom",)  # "custom": a width and height of its own
-
-
 CUSTOM_PAPER_MM = (50.0, 1200.0)  # the smallest and largest side of a custom paper size
-
-
 ORIENTATIONS = ("portrait", "landscape")
-
 
 # cutting mats (width, height mm): a page fits one either way round
 MATS = {"12x12": (304.8, 304.8), "12x24": (304.8, 609.6)}
-
 
 MAT_LABELS = {
     "12x12": "12 \u00d7 12 in (305 \u00d7 305 mm)",
     "12x24": "12 \u00d7 24 in (305 \u00d7 610 mm)",
 }
-
 
 Paper = str | tuple[float, float]  # a paper name, or a custom (width, height) in mm
 
@@ -109,19 +100,10 @@ def mat_warning(paper: Paper, orientation: str, mat: str | None) -> str:
 
 
 TITLE = "Paper miniatures"
-
-
 CUT_MODES = ("hand", "machine")  # how the pieces are cut: decides what the PDF holds
-
-
 MARKS = ("corners", "silhouette", "none")  # alignment marks for cutting by machine
-
-
 MARK_LINE_MM = 0.5  # thickness of the marks
-
-
 MARK_CLEAR_MM = 6.0  # the header and the pieces keep this far from the marks
-
 
 CUT_FILE_STYLE = {
     "cut": ("#ff0000", 0.1),

@@ -13,12 +13,9 @@ from . import sizes
 
 _MEDIUM = sizes.BUILTIN.row(sizes.DEFAULT_SIZE)
 
-
 # what a figure's size fills in; saved projects always write these, so a project says
 # both the size and its values (a token also its diameter)
 SIZE_KEYS = ("size", "height_mm", "tab_radius_mm", "tab_width_mm", "tab_height_mm")
-
-
 KINDS = ("mini", "token")  # a standing miniature or a flat round token
 
 
@@ -226,7 +223,7 @@ class FigureSettings:
         )
 
     def token_options(self) -> tok.TokenOptions:
-        """What a token is made of (kind "token"); the outline uses the margin."""
+        """The token's options (kind "token"); the outline uses the margin."""
         return tok.TokenOptions(
             diameter_mm=self.token_diameter_mm,
             border_mm=self.token_border_mm,

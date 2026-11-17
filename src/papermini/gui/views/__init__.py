@@ -1,1 +1,1 @@
-"""Graphics views: the zoomable viewer, drawing miniatures and sheets in mm, the crop editor."""
+"""This module contains the graphics views of the canvas."""

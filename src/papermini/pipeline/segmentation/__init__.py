@@ -1,1 +1,1 @@
-"""Background removal and its models."""
+"""This module removes the background from an image."""

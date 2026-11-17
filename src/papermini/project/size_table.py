@@ -6,11 +6,7 @@ from typing import Any
 from .size_row import SizeRow
 
 GRID_MM = 25.4  # a 1-inch grid
-
-
 MEDIUM_MM = 32.0  # a "heroic" scale human
-
-
 FIELDS = ("height_mm", "base_mm", "tab_width_mm", "tab_height_mm")
 
 

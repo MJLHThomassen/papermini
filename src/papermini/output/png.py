@@ -17,11 +17,7 @@ from ..pipeline.mini import Mini
 from ..support import fonts
 
 PX_PER_SQUARE = 256  # the default scale: pixels per grid square...
-
-
 DPI = 300  # ...or, sized as printed, this resolution
-
-
 SUPERSAMPLE = 2  # drawn this many times larger, then shrunk (smooth lines and text)
 
 

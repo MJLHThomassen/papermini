@@ -30,10 +30,7 @@ from .model_error import ModelError
 from .onnx_segmenter import OnnxSegmenter
 
 DEFAULT_MODEL = "rmbg-1.4"
-
-
 logger = logging.getLogger("papermini.segment")
-
 
 ONNX_MODELS = {
     "rmbg-1.4": {
@@ -54,7 +51,6 @@ ONNX_MODELS = {
         "post": "minmax",  # stretch the output to 0-1, as BRIA's own pipeline does
     },
 }
-
 
 _BIREFNET = "https://github.com/ZhengPeng7/BiRefNet/releases/download/v1/"
 
@@ -94,16 +90,13 @@ for _name, _title, _about, _mb, _file in (
 
 Box = tuple[int, int, int, int]
 
-
 # Optional callback(done_bytes, total_bytes_or_None, message) for model downloads.
 PROGRESS_HOOK = None
-
 
 # Optional callback(model_name) -> bool, called before a built-in model is downloaded
 # for a build. False refuses the download. The GUI asks the user here and downloads
 # the model itself, with a progress dialog.
 CONFIRM_DOWNLOAD = None
-
 
 # Set to abort a running model download or build (the GUI does this when it closes).
 CANCEL = threading.Event()
@@ -128,11 +121,7 @@ def check_cancel() -> None:
 # RunOptions of the model runs in progress, and the cancellable builds, so another
 # thread can stop them
 _RUNS: set = set()
-
-
 _JOBS: set = set()
-
-
 _RUNS_LOCK = threading.Lock()
 
 
@@ -295,7 +284,8 @@ def non_commercial(model: str) -> bool:
 
 
 def licence_notice(model: str) -> str:
-    """What a user of a non-commercial built-in ``model`` is responsible for, in words."""
+    """Explain in words what a user of a non-commercial built-in ``model`` is responsible
+    for."""
     title = ONNX_MODELS[model]["title"]
     free = " or ".join(s["title"] for s in ONNX_MODELS.values() if s.get("commercial"))
     return (
@@ -372,8 +362,6 @@ def get_segmenter(model: str):
 
 
 _SEGMENTERS: dict = {}
-
-
 _SEGMENTER_LOCK = threading.Lock()
 
 

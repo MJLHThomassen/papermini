@@ -63,6 +63,7 @@ LIGHT = Theme(
     danger="#d64545",
     shadow="#00000028",
 )
+
 DARK = Theme(
     "dark",
     bg="#161618",
@@ -82,8 +83,7 @@ DARK = Theme(
 
 current: Theme = LIGHT
 
-
-# --------------------------------------------------------------------------- icons
+# region icons
 # 24x24 line icons, drawn for papermini (stroke = currentColor)
 ICONS: dict[str, str] = {
     "open": '<path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
@@ -158,7 +158,10 @@ def icon(name: str, color: str | None = None, size: int = 18) -> QIcon:
     return ic
 
 
-# --------------------------------------------------------------------------- logo
+# endregion
+
+
+# region logo
 LOGO = Path(__file__).with_name("logo.svg")  # the full-color dragon
 
 
@@ -185,7 +188,10 @@ def app_icon() -> QIcon:
     return ic
 
 
-# --------------------------------------------------------------------------- apply
+# endregion
+
+
+# region apply
 _ASSETS = Path(tempfile.gettempdir()) / "papermini-theme"
 
 
@@ -424,3 +430,6 @@ QListWidget#PrefNav::item:selected, QListWidget#PresetList::item:selected {{
     border-radius: 4px; }}
 #DownloadDialog QProgressBar::chunk {{ background: {t.accent}; border-radius: 3px; }}
 """
+
+
+# endregion

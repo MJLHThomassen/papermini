@@ -63,8 +63,6 @@ def print_sheet(printer, lay: SheetLayout, title: str) -> int:
 
 
 PAGE_GAP_MM = 12.0
-
-
 _qt_families: dict = {}
 
 

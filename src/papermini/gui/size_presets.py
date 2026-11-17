@@ -8,12 +8,9 @@ from ..project import sizes
 from . import prefs
 
 PRESETS_KEY = "sizes/presets"
-
-
 DEFAULT_KEY = "sizes/default_preset"
 
 
-# ----------------------------------------------------------------- presets
 def user_presets() -> list[sizes.SizeTable]:
     """The user's own size table presets (entries that cannot be read are left out)."""
     text = prefs.store().value(PRESETS_KEY, "", type=str)

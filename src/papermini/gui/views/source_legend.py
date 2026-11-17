@@ -9,7 +9,7 @@ from .crop_style import CROP_COLOR, WASH_ALPHA
 
 
 class SourceLegend(QFrame):
-    """What the marks on the Source view mean, drawn with the same colors: the
+    """A legend for the marks on the Source view, drawn with the same colors: the
     detected outline, the faded background and the crop area. The texts never change
     (how to draw a crop box is the hint on the view itself)."""
 

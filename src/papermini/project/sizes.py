@@ -16,19 +16,10 @@ from .size_row import SizeRow
 from .size_table import GRID_MM, MEDIUM_MM, SizeTable
 
 SIZES = ("tiny", "small", "medium", "large", "huge", "gargantuan")
-
-
 CUSTOM = "custom"
-
-
 SIZE_CHOICES = SIZES + (CUSTOM,)
-
-
 DEFAULT_SIZE = "medium"
-
-
 SQUARES = {"tiny": 0.5, "small": 1, "medium": 1, "large": 2, "huge": 3, "gargantuan": 4}
-
 
 HEIGHT_RATIO = {
     "tiny": 0.5,
@@ -39,14 +30,11 @@ HEIGHT_RATIO = {
     "gargantuan": 2.5,
 }
 
-
 BUILTIN_NAME = "Standard 1-inch"
-
 
 BASE_FIT = (
     25 / 25.4
 )  # bases a little under the grid, so they fit side by side (25 mm per inch)
-
 
 # the figure settings a size fills in
 FILLS = (

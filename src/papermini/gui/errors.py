@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QMessageBox
 from ..support import log
 
 
-# ------------------------------------------------------------ reporting
 def open_log_folder() -> None:
     s = log.session()
     folder = s.log.parent if s else log.log_dir()

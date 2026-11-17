@@ -353,7 +353,7 @@ def add_figure_args(p: argparse.ArgumentParser) -> None:
     )
 
 
-# --------------------------------------------------------------------------- commands
+# region commands
 
 
 def cmd_make(a: argparse.Namespace) -> int:
@@ -742,3 +742,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+# endregion

@@ -49,7 +49,7 @@ def monsters(tmp_path) -> Path:
     return root
 
 
-# ---------------------------------------------------------------- the folder's images
+# region the folder's images
 def test_natural_order():
     names = ["goblin 10", "Goblin 2", "goblin 1b", "ape"]
     assert sorted(names, key=remote.natural_key) == [
@@ -93,7 +93,10 @@ def test_same_names_get_their_subfolder(monsters):
     assert remote.figure_names(deep, monsters) == ["a-b-x", "c-x", None]
 
 
-# ---------------------------------------------------------------- papermini make FOLDER
+# endregion
+
+
+# region papermini make FOLDER
 @pytest.fixture
 def made(monkeypatch):
     """papermini make without a model: each image becomes a plain square figure."""
@@ -144,7 +147,10 @@ def test_a_project_cannot_list_a_folder(monsters, tmp_path):
         load_project(proj)
 
 
-# ---------------------------------------------------------------- the app
+# endregion
+
+
+# region the app
 @pytest.fixture(scope="module")
 def app(tmp_path_factory):
     # keep the tests away from the user's real preferences
@@ -383,3 +389,6 @@ def test_preferences_images_page(window, prefs):
     dlg.subfolders.setChecked(False)
     assert prefs.add_subfolders() is False
     dlg.close()
+
+
+# endregion

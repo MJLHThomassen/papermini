@@ -1,1 +1,1 @@
-"""Sheet packing and the SVG, PNG and PDF writers."""
+"""This module packs miniatures onto sheets and writes them to files."""

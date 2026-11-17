@@ -1,1 +1,1 @@
-"""Options, project files and creature sizes."""
+"""This module contains the settings of a project and its figures."""

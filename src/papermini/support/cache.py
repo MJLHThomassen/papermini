@@ -19,23 +19,11 @@ from pathlib import Path
 from .lru import LRU
 
 MB = 1 << 20
-
-
 images = LRU(400 * MB)
-
-
 raw_masks = LRU(200 * MB)
-
-
 clean_masks = LRU(200 * MB)
-
-
 working = LRU(300 * MB)
-
-
 adjusted = LRU(200 * MB)  # the working picture with color adjustments
-
-
 layouts = LRU(300 * MB)
 
 

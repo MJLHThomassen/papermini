@@ -37,23 +37,13 @@ from .release import Release
 from .update_error import UpdateError
 
 REPO = "MJLHThomassen/papermini"
-
-
 LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
-
-
 CHECKSUMS = "SHA256SUMS.txt"
-
-
 SIGNATURE = CHECKSUMS + ".sig"
-
 
 # the release workflow's public signing key, base64 (scripts/release_key.py sets it)
 PUBLIC_KEY = "1tcgNayNKgRQi2eWKy0RMuAC4vx9R/ovBGmproIi0AQ="
-
-
 READY = "READY"  # marks a downloaded, verified and unpacked update
-
 
 FEED_ENV, KEY_ENV, INSTALL_ENV = (
     "PAPERMINI_UPDATE_FEED",
@@ -152,7 +142,7 @@ def installed_with_setup() -> bool:
 
 
 def install_dir() -> Path | None:
-    """What an update replaces: the app's folder (Windows, Linux) or papermini.app
+    """The folder an update replaces: the app's folder (Windows, Linux) or papermini.app
     (macOS). None when papermini runs from source (unless a test sets a pretend one)."""
     pretend = os.environ.get(INSTALL_ENV, "").strip()
     if pretend:

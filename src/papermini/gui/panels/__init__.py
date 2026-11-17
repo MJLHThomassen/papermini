@@ -1,1 +1,1 @@
-"""The settings panels: per-figure options and sheet options."""
+"""This module contains the settings panels."""

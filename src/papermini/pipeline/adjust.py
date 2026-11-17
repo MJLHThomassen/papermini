@@ -20,19 +20,13 @@ RANGES = {
     "hue": (-180, 180),
 }
 
-
 # RGB <-> YIQ: rotating I and Q turns the hue while keeping the brightness (Y)
 _YIQ = np.array(
     [[0.299, 0.587, 0.114], [0.596, -0.274, -0.322], [0.211, -0.523, 0.312]], np.float32
 )
 
-
 _RGB = np.linalg.inv(_YIQ).astype(np.float32)
-
-
 _LUMA = np.array([0.299, 0.587, 0.114], np.float32)
-
-
 _ROWS = 256  # rows per chunk, so a large image never needs a full float copy
 
 

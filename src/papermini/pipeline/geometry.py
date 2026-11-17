@@ -219,8 +219,6 @@ def _overlap_matters(cut: np.ndarray, sil: np.ndarray, tab, fillet_px: float) ->
 
 
 MARGIN_FILLS = ("color", "image")
-
-
 TAB_SHAPES = ("square", "round")
 
 

@@ -15,10 +15,7 @@ from .dialogs.error_dialog import ErrorDialog
 from .errors import report_problem
 
 logger = logging.getLogger("papermini.error")
-
-
 qt_logger = logging.getLogger("papermini.qt")
-
 
 _QT_LEVELS = {
     QtMsgType.QtWarningMsg: logging.WARNING,
@@ -55,7 +52,7 @@ class ErrorHandler:
     def started(self, window) -> None:
         self.window, self.starting = window, False
 
-    # ------------------------------------------------------------ catching
+    # region catching
     def _excepthook(self, etype, value, tb):
         if issubclass(etype, KeyboardInterrupt):
             return sys.__excepthook__(etype, value, tb)
@@ -86,7 +83,9 @@ class ErrorHandler:
         summary = f"{etype.__name__}: {value}".strip().rstrip(":")
         self.reporter.error.emit(f"{etype.__name__}@{place}", summary, details)
 
-    # ------------------------------------------------------------ the dialog
+    # endregion
+
+    # region the dialog
     def _show(self, key: str, summary: str, details: str) -> None:
         if self.showing or (key in self.shown and not self.starting):
             return  # (it is in the log)
@@ -105,6 +104,8 @@ class ErrorHandler:
         if quit_:
             log.stop()
             os._exit(1)
+
+    # endregion
 
 
 _handler: ErrorHandler | None = None

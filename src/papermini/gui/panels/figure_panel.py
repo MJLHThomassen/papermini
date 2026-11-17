@@ -377,7 +377,7 @@ class FigurePanel(QScrollArea):
         if hasattr(self, "size_field"):
             self.size_field.refresh_icons()
 
-    # ----------------------------------------------------------------- widgets
+    # region widgets
     def _make(self, name: str, kind: str, extra):
         if kind == "f":
             lo, hi, step, dec, suffix = extra
@@ -503,7 +503,9 @@ class FigurePanel(QScrollArea):
             edit.setText(f)
             self._emit()
 
-    # ----------------------------------------------------------------- values
+    # endregion
+
+    # region values
     def set_settings(self, s: FigureSettings, title: str = "", stem: str = ""):
         self._loading = True
         try:
@@ -621,7 +623,7 @@ class FigurePanel(QScrollArea):
 
     @staticmethod
     def auto_method_text(method: str) -> str:
-        """What model "auto" picked for a figure, in words (the Mini's ``method``)."""
+        """Describe in words which model "auto" picked for a figure (the Mini's ``method``)."""
         if method == "alpha":
             chosen = "the image's own transparency"
         elif method == "mask":
@@ -638,7 +640,9 @@ class FigurePanel(QScrollArea):
             self.auto_hint.setText(self.auto_method_text(method))
         self._sync_auto_hint()
 
-    # ----------------------------------------------------------------- fonts
+    # endregion
+
+    # region fonts
     def _add_font(self, w: QComboBox, name: str, missing: bool = False) -> None:
         w.addItem(f"{name} (not on this computer)" if missing else name, name)
         if not missing:  # (each font shown in itself)
@@ -906,6 +910,8 @@ class FigurePanel(QScrollArea):
         if new != self._s:
             self._s = new
             self.changed.emit(new)
+
+    # endregion
 
 
 def _crop_text(crop) -> str:

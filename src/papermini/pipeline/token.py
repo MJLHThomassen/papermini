@@ -38,27 +38,18 @@ from .token_info import TokenInfo
 from .token_options import TokenOptions
 
 TOKEN_FILLS = ("color", "image")  # behind the figure: a color, or the picture
-
-
 TOKEN_TEXTS = ("none", "label", "number", "label_number")
-
-
 TOKEN_TEXT_STYLES = ("nameplate", "curved")
-
 
 FIT_FREE = (
     0.08  # a fitted figure leaves this share of the inner diameter free on each side
 )
 
-
 PX_PER_MM = (
     16.0  # working resolution of a token (about 400 dpi; the art is resized to dpi)
 )
 
-
 PLATE = 1.35  # the nameplate's height, as a multiple of the text size
-
-
 BADGE = 1.35  # the number badge's radius, as a multiple of the text size
 
 

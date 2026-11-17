@@ -21,13 +21,8 @@ from PIL import Image
 
 # image types papermini reads (Pillow and Qt both handle these)
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
-
-
 IMAGE_FILTER = "Images (" + " ".join("*" + e for e in IMAGE_EXT) + ")"
-
-
 READABLE = "PNG, JPG, WebP, BMP and TIFF"
-
 
 _EXT_FOR = {
     "PNG": ".png",
@@ -37,7 +32,6 @@ _EXT_FOR = {
     "BMP": ".bmp",
     "TIFF": ".tif",
 }
-
 
 MAX_BYTES = (
     100 << 20

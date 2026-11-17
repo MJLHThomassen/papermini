@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SizeRow:
-    """What one size fills in: the figure height, the round base's diameter (also a
+    """The values one size fills in: the figure height, the round base's diameter (also a
     token's diameter) and the stand tab (square tab) width and height, in mm."""
 
     height_mm: float

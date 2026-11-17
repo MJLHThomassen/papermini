@@ -96,7 +96,7 @@ def fake_release(tmp_path: Path, private: str, version: str = "9.9.9") -> Path:
     return feed
 
 
-# --------------------------------------------------------------------------- versions
+# region versions
 
 
 def test_versions():
@@ -144,7 +144,10 @@ def test_only_an_installed_copy_updates_itself(monkeypatch, tmp_path, keys):
     assert update.unsupported() is None
 
 
-# --------------------------------------------------------------------------- verify
+# endregion
+
+
+# region verify
 
 
 def test_verify_takes_only_signed_matching_downloads(tmp_path, keys):
@@ -165,7 +168,10 @@ def test_verify_takes_only_signed_matching_downloads(tmp_path, keys):
         update.verify(sums, sig, archive, public)  # a tampered download
 
 
-# --------------------------------------------------------------------------- download
+# endregion
+
+
+# region download
 
 
 def test_download_verifies_and_unpacks(monkeypatch, tmp_path, keys, local_files):
@@ -205,7 +211,10 @@ def test_old_downloads_are_forgotten(monkeypatch):
     assert update.pending()[0] == "99.0.0"
 
 
-# --------------------------------------------------------------------------- install
+# endregion
+
+
+# region install
 
 
 def test_helper_installs_once_papermini_has_quit(tmp_path):
@@ -233,7 +242,10 @@ def test_helper_installs_once_papermini_has_quit(tmp_path):
     assert not new.parent.exists()  # the download is gone
 
 
-# --------------------------------------------------------------------------- scripts
+# endregion
+
+
+# region scripts
 
 
 def test_sign_release_checks_the_apps_key(monkeypatch, tmp_path, keys):
@@ -298,7 +310,10 @@ def test_helper_restarts_papermini_itself(tmp_path):
         assert '/papermini" &' in text
 
 
-# --------------------------------------------------------------------------- installer
+# endregion
+
+
+# region installer
 
 
 def test_only_the_installed_folder_updates_with_the_installer(monkeypatch, tmp_path):
@@ -391,3 +406,6 @@ def test_helper_runs_the_installer_silently(tmp_path):
     assert f'"{setup}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART' in text
     assert "Robocopy" not in text  # (the installer replaces the files)
     assert 'start "" "' in text  # Restart now: start papermini after it
+
+
+# endregion

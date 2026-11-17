@@ -10,7 +10,7 @@ CURVED_TEXT = (
 
 @dataclass(frozen=True)
 class TokenOptions:
-    """What a token is made of (see ``FigureSettings`` for each option's meaning)."""
+    """The options a token is made from (see ``FigureSettings`` for each one's meaning)."""
 
     diameter_mm: float = 25.0
     border_mm: float = 2.0

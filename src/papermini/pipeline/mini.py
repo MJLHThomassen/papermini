@@ -26,7 +26,6 @@ from .text_item import TextItem
 
 TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
 
-
 NUMBER_PLACEHOLDER = (
     "#"  # a figure's number where no copy number is known (the preview)
 )

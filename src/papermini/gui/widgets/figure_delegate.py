@@ -7,11 +7,7 @@ from PySide6.QtWidgets import QSpinBox, QStyle, QStyledItemDelegate, QToolTip
 from .. import theme
 
 SUBTITLE_ROLE = Qt.UserRole + 1
-
-
 COPIES_ROLE = Qt.UserRole + 2  # copies on the sheet (None: no copies control)
-
-
 MAX_COPIES = 999
 
 

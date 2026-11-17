@@ -1,1 +1,1 @@
-"""What the other areas share: the cache, fonts, logging, links and updates."""
+"""This module contains shared logic used throughout the app."""

@@ -25,7 +25,6 @@ from .page_parts import _hint, _page_title
 from .sizes_page import SizesPage
 
 
-# ----------------------------------------------------------------- the window
 class PreferencesDialog(QDialog):
     """The Preferences window for ``window`` (the main window), opened at ``page``."""
 

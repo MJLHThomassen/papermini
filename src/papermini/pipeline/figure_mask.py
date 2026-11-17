@@ -8,7 +8,7 @@ from PIL import Image
 
 @dataclass
 class FigureMask:
-    """What background removal found in an image, for a mini or a token: the image, its
+    """The result of background removal for an image, for a mini or a token: the image, its
     pixels (RGB, or premultiplied RGBA), the clean 0/255 figure mask at the image's size,
     its outline, and how it was found."""
 
