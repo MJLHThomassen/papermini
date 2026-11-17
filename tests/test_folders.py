@@ -1,37 +1,25 @@
 """Adding a folder of images (in the app and with papermini make) and the recent projects.
 Off-screen, no model."""
 
-import os
 from pathlib import Path
 
-import numpy as np
 import pytest
-from PIL import Image
 
 pytest.importorskip("PySide6")
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from papermini import cli
-from papermini.pipeline.cut_path import CutPath
-from papermini.pipeline.mini import Mini
 from papermini.project.project_files import load_project
 from papermini.support import remote
 
-
-def _image(path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    im = np.full((120, 80, 3), 255, np.uint8)
-    im[20:100, 20:60] = 40
-    Image.fromarray(im).save(path)
-    return path
+pytestmark = pytest.mark.usefixtures("no_builds")  # (no model in these tests)
 
 
 @pytest.fixture
-def monsters(tmp_path) -> Path:
+def monsters(tmp_path, figure_image) -> Path:
     """A folder with images directly in it and in subfolders, two files with the same
     name in different subfolders, a hidden folder and files that are not images."""
     root = tmp_path / "Monsters"
@@ -43,7 +31,7 @@ def monsters(tmp_path) -> Path:
         "orcs/leader.webp",
         ".hidden/x.png",
     ):
-        _image(root / rel)
+        figure_image(root / rel, (80, 120), mask=False)
     (root / "notes.txt").write_text("not an image")
     (root / "orcs" / "readme.md").write_text("not an image")
     return root
@@ -98,16 +86,13 @@ def test_same_names_get_their_subfolder(monsters):
 
 # region papermini make FOLDER
 @pytest.fixture
-def made(monkeypatch):
+def made(monkeypatch, square_mini):
     """papermini make without a model: each image becomes a plain square figure."""
     built = []
 
     def fake_build(img, s, **k):
         built.append(Path(img))
-        sq = CutPath(np.array([[0, 0], [20, 0], [20, 30], [0, 30]], float))
-        return Mini(
-            Path(img).stem, 20.0, 30.0, Image.new("RGBA", (80, 120), (0, 0, 0, 255)), sq
-        )
+        return square_mini(Path(img).stem, 20.0, 30.0, px_per_mm=4)
 
     monkeypatch.setattr(cli, "build_mini", fake_build)
     return built
@@ -151,44 +136,6 @@ def test_a_project_cannot_list_a_folder(monsters, tmp_path):
 
 
 # region the app
-@pytest.fixture(scope="module")
-def app(tmp_path_factory):
-    # keep the tests away from the user's real preferences
-    QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(
-        QSettings.IniFormat,
-        QSettings.UserScope,
-        str(tmp_path_factory.mktemp("settings")),
-    )
-    return QApplication.instance() or QApplication([])
-
-
-@pytest.fixture
-def prefs(app):
-    from papermini.gui import prefs
-
-    prefs.store().clear()
-    yield prefs
-    prefs.store().clear()
-
-
-@pytest.fixture
-def window(prefs, monkeypatch):
-    """The main window; figures fail to build at once (no model in these tests)."""
-    from papermini.gui.window import build_job
-    from papermini.gui.window import main_window as window_mod
-
-    monkeypatch.setattr(
-        build_job,
-        "build_mini",
-        lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
-    )
-    w = window_mod.MainWindow()
-    yield w
-    w._modified = False  # (no "Save changes?" question)
-    w.close()
-
-
 def _projects(tmp_path, *names):
     paths = []
     for n in names:

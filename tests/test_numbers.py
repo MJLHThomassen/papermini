@@ -1,10 +1,7 @@
 """Numbered copies: numbers on the tabs and the back, one number per copy on the sheet and
 one SVG file per copy."""
 
-import cv2
-import numpy as np
 import pytest
-from PIL import Image
 
 from papermini.cli import main
 from papermini.output.sheet import pack, write_pdf, write_previews
@@ -16,14 +13,9 @@ from papermini.project.settings import build_mini
 
 
 @pytest.fixture
-def figure(tmp_path):
+def figure(tmp_path, figure_image):
     """A dark figure on white, plus its mask."""
-    im = np.full((600, 400, 3), 255, np.uint8)
-    cv2.rectangle(im, (120, 100), (280, 520), (40, 40, 40), -1)
-    mask = np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)
-    Image.fromarray(im).save(tmp_path / "goblin.png")
-    Image.fromarray(mask).save(tmp_path / "goblin_mask.png")
-    return tmp_path / "goblin.png", tmp_path / "goblin_mask.png"
+    return figure_image(tmp_path / "goblin.png")
 
 
 def _mini(figure, **settings):

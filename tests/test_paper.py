@@ -3,9 +3,7 @@ figures too big for the paper."""
 
 import re
 
-import numpy as np
 import pytest
-from PIL import Image
 
 from papermini.cli import main
 from papermini.output.sheet import (
@@ -19,18 +17,9 @@ from papermini.output.sheet import (
     write_pdf,
 )
 from papermini.output.svg import write_svg
-from papermini.pipeline.cut_path import CutPath
-from papermini.pipeline.mini import Mini
 from papermini.project.project import Project
 from papermini.project.project_files import load_project, save_project
 from papermini.project.sheet_settings import SheetSettings
-
-
-def _mini(name="m", w=30.0, h=40.0) -> Mini:
-    sq = CutPath(np.array([[0, 0], [w, 0], [w, h], [0, h]], float))
-    return Mini(
-        name, w, h, Image.new("RGBA", (int(w * 4), int(h * 4)), (200, 40, 30, 255)), sq
-    )
 
 
 def _media_box_mm(pdf) -> tuple:
@@ -76,8 +65,8 @@ def test_mats_fit_either_way_round():
     )
 
 
-def test_pack_uses_the_page_size():
-    m = _mini(w=100, h=150)
+def test_pack_uses_the_page_size(square_mini):
+    m = square_mini(w=100, h=150)
     assert pack([(m, 2)], "a4").pages == 2  # (two side by side are wider than A4)
     lay = pack([(m, 2)], "a4", orientation="landscape")
     assert (
@@ -91,8 +80,12 @@ def test_pack_uses_the_page_size():
         pack([(m, 1)], (150, 160))
 
 
-def test_figures_too_big_for_the_paper_can_be_left_out():
-    big, small, wide = _mini("big", 100, 250), _mini("small"), _mini("wide", 200, 40)
+def test_figures_too_big_for_the_paper_can_be_left_out(square_mini):
+    big, small, wide = (
+        square_mini("big", 100, 250),
+        square_mini("small"),
+        square_mini("wide", 200, 40),
+    )
     lay = pack([(big, 3), (small, 2), (wide, 1)], "a4", leave_out=True)
     assert lay.too_big_names() == ["big", "wide"]  # one entry per figure
     assert [p.mini.name for p in lay.placements] == ["small", "small"]
@@ -101,7 +94,8 @@ def test_figures_too_big_for_the_paper_can_be_left_out():
     assert lay.placements == [] and lay.pages == 0 and lay.too_big_names() == ["big"]
     assert pack([(small, 1)], "a4", leave_out=True).left_out == []
     # cut by machine, a piece that only the alignment marks keep off the page
-    tall = _mini("tall", 210 - 24, 297 - 24 - 24)  # (the page between the margins)
+    # (the page between the margins)
+    tall = square_mini("tall", 210 - 24, 297 - 24 - 24)
     with pytest.raises(ValueError, match="between the alignment marks"):
         pack([(tall, 1)], "a4", cut="machine")
     assert pack([(tall, 1)], "a4", cut="machine", leave_out=True).too_big_names() == [
@@ -151,8 +145,8 @@ def test_sheet_settings_paper_options(tmp_path):
         assert yaml.safe_load(path.read_text(encoding="utf-8")).get("sheet") == written
 
 
-def test_cli_paper(tmp_path, capsys):
-    svg = write_svg(_mini("goblin", 60, 90), tmp_path / "goblin.svg")
+def test_cli_paper(tmp_path, capsys, square_mini):
+    svg = write_svg(square_mini("goblin", 60, 90), tmp_path / "goblin.svg")
     for args, size, name in (
         (["--paper", "a3", "--orientation", "landscape"], (420, 297), "A3 landscape"),
         (
@@ -200,8 +194,8 @@ def test_cli_paper(tmp_path, capsys):
             main(["sheet", str(svg), "-o", str(tmp_path / "x.pdf")] + args)
 
 
-def test_marks_and_cut_files_follow_the_page(tmp_path):
-    lay = pack([(_mini(), 1)], "a3", cut="machine", orientation="landscape")
+def test_marks_and_cut_files_follow_the_page(tmp_path, square_mini):
+    lay = pack([(square_mini("m"), 1)], "a3", cut="machine", orientation="landscape")
     rects = lay.mark_rects()
     assert max(x + w for x, y, w, h in rects) == pytest.approx(420 - 12)
     assert max(y + h for x, y, w, h in rects) == pytest.approx(297 - 12)

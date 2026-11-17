@@ -408,7 +408,11 @@ about 2,400 lines.
 - Files go in temporary folders, never in the repository or the user's home
   folder.
 - Preferences go through `gui.prefs.store()` (G2).
-- GUI tests run off-screen.
+- GUI tests run off-screen. `tests/conftest.py` gives them preferences in a
+  temporary folder, cleared before each test, and deletes the windows a test
+  leaves behind. Open windows with its `window` or `new_window` fixture.
+- Change global state with `monkeypatch`, so that it is restored even when a
+  test fails.
 
 ### T5. The whole suite passes before a change is finished
 

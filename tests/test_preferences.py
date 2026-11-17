@@ -4,61 +4,16 @@ figures that follow it, and the other pages. Off-screen, no model."""
 import json
 from dataclasses import replace
 
-import numpy as np
 import pytest
-from PIL import Image
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+
+pytest.importorskip("PySide6")
+
+from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from papermini.project import sizes
 from papermini.project.figure_settings import FigureSettings
 
-
-@pytest.fixture(scope="module")
-def app(tmp_path_factory):
-    from PySide6.QtCore import QSettings
-
-    # keep the tests away from the user's real preferences
-    QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(
-        QSettings.IniFormat,
-        QSettings.UserScope,
-        str(tmp_path_factory.mktemp("settings")),
-    )
-    return QApplication.instance() or QApplication([])
-
-
-@pytest.fixture(autouse=True)
-def no_presets(app):
-    """Every test starts without presets of its own."""
-    from papermini.gui import prefs
-
-    prefs.store().remove("sizes")
-    yield
-    prefs.store().remove("sizes")
-
-
-@pytest.fixture
-def window(app, monkeypatch):
-    """The main window; figures fail to build at once (no model in these tests)."""
-    from papermini.gui.window import build_job
-    from papermini.gui.window import main_window as window_mod
-
-    monkeypatch.setattr(
-        build_job,
-        "build_mini",
-        lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
-    )
-    w = window_mod.MainWindow()
-    yield w
-    w._modified = False  # (no "Save changes?" question)
-    w.close()
-
-
-def _image(path):
-    im = np.full((300, 200, 3), 255, np.uint8)
-    im[60:240, 50:150] = 40
-    Image.fromarray(im).save(path)
-    return path
+pytestmark = pytest.mark.usefixtures("no_builds")  # (no model in these tests)
 
 
 def _names(page):
@@ -221,15 +176,17 @@ def test_a_project_table_that_matches_no_preset(app, monkeypatch):
     assert page.project_table() == sizes.BUILTIN
 
 
-def test_closing_preferences_gives_the_project_its_table(window, tmp_path, monkeypatch):
+def test_closing_preferences_gives_the_project_its_table(
+    window, tmp_path, monkeypatch, figure_image
+):
     from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     w = window
     w.add_images(
         [
-            _image(tmp_path / "a.png"),
-            _image(tmp_path / "b.png"),
-            _image(tmp_path / "c.png"),
+            figure_image(tmp_path / "a.png", (200, 300), mask=False)[0],
+            figure_image(tmp_path / "b.png", (200, 300), mask=False)[0],
+            figure_image(tmp_path / "c.png", (200, 300), mask=False)[0],
         ]
     )
     big, small, own = w.figures
@@ -266,9 +223,11 @@ def test_a_new_project_starts_with_the_default_preset(window):
     assert window.project.sizes == mine
 
 
-def test_picking_a_size_fills_in_and_an_edit_makes_it_custom(window, tmp_path):
+def test_picking_a_size_fills_in_and_an_edit_makes_it_custom(
+    window, tmp_path, figure_image
+):
     w = window
-    w.add_images([_image(tmp_path / "a.png")])
+    w.add_images([figure_image(tmp_path / "a.png", (200, 300), mask=False)[0]])
     fig = w.current()
     assert fig.entry.settings.size == "medium" and fig.entry.settings.height_mm == 32
     combo = w.panel._w["size"][1]
@@ -292,9 +251,12 @@ def test_picking_a_size_fills_in_and_an_edit_makes_it_custom(window, tmp_path):
     assert combo.currentData() == "custom" and w.panel.size_hint.isHidden()
 
 
-def test_the_width_warning(window, tmp_path):
+def test_the_width_warning(window, tmp_path, figure_image):
     w = window
-    w.add_images([_image(tmp_path / "a.png")], sizes.apply(FigureSettings(), "large"))
+    w.add_images(
+        [figure_image(tmp_path / "a.png", (200, 300), mask=False)[0]],
+        sizes.apply(FigureSettings(), "large"),
+    )
     w.panel.set_figure_width(96)
     assert not w.panel.size_warning.isHidden()
     assert (

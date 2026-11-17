@@ -2,8 +2,6 @@
 SVG and PNG output, the command line and the print sheet, and the app. No model: the
 test images carry their own transparency."""
 
-import os
-import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -12,11 +10,10 @@ import pytest
 from PIL import Image, ImageDraw
 
 pytest.importorskip("PySide6")
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog
+from PySide6.QtWidgets import QFileDialog
 
 from papermini import cli
 from papermini.output.png import piece_image, px_per_mm, write_pngs
@@ -371,42 +368,10 @@ def test_a_token_filled_with_the_picture(tmp_path):
 
 
 # region the app
-@pytest.fixture(scope="module")
-def app(tmp_path_factory):
-    QSettings.setDefaultFormat(QSettings.IniFormat)
-    QSettings.setPath(
-        QSettings.IniFormat,
-        QSettings.UserScope,
-        str(tmp_path_factory.mktemp("settings")),
-    )
-    return QApplication.instance() or QApplication([])
-
-
 @pytest.fixture
-def prefs(app):
-    from papermini.gui import prefs
-
-    prefs.store().clear()
-    yield prefs
-    prefs.store().clear()
-
-
-def _wait(app, cond, timeout=60):
-    end = time.time() + timeout
-    while time.time() < end:
-        app.processEvents()
-        if cond():
-            return True
-        time.sleep(0.02)
-    return False
-
-
-@pytest.fixture
-def window(app, prefs, tmp_path):
-    """The main window with one token figure, built, in the Miniature step."""
-    from papermini.gui.window.main_window import MainWindow
-
-    w = MainWindow()
+def window(window, wait, tmp_path):
+    """The shared main window with one token figure, built, in the Miniature step."""
+    w = window
     w.resize(1300, 820)
     w.add_images(
         [_figure(tmp_path / "goblin.png")],
@@ -414,15 +379,13 @@ def window(app, prefs, tmp_path):
     )
     w.list.setCurrentRow(0)
     w.tabs.setCurrentIndex(w.MINI)
-    assert _wait(app, lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
-    yield w
-    w._modified = False
-    w.close()
+    assert wait(lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
+    return w
 
 
-def _built(app, w):
+def _built(wait, w):
     f = w.figures[0]
-    assert _wait(app, lambda: f.mini is not None and f.up_to_date)
+    assert wait(lambda: f.mini is not None and f.up_to_date)
     return f.mini
 
 
@@ -468,7 +431,7 @@ def test_kind_switches_the_groups(app, prefs):
     assert got[-1].kind == "mini" and "Back side" in shown()
 
 
-def test_drag_a_token_figure(app, window):
+def test_drag_a_token_figure(app, window, wait):
     from papermini.gui.views.mini_view import MiniView
 
     w = window
@@ -484,7 +447,7 @@ def test_drag_a_token_figure(app, window):
     assert v._preview is not None  # the figure moves with the mouse
     QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
     assert w.figures[0].entry.settings.token_area is not None
-    m = _built(app, w)
+    m = _built(wait, w)
     b = m.token.figure_box
     assert (b[0] - b0[0], b[1] - b0[1]) == pytest.approx((3, 2), abs=0.15)
     # a corner makes it bigger around the box's centre
@@ -493,7 +456,7 @@ def test_drag_a_token_figure(app, window):
     QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
     QTest.mouseMove(v.viewport(), pb)
     QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
-    b1 = _built(app, w).token.figure_box
+    b1 = _built(wait, w).token.figure_box
     assert b1[2] - b1[0] > b[2] - b[0]
     assert ((b1[0] + b1[2]) / 2, (b1[1] + b1[3]) / 2) == pytest.approx(
         ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2), abs=0.15

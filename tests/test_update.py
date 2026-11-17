@@ -52,15 +52,15 @@ def local_files(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
 
 
-def sign(data: bytes, private: str) -> bytes:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-    from sign_release import sign as do_sign
+@pytest.fixture
+def sign(scripts):
+    """Returns ``sign(data, private)``, which signs ``data`` as a release is signed."""
+    return scripts("sign_release").sign
 
-    return do_sign(data, private)
 
-
-def fake_release(tmp_path: Path, private: str, version: str = "9.9.9") -> Path:
-    """A release of a pretend app for this computer; returns its release.json."""
+def fake_release(tmp_path: Path, private: str, sign, version: str = "9.9.9") -> Path:
+    """A release of a pretend app for this computer, signed with ``sign``; returns its
+    release.json."""
     tgt = update.target()
     app_name = "papermini.app" if sys.platform == "darwin" else "papermini"
     src = tmp_path / "src" / app_name
@@ -180,7 +180,7 @@ def test_the_folder_a_frozen_app_replaces(monkeypatch, tmp_path):
 # region verify
 
 
-def test_verify_takes_only_signed_matching_downloads(tmp_path, keys):
+def test_verify_takes_only_signed_matching_downloads(tmp_path, keys, sign):
     private, public = keys
     archive = tmp_path / "papermini-9.9.9-windows-x64.zip"
     archive.write_bytes(b"the app")
@@ -198,7 +198,7 @@ def test_verify_takes_only_signed_matching_downloads(tmp_path, keys):
         update.verify(sums, sig, archive, public)  # a tampered download
 
 
-def test_verify_refuses_without_a_release_key(monkeypatch, tmp_path, keys):
+def test_verify_refuses_without_a_release_key(monkeypatch, tmp_path, keys, sign):
     private, _ = keys
     archive = tmp_path / "papermini-9.9.9-windows-x64.zip"
     archive.write_bytes(b"the app")
@@ -215,9 +215,9 @@ def test_verify_refuses_without_a_release_key(monkeypatch, tmp_path, keys):
 # region download
 
 
-def test_download_verifies_and_unpacks(monkeypatch, tmp_path, keys, local_files):
+def test_download_verifies_and_unpacks(monkeypatch, tmp_path, keys, local_files, sign):
     private, public = keys
-    monkeypatch.setenv(update.FEED_ENV, str(fake_release(tmp_path, private)))
+    monkeypatch.setenv(update.FEED_ENV, str(fake_release(tmp_path, private, sign)))
     monkeypatch.setenv(update.KEY_ENV, public)
     rel = update.latest_release()
     assert rel.version == "9.9.9" and update.CHECKSUMS in rel.assets
@@ -238,10 +238,10 @@ def test_download_verifies_and_unpacks(monkeypatch, tmp_path, keys, local_files)
 
 @pytest.mark.parametrize("missing", ["archive", update.CHECKSUMS, update.SIGNATURE])
 def test_a_release_missing_a_file_is_refused(
-    monkeypatch, tmp_path, keys, local_files, missing
+    monkeypatch, tmp_path, keys, local_files, missing, sign
 ):
     private, public = keys
-    monkeypatch.setenv(update.FEED_ENV, str(fake_release(tmp_path, private)))
+    monkeypatch.setenv(update.FEED_ENV, str(fake_release(tmp_path, private, sign)))
     monkeypatch.setenv(update.KEY_ENV, public)
     rel = update.latest_release()
     tgt = update.target()
@@ -337,9 +337,8 @@ def test_helper_installs_once_papermini_has_quit(tmp_path):
 # region scripts
 
 
-def test_sign_release_checks_the_apps_key(monkeypatch, tmp_path, keys):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-    import sign_release
+def test_sign_release_checks_the_apps_key(monkeypatch, tmp_path, keys, scripts, sign):
+    sign_release = scripts("sign_release")
 
     private, public = keys
     data = b"sums"
@@ -363,9 +362,8 @@ def test_sign_release_checks_the_apps_key(monkeypatch, tmp_path, keys):
     )
 
 
-def test_release_key_writes_the_public_key(monkeypatch, tmp_path):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-    import release_key
+def test_release_key_writes_the_public_key(monkeypatch, tmp_path, scripts):
+    release_key = scripts("release_key")
 
     update_py = tmp_path / "update.py"
     update_py.write_text('x = 1\nPUBLIC_KEY = ""\n')
@@ -431,11 +429,10 @@ def test_installer_entry_is_only_on_windows(monkeypatch):
     assert update.setup_install_dir() is None
 
 
-def test_installer_script_compiles(tmp_path):
+def test_installer_script_compiles(tmp_path, scripts):
     """Inno Setup compiles packaging/papermini.iss, its [Code] included (Windows, with
     Inno Setup 6 installed)."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-    import build_installer
+    build_installer = scripts("build_installer")
 
     if sys.platform != "win32" or build_installer.find_iscc() is None:
         pytest.skip("needs Windows and Inno Setup 6")
@@ -461,7 +458,7 @@ def test_installer_has_the_apps_id():
 
 
 def test_installed_copy_downloads_the_installer(
-    monkeypatch, tmp_path, keys, local_files
+    monkeypatch, tmp_path, keys, local_files, sign
 ):
     private, public = keys
     monkeypatch.setattr(update, "target", lambda: "windows-x64")

@@ -3,10 +3,7 @@
 import os
 import shutil
 
-import cv2
-import numpy as np
 import pytest
-from PIL import Image
 
 from papermini.cli import main
 from papermini.output.sheet import pack, write_pdf
@@ -20,14 +17,9 @@ from papermini.support import fonts
 
 
 @pytest.fixture
-def figure(tmp_path):
+def figure(tmp_path, figure_image):
     """A dark figure on white, plus its mask."""
-    im = np.full((600, 400, 3), 255, np.uint8)
-    cv2.rectangle(im, (120, 100), (280, 520), (40, 40, 40), -1)
-    mask = np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)
-    Image.fromarray(im).save(tmp_path / "hero.png")
-    Image.fromarray(mask).save(tmp_path / "hero_mask.png")
-    return tmp_path / "hero.png", tmp_path / "hero_mask.png"
+    return figure_image(tmp_path / "hero.png")
 
 
 @pytest.fixture
