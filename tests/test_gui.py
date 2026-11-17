@@ -2660,3 +2660,15 @@ def test_print_sets_the_paper_size_and_orientation(app, tmp_path, monkeypatch):
     finally:
         w._modified = False
         w.close()
+
+
+def test_a_theme_asks_for_the_fusion_style_by_name(app, monkeypatch):
+    """Applying a theme sets the Fusion style by its name, not with a style object."""
+    from papermini.gui import theme
+
+    styles = []
+    monkeypatch.setattr(app, "setStyle", styles.append)
+    for slow in ("setStyleSheet", "setPalette"):  # (each re-styles every widget)
+        monkeypatch.setattr(app, slow, lambda *_: None)
+    theme.apply(app, "light")
+    assert styles == ["Fusion"]

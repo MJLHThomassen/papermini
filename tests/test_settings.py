@@ -90,6 +90,34 @@ def test_project_roundtrip(tmp_path):
     assert q.figures[1].name == "boss" and q.figures[1].svg_name() == "boss.svg"
 
 
+def test_project_keeps_mask_and_model_paths_relative(tmp_path):
+    for sub in ("img", "masks", "models", "proj"):
+        (tmp_path / sub).mkdir()
+    image = tmp_path / "img" / "hero.png"
+    mask = tmp_path / "masks" / "hero-mask.png"
+    model = tmp_path / "models" / "mine.onnx"
+    p = Project(
+        figures=[
+            FigureEntry(image, FigureSettings(model="mask", mask=str(mask))),
+            FigureEntry(image, FigureSettings(model=str(model))),
+        ]
+    )
+    path = save_project(p, tmp_path / "proj" / "proj.yaml")
+    text = path.read_text(encoding="utf-8")
+    assert "../masks/hero-mask.png" in text and "../models/mine.onnx" in text
+    assert str(tmp_path) not in text and tmp_path.as_posix() not in text
+    q = load_project(path)
+    assert q.figures[0].settings.mask == str(mask.resolve())
+    assert q.figures[1].settings.model == str(model.resolve())
+
+
+def test_a_figure_without_an_image_is_refused(tmp_path):
+    path = tmp_path / "proj.yaml"
+    path.write_text("figures:\n  - label: Goblin\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="every figure needs an 'image'"):
+        load_project(path)
+
+
 def test_frozen_1_0_project():
     path = Path(__file__).parent / "fixtures" / "project-v1.0.yaml"
     p = load_project(path)
