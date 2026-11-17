@@ -1,5 +1,8 @@
 """End-to-end tests with a supplied mask (no model download)."""
 
+import base64
+import io
+
 import cv2
 import numpy as np
 import pytest
@@ -9,7 +12,8 @@ from papermini.cli import main
 from papermini.output.sheet import pack, write_pdf
 from papermini.output.svg import read_svg, write_svg
 from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import make_mini
+from papermini.pipeline.mini import figure_mask, make_mini
+from papermini.pipeline.segmentation import segment
 
 
 @pytest.fixture
@@ -568,3 +572,86 @@ def test_no_command_opens_the_app(monkeypatch):
     assert cli.route(["make", "hero.png"]) == ["make", "hero.png"]
     assert cli.route(["--version"]) == ["--version"]
     assert cli.route(["-psn_0_42"]) == ["gui"]  # (older macOS adds a process id)
+
+
+def _two_figures(tmp_path, alpha=False):
+    """A picture with a dark figure on each side, and its mask; with ``alpha`` the
+    background is transparent."""
+    h, w = 400, 600
+    im = np.full((h, w, 4), (255, 255, 255, 0 if alpha else 255), np.uint8)
+    mask = np.zeros((h, w), np.uint8)
+    for cx in (150, 450):
+        cv2.ellipse(im, (cx, 200), (80, 150), 0, 0, 360, (40, 40, 40, 255), -1)
+        cv2.ellipse(mask, (cx, 200), (80, 150), 0, 0, 360, 255, -1)
+    img = tmp_path / "two.png"
+    Image.fromarray(im if alpha else im[..., :3]).save(img)
+    Image.fromarray(mask).save(tmp_path / "two_mask.png")
+    return img, tmp_path / "two_mask.png"
+
+
+@pytest.mark.parametrize("source", ["mask", "alpha", "model"])
+def test_a_crop_limits_the_figure_to_its_box(tmp_path, monkeypatch, source):
+    img, mask = _two_figures(tmp_path, alpha=source == "alpha")
+    seen = []
+
+    def segmenter(rgb):  # a stand-in model: the dark pixels are the figure
+        seen.append(rgb.size)
+        return np.where(np.asarray(rgb.convert("L")) < 128, 255, 0).astype(np.uint8)
+
+    monkeypatch.setattr(segment, "get_cached_segmenter", lambda model: segmenter)
+    fm = figure_mask(
+        img,
+        crop=[0.5, 0, 1, 1],  # the right half
+        model={"mask": "auto", "alpha": "alpha", "model": "birefnet-lite"}[source],
+        mask_path=mask if source == "mask" else None,
+        use_cache=False,
+        log=lambda *_: None,
+    )
+    # only the right figure, where it is in the picture
+    assert geo.bbox(fm.clean) == pytest.approx((370, 50, 530, 350), abs=3)
+    if source == "model":
+        assert seen == [(300, 400)]  # the model saw only the crop
+
+
+def _svg(
+    tmp_path,
+    width="10mm",
+    view_box="0 0 10 10",
+    href=None,
+    cut='<path id="cut" d="M 0 0 L 10 0 L 10 10 Z"/>',
+):
+    """A small SVG in papermini's form, with one part as given."""
+    if href is None:
+        buf = io.BytesIO()
+        Image.new("RGBA", (1, 1)).save(buf, "PNG")
+        href = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    path = tmp_path / "piece.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'xmlns:xlink="http://www.w3.org/1999/xlink" '
+        f'width="{width}" height="10mm" viewBox="{view_box}">'
+        f'<image id="art" xlink:href="{href}" width="10" height="10"/>{cut}</svg>',
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_a_small_papermini_svg_reads(tmp_path):
+    m = read_svg(_svg(tmp_path))  # (the form the cases below each break once)
+    assert m.width_mm == m.height_mm == 10 and len(m.cut.points) == 3
+
+
+@pytest.mark.parametrize(
+    ("part", "value", "error"),
+    [
+        ("width", "ten", "cannot read length"),
+        ("view_box", "0 0 10 20", "non-uniform viewBox"),
+        ("cut", "", "is not a papermini SVG"),
+        ("href", "art.png", "must be an embedded data: URI"),
+        ("cut", '<path id="cut" d="m 0 0 l 10 0 z"/>', "relative path commands"),
+        ("cut", '<path id="cut" d="0 0 L 10 0 Z"/>', "unexpected path data"),
+    ],
+)
+def test_svgs_papermini_did_not_write_are_refused(tmp_path, part, value, error):
+    with pytest.raises(ValueError, match=error):
+        read_svg(_svg(tmp_path, **{part: value}))

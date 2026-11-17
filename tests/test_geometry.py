@@ -40,6 +40,36 @@ def test_largest_component_drops_specks_and_keep_all_keeps_props():
     assert both[300, 950] == 255 and both[100, 100] == 0
 
 
+def test_keep_all_bridges_a_separate_prop_into_one_cut_shape():
+    m = ghost()
+    cv2.circle(m, (980, 800), 50, 255, -1)  # a prop beside the robe
+    clean = geo.clean_mask(m, close_px=5, keep_all=True, min_area=1000)
+    prm = geo.Params(keep_all=True, tab=False)
+    lay = geo.build_layout(clean, rgb_like(clean), prm)
+    n_cut, _ = cv2.connectedComponents((lay.cut > 0).astype(np.uint8))
+    n_fig, _ = cv2.connectedComponents((lay.figure > 0).astype(np.uint8))
+    assert n_cut - 1 == 1  # one shape to cut out
+    assert n_fig - 1 == 2  # the drawing itself is not joined
+    # halfway between the figure and the prop only the bridge is cut, bridge_mm wide
+    # (measured across it: the bridge may run at an angle)
+    cols = np.flatnonzero(lay.figure.any(axis=0))
+    gap = int(np.argmax(np.diff(cols)))
+    mid = (cols[gap] + cols[gap + 1]) // 2
+    rows = np.flatnonzero(lay.cut[:, mid])
+    assert len(rows) and rows[-1] - rows[0] + 1 == len(rows)  # one solid band
+    inside = cv2.distanceTransform(lay.cut, cv2.DIST_L2, 5)
+    width_mm = 2 * inside[rows, mid].max() / lay.px_per_mm
+    assert width_mm == pytest.approx(prm.bridge_mm, abs=0.25)
+
+
+def test_too_many_separate_parts_to_bridge():
+    m = np.zeros((400, 400), np.uint8)
+    for i in range(geo.MAX_PARTS + 1):
+        cv2.circle(m, (20 + (i % 10) * 36, 20 + (i // 10) * 50), 5, 255, -1)
+    with pytest.raises(ValueError, match="too many to bridge"):
+        geo.connect_components(m, 4)
+
+
 @pytest.mark.parametrize("height_mm", [34.0, 42.0, 56.0])
 def test_mm_scaling(height_mm):
     clean = geo.clean_mask(ghost(), close_px=9)

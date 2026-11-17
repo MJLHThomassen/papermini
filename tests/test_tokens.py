@@ -23,6 +23,7 @@ from papermini.output.png import piece_image, px_per_mm, write_pngs
 from papermini.output.sheet import pack, write_pdf
 from papermini.output.svg import read_svg, to_svg, write_svgs
 from papermini.pipeline import token as tok
+from papermini.pipeline.token_info import TokenInfo
 from papermini.pipeline.token_options import min_ring_mm
 from papermini.project.figure_entry import FigureEntry
 from papermini.project.figure_settings import FigureSettings
@@ -317,6 +318,51 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys):
     assert cli.main(["batch", str(tmp_path / "p.yaml")]) == 0
     assert "4 pieces" in capsys.readouterr().out
     assert (tmp_path / "minis" / "tok-3.svg").is_file()
+
+
+def _count(art, channel):
+    """Pixels of the art that are clearly red, green or blue (channel 0, 1 or 2)."""
+    a = np.asarray(art.convert("RGB")).astype(int)
+    others = [c for c in range(3) if c != channel]
+    return int(((a[..., channel] > 200) & (a[..., others] < 80).all(-1)).sum())
+
+
+def test_a_token_figure_with_an_outline(tmp_path):
+    img = _figure(tmp_path / "goblin.png")
+    plain = _token(img, margin_color="#00ff00")
+    outlined = _token(img, token_outline=True, margin_color="#00ff00")
+    assert _count(plain.art, 1) == 0
+    assert _count(outlined.art, 1) > 0  # the outline, in the margin color
+
+
+def test_a_token_filled_with_the_picture(tmp_path):
+    im = Image.new("RGB", (300, 400), (0, 0, 255))  # a blue background
+    ImageDraw.Draw(im).ellipse([60, 40, 240, 360], fill=(200, 40, 30))
+    im.save(tmp_path / "goblin.png")
+    mask = Image.new("L", (300, 400), 0)
+    ImageDraw.Draw(mask).ellipse([60, 40, 240, 360], fill=255)
+    mask.save(tmp_path / "goblin_mask.png")
+    common = {
+        "kind": "token",
+        "model": "mask",
+        "mask": str(tmp_path / "goblin_mask.png"),
+    }
+
+    def background(**kw):
+        """The token's art inside the ring and over 1 mm from the figure's box."""
+        s = settings_with_size({**common, **kw})
+        m = build_mini(tmp_path / "goblin.png", s, log=lambda *a: None)
+        t, a = m.token, np.asarray(m.art.convert("RGB")).copy()
+        assert isinstance(t, TokenInfo) and t.figure_box is not None
+        px = a.shape[1] / m.width_mm
+        y, x = (np.mgrid[: a.shape[0], : a.shape[1]] + 0.5) / px
+        x0, y0, x1, y1 = t.figure_box
+        near = (x > x0 - 1) & (x < x1 + 1) & (y > y0 - 1) & (y < y1 + 1)
+        a[near | (np.hypot(x - t.cx, y - t.cy) > t.inner_mm - 0.3)] = 0
+        return Image.fromarray(a)
+
+    assert _count(background(), 2) == 0  # the fill color behind the figure
+    assert _count(background(token_fill="image"), 2) > 0  # the picture's background
 
 
 # endregion
