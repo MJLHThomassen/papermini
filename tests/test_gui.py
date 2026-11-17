@@ -1,6 +1,8 @@
 """GUI smoke test (offscreen). Skipped when PySide6 is not installed."""
 
+import sys
 import time
+import types
 from dataclasses import replace
 
 import cv2
@@ -48,7 +50,7 @@ def test_build_edit_and_save(app, tmp_path, new_window, wait):
     fig = w.current()
     assert wait(lambda: fig.up_to_date), fig.error
     assert fig.mini.figure_height_mm == pytest.approx(32, abs=0.05)  # Medium
-    assert fig.mini.source_outline and w.crop_view._outline_items  # on the source
+    assert fig.mini.source_outline and _outline(w.crop_view)  # on the source
     # defaults (fold and overlap 0) on a wide joint: no note under the overlap field
     assert fig.mini.tab_overlap_used and fig.mini.tab_joint_mm > 10
     assert not w.panel.overlap_hint.isVisibleTo(w.panel)
@@ -97,11 +99,11 @@ def test_bad_model_reports_error_and_recovers(app, tmp_path, new_window, wait):
     assert "unknown model" in fig.error and fig.queued is None
 
     # 'alpha' on an image without transparency is an error, not a full-image mask
-    w._settings_changed(replace(fig.entry.settings, model="alpha"))
+    w.panel.changed.emit(replace(fig.entry.settings, model="alpha"))
     assert wait(lambda: fig.error is not None) and "transparency" in fig.error
 
     # fixing the setting rebuilds
-    w._settings_changed(
+    w.panel.changed.emit(
         replace(fig.entry.settings, model="mask", mask=str(tmp_path / "m.png"))
     )
     assert wait(lambda: fig.up_to_date), fig.error
@@ -138,10 +140,16 @@ def test_crop_handles(app):
         QTest.mouseRelease(vp, Qt.LeftButton, Qt.NoModifier, b)
         app.processEvents()
 
+    def cursor_at(x, y):  # the cursor shown over image px (x, y)
+        QTest.mouseMove(vp, at(x, y))
+        return vp.cursor().shape()
+
     drag(at(200, 200), at(600, 700))  # draw
     assert got[-1] == pytest.approx([0.2, 0.2, 0.6, 0.7], abs=0.01)
-    assert v._hit(at(600, 700)) == "br" and v._hit(at(400, 450)) == "move"
-    assert v._hit(at(200, 450)) == "l" and v._hit(at(900, 900)) == "new"
+    assert cursor_at(600, 700) == Qt.CursorShape.SizeFDiagCursor  # a corner handle
+    assert cursor_at(400, 450) == Qt.CursorShape.SizeAllCursor  # inside: move it
+    assert cursor_at(200, 450) == Qt.CursorShape.SizeHorCursor  # the left edge
+    assert cursor_at(900, 900) == Qt.CursorShape.CrossCursor  # outside: a new box
 
     drag(at(600, 700), at(800, 900))  # resize by the bottom-right handle
     assert got[-1] == pytest.approx([0.2, 0.2, 0.8, 0.9], abs=0.01)
@@ -163,13 +171,14 @@ def test_crop_handles(app):
     v.close()
 
 
-def test_review_regressions(app, tmp_path, new_window, wait):
+def test_review_regressions(app, tmp_path, monkeypatch, new_window, wait):
     """Debounce survives selection, wheel does not edit unfocused fields, copies do
     not rebuild, export waits for background builds, loaded values stay exact."""
     from dataclasses import replace
 
     from PySide6.QtCore import QPoint, QPointF, Qt
     from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QFileDialog
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.circle(im, (250, 300), 150, (60, 60, 60), -1)
@@ -185,11 +194,9 @@ def test_review_regressions(app, tmp_path, new_window, wait):
     )
     fig = w.current()
     assert wait(lambda: fig.up_to_date), fig.error
-    # 1. selecting a figure must not zero the debounce interval
-    assert w._build_timer.interval() == 250
 
-    # 2. a wheel tick over an unfocused spin box changes nothing
-    field = w.panel._w["strength"][1]
+    # 1. a wheel tick over an unfocused spin box changes nothing
+    field = w.panel.field("strength")
     before = field.value()
     for part in (field.slider, field.spin):  # nor over an unfocused slider
         ev = QWheelEvent(
@@ -205,23 +212,31 @@ def test_review_regressions(app, tmp_path, new_window, wait):
         app.sendEvent(part, ev)
     assert field.value() == before
 
-    # 3. copies (on the figure's card) only change the sheet: same Mini, no rebuild
+    # 2. copies (on the figure's card) only change the sheet: same Mini, no rebuild
     mini = fig.mini
     click_copies(w, 0, "+", 2)
     assert fig.entry.settings.copies == 3
     app.processEvents()
     assert fig.up_to_date and fig.mini is mini
 
-    # 4. editing one field keeps the exact loaded values of the others
-    w.panel._w["margin_mm"][1].setValue(2.0)
+    # 3. editing one field keeps the exact loaded values of the others
+    w.panel.field("margin_mm").setValue(2.0)
     s = fig.entry.settings
     assert s.margin_mm == 2.0 and s.height_mm == 42.25 and s.dpi == 3000
 
+    # 4. selecting a figure must not zero the debounce interval: an edit waits for it
+    w.panel.changed.emit(replace(fig.entry.settings, height_mm=30))
+    app.processEvents()
+    assert not fig.up_to_date and fig.queued is None
+
     # 5. export waits for the (background) rebuild, then runs
-    w._settings_changed(replace(fig.entry.settings, height_mm=30))
-    assert not fig.up_to_date
     done = []
-    w._when_built([fig], lambda: done.append(fig.mini.figure_height_mm))
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        staticmethod(lambda *a: done.append(fig.mini.figure_height_mm) or ("", "")),
+    )
+    w.export_current()
     assert wait(lambda: done)
     assert done[0] == pytest.approx(30, abs=0.05)
 
@@ -240,7 +255,7 @@ def test_panel_choices_round_trip(app):
         back="text",
     )
     p.set_settings(s, "x", "x")
-    assert p._w["tab_shape"][1].currentText().startswith("Round")
+    assert p.field("tab_shape").currentText().startswith("Round")
     assert p.settings() == s
     assert not p.is_shown("tab_height_mm")  # a half disc has no separate height
     assert not p.is_shown("margin_color")  # the image fills the margin
@@ -251,17 +266,17 @@ def test_panel_choices_round_trip(app):
     assert p.is_shown("tab_radius_mm") and not p.is_shown("tab_width_mm")
     got = []
     p.changed.connect(got.append)
-    p._w["tab_shape"][1].setCurrentIndex(p._w["tab_shape"][1].findData("square"))
+    p.field("tab_shape").setCurrentIndex(p.field("tab_shape").findData("square"))
     assert got[-1].tab_shape == "square" and p.is_shown("tab_height_mm")
     # a blank back has a color but no text fields
-    p._w["back"][1].setCurrentIndex(p._w["back"][1].findData("blank"))
+    p.field("back").setCurrentIndex(p.field("back").findData("blank"))
     assert p.is_shown("back_color") and not p.is_shown("back_text")
     assert not p.is_shown("back_text_color")
     # no back side at all: none of the back options
-    p._w["double_sided"][1].setChecked(False)
+    p.field("double_sided").setChecked(False)
     assert not any(p.is_shown(n) for n in ("back", "back_color", "back_text"))
     # no tab: none of the tab options, and the label group cannot be turned on
-    p._w["no_tab"][1].setChecked(False)
+    p.field("no_tab").setChecked(False)
     assert p.settings().no_tab
     assert not any(
         p.is_shown(n)
@@ -367,7 +382,7 @@ def test_mask_file_is_a_model_choice(app):
     p = FigurePanel()
     p.set_settings(FigureSettings(), "x", "x")
     assert not p.is_shown("mask")  # auto: no file field
-    combo = p._w["model"][1]
+    combo = p.field("model")
     combo.setCurrentText("alpha")
     combo.activated.emit(0)
     assert not p.is_shown("mask")  # alpha uses the image itself
@@ -846,7 +861,7 @@ def test_the_settings_show_the_licence_of_the_model_in_use(
     monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", lambda model: False)  # (no prompt)
     w.add_images([tmp_path / "a.png"])
     p = w.panel
-    combo = p._w["model"][1]
+    combo = p.field("model")
 
     def pick(model):
         combo.setCurrentText(model)
@@ -948,19 +963,37 @@ def test_source_view_shows_the_detected_outline(app, tmp_path, new_window, wait)
     fig = w.current()
     assert wait(lambda: fig.up_to_date), fig.error
     cv = w.crop_view
-    shade, line = cv._outline_items
+    shade, line = _outline(cv)
     assert shade.scene() is cv.scene()
     r = line.path().boundingRect()  # the ellipse itself: no margin
     assert abs(r.left() - 150) < 3 and abs(r.top() - 150) < 3
     assert abs(r.right() - 551) < 3 and abs(r.bottom() - 751) < 3
 
     cv.refresh_theme()  # redrawn, not duplicated
-    assert len(cv._outline_items) == 2
+    assert len(_outline(cv)) == 2
     cv.set_busy(True)  # a model runs: dimmed, no outline
-    assert len(cv._outline_items) == 1
+    assert len(_outline(cv)) == 1
     cv.set_busy(False)
     cv.set_image(load_qimage(tmp_path / "b.png"))  # another image: no stale outline
-    assert cv._outline is None and cv._outline_items == []
+    assert _outline(cv) == []
+
+
+def _outline(view):
+    """Returns the marks a crop view draws between its picture and the crop box: the
+    washed-out background and the figure's outline, or the dimming while a model runs."""
+    from PySide6.QtWidgets import QGraphicsPathItem
+
+    marks = [
+        it
+        for it in view.scene().items()
+        if isinstance(it, QGraphicsPathItem) and 0 < it.zValue() < 1
+    ]
+    return sorted(marks, key=lambda it: it.zValue())
+
+
+def _dimmed(view):
+    """Tells whether a crop view dims its picture, as it does while a model runs."""
+    return len(_outline(view)) == 1
 
 
 def _crop_view(app, size=(400, 300)):
@@ -1008,27 +1041,33 @@ def _mouse(v, kind, scene_pt, button=None):
 def test_crop_view_guides_the_user(app):
     """Without a crop box a hint says to drag one; over the image, guide lines show
     where a new box would start; over the box, the part a drag grabs is shown."""
+    from PySide6.QtCore import QRectF, Qt
+
     v = _crop_view(app)
+    cursor = lambda: v.viewport().cursor().shape()
     assert v.show_hint()  # no box yet: say how...
-    img = v._image_view_rect()
+    img = QRectF(v.mapFromScene(v.sceneRect()).boundingRect())
     pill = v.hint_rect()  # ...beside the image, not on it
     assert not pill.intersects(img) and v.viewport().rect().contains(pill.toRect())
+    plain = v.grab().toImage()
     _mouse(v, "move", (200, 150))
-    assert (
-        v._hover is not None and v._hover_part == "new"
-    )  # guide lines through the mouse
-    v.grab()  # (paints without errors)
+    assert cursor() == Qt.CursorShape.CrossCursor
+    assert v.grab().toImage() != plain  # guide lines through the mouse
     v.set_crop([0.25, 0.25, 0.75, 0.75])
     assert not v.show_hint()  # a box: no hint
     _mouse(v, "move", (200, 150))
-    assert v._hover_part == "move"  # inside: move the whole box
+    assert cursor() == Qt.CursorShape.SizeAllCursor  # inside: move the whole box
     _mouse(v, "move", (100, 150))
-    assert v._hover_part == "l"  # on the left edge
+    assert cursor() == Qt.CursorShape.SizeHorCursor  # on the left edge
     _mouse(v, "move", (100, 75))
-    assert v._hover_part == "tl"  # on a corner handle
-    v.grab()
+    assert cursor() == Qt.CursorShape.SizeFDiagCursor  # on a corner handle
+    lit = v.grab().toImage()
     v.leaveEvent(None)
-    assert v._hover is None and v._hover_part is None
+    untouched = _crop_view(app)
+    untouched.set_crop([0.25, 0.25, 0.75, 0.75])
+    left = v.grab().toImage()
+    assert left != lit and left == untouched.grab().toImage()  # nothing lit any more
+    untouched.close()
 
 
 def test_a_click_on_the_crop_view_changes_nothing(app):
@@ -1199,10 +1238,10 @@ def test_image_adjustments_panel(app):
     assert not reset.isEnabled()  # nothing to reset yet
     got = []
     p.changed.connect(got.append)
-    p._w["brightness"][1].spin.setValue(30)
-    p._w["hue"][1].slider.setValue(-90)
+    p.field("brightness").spin.setValue(30)
+    p.field("hue").slider.setValue(-90)
     assert (got[-1].brightness, got[-1].hue) == (30, -90) and reset.isEnabled()
-    p._w["greyscale"][1].setChecked(True)
+    p.field("greyscale").setChecked(True)
     assert got[-1].greyscale and not p.is_shown("saturation") and not p.is_shown("hue")
     assert p.is_shown("brightness") and p.is_shown("contrast")
     n = len(got)
@@ -1220,6 +1259,8 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     """The Source view follows the color sliders (a preview at the original's size),
     and a color change rebuilds the miniature from the cached mask: the model does not
     run again and the outline stays."""
+    from PySide6.QtWidgets import QGraphicsPixmapItem
+
     from papermini.gui.views.images import PREVIEW_PX
     from papermini.pipeline.segmentation import segment
 
@@ -1239,11 +1280,15 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     assert wait(lambda: fig.up_to_date), fig.error
     assert len(runs) == 1 and w.crop_view.picture_size() == (1800, 2400)
     outline = fig.mini.source_outline
-    w._settings_changed(replace(fig.entry.settings, greyscale=True))
+    w.panel.changed.emit(replace(fig.entry.settings, greyscale=True))
     assert wait(lambda: fig.up_to_date and w.crop_view.picture_size() != (1800, 2400))
     assert max(w.crop_view.picture_size()) == PREVIEW_PX  # a smaller preview...
-    assert w.crop_view._img_size == (1800, 2400)  # ...in the original's pixels
-    pm = w.crop_view._pix_item.pixmap().toImage()
+    shown = w.crop_view.sceneRect()  # ...in the original's pixels
+    assert (shown.width(), shown.height()) == (1800, 2400)
+    picture = next(
+        it for it in w.crop_view.scene().items() if isinstance(it, QGraphicsPixmapItem)
+    )
+    pm = picture.pixmap().toImage()
     c = pm.pixelColor(pm.width() // 2, pm.height() // 2)
     assert c.red() == c.green() == c.blue()  # shown in grey
     assert len(runs) == 1  # the model did not run again
@@ -1251,7 +1296,7 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     art = np.asarray(fig.mini.art.convert("RGB")).astype(int)
     mid = art[art.shape[0] // 2, art.shape[1] // 2]
     assert abs(mid[0] - mid[1]) <= 2  # and printed grey
-    w._settings_changed(replace(fig.entry.settings, greyscale=False))
+    w.panel.changed.emit(replace(fig.entry.settings, greyscale=False))
     assert wait(lambda: w.crop_view.picture_size() == (1800, 2400))  # the original
 
 
@@ -1278,7 +1323,7 @@ def test_source_view_has_a_legend(app, tmp_path, new_window):
     assert not w.legend_box.isVisibleTo(w)
     w.tabs.setCurrentIndex(w.SOURCE)
     assert w.legend_box.isVisibleTo(w)
-    w._settings_changed(replace(w.current().entry.settings, crop=None))
+    w.panel.changed.emit(replace(w.current().entry.settings, crop=None))
     assert [t.text() for t in legend.texts] == texts
 
 
@@ -1318,7 +1363,7 @@ def test_settings_panel_follows_the_step(app, tmp_path, new_window):
 
     a, b = w.figures
     w.list.setCurrentRow(0)
-    w._settings_changed(
+    w.panel.changed.emit(
         replace(a.entry.settings, height_mm=30, margin_mm=3, strength=90)
     )
     w._copies_changed(a.uid, 4)
@@ -1358,33 +1403,57 @@ def test_size_fields_keep_proportions_until_unlinked(app):
     assert not f.linked() and (f.h.value(), f.w.value()) == (42, 10)
 
 
-class SlowSegmenter(DarkSegmenter):
-    """A model that runs until it is cancelled (or, with ``block`` off, at once)."""
+class SlowSegmenter:
+    """Stands in for the onnxruntime session of a model that runs until it is
+    terminated (or, with ``block`` off, at once). Dark pixels are the figure."""
 
     block = True
     calls = 0
+    running = 0  # runs in progress
     started = None  # threading.Event, set when a run starts
 
-    class _Run:
-        terminate = False
+    def __init__(self, path, providers=None):
+        pass
 
-    def __call__(self, im):
-        from papermini.pipeline.segmentation import segment
+    def get_inputs(self):
+        return [
+            types.SimpleNamespace(
+                name="input", shape=[1, 3, 64, 64], type="tensor(float)"
+            )
+        ]
 
+    def run(self, _names, feeds, run_options):
         SlowSegmenter.calls += 1
         if not SlowSegmenter.block:
-            return super().__call__(im)
-        ro = SlowSegmenter._Run()
-        with segment._RUNS_LOCK:
-            segment._RUNS.add(ro)
+            return [-feeds["input"].mean(axis=1)]
+        SlowSegmenter.running += 1
         try:
             SlowSegmenter.started.set()
-            while not ro.terminate:
+            while not run_options.terminate:
                 time.sleep(0.01)
-            raise segment.Cancelled("cancelled")
+            raise RuntimeError("terminated")
         finally:
-            with segment._RUNS_LOCK:
-                segment._RUNS.discard(ro)
+            SlowSegmenter.running -= 1
+
+
+class FakeRunOptions:
+    """Stands in for the onnxruntime options of one model run."""
+
+    terminate = False
+
+
+def _run_models_on(monkeypatch, session):
+    """Runs the ONNX models through the real segmenter on ``session``, a fake
+    onnxruntime session class."""
+    from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.segmentation.onnx_segmenter import OnnxSegmenter
+
+    onnxruntime = types.SimpleNamespace(
+        InferenceSession=session,
+        RunOptions=FakeRunOptions,
+    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", onnxruntime)
+    monkeypatch.setattr(segment, "OnnxSegmenter", OnnxSegmenter)
 
 
 def test_background_removal_shows_progress_and_can_be_cancelled(
@@ -1396,7 +1465,7 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
 
     from papermini.pipeline.segmentation import segment
 
-    monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
+    _run_models_on(monkeypatch, SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
     SlowSegmenter.started = threading.Event()
     im = np.full((400, 300, 3), 255, np.uint8)
@@ -1405,7 +1474,7 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     w = new_window()
     w.add_images([tmp_path / "a.png"])
     fig = w.current()
-    assert wait(lambda: w.work_box.isVisibleTo(w) and w.crop_view._busy, 30)
+    assert wait(lambda: w.work_box.isVisibleTo(w) and _dimmed(w.crop_view), 30)
     assert (
         w.work.button.text() == "Cancel"
         and "Removing the background" in w.work.title.text()
@@ -1420,9 +1489,10 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
 
     w.work.button.click()  # Cancel
     assert fig.stopped  # at once
-    assert wait(lambda: not segment._RUNS, 30)  # and the run really stops
+    assert wait(lambda: SlowSegmenter.running == 0, 30)  # and the run really stops
+    assert wait(lambda: segment.cancel_runs() == 0, 30)  # nothing left to stop
     assert w.work.button.text() == "Run again" and "cancelled" in w.work.title.text()
-    assert not w.crop_view._busy and not fig.up_to_date
+    assert not _dimmed(w.crop_view) and not fig.up_to_date
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
 
     assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
@@ -1435,7 +1505,7 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     SlowSegmenter.block = False
     w.work.button.click()  # Run again
     assert wait(lambda: fig.up_to_date, 30), fig.error
-    assert not w.work_box.isVisibleTo(w) and w.crop_view._outline_items
+    assert not w.work_box.isVisibleTo(w) and _outline(w.crop_view)
 
 
 class SlowLoadSegmenter(DarkSegmenter):
@@ -1490,7 +1560,7 @@ def test_cancel_works_while_the_model_loads(
         assert wait(lambda: w.pool.activeThreadCount() == 0, 30)
         assert SlowLoadSegmenter.calls == 0 and not fig.up_to_date
 
-        w._settings_changed(replace(fig.entry.settings, margin_mm=4))  # not the mask
+        w.panel.changed.emit(replace(fig.entry.settings, margin_mm=4))  # not the mask
         end = time.time() + 0.8  # (past the build debounce)
         while time.time() < end:
             app.processEvents()
@@ -1515,7 +1585,7 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
     from papermini.pipeline.segmentation import segment
 
-    monkeypatch.setattr(segment, "OnnxSegmenter", SlowSegmenter)
+    _run_models_on(monkeypatch, SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
     SlowSegmenter.started = threading.Event()
     im = np.full((400, 300, 3), 255, np.uint8)
@@ -1537,7 +1607,7 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
         lambda: w.work_box.isVisibleTo(w) and w.work.title.text() == "Waiting for a",
         30,
     )
-    assert w.work.button.text() == "Cancel it" and not w.crop_view._busy
+    assert w.work.button.text() == "Cancel it" and not _dimmed(w.crop_view)
     assert not w.busy_box.isVisibleTo(w)  # the card says it all
 
     w.work.button.click()  # stops a's run
@@ -1546,7 +1616,8 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
     assert wait(lambda: "Removing the background" in w.work.title.text(), 30)
     assert w.work.button.text() == "Cancel" and SlowSegmenter.calls == 2
     w.work.button.click()  # and b's own run
-    assert b.stopped and wait(lambda: not segment._RUNS, 30)
+    assert b.stopped and wait(lambda: SlowSegmenter.running == 0, 30)
+    assert wait(lambda: segment.cancel_runs() == 0, 30)
     assert "Cancelled" in w._list_item(a).data(SUBTITLE_ROLE)
 
 
@@ -1589,7 +1660,6 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
     got = []
     w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
     time.sleep(0.2)  # the question is queued; the window closes before it is shown
-    w._modified = False
     w.close()
     assert got == [False]
     for _ in range(20):  # deliver the stale question: it must be dropped
@@ -1640,7 +1710,7 @@ def test_strength_and_gap_filling_sliders(app):
 
     p = FigurePanel()
     p.set_settings(FigureSettings(strength=60, fill_gaps=None), "x", "x")
-    th, cl = p._w["strength"][1], p._w["fill_gaps"][1]
+    th, cl = p.field("strength"), p.field("fill_gaps")
     assert th.slider.value() == th.spin.value() == 60 and th.auto is None
     assert cl.auto.isChecked() and not cl.slider.isEnabled() and not cl.spin.isEnabled()
     got = []
@@ -1893,7 +1963,7 @@ def test_auto_model_says_which_method_it_used(app, tmp_path, new_window, wait):
     assert hint.isVisibleTo(w.panel) and "own transparency" in hint.text()
 
     # another model than auto: nothing to explain
-    box = w.panel._w["model"][1]
+    box = w.panel.field("model")
     box.setCurrentText("alpha")
     box.activated.emit(box.currentIndex())  # (as when the user picks it)
     assert not hint.isVisibleTo(w.panel)
@@ -1968,7 +2038,7 @@ def test_copies_on_the_figure_card(app, tmp_path, new_window):
     app.processEvents()
     click_copies(w, 0, "+", 3)
     assert fig.entry.settings.copies == 4 and w.list.item(0).data(COPIES_ROLE) == 4
-    assert w._modified
+    assert _unsaved(w)
     click_copies(w, 0, "-", 9)
     assert fig.entry.settings.copies == 0  # (not below 0)
     lst = w.list
@@ -1986,7 +2056,7 @@ def test_copies_on_the_figure_card(app, tmp_path, new_window):
     app.processEvents()
     assert fig.entry.settings.copies == 12
     # an edit in the panel keeps the copies set on the card
-    w.panel._w["margin_mm"][1].setValue(2.0)
+    w.panel.field("margin_mm").setValue(2.0)
     assert fig.entry.settings.copies == 12 and fig.entry.settings.margin_mm == 2.0
 
 
@@ -2122,7 +2192,6 @@ def test_update_from_the_about_window(app, fake_updates, new_window, wait):
     assert about.action.text() == "Restart now"
     assert w.update_bar.isVisibleTo(w) and "99.0.0" in w.update_text.text()
     w._about = None
-    w._modified = False
     w._restart_for_update()  # closes the window: the helper installs and restarts
     assert len(fake_updates["install"]) == 1 and fake_updates["install"][0][1] is True
 
@@ -2182,7 +2251,7 @@ def test_the_font_field(app):
     from papermini.support import fonts
 
     p = FigurePanel()
-    w = p._w["font"][1]
+    w = p.field("font")
     names = lambda: [w.itemData(i) for i in range(w.count()) if w.itemData(i)]
     assert names() == [f.name for f in fonts.bundled()]
     s = FigureSettings(font="Kalam")
@@ -2214,14 +2283,14 @@ def test_number_fields_follow_the_back_side(app):
     p.set_settings(
         FigureSettings(double_sided=True, back="number", tab_front="number"), "x", "x"
     )
-    assert p._w["tab_front"][1].currentData() == "number"
+    assert p.field("tab_front").currentData() == "number"
     assert p.is_shown("tab_front") and p.is_shown("tab_back")
     assert p.is_shown("back_text_color") and not p.is_shown("back_text")
-    p._w["back"][1].setCurrentIndex(p._w["back"][1].findData("text_number"))
+    p.field("back").setCurrentIndex(p.field("back").findData("text_number"))
     assert p.is_shown("back_text") and p.is_shown("back_text_color")
-    p._w["back"][1].setCurrentIndex(p._w["back"][1].findData("mirror"))
+    p.field("back").setCurrentIndex(p.field("back").findData("mirror"))
     assert not p.is_shown("back_text_color") and not p.is_shown("back_color")
-    p._w["double_sided"][1].setChecked(False)
+    p.field("double_sided").setChecked(False)
     assert p.is_shown("tab_front") and not p.is_shown("tab_back")  # (no back tab)
     assert p.settings().tab_front == "number"
 
@@ -2328,13 +2397,12 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch, new_window, wa
     w.add_images([tmp_path / "hero.png", tmp_path / "imp.png"])
     hero, _imp = w.figures
     hero.entry.settings = replace(hero.entry.settings, height_mm=150, label="Hero")
-    w.tabs.setCurrentIndex(w.SHEET)
-    w._refresh_sheet()  # (builds what is missing)
+    w.tabs.setCurrentIndex(w.SHEET)  # (builds what is missing)
     assert wait(lambda: all(f.mini is not None and f.up_to_date for f in w.figures))
-    w._sheet_changed(SheetSettings(paper="a5", orientation="landscape"))
-    w._refresh_sheet()
+    w.sheet_panel.changed.emit(SheetSettings(paper="a5", orientation="landscape"))
     sp = w.sheet_panel
-    assert w.sheet_banner_box.isVisibleTo(w) and w.sheet_view.scene().items() == []
+    assert wait(lambda: w.sheet_banner_box.isVisibleTo(w))
+    assert w.sheet_view.scene().items() == []
     assert sp.is_shown(sp.fit_warning)
     text = sp.fit_warning.text()
     assert text.startswith(
@@ -2342,12 +2410,12 @@ def test_figure_too_big_for_the_paper(app, tmp_path, monkeypatch, new_window, wa
     )
     assert "<li>Hero</li>" in text and "imp" not in text
     assert "Pick bigger paper" in text
-    w._print()  # asks; No: does not print
+    w.print_sheet()  # asks; No: does not print
     assert len(asked) == 1 and "\u2022 Hero" in asked[0] and "left off" in asked[0]
     assert printed == []
-    w._sheet_changed(SheetSettings(paper="a3"))  # everything fits again
-    w._refresh_sheet()
-    assert not w.sheet_banner_box.isVisibleTo(w) and not sp.is_shown(sp.fit_warning)
+    w.sheet_panel.changed.emit(SheetSettings(paper="a3"))  # everything fits again
+    assert wait(lambda: not w.sheet_banner_box.isVisibleTo(w))
+    assert not sp.is_shown(sp.fit_warning)
     assert w.sheet_view.scene().items()
 
 
@@ -2376,8 +2444,8 @@ def test_print_sets_the_paper_size_and_orientation(
         SheetSettings(paper="tabloid"),
         SheetSettings(paper="custom", paper_width_mm=300, paper_height_mm=200),
     ):
-        w._sheet_changed(sheet)
-        w._print()
+        w.sheet_panel.changed.emit(sheet)
+        w.print_sheet()
     assert seen == [(420, 297), (279, 432), (300, 200)]
 
 

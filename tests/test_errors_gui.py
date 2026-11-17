@@ -323,7 +323,7 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
     try:
         w.add_images([figure_image(tmp_path / "hero.png", (200, 300), mask=False)[0]])
         fig = w.figures[0]
-        w._settings_changed(
+        w.panel.changed.emit(
             replace(fig.entry.settings, height_mm=50)
         )  # not detailed yet
         from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
@@ -335,8 +335,8 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         prefs_dlg.detailed_log.setChecked(True)
         assert log.detailed()
         for h in (51, 52, 53):  # like dragging a spin box
-            w._settings_changed(replace(fig.entry.settings, height_mm=h))
-        w._sheet_changed(replace(w.project.sheet, paper="letter"))
+            w.panel.changed.emit(replace(fig.entry.settings, height_mm=h))
+        w.sheet_panel.changed.emit(replace(w.project.sheet, paper="letter"))
         assert wait(lambda: "height_mm 50 → 53" in _log_text(), 10)
         text = _log_text()
         assert "hero.png: height_mm 50 → 53" in text and "32 → 50" not in text

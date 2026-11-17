@@ -11,9 +11,10 @@ from PIL import Image, ImageDraw
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QToolButton
 
 from papermini import cli
 from papermini.output.png import piece_image, px_per_mm, write_pngs
@@ -401,7 +402,7 @@ def test_kind_switches_the_groups(app, prefs):
     shown = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]
     assert "Back side" in shown() and "Token" not in shown()
     assert p.kind_row.isVisibleTo(p) and p.is_shown("dimensions")
-    p._w["kind"][1].buttons["token"].click()
+    p.field("kind").buttons["token"].click()
     assert got[-1].kind == "token" and got[-1].label == "Boss"  # (the label is kept)
     assert shown() == [
         "Size",
@@ -418,16 +419,16 @@ def test_kind_switches_the_groups(app, prefs):
     p.token_text_switch.setChecked(True)
     assert got[-1].token_text == "label" and p.is_shown("token_text_mm")
     # curved text: the ring is at least as wide as the text needs, and says so
-    style = p._w["token_text_style"][1]
+    style = p.field("token_text_style")
     style.setCurrentIndex(style.findData("curved"))
-    ring = p._w["token_border_mm"][1]
+    ring = p.field("token_border_mm")
     assert ring.minimum() == min_ring_mm(2.5) and ring.value() == min_ring_mm(2.5)
     assert p.ring_hint.isVisibleTo(p) and "3.5 mm" in p.ring_hint.text()
     # a token can switch its outline and cut line off; both off by default
     for name in ("token_outline", "token_cut_line"):
         box = p._switches[name]
         assert box.switch.isVisibleTo(p) and not box.active()
-    p._w["kind"][1].buttons["mini"].click()
+    p.field("kind").buttons["mini"].click()
     assert got[-1].kind == "mini" and "Back side" in shown()
 
 
@@ -437,14 +438,27 @@ def test_drag_a_token_figure(app, window, wait):
     w = window
     m = w.figures[0].mini
     v = w.mini_view
-    assert isinstance(v, MiniView) and v._box is not None
+    items = lambda: len(v.scene().items())
     b0 = m.token.figure_box
     cx, cy = (b0[0] + b0[2]) / 2, (b0[1] + b0[3]) / 2
     pa, pb = v.mapFromScene(QPointF(cx, cy)), v.mapFromScene(QPointF(cx + 3, cy + 2))
+    hover = QMouseEvent(
+        QEvent.Type.MouseMove,
+        QPointF(pa),
+        QPointF(v.viewport().mapToGlobal(pa)),
+        Qt.MouseButton.NoButton,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    app.sendEvent(v.viewport(), hover)
+    assert isinstance(v, MiniView)
+    cursor = v.viewport().cursor().shape()
+    assert cursor == Qt.CursorShape.SizeAllCursor  # a drag moves the figure
+    n = items()
     QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
     for k in range(1, 5):
         QTest.mouseMove(v.viewport(), pa + (pb - pa) * (k / 4))
-    assert v._preview is not None  # the figure moves with the mouse
+    assert items() > n  # the figure moves with the mouse
     QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
     assert w.figures[0].entry.settings.token_area is not None
     m = _built(wait, w)
@@ -463,16 +477,18 @@ def test_drag_a_token_figure(app, window, wait):
     )
     # Esc cancels a drag, a click changes nothing
     area = w.figures[0].entry.settings.token_area
+    n = items()
     QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
     QTest.mouseMove(v.viewport(), pb)
     QTest.keyClick(v, Qt.Key_Escape)
-    assert v._preview is None
-    QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
-    QTest.mouseClick(v.viewport(), Qt.LeftButton, pos=v.mapFromScene(QPointF(cx, cy)))
+    assert items() == n
+    QTest.mouseRelease(v.viewport(), Qt.MouseButton.LeftButton, pos=pb)
+    QTest.mouseClick(
+        v.viewport(), Qt.MouseButton.LeftButton, pos=v.mapFromScene(QPointF(cx, cy))
+    )
     assert w.figures[0].entry.settings.token_area == area
     # Clear fits it again
-    w.panel._w["token_area"][1].edit.clear()
-    w.panel._emit()
+    w.panel.field("token_area").findChild(QToolButton).click()
     assert w.figures[0].entry.settings.token_area is None
 
 
@@ -492,7 +508,7 @@ def test_export_a_figure_as_svg_or_png(app, window, tmp_path, monkeypatch, prefs
             "getSaveFileName",
             staticmethod(lambda *a, n=name, f=filt: (str(tmp_path / n), f)),
         )
-        w._save_piece(w.figures[0])
+        w.export_current()
     assert {"a.png", "b.png", "c.svg"} <= {p.name for p in tmp_path.iterdir()}
     assert Image.open(tmp_path / "a.png").width == pytest.approx(26 * 256 / 25.4, abs=3)
     prefs.set_png_size_mode("dpi")
@@ -505,10 +521,10 @@ def test_export_a_figure_as_svg_or_png(app, window, tmp_path, monkeypatch, prefs
     monkeypatch.setattr(
         QFileDialog, "getExistingDirectory", staticmethod(lambda *a: str(out))
     )
-    w._save_all()
+    w.export_all()
     assert sorted(p.suffix for p in out.iterdir()) == [".png", ".svg"]
     monkeypatch.setattr(w, "_ask_format", lambda: None)  # (cancelled: nothing)
-    w._save_all()
+    w.export_all()
     assert len(list(out.iterdir())) == 2
 
 
