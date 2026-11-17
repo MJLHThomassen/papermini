@@ -246,7 +246,8 @@ just test
 ```
 
 See which lines the tests don't run. CI shows the same report in the summary
-of its Linux Python 3.12 test job:
+of its Linux Python 3.12 test job. Both fail when the total drops below
+`fail_under` in `pyproject.toml`:
 
 ```bash
 just coverage
