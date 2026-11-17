@@ -1,5 +1,3 @@
-"""Slider: a horizontal slider that can fill from a centre value."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt

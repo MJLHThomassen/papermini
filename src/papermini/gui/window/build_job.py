@@ -1,5 +1,3 @@
-"""BuildJob: builds one miniature in the thread pool."""
-
 from __future__ import annotations
 
 import logging
@@ -18,6 +16,8 @@ logger = logging.getLogger("papermini.build")
 
 
 class BuildJob(QRunnable):
+    """Builds one miniature in the thread pool."""
+
     def __init__(self, sig: Signals, fig: Figure, is_current):
         super().__init__()
         self.sig, self.uid, self.gen = sig, fig.uid, fig.gen

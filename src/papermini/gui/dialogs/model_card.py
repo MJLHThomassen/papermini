@@ -1,5 +1,3 @@
-"""ModelCard: one built-in model on the Models and cache page."""
-
 from __future__ import annotations
 
 import html

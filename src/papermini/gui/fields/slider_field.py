@@ -1,5 +1,3 @@
-"""SliderField: a slider with a number box beside it, and an optional Auto checkbox."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Signal

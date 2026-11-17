@@ -1,5 +1,3 @@
-"""PaperItem: a white sheet with a soft shadow."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt

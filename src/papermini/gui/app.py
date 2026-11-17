@@ -1,4 +1,4 @@
-"""Starting the desktop app."""
+"""Starts the desktop app."""
 
 from __future__ import annotations
 

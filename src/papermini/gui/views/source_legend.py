@@ -1,5 +1,3 @@
-"""SourceLegend: what the marks on the Source view mean."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt

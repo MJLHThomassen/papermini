@@ -1,5 +1,3 @@
-"""MainWindow: the figure list, the live previews and the settings."""
-
 from __future__ import annotations
 
 import html
@@ -108,6 +106,8 @@ def _log_update(state: str, data) -> None:
 
 
 class MainWindow(QMainWindow):
+    """The main window: the figure list, the live previews and the settings."""
+
     def __init__(self):
         super().__init__()
         self.resize(1440, 900)

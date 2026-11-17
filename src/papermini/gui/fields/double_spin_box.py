@@ -1,5 +1,3 @@
-"""DoubleSpinBox: a decimal field with a point as the decimal separator, whatever the locale."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QLocale

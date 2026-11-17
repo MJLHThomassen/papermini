@@ -1,5 +1,3 @@
-"""FigureDelegate: draws the figure list entries as cards, and the item roles they read."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt, Signal

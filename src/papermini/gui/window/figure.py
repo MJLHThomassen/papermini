@@ -1,5 +1,3 @@
-"""Figure: one figure in the list, with its settings and its latest build."""
-
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -12,6 +10,8 @@ from ...settings import FigureEntry
 
 @dataclass
 class Figure:
+    """One figure in the list: its settings and its latest build."""
+
     uid: int
     entry: FigureEntry
     mini: Mini | None = None

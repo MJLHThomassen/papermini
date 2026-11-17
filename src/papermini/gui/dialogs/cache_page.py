@@ -1,5 +1,3 @@
-"""CachePage: the Models and cache page of the Preferences window."""
-
 from __future__ import annotations
 
 import html

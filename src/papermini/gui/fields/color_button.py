@@ -1,5 +1,3 @@
-"""ColorButton: a button that shows a color and opens a color picker."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Signal
@@ -8,6 +6,8 @@ from PySide6.QtWidgets import QColorDialog, QPushButton
 
 
 class ColorButton(QPushButton):
+    """A button that shows a color and opens a color picker."""
+
     colorChanged = Signal(str)
 
     def __init__(self, parent=None):

@@ -1,4 +1,4 @@
-"""AboutDialog: the version, the update check and the licences."""
+"""The About dialog, and opening the folder of the bundled fonts."""
 
 from __future__ import annotations
 

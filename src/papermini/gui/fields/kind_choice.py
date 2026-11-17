@@ -1,5 +1,3 @@
-"""KindChoice: the choice between a standing mini and a token."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal

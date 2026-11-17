@@ -1,5 +1,3 @@
-"""CacheCard: one kind of cached file on the Models and cache page."""
-
 from __future__ import annotations
 
 import html

@@ -1,4 +1,4 @@
-"""Converting and loading images for Qt, and the adjusted preview of the Source view."""
+"""Converts and loads images for Qt, and makes the adjusted preview of the Source view."""
 
 from __future__ import annotations
 

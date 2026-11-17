@@ -1,5 +1,3 @@
-"""_WheelGuard: lets a field react to the mouse wheel only when it has focus."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt

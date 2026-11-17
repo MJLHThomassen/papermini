@@ -1,5 +1,3 @@
-"""WorkCard: a card on the canvas for slow work, with a Cancel button."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal

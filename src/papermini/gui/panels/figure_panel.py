@@ -1,5 +1,3 @@
-"""FigurePanel: the side panel that edits a figure's settings, one workflow step at a time."""
-
 from __future__ import annotations
 
 import html

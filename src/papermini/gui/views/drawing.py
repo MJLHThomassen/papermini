@@ -1,4 +1,4 @@
-"""Drawing miniatures and sheets in mm, as they print, and printing the sheet."""
+"""Draws miniatures and sheets in mm, as they print, and prints the sheet."""
 
 from __future__ import annotations
 

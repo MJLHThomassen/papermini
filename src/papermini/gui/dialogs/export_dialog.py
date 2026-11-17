@@ -1,5 +1,3 @@
-"""ExportDialog: where to save the print sheet's files, and which."""
-
 from __future__ import annotations
 
 import html

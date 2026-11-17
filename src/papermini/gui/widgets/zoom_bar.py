@@ -1,5 +1,3 @@
-"""ZoomBar: floating zoom controls for the canvas."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal

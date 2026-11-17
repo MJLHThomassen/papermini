@@ -1,5 +1,3 @@
-"""FlowLayout: a layout that wraps its items onto the next line when a row is full."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt

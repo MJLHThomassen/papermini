@@ -1,5 +1,3 @@
-"""ElidedLabel: a one-line label that shortens its text instead of clipping it."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt

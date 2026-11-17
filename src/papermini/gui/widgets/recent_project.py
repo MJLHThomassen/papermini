@@ -1,5 +1,3 @@
-"""RecentProject: one recent project on the start screen."""
-
 from __future__ import annotations
 
 import html

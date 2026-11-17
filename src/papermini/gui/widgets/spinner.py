@@ -1,5 +1,3 @@
-"""Spinner: a small turning arc that shows something is being worked on."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt, QTimer

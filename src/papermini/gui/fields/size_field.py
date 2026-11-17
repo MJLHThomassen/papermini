@@ -1,5 +1,3 @@
-"""SizeField: the figure's height and width, with a toggle that keeps their proportions."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal

@@ -1,4 +1,4 @@
-"""Wrapping a canvas overlay so it keeps a margin from the canvas edge."""
+"""Wraps a canvas overlay so it keeps a margin from the canvas edge."""
 
 from __future__ import annotations
 

@@ -1,5 +1,3 @@
-"""SheetPanel: the side panel of the Print sheet step."""
-
 from __future__ import annotations
 
 from dataclasses import replace

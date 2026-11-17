@@ -1,5 +1,3 @@
-"""CropView: the Source view, with the detected outline and an editable crop box."""
-
 from __future__ import annotations
 
 import numpy as np

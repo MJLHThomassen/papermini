@@ -1,4 +1,4 @@
-"""ErrorHandler: catches the app's unexpected errors, logs them and shows them in a dialog."""
+"""Catches the app's unexpected errors, logs them and shows them in a dialog."""
 
 from __future__ import annotations
 

@@ -1,5 +1,3 @@
-"""ErrorDialog: shows an unexpected error, with its details folded away."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer

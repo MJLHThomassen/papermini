@@ -1,4 +1,4 @@
-"""Reporting problems: opening the log folder, a new bug report, and offering to report an earlier crash."""
+"""Reports problems: opens the log folder or a new bug report, and offers to report an earlier crash."""
 
 from __future__ import annotations
 

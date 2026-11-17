@@ -1,5 +1,3 @@
-"""MiniView: the Miniature view, which also frames a token's figure."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal

@@ -1,5 +1,3 @@
-"""SizesPage: the creature sizes page of the Preferences window."""
-
 from __future__ import annotations
 
 import logging

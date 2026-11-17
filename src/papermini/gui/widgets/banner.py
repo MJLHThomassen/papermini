@@ -1,5 +1,3 @@
-"""Banner: a message card on top of the canvas."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import Qt

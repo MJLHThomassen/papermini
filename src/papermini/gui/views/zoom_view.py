@@ -1,5 +1,3 @@
-"""ZoomView: a graphics view with wheel zoom, fit to view and actual size."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal

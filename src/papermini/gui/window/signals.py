@@ -1,11 +1,11 @@
-"""Signals: what the background jobs report to the main window."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
 
 
 class Signals(QObject):
+    """What the background jobs report to the main window."""
+
     update = Signal(
         str, object, str
     )  # update check: state, data, who asked (see check_updates)

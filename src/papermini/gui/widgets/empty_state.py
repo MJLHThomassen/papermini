@@ -1,5 +1,3 @@
-"""EmptyState: the start screen shown on the canvas when there is nothing to preview."""
-
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal

@@ -1,5 +1,3 @@
-"""DownloadDialog: asks before downloading a built-in model, then shows the download."""
-
 from __future__ import annotations
 
 import html
@@ -21,6 +19,8 @@ from .model_info import MB, _host, _label, licence_link, ui_log
 
 
 class _Signals(QObject):
+    """What the download thread reports to the dialog."""
+
     progress = Signal(int, int)  # done bytes, total bytes (0 = unknown)
     finished = Signal(str)  # "" on success, else the error message
 

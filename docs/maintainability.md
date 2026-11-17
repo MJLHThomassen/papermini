@@ -252,9 +252,11 @@ nothing else.
 
 ### S13. Comments explain behaviour and reasons
 
-Docstrings say what a function or class does, as an action or a purpose ("Build
-the cut path for…"). Comments explain why the code does something that would
-otherwise surprise a reader. They don't repeat what the code already says.
+Docstrings say what a function, class or module does, as an action or a
+purpose ("Build the cut path for…", "Starts the desktop app"), not as a phrase
+starting with an "-ing" word ("Starting the desktop app"). Comments explain why
+the code does something that would otherwise surprise a reader. They don't
+repeat what the code already says.
 
 - Don't describe what a result is used for elsewhere. A docstring doesn't
   explain that its output has a certain shape because a function several calls
@@ -268,7 +270,9 @@ otherwise surprise a reader. They don't repeat what the code already says.
   comment, change the code and nothing else. Don't add a comment about what used
   to be there or what shouldn't be. Add a comment only when the code itself
   needs one, such as a workaround for a known bug in a dependency.
-- Give every module a docstring that says what it holds.
+- Give every module a docstring that says what it holds, unless it holds one
+  class. Then the class docstring says what it is, and the module needs none.
+- Give every class a docstring that says briefly what it is.
 - Give public functions in the core modules a docstring. A private helper needs
   one only when its name and signature aren't enough.
 
