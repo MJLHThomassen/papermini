@@ -19,6 +19,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -96,7 +97,7 @@ PROGRESS_HOOK = None
 # Optional callback(model_name) -> bool, called before a built-in model is downloaded
 # for a build. False refuses the download. The GUI asks the user here and downloads
 # the model itself, with a progress dialog.
-CONFIRM_DOWNLOAD = None
+CONFIRM_DOWNLOAD: Callable[[str], bool] | None = None
 
 # Set to abort a running model download or build (the GUI does this when it closes).
 CANCEL = threading.Event()
