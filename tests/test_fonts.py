@@ -1,25 +1,15 @@
-"""Fonts: Times, the bundled fonts, the installed-font index and every output's font."""
+"""Tests of the fonts: Times, the bundled fonts and the installed-font index."""
 
 import os
 import shutil
 
 import pytest
 
-from papermini.cli import main
 from papermini.output.sheet import pack, write_pdf
-from papermini.output.svg import read_svg, write_svg
 from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import fit_label_size, make_mini
+from papermini.pipeline.mini import make_mini
 from papermini.pipeline.style import Style
-from papermini.project.figure_settings import FigureSettings
-from papermini.project.settings import build_mini
 from papermini.support import fonts
-
-
-@pytest.fixture
-def figure(tmp_path, figure_image):
-    """A dark figure on white, plus its mask."""
-    return figure_image(tmp_path / "hero.png")
 
 
 @pytest.fixture
@@ -80,30 +70,11 @@ def test_installed_fonts_are_indexed_once(font_folder):
     assert sorted(reads) == ["fake.ttf", "other.ttf"]
 
 
-def test_a_missing_font_prints_in_times(figure):
-    assert fonts.resolve("No Such Font") == (fonts.TIMES, False)
-    assert fonts.resolve("Almendra")[1] and fonts.resolve("Times")[1]
-    assert fonts.pdf_name("No Such Font") == "Times-Roman"
-    assert fonts.pdf_name("Times", bold=True) == "Times-Bold"
-    img, mask = figure
-    notes = []
-    m = make_mini(
-        img,
-        geo.Params(),
-        mask_path=mask,
-        label="Hero",
-        style=Style(font="No Such Font"),
-        log=notes.append,
-    )
-    assert m.style.font == "Times"
-    assert any("No Such Font is not on this computer" in n for n in notes)
-
-
-def test_an_installed_font_is_found_and_printed(figure, font_folder, tmp_path):
+def test_an_installed_font_is_found_and_printed(goblin_figure, font_folder, tmp_path):
     _, add, _ = font_folder
     add("fake.ttf", "Fake Serif")
     assert fonts.resolve("Fake Serif")[1]
-    img, mask = figure
+    img, mask = goblin_figure
     m = make_mini(
         img,
         geo.Params(),
@@ -117,40 +88,7 @@ def test_an_installed_font_is_found_and_printed(figure, font_folder, tmp_path):
     assert b"Almendra" in pdf  # (the file behind the made-up name)
 
 
-def test_the_font_changes_the_text_size():
-    """Labels are measured in their own font: a wide font shrinks to fit sooner."""
-    narrow = fit_label_size("Red dragon", 14.0, 3.4, "Times")
-    wide = fit_label_size("Red dragon", 14.0, 3.4, "Uncial Antiqua")
-    assert wide < narrow <= 3.4
-
-
-def test_the_pdf_embeds_the_font_and_the_svg_names_it(figure, tmp_path):
-    img, mask = figure
-    s = FigureSettings(
-        mask=str(mask), label="Hero", font="Almendra", back="text_number"
-    )
-    m = build_mini(img, s, log=lambda *_: None)
-    assert m.style.font == "Almendra"
-    pdf = write_pdf(pack([(m, 2)]), tmp_path / "s.pdf").read_bytes()
-    assert b"Almendra-Regular" in pdf and b"Almendra-Bold" in pdf  # (numbers are bold)
-    svg = write_svg(m, tmp_path / "hero.svg").read_text(encoding="utf-8")
-    assert "font-family=\"'Almendra', serif\"" in svg
-    assert 'class="number"' in svg and 'font-weight="bold"' in svg
-    assert read_svg(tmp_path / "hero.svg").style.font == "Almendra"
-    # Times: the names every program knows
-    t = write_svg(
-        build_mini(
-            img, FigureSettings(mask=str(mask), label="Hero"), log=lambda *_: None
-        ),
-        tmp_path / "t.svg",
-    )
-    assert 'font-family="Times New Roman, Times, serif"' in t.read_text(
-        encoding="utf-8"
-    )
-    assert read_svg(t).style.font == "Times"
-
-
-def test_svg_font_family_round_trip():
+def test_a_font_family_reads_back_from_its_svg_name():
     assert fonts.svg_family("Times") == "Times New Roman, Times, serif"
     assert fonts.svg_family("Kalam") == "'Kalam', serif"
     assert fonts.svg_family("No Such Font") == "Times New Roman, Times, serif"
@@ -162,38 +100,3 @@ def test_svg_font_family_round_trip():
         ("", "Times"),
     ):
         assert fonts.from_svg_family(family) == name
-
-
-def test_the_font_option():
-    s = FigureSettings.from_dict({"font": "Kalam"})
-    assert s.style().font == "Kalam" and s.to_dict(with_size=False) == {"font": "Kalam"}
-    assert FigureSettings().style().font == "Times"
-    assert (
-        FigureSettings.from_dict({"font": "No Such Font"}).font == "No Such Font"
-    )  # (kept)
-    for bad in ("", "  ", 12):
-        with pytest.raises(ValueError, match="font must be"):
-            FigureSettings.from_dict({"font": bad})
-
-
-def test_cli_font(figure, tmp_path, capsys):
-    img, mask = figure
-    for name, font in (("kalam", "Kalam"), ("missing", "No Such Font")):
-        assert (
-            main(
-                [
-                    "make",
-                    str(img),
-                    "--mask",
-                    str(mask),
-                    "--font",
-                    font,
-                    "-o",
-                    str(tmp_path / f"{name}.svg"),
-                ]
-            )
-            == 0
-        )
-    assert read_svg(tmp_path / "kalam.svg").style.font == "Kalam"
-    assert read_svg(tmp_path / "missing.svg").style.font == "Times"
-    assert "No Such Font is not on this computer" in capsys.readouterr().out

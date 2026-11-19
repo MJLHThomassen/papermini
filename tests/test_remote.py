@@ -1,31 +1,15 @@
-"""Images from links (downloaded once into the cache) and WebP files. No real network."""
+"""Tests of images from links and from folders. No real network."""
 
-import io
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
-from PIL import Image, ImageDraw
 
-from papermini.cli import main
-from papermini.project.figure_settings import FigureSettings
-from papermini.project.project_files import load_project, save_project
 from papermini.support import remote
 
 
-def figure_bytes(fmt="PNG", size=(300, 450)) -> bytes:
-    """A red oval on a transparent background: the alpha channel is the mask, no model needed."""
-    im = Image.new("RGBA", size, (0, 0, 0, 0))
-    ImageDraw.Draw(im).ellipse(
-        (30, 30, size[0] - 30, size[1] - 30), fill=(200, 40, 30, 255)
-    )
-    buf = io.BytesIO()
-    (im.convert("RGB") if fmt == "JPEG" else im).save(buf, fmt)
-    return buf.getvalue()
-
-
-def test_link_is_downloaded_once_and_named_after_the_link(fake_web):
+def test_link_is_downloaded_once_and_named_after_the_link(fake_web, figure_bytes):
     url = "https://example.com/art/Red%20Goblin.webp?size=large"
     fake_web[url] = figure_bytes("WEBP")
     p = remote.fetch_image(url)
@@ -35,7 +19,7 @@ def test_link_is_downloaded_once_and_named_after_the_link(fake_web):
     assert remote.cached_image(url) == p
 
 
-def test_link_without_extension_gets_one_from_the_content(fake_web):
+def test_link_without_extension_gets_one_from_the_content(fake_web, figure_bytes):
     fake_web["https://example.com/image?id=7"] = figure_bytes("JPEG")
     assert remote.fetch_image("https://example.com/image?id=7").name == "image.jpg"
 
@@ -67,58 +51,7 @@ def test_link_and_file_uri_helpers(tmp_path):
     assert remote.is_image_file("A.WEBP") and not remote.is_image_file("a.gif")
 
 
-def test_project_keeps_the_link_not_the_cached_file(fake_web, tmp_path):
-    url = "https://example.com/goblin.png"
-    fake_web[url] = figure_bytes()
-    (tmp_path / "p.yaml").write_text(
-        f"figures:\n  - image: {url}\n    strength: 50\n", encoding="utf-8"
-    )
-    proj = load_project(tmp_path / "p.yaml")
-    f = proj.figures[0]
-    assert (
-        f.source == url
-        and f.image == remote.cached_image(url)
-        and f.settings.strength == 50
-    )
-    assert f.display_name == "goblin"
-    save_project(proj, tmp_path / "q.yaml")
-    assert f"image: {url}" in (tmp_path / "q.yaml").read_text(encoding="utf-8")
-
-
-def test_project_with_a_dead_link_says_which(fake_web, tmp_path):
-    (tmp_path / "p.yaml").write_text(
-        "figures: [https://example.com/gone.png]\n", encoding="utf-8"
-    )
-    with pytest.raises(ValueError, match="gone.png: 404"):
-        load_project(tmp_path / "p.yaml")
-
-
-def test_cli_makes_a_mini_from_a_link_into_the_current_folder(
-    fake_web, tmp_path, monkeypatch
-):
-    url = "https://example.com/minis/hero.webp"
-    fake_web[url] = figure_bytes("WEBP")
-    monkeypatch.chdir(tmp_path)
-    assert main(["make", url, "--model", "alpha"]) == 0
-    assert (tmp_path / "hero.svg").is_file()  # here, not next to the cached download
-    assert (
-        main(["make", "https://example.com/nothing.png"]) == 2
-    )  # a clear error, no traceback
-
-
-def test_webp_file_works_like_any_other(tmp_path):
-    from papermini.project.settings import build_mini
-
-    (tmp_path / "ogre.webp").write_bytes(figure_bytes("WEBP"))
-    m = build_mini(tmp_path / "ogre.webp", FigureSettings())
-    assert m.name == "ogre" and abs(m.figure_height_mm - 32) < 0.5
-    assert (
-        main(["make", (tmp_path / "ogre.webp").as_uri()]) == 0
-    )  # a file:// URI is a path
-    assert (tmp_path / "ogre.svg").is_file()
-
-
-def test_clear_images_keeps_the_ones_in_use(fake_web):
+def test_clear_images_keeps_the_ones_in_use(fake_web, figure_bytes):
     fake_web["https://example.com/a.png"] = figure_bytes()
     fake_web["https://example.com/b.png"] = figure_bytes()
     a = remote.fetch_image("https://example.com/a.png")
@@ -129,3 +62,46 @@ def test_clear_images_keeps_the_ones_in_use(fake_web):
     # a cleared link is downloaded again
     assert remote.fetch_image("https://example.com/b.png").exists()
     assert remote.clear_images() == 2 and remote.cached_images() == []
+
+
+def test_names_sort_in_natural_order():
+    names = ["goblin 10", "Goblin 2", "goblin 1b", "ape"]
+    assert sorted(names, key=remote.natural_key) == [
+        "ape",
+        "goblin 1b",
+        "Goblin 2",
+        "goblin 10",
+    ]
+
+
+def test_folder_images_own_first_then_subfolders(monsters):
+    images, skipped = remote.folder_images(monsters)
+    assert [p.relative_to(monsters).as_posix() for p in images] == [
+        "leader.png",
+        "goblins/goblin 2.png",
+        "goblins/goblin 10.png",
+        "goblins/leader.png",
+        "orcs/leader.webp",
+    ]
+    assert (
+        skipped == 2
+    )  # notes.txt and orcs/readme.md; the hidden folder is not looked at
+    only, skipped = remote.folder_images(monsters, subfolders=False)
+    assert only == [monsters / "leader.png"] and skipped == 1
+
+
+def test_same_names_get_their_subfolder(monsters):
+    images, _ = remote.folder_images(monsters)
+    assert remote.figure_names(images, monsters) == [
+        None,
+        None,
+        None,
+        "goblins-leader",
+        "orcs-leader",
+    ]  # leader.png keeps its name
+    deep = [
+        monsters / "a" / "b" / "x.png",
+        monsters / "c" / "x.png",
+        monsters / "y.png",
+    ]
+    assert remote.figure_names(deep, monsters) == ["a-b-x", "c-x", None]

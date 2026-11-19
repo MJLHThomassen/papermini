@@ -20,24 +20,6 @@ from papermini.support import update
 
 
 @pytest.fixture
-def keys():
-    """A throwaway release key pair: (private, public), base64."""
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-    k = Ed25519PrivateKey.generate()
-    priv = k.private_bytes(
-        serialization.Encoding.Raw,
-        serialization.PrivateFormat.Raw,
-        serialization.NoEncryption(),
-    )
-    pub = k.public_key().public_bytes(
-        serialization.Encoding.Raw, serialization.PublicFormat.Raw
-    )
-    return base64.b64encode(priv).decode(), base64.b64encode(pub).decode()
-
-
-@pytest.fixture
 def local_files(monkeypatch):
     """Let update's downloads open file:// links (the tests block the network)."""
     blocked = urllib.request.urlopen
@@ -49,12 +31,6 @@ def local_files(monkeypatch):
         return blocked(req, *a, **k)
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-
-
-@pytest.fixture
-def sign(scripts):
-    """Returns ``sign(data, private)``, which signs ``data`` as a release is signed."""
-    return scripts("sign_release").sign
 
 
 def fake_release(tmp_path: Path, private: str, sign, version: str = "9.9.9") -> Path:
@@ -338,51 +314,7 @@ def test_helper_installs_once_papermini_has_quit(tmp_path):
 # endregion
 
 
-# region scripts
-
-
-def test_sign_release_checks_the_apps_key(monkeypatch, tmp_path, keys, scripts, sign):
-    sign_release = scripts("sign_release")
-
-    private, public = keys
-    data = b"sums"
-    assert sign_release.check(data, sign_release.sign(data, private), public)
-    other = base64.b64encode(b"\2" * 32).decode()
-    assert not sign_release.check(data, sign_release.sign(data, other), public)
-    # the script refuses a secret that does not belong to the app's public key
-    update_py = tmp_path / "update.py"
-    update_py.write_text(f'PUBLIC_KEY = "{public}"\n')
-    monkeypatch.setattr(sign_release, "UPDATE_PY", update_py)
-    f = tmp_path / "SHA256SUMS.txt"
-    f.write_bytes(data)
-    monkeypatch.setattr(sys, "argv", ["sign_release.py", str(f)])
-    monkeypatch.setenv("RELEASE_SIGNING_KEY", other)
-    with pytest.raises(SystemExit, match="does not belong"):
-        sign_release.main()
-    monkeypatch.setenv("RELEASE_SIGNING_KEY", private)
-    sign_release.main()
-    assert sign_release.check(
-        data, f.with_name(f.name + ".sig").read_bytes().strip(), public
-    )
-
-
-def test_release_key_writes_the_public_key(monkeypatch, tmp_path, scripts):
-    release_key = scripts("release_key")
-
-    update_py = tmp_path / "update.py"
-    update_py.write_text('x = 1\nPUBLIC_KEY = ""\n')
-    monkeypatch.setattr(release_key, "UPDATE_PY", update_py)
-    monkeypatch.setattr(release_key, "ROOT", tmp_path)
-    key_file = tmp_path / "key"
-    monkeypatch.setattr(sys, "argv", ["release_key.py", str(key_file)])
-    release_key.main()
-    public = update_py.read_text().split('PUBLIC_KEY = "')[1].split('"')[0]
-    assert (
-        len(base64.b64decode(public)) == 32
-        and len(base64.b64decode(key_file.read_text())) == 32
-    )
-    with pytest.raises(SystemExit, match="exists"):  # never replaces a key by accident
-        release_key.main()
+# region restart
 
 
 def test_helper_restarts_papermini_itself(tmp_path):
@@ -431,21 +363,6 @@ def test_only_the_installed_folder_updates_with_the_installer(monkeypatch, tmp_p
 def test_installer_entry_is_only_on_windows(monkeypatch):
     monkeypatch.setattr(update.sys, "platform", "darwin")
     assert update.setup_install_dir() is None
-
-
-def test_installer_script_compiles(tmp_path, scripts):
-    """Inno Setup compiles packaging/papermini.iss, its [Code] included (Windows, with
-    Inno Setup 6 installed)."""
-    build_installer = scripts("build_installer")
-
-    if sys.platform != "win32" or build_installer.find_iscc() is None:
-        pytest.skip("needs Windows and Inno Setup 6")
-    dist = tmp_path / "papermini"
-    (dist / "_internal").mkdir(parents=True)
-    (dist / "papermini.exe").write_bytes(b"pretend papermini")
-    (dist / "_internal" / "a.dll").write_bytes(b"pretend library")
-    setup = build_installer.build("0.0.1", dist, tmp_path / "out")
-    assert setup.is_file() and setup.name == "papermini-0.0.1-windows-x64-setup.exe"
 
 
 def test_installer_has_the_apps_id():

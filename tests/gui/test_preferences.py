@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 from papermini.project import sizes
 from papermini.project.figure_settings import FigureSettings
 
-pytestmark = pytest.mark.usefixtures("no_builds")  # (no model in these tests)
+pytestmark = pytest.mark.usefixtures("no_builds")
 
 
 def _names(page):
@@ -307,3 +307,47 @@ def test_a_sizes_page_is_freed(app):
     del page
     gc.collect()
     assert ref() is None
+
+
+def test_the_images_page_sets_the_png_size(app, window, prefs):
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
+
+    assert prefs.png_size_mode() == "square" and prefs.png_px_per_mm(25.4) == 256 / 25.4
+    dlg = PreferencesDialog(window, "images")
+    assert dlg.png_px.isEnabled() and not dlg.png_dpi.isEnabled()
+    assert dlg.png_px.suffix() == ""  # (the unit is beside the box)
+    dlg.png_buttons["dpi"].setChecked(True)
+    assert prefs.png_size_mode() == "dpi" and dlg.png_dpi.isEnabled()
+    dlg.png_dpi.setValue(600)
+    assert prefs.png_px_per_mm(25.4) == pytest.approx(600 / 25.4)
+    dlg.close()
+
+
+def test_the_images_page_sets_whether_subfolders_are_added(window, prefs):
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
+
+    dlg = PreferencesDialog(window, "images")
+    assert dlg.subfolders.isChecked()
+    dlg.subfolders.setChecked(False)
+    assert prefs.add_subfolders() is False
+    dlg.close()
+
+
+def test_the_preferences_are_in_the_menu(app, new_window):
+    """Preferences… is in the menu (Ctrl+,) and holds the settings that used to be menu
+    items: the theme, automatic updates, the detailed log and cache management."""
+    from PySide6.QtGui import QKeySequence
+
+    w = new_window()
+    assert w.a_prefs in w.menu.actions()
+    assert w.a_prefs.shortcut() == QKeySequence("Ctrl+,")
+    texts = [a.text() for a in w.menu.actions()]
+    for gone in (
+        "Theme",
+        "Cache management…",
+        "Creature sizes…",
+        "Log",
+        "Update automatically",
+    ):
+        assert gone not in texts
+    assert "Open log folder" in texts
