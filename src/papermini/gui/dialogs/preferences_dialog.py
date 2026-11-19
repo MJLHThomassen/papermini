@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt
+from collections.abc import Callable
+from pathlib import Path
+
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -17,16 +20,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...project import sizes
 from ...support import log
-from .. import errors, prefs
+from .. import errors
 from ..fields.spin_box import SpinBox
+from ..preferences import Preferences
 from .cache_page import CachePage
 from .page_parts import _hint, _page_title
 from .sizes_page import SizesPage
 
 
 class PreferencesDialog(QDialog):
-    """The Preferences window for ``window`` (the main window), opened at ``page``."""
+    """The Preferences window, opened at ``page``. ``table`` is the open project's size
+    table, and ``in_use`` returns the images of the open project's figures. The
+    choices that the main window acts on come out as signals."""
+
+    themeChanged = Signal(str)
+    autoUpdatesChanged = Signal(bool)
+    modelsChanged = Signal(str)  # the model downloaded or deleted
 
     PAGES = (
         ("sizes", "Creature sizes"),
@@ -37,12 +48,19 @@ class PreferencesDialog(QDialog):
         ("cache", "Models and cache"),
     )
 
-    def __init__(self, window, page: str = "sizes"):
-        super().__init__(window)
+    def __init__(
+        self,
+        prefs: Preferences,
+        table: sizes.SizeTable,
+        in_use: Callable[[], list[Path]],
+        page: str = "sizes",
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._prefs = prefs
         self.setWindowTitle("Preferences")
         self.setObjectName("PreferencesDialog")
         self.setSizeGripEnabled(True)
-        self.window_ = window
         v = QVBoxLayout(self)
         v.setContentsMargins(18, 18, 18, 16)
         v.setSpacing(12)
@@ -52,9 +70,9 @@ class PreferencesDialog(QDialog):
         self.nav.setObjectName("PrefNav")
         self.nav.setFixedWidth(150)
         self.stack = QStackedWidget()
-        self.sizes = SizesPage(window.project.sizes)
-        self.cache = CachePage(in_use=lambda: [f.entry.image for f in window.figures])
-        self.cache.changed.connect(window._models_changed)
+        self.sizes = SizesPage(prefs, table)
+        self.cache = CachePage(in_use=in_use)
+        self.cache.changed.connect(self.modelsChanged)
         pages = (
             self.sizes,
             self._images(),
@@ -103,8 +121,8 @@ class PreferencesDialog(QDialog):
         head.setObjectName("SubHeading")
         v.addWidget(head)
         self.subfolders = QCheckBox("Also add the images in subfolders")
-        self.subfolders.setChecked(prefs.add_subfolders())
-        self.subfolders.toggled.connect(prefs.set_add_subfolders)
+        self.subfolders.setChecked(self._prefs.add_subfolders())
+        self.subfolders.toggled.connect(self._prefs.set_add_subfolders)
         v.addWidget(self.subfolders)
         v.addWidget(
             _hint(
@@ -122,15 +140,15 @@ class PreferencesDialog(QDialog):
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(8)
         self.png_px = SpinBox()
-        self.png_px.setRange(*prefs.PNG_PX_RANGE)
+        self.png_px.setRange(*Preferences.PNG_PX_RANGE)
         self.png_px.setSingleStep(10)
-        self.png_px.setValue(prefs.png_px_per_square())
-        self.png_px.valueChanged.connect(prefs.set_png_px_per_square)
+        self.png_px.setValue(self._prefs.png_px_per_square())
+        self.png_px.valueChanged.connect(self._prefs.set_png_px_per_square)
         self.png_dpi = SpinBox()
-        self.png_dpi.setRange(*prefs.PNG_DPI_RANGE)
+        self.png_dpi.setRange(*Preferences.PNG_DPI_RANGE)
         self.png_dpi.setSingleStep(50)
-        self.png_dpi.setValue(prefs.png_dpi())
-        self.png_dpi.valueChanged.connect(prefs.set_png_dpi)
+        self.png_dpi.setValue(self._prefs.png_dpi())
+        self.png_dpi.valueChanged.connect(self._prefs.set_png_dpi)
         self.png_buttons = {}
         for row, (mode, text, box, unit) in enumerate(
             (
@@ -154,10 +172,10 @@ class PreferencesDialog(QDialog):
             grid.addWidget(QLabel(unit), row, 2)
         grid.setColumnStretch(3, 1)
         v.addLayout(grid)
-        self.png_buttons[prefs.png_size_mode()].setChecked(True)
+        self.png_buttons[self._prefs.png_size_mode()].setChecked(True)
         for mode, b in self.png_buttons.items():
             b.toggled.connect(lambda on, m=mode: on and self._png_mode(m))
-        self._png_mode(prefs.png_size_mode())
+        self._png_mode(self._prefs.png_size_mode())
         v.addWidget(
             _hint(
                 "How big an exported PNG is. For a virtual tabletop: this many pixels "
@@ -172,7 +190,7 @@ class PreferencesDialog(QDialog):
         return w
 
     def _png_mode(self, mode: str) -> None:
-        prefs.set_png_size_mode(mode)
+        self._prefs.set_png_size_mode(mode)
         self.png_px.setEnabled(mode == "square")
         self.png_dpi.setEnabled(mode == "dpi")
 
@@ -188,8 +206,8 @@ class PreferencesDialog(QDialog):
             ("dark", "Dark"),
         ):
             b = QRadioButton(text)
-            b.setChecked(mode == self.window_._theme_mode)
-            b.toggled.connect(lambda on, mode=mode: on and self.window_.set_theme(mode))
+            b.setChecked(mode == self._prefs.theme())
+            b.toggled.connect(lambda on, mode=mode: on and self.themeChanged.emit(mode))
             self.theme_group.addButton(b)
             v.addWidget(b)
         v.addStretch(1)
@@ -198,8 +216,8 @@ class PreferencesDialog(QDialog):
     def _updates(self) -> QWidget:
         w, v = self._page("Updates")
         self.auto_updates = QCheckBox("Update automatically")
-        self.auto_updates.setChecked(self.window_.auto_updates())
-        self.auto_updates.toggled.connect(self.window_.set_auto_updates)
+        self.auto_updates.setChecked(self._prefs.auto_updates())
+        self.auto_updates.toggled.connect(self.autoUpdatesChanged)
         v.addWidget(self.auto_updates)
         v.addWidget(
             _hint(

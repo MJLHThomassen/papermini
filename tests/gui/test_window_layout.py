@@ -99,13 +99,11 @@ def test_a_panel_dragged_shut_reopens_at_its_dragged_width(app, new_window):
     assert abs(w.splitter.sizes()[0] - 420) <= 2
 
 
-def test_the_panel_layout_is_remembered(app, new_window):
+def test_the_panel_layout_is_remembered(app, new_window, settings_store):
     """Collapsed panels and their widths come back after a restart."""
     from PySide6.QtCore import QSettings, Qt
 
-    from papermini.gui import prefs
-
-    assert prefs.store().format() == QSettings.IniFormat  # not the real settings
+    assert settings_store.format() == QSettings.IniFormat  # not the real settings
 
     def window():
         w = new_window()

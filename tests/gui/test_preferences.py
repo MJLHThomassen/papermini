@@ -35,24 +35,22 @@ def _answer(monkeypatch, name):
     )
 
 
-def test_presets_in_the_preferences(app):
-    from papermini.gui import prefs, size_presets
-
-    assert size_presets.presets() == [sizes.BUILTIN]
-    assert size_presets.default_table() == sizes.BUILTIN
+def test_presets_in_the_preferences(prefs, settings_store):
+    assert prefs.presets() == [sizes.BUILTIN]
+    assert prefs.default_table() == sizes.BUILTIN
     mine = replace(sizes.calculate(30), name="Mine")
-    size_presets.save_user_presets([mine])
-    size_presets.set_default_name("Mine")
-    assert size_presets.presets() == [sizes.BUILTIN, mine]
-    assert size_presets.default_table() == mine
-    assert size_presets.preset_of(mine) == "Mine"
-    assert size_presets.preset_of(replace(mine, medium_mm=40)) == ""  # changed since
-    assert size_presets.table_label(mine) == "Mine"
-    assert size_presets.table_label(sizes.calculate(28)) == "this project's table"
+    prefs.save_user_presets([mine])
+    prefs.set_default_preset_name("Mine")
+    assert prefs.presets() == [sizes.BUILTIN, mine]
+    assert prefs.default_table() == mine
+    assert prefs.preset_of(mine) == "Mine"
+    assert prefs.preset_of(replace(mine, medium_mm=40)) == ""  # changed since
+    assert prefs.table_label(mine) == "Mine"
+    assert prefs.table_label(sizes.calculate(28)) == "this project's table"
     # entries that cannot be read, or would hide the built-in one, are left out
     good = mine.to_dict()
-    prefs.store().setValue(
-        size_presets.PRESETS_KEY,
+    settings_store.setValue(
+        "sizes/presets",
         json.dumps(
             [
                 good,
@@ -63,18 +61,15 @@ def test_presets_in_the_preferences(app):
             ]
         ),
     )
-    assert size_presets.user_presets() == [mine]
-    prefs.store().setValue(size_presets.PRESETS_KEY, "not json")
-    assert (
-        size_presets.user_presets() == []
-        and size_presets.default_table() == sizes.BUILTIN
-    )
+    assert prefs.user_presets() == [mine]
+    settings_store.setValue("sizes/presets", "not json")
+    assert prefs.user_presets() == [] and prefs.default_table() == sizes.BUILTIN
 
 
-def test_the_builtin_preset_is_read_only(app):
+def test_the_builtin_preset_is_read_only(prefs):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(sizes.BUILTIN)
+    page = SizesPage(prefs, sizes.BUILTIN)
     assert _names(page) == [
         (
             "Standard 1-inch",
@@ -92,11 +87,10 @@ def test_the_builtin_preset_is_read_only(app):
     assert page.project_table() == sizes.BUILTIN
 
 
-def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
-    from papermini.gui import size_presets
+def test_own_presets_copy_rename_use_default_edit_delete(prefs, monkeypatch):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(sizes.BUILTIN)
+    page = SizesPage(prefs, sizes.BUILTIN)
     page.copy_preset()
     assert _names(page)[1] == ("Standard 1-inch copy", "")
     page.grid.setValue(30)
@@ -104,8 +98,8 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
     assert page.spins["large", "base_mm"].value() == pytest.approx(59.06)
     _answer(monkeypatch, "My 30 mm grid")
     page.rename_preset()
-    assert [t.name for t in size_presets.user_presets()] == ["My 30 mm grid"]
-    assert size_presets.user_presets()[0].grid_mm == 30  # saved at once
+    assert [t.name for t in prefs.user_presets()] == ["My 30 mm grid"]
+    assert prefs.user_presets()[0].grid_mm == 30  # saved at once
     page.use_in_project()
     page.make_default()
     assert _names(page) == [
@@ -113,12 +107,12 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
         ("My 30 mm grid", "Used in this project · Default for new projects"),
     ]
     assert page.project_table().name == "My 30 mm grid"
-    assert size_presets.default_name() == "My 30 mm grid"
+    assert prefs.default_preset_name() == "My 30 mm grid"
     assert "uses this preset" in page.status.text()
     # editing the project's preset changes the project too
     page.spins["large", "tab_width_mm"].setValue(52)
     assert page.project_table().row("large").tab_width_mm == 52
-    assert size_presets.user_presets()[0].row("large").tab_width_mm == 52
+    assert prefs.user_presets()[0].row("large").tab_width_mm == 52
     # a name in use is refused
     warned = []
     monkeypatch.setattr(
@@ -134,12 +128,12 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
     page.list.setCurrentRow(1)
     _answer(monkeypatch, "Club")
     page.rename_preset()
-    assert page.project_table().name == "Club" and size_presets.default_name() == "Club"
+    assert page.project_table().name == "Club" and prefs.default_preset_name() == "Club"
     monkeypatch.setattr(
         QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes)
     )
     page.delete_preset()
-    assert size_presets.default_name() == "Standard 1-inch"
+    assert prefs.default_preset_name() == "Standard 1-inch"
     assert page.project_table().name == "Club"  # (the project keeps its copy)
     assert _names(page)[-1] == (
         "This project's table",
@@ -148,12 +142,12 @@ def test_own_presets_copy_rename_use_default_edit_delete(app, monkeypatch):
     assert "not on this computer" in page.status.text()
 
 
-def test_a_project_table_that_matches_no_preset(app, monkeypatch):
-    from papermini.gui import size_presets
+def test_a_project_table_that_matches_no_preset(prefs, monkeypatch):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    size_presets.save_user_presets([replace(sizes.calculate(30), name="Club")])
-    page = SizesPage(replace(sizes.calculate(28), name="Club"))  # Club, changed since
+    prefs.save_user_presets([replace(sizes.calculate(30), name="Club")])
+    changed = replace(sizes.calculate(28), name="Club")  # Club, changed since
+    page = SizesPage(prefs, changed)
     assert _names(page)[-1] == (
         "This project's table",
         "Not a preset · Used in this project",
@@ -164,7 +158,7 @@ def test_a_project_table_that_matches_no_preset(app, monkeypatch):
     assert page.b_save.isVisibleTo(page) and not page.b_default.isEnabled()
     page.spins["huge", "height_mm"].setValue(70)  # edits change only the project
     assert page.project_table().row("huge").height_mm == 70
-    assert size_presets.user_presets()[0].row("huge").height_mm != 70
+    assert prefs.user_presets()[0].row("huge").height_mm != 70
     _answer(monkeypatch, "Club 28 mm")
     page.save_as_preset()
     assert page.project_table().name == "Club 28 mm"
@@ -177,9 +171,8 @@ def test_a_project_table_that_matches_no_preset(app, monkeypatch):
 
 
 def test_closing_preferences_gives_the_project_its_table(
-    window, tmp_path, monkeypatch, figure_image
+    window, prefs, tmp_path, monkeypatch, figure_image
 ):
-    from papermini.gui import size_presets
     from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     w = window
@@ -196,7 +189,7 @@ def test_closing_preferences_gives_the_project_its_table(
     w.project.path = tmp_path / "project.yaml"
     assert w.save()  # no unsaved changes
     mine = replace(sizes.calculate(30, 40), name="Mine")
-    size_presets.save_user_presets([mine])
+    prefs.save_user_presets([mine])
 
     def pick(dlg):
         dlg.sizes.list.setCurrentRow(1)  # Mine, after the built-in preset
@@ -216,12 +209,10 @@ def test_closing_preferences_gives_the_project_its_table(
     assert w.panel.size_hint.text() == "2 × 2 squares · 59.06 mm base · Mine"
 
 
-def test_a_new_project_starts_with_the_default_preset(window):
-    from papermini.gui import size_presets
-
+def test_a_new_project_starts_with_the_default_preset(window, prefs):
     mine = replace(sizes.calculate(30), name="Mine")
-    size_presets.save_user_presets([mine])
-    size_presets.set_default_name("Mine")
+    prefs.save_user_presets([mine])
+    prefs.set_default_preset_name("Mine")
     window.new_project()
     assert window.project.sizes == mine
 
@@ -269,11 +260,10 @@ def test_the_width_warning(window, tmp_path, figure_image):
     assert w.panel.size_warning.isHidden()
 
 
-def test_the_other_pages(window):
-    from papermini.gui import prefs, theme
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
+def test_the_other_pages(window, prefs):
+    from papermini.gui import theme
 
-    dlg = PreferencesDialog(window, "appearance")
+    dlg = window.preferences_dialog("appearance")
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
         "Creature sizes",
         "Images",
@@ -285,18 +275,18 @@ def test_the_other_pages(window):
     assert dlg.stack.currentIndex() == 2
     dark = next(b for b in dlg.theme_group.buttons() if b.text() == "Dark")
     dark.setChecked(True)
-    assert theme.current is theme.DARK and prefs.store().value("theme") == "dark"
+    assert theme.current is theme.DARK and prefs.theme() == "dark"
     next(
         b for b in dlg.theme_group.buttons() if b.text() == "Follow system"
     ).setChecked(True)
-    assert prefs.store().value("theme") == "system"
+    assert prefs.theme() == "system"
     assert theme.current is theme.resolve("system")
     dlg.show_page("nothing")  # (an unknown page: the first)
     assert dlg.stack.currentIndex() == 0
     dlg.close()
 
 
-def test_a_sizes_page_is_freed(app):
+def test_a_sizes_page_is_freed(prefs):
     """Regression: a lambda connected to the preset list kept every page alive until
     Python quit, after the QApplication was gone, and Python crashed on exit."""
     import gc
@@ -304,7 +294,7 @@ def test_a_sizes_page_is_freed(app):
 
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(sizes.BUILTIN)
+    page = SizesPage(prefs, sizes.BUILTIN)
     page.copy_preset()  # (the list is filled again)
     ref = weakref.ref(page)
     del page
@@ -313,10 +303,8 @@ def test_a_sizes_page_is_freed(app):
 
 
 def test_the_images_page_sets_the_png_size(app, window, prefs):
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
     assert prefs.png_size_mode() == "square" and prefs.png_px_per_mm(25.4) == 256 / 25.4
-    dlg = PreferencesDialog(window, "images")
+    dlg = window.preferences_dialog("images")
     assert dlg.png_px.isEnabled() and not dlg.png_dpi.isEnabled()
     assert dlg.png_px.suffix() == ""  # (the unit is beside the box)
     dlg.png_buttons["dpi"].setChecked(True)
@@ -327,9 +315,7 @@ def test_the_images_page_sets_the_png_size(app, window, prefs):
 
 
 def test_the_images_page_sets_whether_subfolders_are_added(window, prefs):
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
-    dlg = PreferencesDialog(window, "images")
+    dlg = window.preferences_dialog("images")
     assert dlg.subfolders.isChecked()
     dlg.subfolders.setChecked(False)
     assert prefs.add_subfolders() is False

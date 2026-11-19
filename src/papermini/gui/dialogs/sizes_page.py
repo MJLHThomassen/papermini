@@ -25,14 +25,7 @@ from PySide6.QtWidgets import (
 from ...project import sizes
 from .. import theme
 from ..fields.double_spin_box import DoubleSpinBox
-from ..size_presets import (
-    default_name,
-    find,
-    preset_of,
-    save_user_presets,
-    set_default_name,
-    user_presets,
-)
+from ..preferences import Preferences
 from .page_parts import _hint, _page_title
 
 ui_log = logging.getLogger("papermini.ui")
@@ -119,12 +112,13 @@ class SizesPage(QWidget):
     """Manage the size table presets, and pick the open project's table and the default
     for new projects. ``project_table()`` is the project's table after the changes."""
 
-    def __init__(self, project_table: sizes.SizeTable, parent=None):
+    def __init__(self, prefs: Preferences, project_table: sizes.SizeTable, parent=None):
         super().__init__(parent)
+        self._prefs = prefs
         self._project = project_table
-        self._user = user_presets()
-        self._default = default_name()
-        if not find(self._all(), self._default):
+        self._user = prefs.user_presets()
+        self._default = prefs.default_preset_name()
+        if not self._find(self._default):
             self._default = sizes.BUILTIN_NAME
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
@@ -270,8 +264,11 @@ class SizesPage(QWidget):
     def _all(self) -> list[sizes.SizeTable]:
         return [sizes.BUILTIN] + self._user
 
+    def _find(self, name: str) -> sizes.SizeTable | None:
+        return next((t for t in self._all() if t.name == name), None)
+
     def _project_preset(self) -> str:
-        return preset_of(self._project, self._all())
+        return self._prefs.preset_of(self._project, self._all())
 
     def _key_of_project(self) -> tuple[str, str]:
         name = self._project_preset()
@@ -292,7 +289,7 @@ class SizesPage(QWidget):
     def _table(self, key: tuple[str, str]) -> sizes.SizeTable:
         if key[0] == PROJECT:
             return self._project
-        return find(self._all(), key[1]) or sizes.BUILTIN
+        return self._find(key[1]) or sizes.BUILTIN
 
     def _notes(self, key: tuple[str, str]) -> str:
         used = key == self._key_of_project()
@@ -354,7 +351,7 @@ class SizesPage(QWidget):
         if key[0] == PROJECT:
             self.title.setText("This project's table")
             came = self._project.name
-            if came and find(self._all(), came):
+            if came and self._find(came):
                 status = (
                     f"It came from the preset {came}, but the values are different "
                     "now. Save it as a preset to keep it, or use a preset instead."
@@ -414,7 +411,7 @@ class SizesPage(QWidget):
             follows = self._project_preset() == key[1]
             table = self._shown(key[1])
             self._user = [table if t.name == key[1] else t for t in self._user]
-            save_user_presets(self._user)
+            self._prefs.save_user_presets(self._user)
             if follows:
                 self._project = table
         self._refresh_notes()
@@ -444,7 +441,7 @@ class SizesPage(QWidget):
         name = name.strip() if ok else ""
         if not name or name == old:
             return ""
-        if find(self._all(), name):
+        if self._find(name):
             QMessageBox.warning(
                 self, title, f"There is already a preset called {name}."
             )
@@ -453,7 +450,7 @@ class SizesPage(QWidget):
 
     def _add(self, table: sizes.SizeTable) -> None:
         self._user.append(table)
-        save_user_presets(self._user)
+        self._prefs.save_user_presets(self._user)
         ui_log.info("Added the creature size preset %s", table.name)
         self._rebuild(("preset", table.name))
 
@@ -472,12 +469,12 @@ class SizesPage(QWidget):
             return
         follows = self._project_preset() == old
         self._user = [replace(t, name=name) if t.name == old else t for t in self._user]
-        save_user_presets(self._user)
+        self._prefs.save_user_presets(self._user)
         if follows:
             self._project = replace(self._project, name=name)
         if self._default == old:
             self._default = name
-            set_default_name(name)
+            self._prefs.set_default_preset_name(name)
         ui_log.info("Renamed the creature size preset %s to %s", old, name)
         self._rebuild(("preset", name))
 
@@ -494,10 +491,10 @@ class SizesPage(QWidget):
         ):
             return
         self._user = [t for t in self._user if t.name != name]
-        save_user_presets(self._user)
+        self._prefs.save_user_presets(self._user)
         if self._default == name:
             self._default = sizes.BUILTIN_NAME
-            set_default_name(self._default)
+            self._prefs.set_default_preset_name(self._default)
         ui_log.info("Deleted the creature size preset %s", name)
         self._rebuild(self._key_of_project())
 
@@ -507,7 +504,7 @@ class SizesPage(QWidget):
 
     def make_default(self) -> None:
         self._default = self._key()[1]
-        set_default_name(self._default)
+        self._prefs.set_default_preset_name(self._default)
         ui_log.info("New projects use the creature size preset %s", self._default)
         self._refresh_notes()
 

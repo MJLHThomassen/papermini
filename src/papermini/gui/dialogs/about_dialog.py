@@ -1,10 +1,8 @@
-"""The About dialog, and opening the folder of the bundled fonts."""
-
 from __future__ import annotations
 
 import html
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
@@ -21,31 +19,19 @@ from ...support import fonts
 from .. import theme
 
 
-def _font_note() -> str:
-    """The fonts that come with papermini, their licence, and a link to their folder."""
-    names = [f.name for f in fonts.bundled() if f.regular is not None]
-    listed = ", ".join(names[:-1]) + " and " + names[-1]
-    return (
-        f"The fonts {html.escape(listed)} come with papermini. They are free fonts "
-        "under the SIL Open Font License, also for commercial use. Each font's "
-        "licence (OFL.txt) is in its folder: <a href='fonts'>open the font folder</a>."
-    )
-
-
-def open_font_folder(_link: str = "") -> None:
-    """Open the folder of the fonts that come with papermini (and their licences)."""
-    QDesktopServices.openUrl(QUrl.fromLocalFile(str(fonts.HERE)))
-
-
 class AboutDialog(QDialog):
     """A dialog with the app's version and licences, and the state of the update check
     under the version, with the one action that fits that state (download, restart,
     open the release page or check again). The main window keeps the state current
-    through ``update_state``."""
+    through ``update_state``, and the actions come out as signals."""
 
-    def __init__(self, window):
-        super().__init__(window)
-        self.window_ = window
+    updateRequested = Signal(object)  # the release to download
+    releasePageRequested = Signal()
+    restartRequested = Signal()
+    checkRequested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowTitle("About papermini")
         self.setObjectName("AboutDialog")
         v = QVBoxLayout(self)
@@ -84,14 +70,14 @@ class AboutDialog(QDialog):
             "<b>non-commercial use only</b>: you are responsible for not using it "
             "commercially, for example to make minis you sell. The BiRefNet models are "
             "MIT-licensed, also for commercial use.<br><br>"
-            f"{_font_note()}<br><br>"
+            f"{self._font_note()}<br><br>"
             "Projects are saved as batch YAML files, so you can also run them from the "
             "command line: <code>papermini batch project.yaml</code>"
         )
         text.setWordWrap(True)
         text.setTextFormat(Qt.RichText)
         text.setFixedWidth(400)
-        text.linkActivated.connect(open_font_folder)
+        text.linkActivated.connect(self._open_font_folder)
         col.addSpacing(4)
         col.addWidget(text)
         col.addWidget(self._log_label())
@@ -112,6 +98,24 @@ class AboutDialog(QDialog):
         buttons.addWidget(close)
         v.addLayout(buttons)
         self._do = None
+
+    @staticmethod
+    def _font_note() -> str:
+        """Name the fonts that come with papermini and their licence, with a link to
+        their folder."""
+        names = [f.name for f in fonts.bundled() if f.regular is not None]
+        listed = ", ".join(names[:-1]) + " and " + names[-1]
+        return (
+            f"The fonts {html.escape(listed)} come with papermini. They are free fonts "
+            "under the SIL Open Font License, also for commercial use. Each font's "
+            "licence (OFL.txt) is in its folder: <a href='fonts'>open the font "
+            "folder</a>."
+        )
+
+    @staticmethod
+    def _open_font_folder(_link: str = "") -> None:
+        """Open the folder of the fonts that come with papermini and their licences."""
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(fonts.HERE)))
 
     @staticmethod
     def _log_label() -> QLabel:
@@ -147,7 +151,6 @@ class AboutDialog(QDialog):
     def update_state(self, state: str, data, version: str = ""):
         """Show a state of the update check (the main window's states, see its
         check_updates) and offer the action that fits it."""
-        w = self.window_
         busy = state in ("downloading", "progress", "verifying", "unpacking")
         self.progress.setVisible(busy)
         if not busy:
@@ -162,13 +165,13 @@ class AboutDialog(QDialog):
                 self.status.setText(
                     f"<b>papermini {html.escape(rel.version)}</b> is available."
                 )
-                self._offer("Update", lambda: w.download_update(rel, "about"))
+                self._offer("Update", lambda: self.updateRequested.emit(rel))
             else:
                 self.status.setText(
                     f"<b>papermini {html.escape(rel.version)}</b> is "
                     f"available. {html.escape(why)}"
                 )
-                self._offer("Release page", w._open_release_page)
+                self._offer("Release page", self.releasePageRequested.emit)
         elif state == "downloading":
             self._offer("")
             self.status.setText(f"Downloading papermini {html.escape(data.version)}…")
@@ -192,14 +195,16 @@ class AboutDialog(QDialog):
                 f"<b>papermini {html.escape(version)}</b> is ready: it is "
                 "installed when you close papermini."
             )
-            self._offer("Restart now", lambda: (self.accept(), w._restart_for_update()))
+            self._offer(
+                "Restart now", lambda: (self.accept(), self.restartRequested.emit())
+            )
         elif state == "error":
             self.status.setText(html.escape(str(data)))
             self._offer(
                 "Try again",
                 lambda: (
                     self.update_state("checking", None),
-                    w.check_updates(source="about"),
+                    self.checkRequested.emit(),
                 ),
             )
         self.adjustSize()  # (the notice may now take more lines)

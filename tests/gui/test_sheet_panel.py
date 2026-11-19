@@ -13,12 +13,12 @@ pytest.importorskip("PySide6")
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_the_machine_settings_show_only_when_cut_by_machine(app):
+def test_the_machine_settings_show_only_when_cut_by_machine(app, prefs):
     """Bleed, marks and the cut file only show (and only matter) when cut by machine."""
     from papermini.gui.panels.sheet_panel import SheetPanel
     from papermini.project.sheet_settings import SheetSettings
 
-    p = SheetPanel()
+    p = SheetPanel(prefs)
     got = []
     p.changed.connect(got.append)
     p.set_settings(SheetSettings())
@@ -86,13 +86,13 @@ def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(
     )
 
 
-def test_the_paper_has_an_orientation_or_a_custom_size(app):
+def test_the_paper_has_an_orientation_or_a_custom_size(app, prefs):
     """Orientation for a named paper, a width and height for Custom (starting at the
     paper chosen before); the mat only when cut by machine, with its warning."""
     from papermini.gui.panels.sheet_panel import SheetPanel
     from papermini.project.sheet_settings import SheetSettings
 
-    p = SheetPanel()
+    p = SheetPanel(prefs)
     got = []
     p.changed.connect(got.append)
     p.set_settings(SheetSettings())

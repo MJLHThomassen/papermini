@@ -231,9 +231,7 @@ def test_report_a_problem_in_the_menu_names_the_newest_log(app, opened, new_wind
     s = log.start()
     w = new_window()
     assert w.a_open_logs.isEnabled()
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
-    assert PreferencesDialog(w, "logging").detailed_log.isEnabled()
+    assert w.preferences_dialog("logging").detailed_log.isEnabled()
     w.a_report.trigger()
     issue, _folder = opened["urls"]
     assert issue.startswith(log.ISSUE_URL) and "traceback=" not in issue
@@ -326,10 +324,8 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         w.panel.changed.emit(
             replace(fig.entry.settings, height_mm=50)
         )  # not detailed yet
-        from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
-        prefs_dlg = PreferencesDialog(
-            w, "logging"
+        prefs_dlg = w.preferences_dialog(
+            "logging"
         )  # (Preferences → Logging → Detailed log)
         assert not prefs_dlg.detailed_log.isChecked()
         prefs_dlg.detailed_log.setChecked(True)

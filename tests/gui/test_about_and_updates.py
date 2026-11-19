@@ -100,13 +100,12 @@ def test_an_update_from_the_about_window_installs_on_quit(
 
 
 def test_an_installed_copy_checks_for_updates_once_a_day(
-    app, fake_updates, monkeypatch, tmp_path, new_window, wait
+    app, fake_updates, monkeypatch, tmp_path, new_window, wait, prefs
 ):
     """Only an installed copy checks, at most once a day; with Update automatically off
     it announces the new version instead of downloading it."""
     from PySide6.QtCore import QTimer
 
-    from papermini.gui import prefs
     from papermini.support import update
 
     w = new_window()
@@ -124,10 +123,10 @@ def test_an_installed_copy_checks_for_updates_once_a_day(
     turn_on_auto_updates()
     assert asked == []  # run from source: no daily check
     monkeypatch.setenv(update.INSTALL_ENV, str(tmp_path / "installed"))
-    prefs.store().setValue("updates/last_check", time.time())
+    prefs.set_last_update_check(time.time())
     turn_on_auto_updates()
     assert asked == []  # checked today already
-    prefs.store().setValue("updates/last_check", 0.0)
+    prefs.set_last_update_check(0.0)
     turn_on_auto_updates()
     assert len(asked) == 1
     # automatic updating off: the daily check announces, and downloads nothing
@@ -136,27 +135,22 @@ def test_an_installed_copy_checks_for_updates_once_a_day(
     assert wait(lambda: w.update_bar.isVisibleTo(w), 20)
     assert "available" in w.update_text.text() and w.update_restart.text() == "Update…"
     assert fake_updates["download"] == []
-    assert prefs.store().value("updates/auto", type=bool) is False
+    assert prefs.auto_updates() is False
 
 
 def test_check_for_updates_is_in_the_menu_and_update_automatically_in_the_preferences(
-    app, new_window
+    app, new_window, prefs
 ):
     """Check for updates is in the menu; Update automatically is in Preferences, on by
     default, and its tick box sets the preference."""
-    from papermini.gui import prefs
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
     w = new_window()
     texts = [a.text() for a in w.menu.actions()]
     assert "Check for updates…" in texts
-    assert w.auto_updates()  # on by default
-    dlg = PreferencesDialog(w, "updates")
+    assert prefs.auto_updates()  # on by default
+    dlg = w.preferences_dialog("updates")
     assert dlg.auto_updates.isChecked()
     dlg.auto_updates.setChecked(False)
-    assert (
-        not w.auto_updates() and prefs.store().value("updates/auto", type=bool) is False
-    )
+    assert prefs.auto_updates() is False
     dlg.close()
 
 

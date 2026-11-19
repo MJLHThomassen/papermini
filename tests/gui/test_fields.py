@@ -22,7 +22,7 @@ def test_color_dialog_does_not_inherit_button_color(app):
     assert child.palette().window().color().name() != "#3b6e2a"
 
 
-def test_decimal_fields_take_a_point_in_any_locale(app):
+def test_decimal_fields_take_a_point_in_any_locale(app, prefs):
     """Regression: on a system with a decimal comma (e.g. Dutch) the fields showed
     "42,00 mm" and a typed "12.5" was not read as 12.5."""
     from PySide6.QtCore import QLocale, Qt
@@ -34,7 +34,7 @@ def test_decimal_fields_take_a_point_in_any_locale(app):
     old = QLocale()
     QLocale.setDefault(QLocale(QLocale.Dutch, QLocale.Netherlands))
     try:
-        p = FigurePanel()
+        p = FigurePanel(prefs)
         p.set_settings(FigureSettings(height_mm=42), "x", "x")
         box = p.size_field.h
         assert isinstance(box, DoubleSpinBox) and box.text() == "42.00 mm"
@@ -141,12 +141,12 @@ def test_color_sliders_snap_to_their_centre(app):
     f.close()
 
 
-def test_size_fields_keep_proportions_until_unlinked(app):
+def test_size_fields_keep_proportions_until_unlinked(app, prefs):
     """Linked, the field typed in sets the size and the other follows the figure's
     proportions; unlinked, both are set (the figure is stretched)."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel()
+    p = FigurePanel(prefs)
     p.set_settings(FigureSettings(height_mm=40), "x", "x")
     f = p.size_field
     assert f.linked() and f.w.text() == "—"  # proportions not known yet
@@ -167,13 +167,13 @@ def test_size_fields_keep_proportions_until_unlinked(app):
     assert not f.linked() and (f.h.value(), f.w.value()) == (42, 10)
 
 
-def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(app):
+def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(app, prefs):
     """The bundled fonts first, the installed ones once found; a font this computer does
     not have is kept, marked and warned about."""
     from papermini.gui.panels.figure_panel import FigurePanel
     from papermini.support import fonts
 
-    p = FigurePanel()
+    p = FigurePanel(prefs)
     w = p.field("font")
     names = lambda: [w.itemData(i) for i in range(w.count()) if w.itemData(i)]
     assert names() == [f.name for f in fonts.bundled()]

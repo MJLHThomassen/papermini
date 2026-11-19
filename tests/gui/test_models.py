@@ -126,9 +126,7 @@ def test_build_asks_before_downloading(
     assert asked == ["birefnet-lite"]
 
     # the Models and cache page lists every model, downloads one, and the figure is retried
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
-    dlg = PreferencesDialog(w, "cache").cache
+    dlg = w.preferences_dialog("cache").cache
     assert set(dlg.cards) == set(segment.ONNX_MODELS)
     card = dlg.cards["birefnet-lite"]
     assert "Not downloaded" in card.state.text() and not card.btn_del.isEnabled()
@@ -209,10 +207,8 @@ def test_the_cache_page_scrolls_when_the_window_is_short(app, model_cache, new_w
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QPushButton
 
-    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
-
     w = new_window()
-    dlg = PreferencesDialog(w, "cache")
+    dlg = w.preferences_dialog("cache")
     assert dlg.isSizeGripEnabled() and dlg.stack.currentWidget() is dlg.cache
     dlg.setAttribute(Qt.WA_DontShowOnScreen)
     dlg.show()

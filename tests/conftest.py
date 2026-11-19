@@ -105,18 +105,17 @@ def fresh_app(request):
         yield
         return
     app = request.getfixturevalue("app")
+    store = request.getfixturevalue("settings_store")
     from PySide6.QtCore import QEvent
 
-    from papermini.gui import prefs
-
-    prefs.store().clear()
+    store.clear()
     look = app.style().name(), app.font(), app.palette(), app.styleSheet()
     yield
     for widget in app.topLevelWidgets():
         widget.deleteLater()
     app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
-    prefs.store().clear()
+    store.clear()
     if (app.style().name(), app.font(), app.palette(), app.styleSheet()) != look:
         style, font, palette, sheet = look
         app.setStyleSheet(sheet)
@@ -126,11 +125,22 @@ def fresh_app(request):
 
 
 @pytest.fixture
-def prefs(app):
-    """Returns the app's preferences module. The preferences start empty."""
-    from papermini.gui import prefs
+def settings_store(app):
+    """Returns the QSettings store the app's preferences are saved in, in the
+    temporary folder."""
+    from PySide6.QtCore import QSettings
 
-    return prefs
+    return QSettings(
+        QSettings.defaultFormat(), QSettings.Scope.UserScope, "papermini", "papermini"
+    )
+
+
+@pytest.fixture
+def prefs(app):
+    """Returns the app's preferences. They start empty."""
+    from papermini.gui.preferences import Preferences
+
+    return Preferences()
 
 
 @pytest.fixture
@@ -151,15 +161,15 @@ def wait(app):
 
 
 @pytest.fixture
-def new_window(app):
-    """Returns ``new_window()``, which opens a main window. The windows close after the
-    test without asking to save."""
+def new_window(prefs):
+    """Returns ``new_window()``, which opens a main window with the ``prefs``
+    preferences. The windows close after the test without asking to save."""
     from papermini.gui.window.main_window import MainWindow
 
     made = []
 
     def new_window():
-        made.append(MainWindow())
+        made.append(MainWindow(prefs))
         return made[-1]
 
     yield new_window

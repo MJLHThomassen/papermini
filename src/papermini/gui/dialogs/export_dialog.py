@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from ...output.sheet import cut_file_paths, default_cut_file
 from ...project.figure_entry import safe_name
-from .. import prefs
+from ..preferences import Preferences
 
 
 class ExportDialog(QDialog):
@@ -31,9 +31,16 @@ class ExportDialog(QDialog):
     one click away)."""
 
     def __init__(
-        self, folder: Path, title: str, pages: int, machine: bool, parent=None
+        self,
+        prefs: Preferences,
+        folder: Path,
+        title: str,
+        pages: int,
+        machine: bool,
+        parent=None,
     ):
         super().__init__(parent)
+        self._prefs = prefs
         self.setWindowTitle("Export sheet")
         self.setObjectName("ExportDialog")
         self._pages, self._machine = max(1, pages), machine
@@ -57,9 +64,8 @@ class ExportDialog(QDialog):
         form.addRow("Name", self.name)
         v.addLayout(form)
 
-        store = prefs.store()
         self.pdf = QCheckBox("Sheet to print (PDF)")
-        self.pdf.setChecked(store.value("export/pdf", True, type=bool))
+        self.pdf.setChecked(prefs.export_pdf())
         self.pdf_files = self._files_label()
         v.addWidget(self.pdf)
         v.addWidget(self.pdf_files)
@@ -67,7 +73,7 @@ class ExportDialog(QDialog):
             "Cut file for your cutting machine (SVG"
             + (", one per page)" if self._pages > 1 else ")")
         )
-        self.cut.setChecked(store.value("export/cut", True, type=bool))
+        self.cut.setChecked(prefs.export_cut())
         self.cut_files = self._files_label()
         v.addWidget(self.cut)
         v.addWidget(self.cut_files)
@@ -156,8 +162,7 @@ class ExportDialog(QDialog):
             != QMessageBox.Yes
         ):
             return
-        store = prefs.store()
-        store.setValue("export/pdf", self.pdf.isChecked())
+        self._prefs.set_export_pdf(self.pdf.isChecked())
         if self._machine:
-            store.setValue("export/cut", self.cut.isChecked())
+            self._prefs.set_export_cut(self.cut.isChecked())
         self.accept()

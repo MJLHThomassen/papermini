@@ -158,10 +158,10 @@ FIGURE_FIELDS_WITHOUT_A_TOOLTIP: set[str] = set()
 
 
 @pytest.fixture
-def figure_panel(app):
+def figure_panel(app, prefs):
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    return FigurePanel()
+    return FigurePanel(prefs)
 
 
 def test_every_figure_setting_has_a_field_or_is_listed():
@@ -257,10 +257,10 @@ SHEET_SETTINGS_WITHOUT_A_FIELD = {"copies", "enabled", "output", "preview"}
 
 
 @pytest.fixture
-def sheet_panel(app):
+def sheet_panel(app, prefs):
     from papermini.gui.panels.sheet_panel import SheetPanel
 
-    return SheetPanel()
+    return SheetPanel(prefs)
 
 
 def test_every_sheet_setting_has_a_field_or_is_listed():
