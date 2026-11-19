@@ -118,7 +118,8 @@ def test_settings_side_never_cuts_off_controls(app, tmp_path, new_window):
     w.show()
     w.add_images([tmp_path / "a.png"])
     w.figures[0].entry.name = "a-very-long-figure-name-" * 4
-    w._show_current()
+    w.list.setCurrentRow(-1)
+    w.list.setCurrentRow(0)  # (shows the name again)
     p = w.panel
     for step in range(3):
         w.tabs.setCurrentIndex(step)
@@ -157,6 +158,7 @@ def test_a_mask_file_is_a_model_choice(app):
 def test_the_settings_are_hidden_without_a_figure(app, tmp_path, new_window):
     """Regression: with no figure selected the whole form stayed visible, greyed out,
     under a small heading (the sections were looked up before they had a parent)."""
+    from papermini.gui.panels.figure_fields import SECTIONS
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
     w = new_window()
@@ -171,7 +173,8 @@ def test_the_settings_are_hidden_without_a_figure(app, tmp_path, new_window):
     w.add_images([tmp_path / "a.png"])
     assert not shown(p.empty_box) and any(shown(s) for s in p.sections)
     assert all(
-        shown(s) == (st == p.step()) for s, st in zip(p.sections, p._section_steps)
+        shown(s) == (st == p.step())
+        for s, (st, _, _) in zip(p.sections, SECTIONS, strict=True)
     )
     assert shown(p.title) and shown(p.apply_all)
 
@@ -187,6 +190,8 @@ def test_the_settings_are_hidden_without_a_figure(app, tmp_path, new_window):
 def test_the_image_adjustments_follow_greyscale_and_reset_together(app):
     """Step 1 has color sliders; greyscale hides saturation and hue (nothing to turn);
     Reset puts all of them back in one change, and is off while there is nothing to reset."""
+    from PySide6.QtWidgets import QPushButton
+
     from papermini.gui.panels.figure_fields import SOURCE
     from papermini.gui.panels.figure_panel import FigurePanel
 
@@ -195,7 +200,8 @@ def test_the_image_adjustments_follow_greyscale_and_reset_together(app):
     p.set_step(SOURCE)
     box = next(b for b in p.sections if b.header.text() == "Image adjustments")
     assert box.isVisibleTo(p)
-    reset = p._resets["_reset_adjust"][0]
+    reset = box.findChild(QPushButton, "ResetButton")
+    assert reset is not None
     assert not reset.isEnabled()  # nothing to reset yet
     got = []
     p.changed.connect(got.append)
@@ -253,7 +259,7 @@ def test_the_settings_follow_the_step(app, tmp_path, new_window):
     w.panel.changed.emit(
         replace(a.entry.settings, height_mm=30, margin_mm=3, strength=90)
     )
-    w._copies_changed(a.uid, 4)
+    w.list.itemDelegate().copiesChanged.emit(a.uid, 4)  # (set on its card)
     w.tabs.setCurrentIndex(w.MINI)
     assert "miniature" in p.apply_all.text()
     p.apply_all.click()

@@ -51,8 +51,9 @@ def test_the_kind_switches_the_settings_groups(app, prefs):
     assert p.ring_hint.isVisibleTo(p) and "3.5 mm" in p.ring_hint.text()
     # a token can switch its outline and cut line off; both off by default
     for name in ("token_outline", "token_cut_line"):
-        box = p._switches[name]
-        assert box.switch.isVisibleTo(p) and not box.active()
+        switch = p.field(name)
+        box = next(b for b in p.sections if b.switch is switch)
+        assert switch.isVisibleTo(p) and not box.active()
     p.field("kind").buttons["mini"].click()
     assert got[-1].kind == "mini" and "Back side" in shown()
 
@@ -158,8 +159,14 @@ def test_a_figure_exports_as_svg_or_png(app, window, tmp_path, monkeypatch, pref
     assert {"a.png", "b.png", "c.svg"} <= {p.name for p in tmp_path.iterdir()}
     assert Image.open(tmp_path / "a.png").width == pytest.approx(26 * 256 / 25.4, abs=3)
     prefs.set_png_size_mode("dpi")
-    prefs.set_png_dpi(127)
-    assert w._png_scale() == pytest.approx(5)
+    prefs.set_png_dpi(127)  # 5 pixels per mm
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        staticmethod(lambda *a: (str(tmp_path / "d.png"), w.PNG_FILTER)),
+    )
+    w.export_current()
+    assert Image.open(tmp_path / "d.png").width == pytest.approx(26 * 5, abs=3)
     # Export all asks which files to write
     out = tmp_path / "all"
     out.mkdir()

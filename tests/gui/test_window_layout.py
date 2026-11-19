@@ -119,8 +119,8 @@ def test_the_panel_layout_is_remembered(app, new_window):
     s = w.splitter.sizes()
     w.splitter.setSizes([400, s[1] + s[0] - 400, s[2]])
     w.splitter.splitterMoved.emit(400, 1)
+    right = w.splitter.sizes()[2]
     w.set_side_visible(2, False)
-    right = w._side_width[2]
     w.close()
 
     w = window()
@@ -193,13 +193,19 @@ def test_the_start_card_offers_images_and_a_project(app, monkeypatch, new_window
 
 def test_the_header_steps_stay_centred(app, tmp_path, new_window):
     """The step buttons sit in the middle of the window, whatever the header holds."""
+    from dataclasses import replace
+
     from PySide6.QtCore import Qt
 
     w = new_window()
     w.setAttribute(Qt.WA_DontShowOnScreen)
     w.resize(1360, 820)
     w.show()
-    for change in (lambda: None, w._set_modified):
+
+    def edit():  # (the title then marks unsaved changes)
+        w.sheet_panel.changed.emit(replace(w.project.sheet, paper="letter"))
+
+    for change in (lambda: None, edit):
         change()
         for _ in range(5):
             app.processEvents()

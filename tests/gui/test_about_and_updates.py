@@ -76,26 +76,26 @@ def fake_updates(monkeypatch, tmp_path):
 
 
 def test_an_update_from_the_about_window_installs_on_quit(
-    app, fake_updates, new_window, wait
+    app, fake_updates, monkeypatch, new_window, wait
 ):
     """About checks, Update downloads with progress, the bar shows it is ready, and
     closing papermini installs it (and starts it again after Restart now)."""
     from papermini.gui.dialogs.about_dialog import AboutDialog
 
+    def use(about):  # (instead of the modal exec)
+        assert wait(lambda: about.action.isVisibleTo(about), 20)
+        assert about.action.text() == "Update" and "99.0.0" in about.status.text()
+        assert fake_updates["download"] == []  # the About window asks first
+        about.action.click()
+        assert wait(lambda: about.action.text() == "Restart now", 20)
+        assert fake_updates["download"] == ["99.0.0"]
+        return 0
+
+    monkeypatch.setattr(AboutDialog, "exec", use)
     w = new_window()
-    about = AboutDialog(w)
-    w._about = about  # (as show_about does, without the modal exec)
-    w.check_updates(source="about")
-    assert wait(lambda: about.action.isVisibleTo(about), 20)
-    assert about.action.text() == "Update" and "99.0.0" in about.status.text()
-    assert fake_updates["download"] == []  # the About window asks first
-    about.action.click()
-    assert wait(lambda: w._update_ready is not None, 20)
-    assert fake_updates["download"] == ["99.0.0"]
-    assert about.action.text() == "Restart now"
+    w.show_about()
     assert w.update_bar.isVisibleTo(w) and "99.0.0" in w.update_text.text()
-    w._about = None
-    w._restart_for_update()  # closes the window: the helper installs and restarts
+    w.update_restart.click()  # closes the window: the helper installs and restarts
     assert len(fake_updates["install"]) == 1 and fake_updates["install"][0][1] is True
 
 
@@ -104,6 +104,8 @@ def test_an_installed_copy_checks_for_updates_once_a_day(
 ):
     """Only an installed copy checks, at most once a day; with Update automatically off
     it announces the new version instead of downloading it."""
+    from PySide6.QtCore import QTimer
+
     from papermini.gui import prefs
     from papermini.support import update
 
@@ -111,15 +113,22 @@ def test_an_installed_copy_checks_for_updates_once_a_day(
     asked = []
     real_check = w.check_updates
     monkeypatch.setattr(w, "check_updates", lambda *a, **k: asked.append(k or a))
+
+    def turn_on_auto_updates():  # (it runs the start-up check soon after)
+        w.set_auto_updates(True)
+        done = []
+        QTimer.singleShot(0, lambda: done.append(True))
+        assert wait(lambda: done, 20)
+
     monkeypatch.delenv(update.INSTALL_ENV, raising=False)
-    w._startup_updates()
+    turn_on_auto_updates()
     assert asked == []  # run from source: no daily check
     monkeypatch.setenv(update.INSTALL_ENV, str(tmp_path / "installed"))
     prefs.store().setValue("updates/last_check", time.time())
-    w._startup_updates()
+    turn_on_auto_updates()
     assert asked == []  # checked today already
     prefs.store().setValue("updates/last_check", 0.0)
-    w._startup_updates()
+    turn_on_auto_updates()
     assert len(asked) == 1
     # automatic updating off: the daily check announces, and downloads nothing
     w.set_auto_updates(False)

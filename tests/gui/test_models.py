@@ -120,7 +120,9 @@ def test_build_asks_before_downloading(
         and "lower strength" not in w.banner.text.text()
     )
     assert model_cache == []
-    assert w._confirm_download("birefnet-lite") is False  # declined: not asked again
+    confirm = segment.CONFIRM_DOWNLOAD  # (what a build calls before a download)
+    assert confirm is not None
+    assert confirm("birefnet-lite") is False  # declined: not asked again
     assert asked == ["birefnet-lite"]
 
     # the Models and cache page lists every model, downloads one, and the figure is retried
@@ -141,7 +143,7 @@ def test_build_asks_before_downloading(
         "birefnet-lite.onnx" in card.state.text()
         and str(segment.cache_dir()) in dlg.folder.text()
     )
-    assert "birefnet-lite" not in w._declined and fig.error is None
+    assert confirm("birefnet-lite") is True and fig.error is None
 
     monkeypatch.setattr(
         cache_page.QMessageBox,
@@ -306,6 +308,8 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
 
     from PySide6.QtCore import QRunnable, Qt
 
+    from papermini.pipeline.segmentation import segment
+
     asked = []  # (an exception raised in a Qt slot would only be printed)
 
     class Dialog:
@@ -326,7 +330,9 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
 
     w.sig.ask_download.connect(question, Qt.ConnectionType.DirectConnection)
     got = []
-    w.pool.start(QRunnable.create(lambda: got.append(w._confirm_download("birefnet"))))
+    confirm = segment.CONFIRM_DOWNLOAD  # (the window clears it when it closes)
+    assert confirm is not None
+    w.pool.start(QRunnable.create(lambda: got.append(confirm("birefnet"))))
     assert queued.wait(30)  # the window closes before the question is shown
     w.close()
     assert got == [False]
