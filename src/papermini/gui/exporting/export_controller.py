@@ -80,13 +80,15 @@ class ExportController(QObject):
         if pending is None:
             return
         figs = [f for f in pending.figures if f in self._window.figures]
-        failed = [f for f in figs if not f.up_to_date and f.error is not None]
+        failed = [
+            (f, f.error) for f in figs if not f.up_to_date and f.error is not None
+        ]
         left = [f for f in figs if not f.up_to_date]
         if failed:
             self._pending = None
             pending.progress.close()
-            f = failed[0]
-            self.warning.emit(f"{f.entry.image.name}: {f.error.splitlines()[0]}")
+            f, error = failed[0]
+            self.warning.emit(f"{f.entry.image.name}: {error.splitlines()[0]}")
         elif not left:
             self._pending = None
             pending.progress.close()
@@ -184,16 +186,19 @@ class ExportController(QObject):
         )
         if dlg is None:
             return
-        pdf = dlg.pdf_path() if dlg.pdf.isChecked() else None
-        cut = lay.machine and dlg.cut.isChecked()
+        path = dlg.pdf_path()
+        pdf = path if dlg.pdf.isChecked() else None
+        cut_file = (
+            default_cut_file(path)
+            if path is not None and lay.machine and dlg.cut.isChecked()
+            else None
+        )
         try:
             if pdf is not None:
                 write_pdf(lay, pdf, sh.title)
             files = ([pdf] if pdf is not None else []) + (
-                write_cut_files(
-                    lay, default_cut_file(dlg.pdf_path()), sh.cut_folds, sh.title
-                )
-                if cut
+                write_cut_files(lay, cut_file, sh.cut_folds, sh.title)
+                if cut_file is not None
                 else []
             )
         except OSError as e:
@@ -299,11 +304,14 @@ class ExportController(QObject):
         """Lay out the sheet before ``verb`` (Export or Print). Returns None, after
         telling the user why, when it cannot be laid out or the user stops because
         figures are too big for the paper."""
-        figures = self._window.figures
+        # (every figure was built before the export went on)
+        built = [
+            (f.mini, f.entry.settings.copies)
+            for f in self._window.figures
+            if f.mini is not None
+        ]
         try:
-            lay = self._window.project.sheet.layout(
-                [(f.mini, f.entry.settings.copies) for f in figures], leave_out=True
-            )
+            lay = self._window.project.sheet.layout(built, leave_out=True)
         except ValueError as e:
             self.warning.emit(str(e))
             return None

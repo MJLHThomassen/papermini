@@ -1865,8 +1865,8 @@ class MainWindow(QMainWindow):
         return self.save()
 
     def out_dir(self) -> Path:
-        """The folder file dialogs start in: the project's output folder, or the
-        folder of the first image."""
+        """The folder the file dialogs start in: the project's output folder, else the
+        first image's folder, else the home folder."""
         return (
             self.project.output_dir
             if self.project.path

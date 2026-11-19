@@ -657,7 +657,7 @@ def test_the_print_uses_the_sheets_named_paper(built_window, modal, wait):
 def test_the_export_controller_prints_on_a_printer_from_its_factory(
     built_window, prefs, tmp_path
 ):
-    """The controller takes its dialogs and printers from what it is given."""
+    """The controller prints with the dialogs and the printer factory it is given."""
     from PySide6.QtPrintSupport import QPrinter
 
     from papermini.gui.exporting.export_controller import ExportController
