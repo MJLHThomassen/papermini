@@ -325,7 +325,7 @@ def main() -> None:
         from PySide6.QtSvg import QSvgRenderer
 
         from papermini.gui.views.drawing import draw_sheet
-        from papermini.output.sheet import cut_file_svg, pack
+        from papermini.output.sheet import cut_file_svg
         from papermini.project import sizes
         from papermini.project.project_files import load_project
 
@@ -338,7 +338,7 @@ def main() -> None:
             down = sizes.SIZES[max(sizes.SIZES.index(s.size) - 1, 0)]
             return sizes.apply(s, down, proj.sizes)
 
-        lay = pack(
+        lay = sh.layout(
             [
                 (
                     build_mini(
@@ -350,13 +350,7 @@ def main() -> None:
                     1,
                 )
                 for f in proj.figures
-            ],
-            sh.page,
-            sh.margin_mm,
-            sh.gap_mm,
-            cut=sh.cut,
-            marks=sh.marks,
-            orientation=sh.orientation,
+            ]
         )
         assert lay.pages == 1, "the machine sheet picture should fit on one page"
         k = 2.2 * ratio  # device pixels per mm
@@ -411,7 +405,8 @@ def main() -> None:
             ("portrait", "2 pages: the first shown"),
             ("landscape", "the same pieces on 1 page"),
         ):
-            lay = pack(hand, "a4", sh.margin_mm, sh.gap_mm, orientation=orientation)
+            on_a4 = replace(sh, paper="a4", cut="hand", orientation=orientation)
+            lay = on_a4.layout(hand)
             assert lay.pages == int(caption.split(" page")[0][-1]), (
                 orientation,
                 lay.pages,
