@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import Any
 
 from ..output.sheet import (
@@ -14,27 +14,132 @@ from ..output.sheet import (
     mat_warning,
     paper_text,
 )
+from ..pipeline.geometry import MAX_BLEED_MM
+from .option import Option
 
 
 @dataclass
 class SheetSettings:
-    output: str | None = None  # default: <output>/sheet.pdf
-    paper: str = "a4"  # a name in sheet.PAPER, or "custom"
-    paper_width_mm: float | None = None  # paper "custom": its width and height
-    paper_height_mm: float | None = None
-    orientation: str = "portrait"  # "portrait" or "landscape" (named paper only)
-    copies: int = 1  # default copies for figures that set none
-    preview: bool = False
-    title: str = "Paper miniatures"
-    margin_mm: float = 12.0
-    gap_mm: float = 7.0
-    enabled: bool = True
-    cut: str = "hand"  # "hand": cut lines on the sheet; "machine": see below
-    bleed_mm: float = 1.0  # cut by machine: edge colors printed beyond the cut line
-    marks: str = "corners"  # cut by machine: "corners" or "silhouette" alignment marks
-    cut_folds: bool = False  # cut by machine: fold lines in the cut file too
-    mat: str | None = None  # cut by machine: the cutting mat ("12x12" or "12x24"),
-    # only to warn when the paper is bigger; None: any size
+    """The print sheet's settings, each field with its option."""
+
+    output: str | None = Option(
+        help="the sheet's PDF (default: <output>/sheet.pdf)",
+    ).field(None)
+    paper: str = Option(
+        label="Paper",
+        help="paper size; custom: give --paper-width-mm and --paper-height-mm",
+        tooltip="The paper size of the sheet. Custom: a width and height of your own.",
+        choices=PAPER_CHOICES,
+    ).field("a4")
+    paper_width_mm: float | None = Option(
+        label="Width",
+        help="a custom paper's width (with --paper-height-mm)",
+        tooltip="The width of a custom paper size, as it prints (50 to 1200 mm).",
+        low=CUSTOM_PAPER_MM[0],
+        high=CUSTOM_PAPER_MM[1],
+        widget=CUSTOM_PAPER_MM,
+        unit="mm",
+    ).field(None)
+    paper_height_mm: float | None = Option(
+        label="Height",
+        help="a custom paper's height",
+        tooltip="The height of a custom paper size, as it prints (50 to 1200 mm).",
+        low=CUSTOM_PAPER_MM[0],
+        high=CUSTOM_PAPER_MM[1],
+        widget=CUSTOM_PAPER_MM,
+        unit="mm",
+    ).field(None)
+    orientation: str = Option(
+        label="Orientation",
+        help="portrait or landscape, for a named paper size",
+        tooltip="Portrait: the page upright. Landscape: the page on its side, for wide\n"
+        "figures and rows.",
+        choices=ORIENTATIONS,
+    ).field("portrait")
+    copies: int = Option(
+        help="copies of each figure",
+    ).field(1)
+    preview: bool = Option(
+        help="also write a PNG preview per page",
+    ).field(False)
+    title: str = Option(
+        label="Title",
+        help="the title printed at the top of each page",
+        tooltip="Printed at the top of each page, above the instructions.",
+    ).field("Paper miniatures")
+    margin_mm: float = Option(
+        label="Margin",
+        help="page margin; --cut machine: where the alignment marks are",
+        tooltip="The empty border around each page. Cut by machine, the alignment marks "
+        "sit\n"
+        "here, this far from the paper edges.",
+        widget=(0, 50),
+        unit="mm",
+    ).field(12.0)
+    gap_mm: float = Option(
+        label="Gap",
+        help="gap between pieces",
+        tooltip="The space between the pieces on the sheet.",
+        widget=(0, 50),
+        unit="mm",
+    ).field(7.0)
+    enabled: bool = Option(
+        help="whether the project makes a sheet",
+    ).field(True)
+    cut: str = Option(
+        label="Cut by",
+        help="hand: cut lines on the sheet; machine: a sheet without cut lines but "
+        "with alignment marks, plus a cut file (NAME-cut.svg) per page",
+        tooltip="By hand: the cut lines are printed on the sheet, for scissors or a "
+        "knife.\n"
+        "Machine: the sheet has no cut lines but alignment marks; Export PDF also\n"
+        "writes a cut file (SVG) with the cut lines and the same marks, to line up in\n"
+        "your cutting machine's software.",
+        choices=CUT_MODES,
+    ).field("hand")
+    bleed_mm: float = Option(
+        label="Bleed",
+        help="cut by machine: the edge colors printed beyond the cut line",
+        tooltip="Prints the edge colors (margin, tab or back) this far beyond the cut "
+        "line, so a\n"
+        "machine cut that is slightly off never shows a white edge.",
+        low=0,
+        high=MAX_BLEED_MM,
+        widget=(0, MAX_BLEED_MM),
+        unit="mm",
+    ).field(1.0)
+    marks: str = Option(
+        label="Marks",
+        help="--cut machine: alignment marks: corners, Silhouette Studio's "
+        "Type 1, or none",
+        tooltip="Corners: an L in each corner and a small square top-left.\n"
+        "Silhouette: Silhouette Studio's Type 1 marks (a square top-left, an L "
+        "top-right\n"
+        "and bottom-left; length 20 mm, thickness 0.5 mm, inset = the margin).\n"
+        "None: no marks; line up the cut file with the page edges.",
+        choices=MARKS,
+    ).field("corners")
+    cut_folds: bool = Option(
+        label="Fold lines in cut file",
+        help="--cut machine: also put the fold lines in the cut file",
+        tooltip="Also put the fold lines in the cut file (in blue, in their own group), "
+        "to\n"
+        "score or draw them with the machine.",
+    ).field(False)
+    mat: str | None = Option(
+        label="Mat",
+        help="--cut machine: the cutting mat (12x12 or 12x24 inches); a note when "
+        "the paper is bigger",
+        tooltip="The cutting mat you put the sheet on. papermini warns when the paper "
+        "is\n"
+        "bigger than the mat (turned either way). Any size: no warning.",
+        choices=tuple(MATS),
+    ).field(None)
+
+    @classmethod
+    def options(cls) -> dict[str, Option]:
+        """Return each field's option, by field name."""
+        return _OPTIONS
 
     @property
     def machine(self) -> bool:
@@ -67,39 +172,22 @@ class SheetSettings:
         from .settings import norm_keys
 
         d = norm_keys(d)
-        unknown = set(d) - {f.name for f in fields(cls)}
+        unknown = set(d) - set(_OPTIONS)
         if unknown:
             raise ValueError(f"unknown sheet option(s) {', '.join(sorted(unknown))}")
         if "paper" not in d and ("paper_width_mm" in d or "paper_height_mm" in d):
             d["paper"] = "custom"  # (a width and height of its own: a custom size)
-        for key, allowed in (
-            ("cut", CUT_MODES),
-            ("marks", MARKS),
-            ("paper", PAPER_CHOICES),
-            ("orientation", ORIENTATIONS),
-            ("mat", tuple(MATS) + (None,)),
-        ):
-            if key in d and d[key] not in allowed:
-                shown = ", ".join(str(a) for a in allowed if a is not None)
-                raise ValueError(f"sheet {key} must be one of {shown}, not {d[key]!r}")
-        lo, hi = CUSTOM_PAPER_MM
         for key in ("paper_width_mm", "paper_height_mm"):
-            v = d.get(key)
-            if d.get("paper") == "custom" and not (
-                isinstance(v, (int, float))
-                and not isinstance(v, bool)
-                and lo <= v <= hi
-            ):
+            v, option = d.get(key), _OPTIONS[key]
+            if d.get("paper") == "custom" and (v is None or not option.allows(v)):
                 raise ValueError(
-                    f"sheet {key} must be from {lo:g} to {hi:g} (mm) for a "
-                    f"custom paper, not {v!r}"
+                    f"sheet {key} must be from {option.low:g} to {option.high:g} (mm) "
+                    f"for a custom paper, not {v!r}"
                 )
             if d.get("paper") != "custom" and v is not None:
                 raise ValueError(f"sheet {key} is only for paper: custom")
-        if "bleed_mm" in d and not (
-            isinstance(d["bleed_mm"], (int, float)) and 0 <= d["bleed_mm"] <= 5
-        ):
-            raise ValueError(
-                f"sheet bleed_mm must be from 0 to 5, not {d['bleed_mm']!r}"
-            )
+        d = {key: _OPTIONS[key].check(value, "sheet ") for key, value in d.items()}
         return cls(**d)
+
+
+_OPTIONS = Option.of(SheetSettings)

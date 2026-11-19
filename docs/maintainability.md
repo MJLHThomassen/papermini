@@ -225,11 +225,13 @@ against it by a test.
 Until then, an option lives in five places, and a change must keep them in
 sync:
 
-- `FigureSettings` in `project/figure_settings.py`, with its validation in
-  `from_dict`;
-- the CLI flags in `cli.py`;
-- the GUI field in `gui/panels/figure_fields.py` (`SECTIONS`, `TIPS` and the
-  visibility rules);
+- its field in `FigureSettings` (`project/figure_settings.py`) or
+  `SheetSettings`, with an `Option` (`project/option.py`) that holds its
+  checks, label, help, tooltip and limits. `from_dict` checks each value
+  against its option, and the tooltips of the settings panels come from it;
+- the CLI flags in `cli.py`, which repeat the option's help;
+- the GUI field in `gui/panels/figure_fields.py` (`SECTIONS`, which repeats the
+  option's label and widget range, and the visibility rules);
 - the options table in `docs/reference.md`;
 - its entry in the settings guide there, with a comparison picture from
   `scripts/screenshots.py` when its values look different.

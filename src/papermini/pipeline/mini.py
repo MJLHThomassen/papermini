@@ -464,7 +464,7 @@ def make_mini(
     alpha = geo.rasterize(path_px, lay.cut.shape)
 
     # room around the cut line: half the stroke, or the bleed (the canvas keeps 6 mm)
-    bleed_mm = min(max(0.0, bleed_mm), 5.0)
+    bleed_mm = min(max(0.0, bleed_mm), geo.MAX_BLEED_MM)
     pad = max(style.cut_width_mm / 2 + 0.3, bleed_mm + 0.2 if bleed_mm else 0.0)
     ex0, ey0, ex1, ey1 = path_px.extent()
     X0 = max(0, int(np.floor(ex0 - pad * pxmm)))

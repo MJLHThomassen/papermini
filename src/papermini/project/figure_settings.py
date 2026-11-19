@@ -1,94 +1,591 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from ..pipeline import geometry as geo
 from ..pipeline import token as tok
-from ..pipeline.adjust import RANGES as ADJUST_RANGES
 from ..pipeline.adjustments import Adjustments
 from ..pipeline.mini import TAB_SHOWS
 from ..pipeline.style import Style
 from . import sizes
+from .option import Option
 
 _MEDIUM = sizes.BUILTIN.row(sizes.DEFAULT_SIZE)
 
-# what a figure's size fills in; saved projects always write these, so a project says
-# both the size and its values (a token also its diameter)
-SIZE_KEYS = ("size", "height_mm", "tab_radius_mm", "tab_width_mm", "tab_height_mm")
 KINDS = ("mini", "token")  # a standing miniature or a flat round token
+
+_SIZE = "size and shape"
+_TOKEN = "token (--kind token)"
+_PICTURE = "picture (colors of what is printed; the mask is unaffected)"
+_MASK = "mask"
+_OUTPUT = "output"
 
 
 @dataclass
 class FigureSettings:
-    kind: str = "mini"  # "mini" (standing) or "token" (flat and round)
-    # size and shape: a creature size fills in the height and the tabs (see sizes.py);
-    # height or width keeps the proportions, both stretch the figure
-    size: str = sizes.DEFAULT_SIZE  # tiny ... gargantuan, or custom
-    height_mm: float | None = _MEDIUM.height_mm
-    width_mm: float | None = None
-    margin_mm: float = 1.6
-    smooth_mm: float = 0.6
-    tab_width_mm: float = _MEDIUM.tab_width_mm  # square tab (a stand)
-    tab_radius_mm: float = _MEDIUM.base_mm / 2  # round tab (folds out to a base)
-    tab_height_mm: float = _MEDIUM.tab_height_mm
-    tab_overlap_mm: float = 0.0
-    fold_mm: float = 0.0
-    no_tab: bool = False
-    tab_shape: str = "square"  # "square" (for a stand) or "round" (folds out to a base)
-    tab_color: str = "#ffffff"  # tab background, independent of the margin color
-    double_sided: bool = True  # front and back, joined at a fold above the head
-    back: str = "mirror"  # double-sided back: "mirror", "blank", "text",
-    #                                  "number" (large) or "text_number" (number above text)
-    back_text: str | None = None  # back with text: None = the label (or file name)
-    back_color: str = "#ffffff"  # color of a back that is not the mirrored drawing
-    back_text_color: str = "#2f5597"
-    # mask
-    model: str = "auto"
-    mask: str | None = None
-    crop: Any = None  # "x0,y0,x1,y1" or [x0, y0, x1, y1], fractions or px
-    strength: int = 40  # mask threshold 0-254: higher removes more background
-    fill_gaps: int | None = None  # closing radius in px; None = scales with the image
-    keep_all: bool = False
-    min_area: int = 1000
-    margin_fill: str = "color"  # "color" (margin_color) or "image"
-    margin_color: str = "#ffffff"
-    # picture: color adjustments of what is printed (never of what the model sees)
-    greyscale: bool = False
-    brightness: int = 0  # -100..100
-    contrast: int = 0  # -100..100
-    saturation: int = 0  # -100..100
-    hue: int = 0  # -180..180 degrees
-    # output
-    label: str | None = None  # None = file name, "" = no label
-    tab_front: str = "label"  # what the front tab shows: "label", "number" or
-    tab_back: str = "label"  # "label_number" (the copy number above the label)
-    dpi: int = 300
-    simplify_mm: float = 0.15
-    no_smooth: bool = False
-    cut_color: str = "#000000"  # the cut line, for cutting by hand
-    cut_width_mm: float = 0.3
-    label_color: str = "#2f5597"
-    label_size_mm: float = 3.4
-    font: str = "Times"  # all text: labels, numbers, back text (see fonts.py)
-    copies: int = 1
-    # a token (kind "token"): its diameter comes from the creature size's base
-    token_diameter_mm: float = _MEDIUM.base_mm
-    token_area: Any = None  # [x0, y0, x1, y1] fractions of the picture: the square
-    #                                  that fills the circle; None = the figure fitted in it
-    token_fill: str = "color"  # behind the figure: "color" or "image" (the picture)
-    token_fill_color: str = "#ffffff"
-    token_border_mm: float = 2.0  # the ring around the token (0 = none)
-    token_border_color: str = "#000000"
-    token_outline: bool = False  # an outline around the figure, as the mini's margin
-    token_cut_line: bool = (
-        False  # print the cut line (the ring's edge shows where to cut)
-    )
-    token_text: str = "none"  # "none", "label", "number" or "label_number"
-    token_text_style: str = "nameplate"  # "nameplate" (a band and a badge) or "curved"
-    token_text_mm: float = 2.5  # its size: the nameplate's height and a curved ring's
-    #                                  least width follow from it
-    token_text_color: str = "#ffffff"  # (on the ring, the nameplate and the badge)
+    """A figure's settings, each field with its option."""
+
+    kind: str = Option(
+        label="Kind",
+        help="mini: a standing paper miniature (default); token: a flat round "
+        "token (see the token options)",
+        tooltip="Standing mini: a paper figure that stands up, on a tab or a base.\n"
+        "Token: a flat round token, the figure in a circle, for the table or a virtual\n"
+        "tabletop.",
+        group="kind",
+        choices=KINDS,
+    ).field("mini")
+    size: str = Option(
+        label="Creature size",
+        help="creature size: fills in the height and the tabs from the size "
+        "table (medium). --height-mm or a tab size given as well wins "
+        "and makes it custom",
+        tooltip="The D&D creature size: fills in the figure height and the tabs (round "
+        "base\n"
+        "and stand tab) from the project's size table (☰ menu > Preferences… >\n"
+        "Creature sizes).\n"
+        "Changing the height or a tab size by hand makes it Custom.",
+        group=_SIZE,
+        choices=sizes.SIZE_CHOICES,
+    ).field(sizes.DEFAULT_SIZE)
+    height_mm: float | None = Option(
+        label="Figure height",
+        help="height of the drawn figure, without margin and tab",
+        tooltip="Height of the drawn figure on paper, without margin and tab.",
+        group=_SIZE,
+        low=0,
+        above=True,
+        widget=(0, 1000),
+        unit="mm",
+        sized=True,
+        kinds=("mini",),
+    ).field(_MEDIUM.height_mm)
+    width_mm: float | None = Option(
+        label="Figure width",
+        help="width of the drawn figure; alone it scales by width, with "
+        "--height-mm the figure is stretched to both",
+        tooltip="Width of the drawn figure on paper, without margin.",
+        group=_SIZE,
+        low=0,
+        above=True,
+        widget=(0, 1000),
+        unit="mm",
+        kinds=("mini",),
+    ).field(None)
+    margin_mm: float = Option(
+        label="Margin",
+        help="distance between the drawing and the cut line",
+        tooltip="Distance between the drawing and the cut line. The margin is filled\n"
+        "with a color or the original image (see Margin fill type).",
+        group=_SIZE,
+        widget=(0, 15),
+        unit="mm",
+    ).field(1.6)
+    smooth_mm: float = Option(
+        label="Outline smoothing",
+        help="outline rounding, Gaussian sigma",
+        tooltip="Rounds the outline; higher values give a calmer cut line.",
+        group=_SIZE,
+        widget=(0, 5),
+        unit="mm",
+    ).field(0.6)
+    tab_width_mm: float = Option(
+        label="Width",
+        help="square tab width",
+        tooltip="Width of the square tab.",
+        group=_SIZE,
+        widget=(2, 200),
+        unit="mm",
+        sized=True,
+        kinds=("mini",),
+    ).field(_MEDIUM.tab_width_mm)
+    tab_radius_mm: float = Option(
+        label="Radius",
+        help="round tab radius; 12.5 makes a 25 mm base",
+        tooltip="Radius of the round tab (a half disc). 12.5 mm makes a 25 mm base.",
+        group=_SIZE,
+        widget=(1, 100),
+        unit="mm",
+        sized=True,
+        kinds=("mini",),
+    ).field(_MEDIUM.base_mm / 2)
+    tab_height_mm: float = Option(
+        label="Height",
+        help="square tab height below the fold",
+        tooltip="How far the square tab reaches below the fold line.",
+        group=_SIZE,
+        widget=(1, 100),
+        unit="mm",
+        sized=True,
+        kinds=("mini",),
+    ).field(_MEDIUM.tab_height_mm)
+    tab_overlap_mm: float = Option(
+        label="Overlap into figure",
+        help="tab reach above the fold, adds paper beside narrow feet",
+        tooltip="How far the tab reaches up past the fold line. It only adds paper "
+        "where the figure's bottom is narrower than the tab (feet, a tail), to "
+        "strengthen the joint.",
+        group=_SIZE,
+        widget=(0, 30),
+        unit="mm",
+        kinds=("mini",),
+    ).field(0.0)
+    fold_mm: float = Option(
+        label="Fold above lowest point",
+        help="fold line above the lowest point of the outline",
+        tooltip="Where the tab folds, measured up from the figure's lowest point.",
+        group=_SIZE,
+        widget=(0, 20),
+        unit="mm",
+        kinds=("mini",),
+    ).field(0.0)
+    no_tab: bool = Option(
+        label="Print a tab",
+        help="no fold tab",
+        tooltip="Print a tab: a fold-over stand tab under the feet.\n"
+        "Off for slotted or magnetic bases.",
+        group=_SIZE,
+        kinds=("mini",),
+    ).field(False)
+    tab_shape: str = Option(
+        label="Shape",
+        help="square: slots into a stand; round: a half disc (--tab-radius-mm) "
+        "that folds out into a round base",
+        tooltip="Square: a tab to slot into a (3D printed) stand.\n"
+        "Round: a half disc that folds out into a round base. On a double-sided\n"
+        "mini the two halves fold out to opposite sides and form a full circle.",
+        group=_SIZE,
+        choices=geo.TAB_SHAPES,
+        kinds=("mini",),
+    ).field("square")
+    tab_color: str = Option(
+        label="Fill color",
+        help="tab color behind the label, independent of the margin; "
+        "use --label '' for a plain tab",
+        tooltip="Color of the tab (everything below the fold), behind the label.\n"
+        "Independent of the margin color; e.g. grass green for a plain tab.",
+        group=_SIZE,
+        kinds=("mini",),
+        color=True,
+    ).field("#ffffff")
+    double_sided: bool = Option(
+        label="Print a back side",
+        help="front + back joined at a top fold, tabs at both ends; "
+        "--no-double-sided prints the front only",
+        tooltip="Print a back side: front and back joined at a fold above the head,\n"
+        "glued back to back. Off for the front only.",
+        group=_SIZE,
+        kinds=("mini",),
+    ).field(True)
+    back: str = Option(
+        label="Shows",
+        help="double-sided back: mirrored image (default), blank, text, the copy "
+        "number (large), or text_number (the number above the text)",
+        tooltip="mirror: the drawing seen from behind; blank: plain paper; "
+        "text: plain paper with text (a name or stats); number: the copy's number,\n"
+        "large; text and number: the number above the text.",
+        group=_SIZE,
+        choices=geo.BACK_MODES,
+        kinds=("mini",),
+    ).field("mirror")
+    back_text: str | None = Option(
+        label="Text",
+        help="text on the back with --back text or text_number (default: the label)",
+        tooltip="Text for the back (empty = the tab label). It is sized to fit the "
+        "body.",
+        group=_SIZE,
+        kinds=("mini",),
+    ).field(None)
+    back_color: str = Option(
+        label="Color",
+        help="color of a back that is not the mirrored image",
+        tooltip="Color of a back that is not the mirrored drawing (the back tab keeps "
+        "the\n"
+        "tab's fill color).",
+        group=_SIZE,
+        kinds=("mini",),
+        color=True,
+    ).field("#ffffff")
+    back_text_color: str = Option(
+        label="Text color",
+        help="color of the back text",
+        tooltip="Color of the text and the number on the back.",
+        group=_SIZE,
+        kinds=("mini",),
+        color=True,
+    ).field("#2f5597")
+    model: str = Option(
+        label="Model",
+        help="rmbg-1.4, birefnet, birefnet-lite, alpha, mask (with --mask) or a .onnx "
+        "file; 'auto' uses the alpha channel of transparent PNGs, or --mask if given",
+        tooltip="How the figure is separated from the background.\n"
+        "auto: the PNG's transparency if it has any, else rmbg-1.4.\n"
+        "rmbg-1.4: BRIA's background removal model, non-commercial use only\n"
+        "(downloads 176 MB once).\n"
+        "birefnet: sharper edges and fine detail, slower, free for any use\n"
+        "(downloads 930 MB once).\n"
+        "birefnet-lite: a smaller, faster BiRefNet (downloads 215 MB once).\n"
+        "alpha: the PNG's own transparency (no file needed).\n"
+        "mask image file: your own black-and-white mask (white = figure).\n"
+        "You can also type the path of your own .onnx model.",
+        group=_MASK,
+    ).field("auto")
+    mask: str | None = Option(
+        label="Mask image file",
+        help="your own mask image (white = figure) instead of a model",
+        tooltip="Your own mask image: white = figure, black = background, same picture "
+        "size.",
+        group=_MASK,
+    ).field(None)
+    crop: Any = Option(  # noqa: RUF009 (a dataclass field)
+        label="Area",
+        help="x0,y0,x1,y1 region (fractions or px) the model looks at",
+        tooltip="Background removal only looks inside this box (x0,y0,x1,y1, fractions "
+        "or px),\n"
+        "which helps a lot with busy backgrounds. Drag a box on the image to set it.",
+        group=_MASK,
+    ).field(None)
+    strength: int = Option(
+        label="Strength",
+        help="background removal strength 0-254: lower keeps faint lines, "
+        "higher removes more background",
+        tooltip="How sure the model must be that a pixel belongs to the figure "
+        "(0-254).\n"
+        "Lower keeps faint pencil lines; higher removes more background.",
+        group=_MASK,
+        widget=(0, 254),
+    ).field(40)
+    fill_gaps: int | None = Option(
+        label="Gap filling",
+        help="fill gaps and notches in the outline up to this many px; 0 = off "
+        "(default scales with the image: 9 px at 1400 px)",
+        tooltip="Fills gaps and notches in the outline up to this size (0 = off).\n"
+        "Auto scales with the image: 9 px at 1400 px.",
+        group=_MASK,
+        widget=(0, 1000),
+        unit="px",
+        auto=True,
+    ).field(None)
+    keep_all: bool = Option(
+        label="Keep detached parts",
+        help="keep detached parts (>= --min-area) and bridge them to the figure",
+        tooltip="Keep separate parts (a floating prop) and join them with bridges,\n"
+        "instead of keeping only the largest part.",
+        group=_MASK,
+    ).field(False)
+    min_area: int = Option(
+        label="Min. part area",
+        help="smallest part kept with --keep-all",
+        tooltip="With 'keep detached parts': smaller parts than this are dropped as "
+        "specks.",
+        group=_MASK,
+        widget=(0, 10_000_000),
+        unit="px",
+    ).field(1000)
+    margin_fill: str = Option(
+        label="Margin fill type",
+        help="what shows between drawing and cut line: --margin-color (default) "
+        "or the original image",
+        tooltip="What fills the margin, the strip between the cut-out drawing and its\n"
+        "cut line:\n"
+        "Color: one solid color (Margin fill color).\n"
+        "Original image: the picture around the figure, as it is in the image.",
+        group=_SIZE,
+        choices=geo.MARGIN_FILLS,
+    ).field("color")
+    margin_color: str = Option(
+        label="Margin fill color",
+        help="color of the margin around the drawing",
+        tooltip="The color of the margin between the drawing and the cut line.",
+        group=_SIZE,
+        color=True,
+    ).field("#ffffff")
+    greyscale: bool = Option(
+        label="Greyscale (black and white)",
+        help="print in black and white",
+        tooltip="Print the figure in black and white (saves color ink).\n"
+        "Color adjustments change only what is printed: background removal\n"
+        "always looks at the original picture, so they never run the model again.",
+        group=_PICTURE,
+    ).field(False)
+    brightness: int = Option(
+        label="Brightness",
+        help="-100 (black) to 100 (white); white paper stays white",
+        tooltip="Lighter (towards white) or darker (towards black). White paper stays\n"
+        "white when lightening, black lines stay black when darkening.",
+        group=_PICTURE,
+        low=-100,
+        high=100,
+        widget=(-100, 100),
+    ).field(0)
+    contrast: int = Option(
+        label="Contrast",
+        help="-100 to 100",
+        tooltip="More contrast makes lights lighter and darks darker; less makes it "
+        "flatter.",
+        group=_PICTURE,
+        low=-100,
+        high=100,
+        widget=(-100, 100),
+    ).field(0)
+    saturation: int = Option(
+        label="Saturation",
+        help="-100 (grey) to 100 (twice as colorful)",
+        tooltip="How colorful the picture is: -100 is grey, 100 twice as colorful.",
+        group=_PICTURE,
+        low=-100,
+        high=100,
+        widget=(-100, 100),
+    ).field(0)
+    hue: int = Option(
+        label="Hue",
+        help="turn the colors around the color wheel, -180 to 180 degrees",
+        tooltip="Turns every color around the color wheel (red -> yellow -> green ...).",
+        group=_PICTURE,
+        low=-180,
+        high=180,
+        widget=(-180, 180),
+        unit="°",
+    ).field(0)
+    label: str | None = Option(
+        label="Text",
+        help="text on the tab (default: file name; '' for none)",
+        tooltip="Text printed on the tab (empty = the file name). Also the default back "
+        "text.",
+        group=_OUTPUT,
+    ).field(None)
+    tab_front: str = Option(
+        label="Front tab",
+        help="what the front tab shows: the label (default), the copy number, or "
+        "label_number (the number above the label)",
+        tooltip="What the front tab shows: the label, the copy's number, or both (the\n"
+        "number above the label). Each copy on the sheet gets its own number,\n"
+        "1, 2, 3…; this preview shows # where it goes.",
+        group=_OUTPUT,
+        choices=TAB_SHOWS,
+        kinds=("mini",),
+    ).field("label")
+    tab_back: str = Option(
+        label="Back tab",
+        help="what the back tab of a double-sided mini shows (as --tab-front)",
+        tooltip="What the back tab of a double-sided mini shows: the label, the copy's\n"
+        "number, or both (the number above the label).",
+        group=_OUTPUT,
+        choices=TAB_SHOWS,
+        kinds=("mini",),
+    ).field("label")
+    dpi: int = Option(
+        label="Image resolution",
+        help="embedded image resolution",
+        tooltip="Resolution of the embedded artwork. 300 dpi suits most printers.",
+        group=_OUTPUT,
+        widget=(72, 2400),
+        unit="dpi",
+    ).field(300)
+    simplify_mm: float = Option(
+        label="Simplify",
+        help="cut line simplification",
+        tooltip="How far the cut line may deviate to use fewer points.",
+        group=_OUTPUT,
+        widget=(0.01, 2),
+        unit="mm",
+        kinds=("mini",),
+    ).field(0.15)
+    no_smooth: bool = Option(
+        label="Straight segments only (no curves)",
+        help="straight-segment cut line, no Béziers",
+        tooltip="Cut line made of straight segments instead of smooth curves.",
+        group=_OUTPUT,
+        kinds=("mini",),
+    ).field(False)
+    cut_color: str = Option(
+        label="Color",
+        help="cut line color, for cutting by hand",
+        tooltip="Color of the cut line, for cutting by hand. A sheet cut by machine has "
+        "no\n"
+        "cut lines (see Cut by in the Print sheet step).",
+        group=_OUTPUT,
+        color=True,
+    ).field("#000000")
+    cut_width_mm: float = Option(
+        label="Width",
+        help="cut line width, for cutting by hand",
+        tooltip="Width of the printed cut line, for cutting by hand.",
+        group=_OUTPUT,
+        widget=(0.01, 2),
+        unit="mm",
+    ).field(0.3)
+    label_color: str = Option(
+        label="Color",
+        help="color of the tab label",
+        tooltip="Color of the tab label.",
+        group=_OUTPUT,
+        kinds=("mini",),
+        color=True,
+    ).field("#2f5597")
+    label_size_mm: float = Option(
+        label="Size",
+        help="largest size of the tab label; long labels shrink to fit the tab",
+        tooltip="Largest text size; long labels shrink to fit the tab.",
+        group=_OUTPUT,
+        widget=(0.5, 20),
+        unit="mm",
+        kinds=("mini",),
+    ).field(3.4)
+    font: str = Option(
+        label="Font",
+        help="font of all the text: labels, numbers, back text",
+        tooltip="The font of all the piece's text: the label, the numbers and the back "
+        "text.\n"
+        "Times and the fonts that come with papermini work on every computer; a font\n"
+        "installed only on this computer prints in Times elsewhere.",
+        group=_OUTPUT,
+    ).field("Times")
+    copies: int = Option(
+        label="Copies",
+        help="a figure with numbers (--tab-front, --tab-back, --back or "
+        "--token-text): write one file per copy, each with its number",
+        tooltip="How many of this figure go on the print sheet.",
+    ).field(1)
+    token_diameter_mm: float = Option(
+        label="Diameter",
+        help="the token's diameter (the creature size's base)",
+        tooltip="The token's diameter, ring included. The creature size fills it in\n"
+        "(the size's base); changing it by hand makes it Custom.",
+        group=_TOKEN,
+        low=0,
+        above=True,
+        widget=(5, 300),
+        unit="mm",
+        sized=True,
+        kinds=("token",),
+    ).field(_MEDIUM.base_mm)
+    token_area: Any = Option(  # noqa: RUF009 (a dataclass field)
+        label="Area",
+        help="x0,y0,x1,y1: the square of the picture that fills the circle, as "
+        "fractions of the picture (default: the whole figure, fitted)",
+        tooltip="The square of the picture that fills the circle (x0,y0,x1,y1, "
+        "fractions).\n"
+        "Empty: the whole figure, fitted with room around it. In the view, drag the\n"
+        "figure to move it and drag a corner of its box to make it bigger or smaller.\n"
+        "Clear fits it again.",
+        group=_TOKEN,
+        kinds=("token",),
+        parse=tok.parse_area,
+    ).field(None)
+    token_fill: str = Option(
+        label="Background",
+        help="behind the figure: --token-fill-color (default) or the original image",
+        tooltip="What fills the circle behind the figure:\n"
+        "Color: one solid color (Background color).\n"
+        "Original image: the picture around the figure, as it is in the image.",
+        group=_TOKEN,
+        choices=tok.TOKEN_FILLS,
+        kinds=("token",),
+    ).field("color")
+    token_fill_color: str = Option(
+        label="Background color",
+        help="color behind the figure",
+        tooltip="The color behind the figure.",
+        group=_TOKEN,
+        kinds=("token",),
+        color=True,
+    ).field("#ffffff")
+    token_border_mm: float = Option(
+        label="Ring width",
+        help="width of the ring; 0 = none",
+        tooltip="Width of the ring around the token (0 = no ring). With curved text "
+        "the\n"
+        "ring is at least as wide as the text needs.",
+        group=_TOKEN,
+        low=0,
+        widget=(0, 30),
+        unit="mm",
+        kinds=("token",),
+    ).field(2.0)
+    token_border_color: str = Option(
+        label="Ring color",
+        help="color of the ring",
+        tooltip="Color of the ring, and of the nameplate and the number badge.",
+        group=_TOKEN,
+        kinds=("token",),
+        color=True,
+    ).field("#000000")
+    token_outline: bool = Option(
+        label="Print an outline",
+        help="an outline around the figure, made like a mini's margin "
+        "(--margin-mm, --margin-fill, --margin-color)",
+        tooltip="Print an outline around the figure on the token, made like a "
+        "standing\n"
+        "mini's margin.",
+        group=_TOKEN,
+        kinds=("token",),
+    ).field(False)
+    token_cut_line: bool = Option(
+        label="Print a cut line",
+        help="print the cut line around the token (by default the ring's edge "
+        "shows where to cut)",
+        tooltip="Print the cut line around the token. Off: the ring's edge shows where "
+        "to\n"
+        "cut. A sheet cut by machine never prints cut lines.",
+        group=_TOKEN,
+        kinds=("token",),
+    ).field(False)
+    token_text: str = Option(
+        label="Shows",
+        help="what the token shows: none (default), the label, the copy number, or "
+        "label_number",
+        tooltip="What the token shows: the label, the copy's number, or both. Each\n"
+        "copy on the sheet gets its own number, 1, 2, 3…; this preview shows # "
+        "where\n"
+        "it goes.",
+        group=_TOKEN,
+        choices=tok.TOKEN_TEXTS,
+        kinds=("token",),
+    ).field("none")
+    token_text_style: str = Option(
+        label="Style",
+        help="nameplate: the label on a band across the bottom, the number on a "
+        "badge (default); curved: along the ring, which is then at least as "
+        "wide as the text needs",
+        tooltip="Nameplate and badge: the label on a band across the bottom, the "
+        "number\n"
+        "in a round badge on the ring.\n"
+        "Curved along the ring: the label along the bottom of the ring, the\n"
+        "number at its top. The ring is then at least as wide as the text needs.",
+        group=_TOKEN,
+        choices=tok.TOKEN_TEXT_STYLES,
+        kinds=("token",),
+    ).field("nameplate")
+    token_text_mm: float = Option(
+        label="Size",
+        help="size of the token's text: the nameplate is a little taller, and "
+        "curved text needs a ring 1.4 times as wide",
+        tooltip="Size of the token's text. It decides how much of the token the text\n"
+        "covers: the nameplate is a little taller than the text, and curved text\n"
+        "needs a ring about 1.4 times as wide. A label too long for the nameplate\n"
+        "shrinks to fit.",
+        group=_TOKEN,
+        low=0,
+        above=True,
+        widget=(0.5, 20),
+        unit="mm",
+        kinds=("token",),
+    ).field(2.5)
+    token_text_color: str = Option(
+        label="Color",
+        help="color of the token's text",
+        tooltip="Color of the token's text, on the ring, the nameplate and the badge.",
+        group=_TOKEN,
+        kinds=("token",),
+        color=True,
+    ).field("#ffffff")
+
+    @classmethod
+    def options(cls) -> dict[str, Option]:
+        """Return each field's option, by field name."""
+        return _OPTIONS
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> FigureSettings:
@@ -98,76 +595,13 @@ class FigureSettings:
         unknown = set(d) - FIGURE_OPTIONS
         if unknown:
             raise ValueError(f"unknown option(s) {', '.join(sorted(unknown))}")
-        if "size" in d and d["size"] not in sizes.SIZE_CHOICES:
-            raise ValueError(
-                f"size must be one of {', '.join(sizes.SIZE_CHOICES)}, "
-                f"not {d['size']!r}"
-            )
+        d = {key: _OPTIONS[key].check(value) for key, value in d.items()}
         if d.get("width_mm") is not None and "height_mm" not in d:
             d["height_mm"] = None  # a width alone: scale by width, keep the proportions
-        for key in ("height_mm", "width_mm"):
-            v = d.get(key)
-            if v is not None and (
-                isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0
-            ):
-                raise ValueError(f"{key} must be a number above 0, not {v!r}")
         if d.get("height_mm", 1) is None and d.get("width_mm") is None:
             raise ValueError("give height_mm, width_mm or both")
-        for key, allowed in (
-            ("back", geo.BACK_MODES),
-            ("margin_fill", geo.MARGIN_FILLS),
-            ("tab_shape", geo.TAB_SHAPES),
-            ("tab_front", TAB_SHOWS),
-            ("tab_back", TAB_SHOWS),
-            ("kind", KINDS),
-            ("token_fill", tok.TOKEN_FILLS),
-            ("token_text", tok.TOKEN_TEXTS),
-            ("token_text_style", tok.TOKEN_TEXT_STYLES),
-        ):
-            if key in d and d[key] not in allowed:
-                raise ValueError(
-                    f"{key} must be one of {', '.join(allowed)}, not {d[key]!r}"
-                )
-        for key, (lo, hi) in ADJUST_RANGES.items():
-            v = d.get(key)
-            if v is not None and (
-                isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi
-            ):
-                raise ValueError(
-                    f"{key} must be a whole number from {lo} to {hi}, not {v!r}"
-                )
         if "font" in d and (not isinstance(d["font"], str) or not d["font"].strip()):
             raise ValueError(f"font must be the name of a font, not {d['font']!r}")
-        for key in (
-            "margin_color",
-            "tab_color",
-            "back_color",
-            "back_text_color",
-            "cut_color",
-            "label_color",
-            "token_fill_color",
-            "token_border_color",
-            "token_text_color",
-        ):
-            if key in d:
-                geo.hex_rgb(str(d[key]))  # raises a clear error for a bad color
-        for key, lo in (
-            ("token_diameter_mm", 0.0),
-            ("token_border_mm", None),
-            ("token_text_mm", 0.0),
-        ):
-            v = d.get(key)
-            if v is not None and (
-                isinstance(v, bool)
-                or not isinstance(v, (int, float))
-                or (v <= 0 if lo is not None else v < 0)
-            ):
-                raise ValueError(
-                    f"{key} must be a number {'above' if lo is not None else 'from'}"
-                    f" 0, not {v!r}"
-                )
-        if d.get("token_area") is not None:
-            d["token_area"] = tok.parse_area(d["token_area"])
         return cls(**d)
 
     def to_dict(
@@ -177,14 +611,15 @@ class FigureSettings:
         ``with_size`` (as a project saves them), always the size with the values it
         fills in."""
         ref = asdict(base or FigureSettings())
-        size_keys = SIZE_KEYS + (("token_diameter_mm",) if self.kind == "token" else ())
+        size_keys = SIZE_KEYS + (TOKEN_SIZE_KEYS if self.kind == "token" else ())
         d = {
             k: v
             for k, v in asdict(self).items()
             if v != ref[k] or (with_size and k in size_keys)
         }
         if self.kind != "token" and self.size != sizes.CUSTOM:
-            d.pop("token_diameter_mm", None)  # (a mini's: what its size fills in)
+            for k in TOKEN_SIZE_KEYS:  # (a mini's: what its size fills in)
+                d.pop(k, None)
         if self.width_mm is not None:  # a width alone would mean "scale by width"
             d.setdefault("height_mm", self.height_mm)
         if isinstance(d.get("token_area"), tuple):
@@ -254,4 +689,14 @@ class FigureSettings:
         )
 
 
-FIGURE_OPTIONS = {f.name for f in fields(FigureSettings)}
+_OPTIONS = Option.of(FigureSettings)
+FIGURE_OPTIONS = set(_OPTIONS)
+
+# what a figure's size fills in; saved projects always write these, so a project says
+# both the size and its values (a token also the values only a token has: its diameter)
+SIZE_KEYS = ("size",) + tuple(
+    k for k, o in _OPTIONS.items() if o.sized and "mini" in (o.kinds or KINDS)
+)
+TOKEN_SIZE_KEYS = tuple(
+    k for k, o in _OPTIONS.items() if o.sized and "mini" not in (o.kinds or KINDS)
+)

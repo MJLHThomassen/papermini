@@ -449,7 +449,7 @@ def make_token(
     )
     adj = adjust or adj_mod.Adjustments()
     label = image_path.stem if label is None else label
-    bleed_mm = min(max(0.0, bleed_mm), 5.0)
+    bleed_mm = min(max(0.0, bleed_mm), geo.MAX_BLEED_MM)
     pad_mm = max(style.cut_width_mm + 0.3, bleed_mm + 0.2 if bleed_mm else 0.0)
     # a cut line printed for cutting by hand lies just outside the ring, so it never
     # covers its edge (cut by machine, the cut follows the ring and the bleed is beyond)
