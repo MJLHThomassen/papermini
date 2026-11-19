@@ -331,11 +331,11 @@ builds a whole panel into one builder method per section.
 ### G2. Preferences go through the `Preferences` service
 
 Read and write preferences only through the `Preferences` service in
-`gui/preferences.py`, which has one accessor per key. Never use `QSettings`
-directly. The tests redirect the service's store to a temporary folder, and a
-direct `QSettings` could write to the user's real settings. Keep each key
-string and default as it is: a changed key loses what users saved under it, and
-a test checks each one.
+`gui/preferences.py`, which has one accessor per key. The app's code never uses
+`QSettings` directly. The tests redirect the service's store to a temporary
+folder, and a direct `QSettings` could write to the user's real settings. Keep
+each key string and default as it is: a changed key loses what users saved
+under it. `tests/gui/test_saved_preferences.py` checks each one.
 
 ### G3. Builds are debounced and matched to their settings
 
