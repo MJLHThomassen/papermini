@@ -75,6 +75,7 @@ src/papermini/       the package, one class per file (S15)
     panels/          the figure and sheet settings panels
     views/           the zoom, crop and mini views
     dialogs/         the dialogs and their pages
+    exporting/       exporting and printing, and the dialogs they open
     window/          the main window and its build jobs
 tests/               the pytest suite, one file per module (T3): synthetic masks,
                      no network or model (T4)
@@ -110,12 +111,12 @@ don't care about.
 or about 40 methods.
 
 *Example:* `MainWindow` in `gui/window/main_window.py` builds the layout,
-queues builds and handles their results, exports and prints, manages recent
-files and folders, handles drag and drop, and checks for updates. Someone who
-wants to change how exporting works has to find their way through a class of
-about 2,000 lines.
-Better: separate collaborators, such as an export controller and an update
-controller, that the window creates and wires together.
+queues builds and handles their results, manages recent files and folders,
+handles drag and drop, and checks for updates. Someone who wants to change how
+updating works has to find their way through a class of about 2,000 lines.
+Better: separate collaborators that the window creates and wires together, the
+way it creates `ExportController` in `gui/exporting/` for exporting and
+printing.
 
 ### S2. A function does one thing at one level of detail
 
