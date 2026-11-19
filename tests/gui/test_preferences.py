@@ -179,6 +179,7 @@ def test_a_project_table_that_matches_no_preset(app, monkeypatch):
 def test_closing_preferences_gives_the_project_its_table(
     window, tmp_path, monkeypatch, figure_image
 ):
+    from papermini.gui import size_presets
     from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     w = window
@@ -195,10 +196,11 @@ def test_closing_preferences_gives_the_project_its_table(
     w.project.path = tmp_path / "project.yaml"
     assert w.save()  # no unsaved changes
     mine = replace(sizes.calculate(30, 40), name="Mine")
+    size_presets.save_user_presets([mine])
 
     def pick(dlg):
-        dlg.sizes._add(mine)
-        dlg.sizes.use_in_project()
+        dlg.sizes.list.setCurrentRow(1)  # Mine, after the built-in preset
+        dlg.sizes.b_use.click()
         return 0
 
     monkeypatch.setattr(PreferencesDialog, "exec", pick)
@@ -268,7 +270,7 @@ def test_the_width_warning(window, tmp_path, figure_image):
 
 
 def test_the_other_pages(window):
-    from papermini.gui import prefs
+    from papermini.gui import prefs, theme
     from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
     dlg = PreferencesDialog(window, "appearance")
@@ -283,11 +285,12 @@ def test_the_other_pages(window):
     assert dlg.stack.currentIndex() == 2
     dark = next(b for b in dlg.theme_group.buttons() if b.text() == "Dark")
     dark.setChecked(True)
-    assert window._theme_mode == "dark" and prefs.store().value("theme") == "dark"
+    assert theme.current is theme.DARK and prefs.store().value("theme") == "dark"
     next(
         b for b in dlg.theme_group.buttons() if b.text() == "Follow system"
     ).setChecked(True)
-    assert window._theme_mode == "system"
+    assert prefs.store().value("theme") == "system"
+    assert theme.current is theme.resolve("system")
     dlg.show_page("nothing")  # (an unknown page: the first)
     assert dlg.stack.currentIndex() == 0
     dlg.close()

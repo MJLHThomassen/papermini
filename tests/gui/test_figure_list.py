@@ -111,7 +111,7 @@ def click_copies(w, row: int, which: str, times: int = 1):
     from PySide6.QtTest import QTest
 
     lst = w.list
-    minus, _, plus = lst.itemDelegate()._copies_rects(lst.visualItemRect(lst.item(row)))
+    minus, _, plus = lst.itemDelegate().copies_rects(lst.visualItemRect(lst.item(row)))
     at = (plus if which == "+" else minus).center().toPoint()
     for _ in range(times):
         QTest.mouseClick(lst.viewport(), Qt.LeftButton, Qt.NoModifier, at)
@@ -139,7 +139,7 @@ def test_the_figure_card_changes_the_copies(app, tmp_path, new_window, unsaved):
     click_copies(w, 0, "-", 9)
     assert fig.entry.settings.copies == 0  # (not below 0)
     lst = w.list
-    _, num, _ = lst.itemDelegate()._copies_rects(lst.visualItemRect(lst.item(0)))
+    _, num, _ = lst.itemDelegate().copies_rects(lst.visualItemRect(lst.item(0)))
     QTest.mouseClick(
         lst.viewport(),
         Qt.MouseButton.LeftButton,

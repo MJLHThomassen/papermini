@@ -29,7 +29,7 @@ class Slider(_WheelGuard, QSlider):
     def _snap(self, action: int) -> None:
         if action != QSlider.SliderMove.value or not self.isSliderDown():  # (an int)
             return  # keys, clicks on the track and typed values are taken as they are
-        span = max(1, self.width() - self._handle_rect(self.minimum()).width())
+        span = max(1, self.width() - self.handle_rect(self.minimum()).width())
         reach = SNAP_PX * (self.maximum() - self.minimum()) / span
         if abs(self.sliderPosition() - self.centre) <= reach:
             self.setSliderPosition(self.centre)
@@ -48,13 +48,14 @@ class Slider(_WheelGuard, QSlider):
             opt.sliderPosition = opt.sliderValue = position
         return opt
 
-    def _handle_rect(self, position):
+    def handle_rect(self, position):
+        """Return the rectangle of the handle with the slider at ``position``."""
         return self.style().subControlRect(
             QStyle.CC_Slider, self._option(position), QStyle.SC_SliderHandle, self
         )
 
     def centre_x(self) -> float:
-        return self._handle_rect(self.centre).center().x() + 0.5
+        return self.handle_rect(self.centre).center().x() + 0.5
 
     def paintEvent(self, e):
         if self.centre is None:
@@ -67,7 +68,7 @@ class Slider(_WheelGuard, QSlider):
         t = theme.current
         cy = self.rect().center().y() + 0.5
         cx = self.centre_x()
-        vx = self._handle_rect(self.sliderPosition()).center().x() + 0.5
+        vx = self.handle_rect(self.sliderPosition()).center().x() + 0.5
         fill = QColor(t.accent if self.isEnabled() else t.muted)
         p.fillRect(QRectF(min(cx, vx), cy - 2, abs(vx - cx), 4), fill)
         p.setPen(QPen(QColor(t.muted), 1.5))

@@ -72,7 +72,7 @@ def test_color_sliders_snap_to_their_centre(app):
     f.valueChanged.connect(lambda: got.append(f.value()))
 
     def x_of(v):
-        return sl._handle_rect(v).center().x()
+        return sl.handle_rect(v).center().x()
 
     def send(kind, x, held=Qt.LeftButton):
         t = {

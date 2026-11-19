@@ -95,9 +95,15 @@ def test_the_open_recent_menu_opens_a_project(window, tmp_path, monkeypatch):
 
 
 def test_a_recent_project_that_is_gone_warns(window, tmp_path, monkeypatch):
+    from papermini.gui.window import main_window
+
     warned = []
-    monkeypatch.setattr(window, "_warn", warned.append)
-    window._open_recent(str(tmp_path / "gone.yaml"))
+    monkeypatch.setattr(
+        main_window.QMessageBox,
+        "warning",
+        staticmethod(lambda parent, title, text: warned.append(text)),
+    )
+    window.empty.recentClicked.emit(str(tmp_path / "gone.yaml"))  # a start screen row
     assert warned and "is no longer there" in warned[0]
 
 

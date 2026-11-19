@@ -236,7 +236,9 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
 
     assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
     assert wait(lambda: w.pool.activeThreadCount() == 0, 30)
-    w._build_current()  # nothing restarts on its own
+    w.list.setCurrentRow(-1)
+    w.list.setCurrentRow(0)  # nothing restarts on its own, not even when selected again
+    app.processEvents()  # (selecting it builds it soon after, when it needs a build)
     assert fig.queued is None and w.work.button.text() == "Run again"
     assert w.pool.activeThreadCount() == 0 and SlowSegmenter.calls == 2
 
@@ -293,7 +295,7 @@ def test_cancel_works_while_the_model_loads(
         assert "loading" in w.work.detail.text()
         w.work.button.click()  # Cancel, while it loads
         assert fig.stopped and w.work.button.text() == "Run again"
-        assert "Cancelled" in w._list_item(fig).data(SUBTITLE_ROLE)
+        assert "Cancelled" in w.list.item(0).data(SUBTITLE_ROLE)
         SlowLoadSegmenter.loaded.set()
         assert wait(lambda: w.pool.activeThreadCount() == 0, 30)
         assert SlowLoadSegmenter.calls == 0 and not fig.up_to_date
@@ -356,7 +358,7 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
     w.work.button.click()  # and b's own run
     assert b.stopped and wait(lambda: SlowSegmenter.running == 0, 30)
     assert wait(lambda: segment.cancel_runs() == 0, 30)
-    assert "Cancelled" in w._list_item(a).data(SUBTITLE_ROLE)
+    assert "Cancelled" in w.list.item(0).data(SUBTITLE_ROLE)  # a's card
 
 
 def test_a_stretched_figure_builds_at_both_sizes(app, tmp_path, new_window, wait):

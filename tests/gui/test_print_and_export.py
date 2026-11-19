@@ -114,7 +114,7 @@ def test_the_export_dialog_writes_only_the_ticked_files(app, tmp_path):
     d.cut.setChecked(False)
     assert d.chosen() == [] and not d.export_btn.isEnabled()
     d.cut.setChecked(True)
-    d._accept()
+    d.export_btn.click()
     assert d.result() == QDialog.Accepted
     again = ExportDialog(tmp_path, "My minis", pages=1, machine=True)
     assert not again.pdf.isChecked() and again.cut.isChecked()  # remembered

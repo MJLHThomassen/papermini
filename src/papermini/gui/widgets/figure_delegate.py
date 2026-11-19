@@ -28,8 +28,9 @@ class FigureDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         return QSize(option.rect.width(), self.H)
 
-    def _copies_rects(self, rect):
-        """(minus, number, plus) of the copies control at the bottom right of a card."""
+    def copies_rects(self, rect):
+        """Return the minus, number and plus rectangles of the copies control at the
+        bottom right of the card in ``rect``."""
         r = QRectF(rect).adjusted(6, 3, -6, -3)
         y = r.top() + 33
         plus = QRectF(r.right() - 10 - self.BTN, y - 1, self.BTN, self.BTN)
@@ -49,7 +50,7 @@ class FigureDelegate(QStyledItemDelegate):
             and event.type() == QEvent.MouseButtonRelease
             and event.button() == Qt.LeftButton
         ):
-            minus, num, plus = self._copies_rects(option.rect)
+            minus, num, plus = self.copies_rects(option.rect)
             pos = event.position()
             if minus.contains(pos):
                 self._set_copies(index, n - 1)
@@ -80,7 +81,7 @@ class FigureDelegate(QStyledItemDelegate):
         self._set_copies(index, editor.value())
 
     def updateEditorGeometry(self, editor, option, index):
-        _, num, _ = self._copies_rects(option.rect)
+        _, num, _ = self.copies_rects(option.rect)
         editor.setGeometry(num.toRect().adjusted(-2, -1, 2, 1))
 
     def paint(self, p: QPainter, option, index):
@@ -142,7 +143,7 @@ class FigureDelegate(QStyledItemDelegate):
 
     def helpEvent(self, event, view, option, index):
         if index.data(COPIES_ROLE) is not None:
-            minus, _, plus = self._copies_rects(option.rect)
+            minus, _, plus = self.copies_rects(option.rect)
             area = minus.united(plus).adjusted(-60, -2, 0, 2)  # (the word "Amount" too)
             if area.contains(event.pos()):
                 QToolTip.showText(event.globalPos(), self.COPIES_TIP, view)
@@ -163,7 +164,7 @@ class FigureDelegate(QStyledItemDelegate):
     def _paint_copies(
         self, p: QPainter, option, n: int, t, selected: bool, word: bool = True
     ):
-        minus, num, plus = self._copies_rects(option.rect)
+        minus, num, plus = self.copies_rects(option.rect)
         p.setPen(QColor(t.muted))
         if word:
             p.drawText(

@@ -342,8 +342,14 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         assert "hero.png: height_mm 50 → 53" in text and "32 → 50" not in text
         assert "sheet: paper 'a4' → 'letter'" in text
         assert text.count("height_mm 5") == 1  # one line for the three changes
-        w._warn("Could not open x:\nbroken")
-        assert "WARNING papermini.ui: Could not open x:; broken" in _log_text()
+        w.project.path = tmp_path / "project.yaml"
+        assert w.save()  # (nothing asks to save before opening the next project)
+        broken = tmp_path / "broken.yaml"
+        broken.write_text("figures: [", encoding="utf-8")
+        w.load(broken)
+        text = _log_text()  # (the home folder is written as ~)
+        assert "WARNING papermini.ui: Could not open " in text
+        assert "broken.yaml:; " in text  # one line
     finally:
         log.set_detailed(False)
     assert logging.getLogger("papermini").level == logging.INFO
