@@ -12,14 +12,6 @@ import numpy as np
 
 from .adjustments import Adjustments
 
-# setting -> (lowest, highest); 0 leaves the picture as it is
-RANGES = {
-    "brightness": (-100, 100),
-    "contrast": (-100, 100),
-    "saturation": (-100, 100),
-    "hue": (-180, 180),
-}
-
 # RGB <-> YIQ: rotating I and Q turns the hue while keeping the brightness (Y)
 _YIQ = np.array(
     [[0.299, 0.587, 0.114], [0.596, -0.274, -0.322], [0.211, -0.523, 0.312]], np.float32

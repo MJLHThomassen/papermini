@@ -36,15 +36,6 @@ BASE_FIT = (
     25 / 25.4
 )  # bases a little under the grid, so they fit side by side (25 mm per inch)
 
-# the figure settings a size fills in
-FILLS = (
-    "height_mm",
-    "tab_radius_mm",
-    "tab_width_mm",
-    "tab_height_mm",
-    "token_diameter_mm",
-)
-
 
 def _mm(v: float) -> float:
     return round(float(v), 2)

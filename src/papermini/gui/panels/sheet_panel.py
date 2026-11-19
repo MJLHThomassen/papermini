@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 )
 
 from ...output.sheet import (
-    CUSTOM_PAPER_MM,
     MAT_LABELS,
     PAPER_CHOICES,
     PAPER_LABELS,
@@ -26,32 +25,6 @@ from ...project.sheet_settings import SheetSettings
 from ..fields.combo_box import ComboBox
 from ..fields.double_spin_box import DoubleSpinBox
 from .section import Section
-
-SHEET_TIPS = {
-    "Paper": "The paper size of the sheet. Custom: a width and height of your own.",
-    "Orientation": "Portrait: the page upright. Landscape: the page on its side, for wide\n"
-    "figures and rows.",
-    "Width": "The width of a custom paper size, as it prints (50 to 1200 mm).",
-    "Height": "The height of a custom paper size, as it prints (50 to 1200 mm).",
-    "Mat": "The cutting mat you put the sheet on. papermini warns when the paper is\n"
-    "bigger than the mat (turned either way). Any size: no warning.",
-    "Title": "Printed at the top of each page, above the instructions.",
-    "Margin": "The empty border around each page. Cut by machine, the alignment marks sit\n"
-    "here, this far from the paper edges.",
-    "Gap": "The space between the pieces on the sheet.",
-    "Cut by": "By hand: the cut lines are printed on the sheet, for scissors or a knife.\n"
-    "Machine: the sheet has no cut lines but alignment marks; Export PDF also\n"
-    "writes a cut file (SVG) with the cut lines and the same marks, to line up in\n"
-    "your cutting machine's software.",
-    "Bleed": "Prints the edge colors (margin, tab or back) this far beyond the cut line, so a\n"
-    "machine cut that is slightly off never shows a white edge.",
-    "Marks": "Corners: an L in each corner and a small square top-left.\n"
-    "Silhouette: Silhouette Studio's Type 1 marks (a square top-left, an L top-right\n"
-    "and bottom-left; length 20 mm, thickness 0.5 mm, inset = the margin).\n"
-    "None: no marks; line up the cut file with the page edges.",
-    "cut_folds": "Also put the fold lines in the cut file (in blue, in their own group), to\n"
-    "score or draw them with the machine.",
-}
 
 
 class SheetPanel(QScrollArea):
@@ -98,23 +71,24 @@ class SheetPanel(QScrollArea):
         self.fit_warning.setObjectName("WarnBox")
         self.fit_warning.setWordWrap(True)
         self.fit_warning.setTextFormat(Qt.RichText)
+        options = SheetSettings.options()
         self.paper_w, self.paper_h = DoubleSpinBox(), DoubleSpinBox()
         for w in (self.paper_w, self.paper_h):
-            w.setRange(*CUSTOM_PAPER_MM)
+            w.setRange(*options["paper_width_mm"].widget)
             w.setDecimals(1)
             w.setSuffix(" mm")
         self.title = QLineEdit()
         self.margin = DoubleSpinBox()
-        self.margin.setRange(0, 50)
+        self.margin.setRange(*options["margin_mm"].widget)
         self.margin.setSuffix(" mm")
         self.gap = DoubleSpinBox()
-        self.gap.setRange(0, 50)
+        self.gap.setRange(*options["gap_mm"].widget)
         self.gap.setSuffix(" mm")
         self.cut = ComboBox()
         for text, value in (("By hand", "hand"), ("Machine", "machine")):
             self.cut.addItem(text, value)
         self.bleed = DoubleSpinBox()
-        self.bleed.setRange(0, 5)
+        self.bleed.setRange(*options["bleed_mm"].widget)
         self.bleed.setSingleStep(0.1)
         self.bleed.setDecimals(1)
         self.bleed.setSuffix(" mm")
@@ -125,7 +99,7 @@ class SheetPanel(QScrollArea):
             ("None", "none"),
         ):
             self.marks.addItem(text, value)
-        self.cut_folds = QCheckBox("Fold lines in cut file")
+        self.cut_folds = QCheckBox(options["cut_folds"].label)
         self.mat = ComboBox()
         self.mat.addItem("Any size", "")
         for value, text in MAT_LABELS.items():
@@ -140,24 +114,24 @@ class SheetPanel(QScrollArea):
             (
                 "Paper and layout",
                 (
-                    ("Paper", self.paper),
-                    ("Orientation", self.orientation),
-                    ("Width", self.paper_w),
-                    ("Height", self.paper_h),
+                    ("paper", self.paper),
+                    ("orientation", self.orientation),
+                    ("paper_width_mm", self.paper_w),
+                    ("paper_height_mm", self.paper_h),
                     ("", self.fit_warning),
-                    ("Title", self.title),
-                    ("Margin", self.margin),
-                    ("Gap", self.gap),
+                    ("title", self.title),
+                    ("margin_mm", self.margin),
+                    ("gap_mm", self.gap),
                 ),
             ),
             (
                 "Cutting",
                 (
-                    ("Cut by", self.cut),
-                    ("Bleed", self.bleed),
-                    ("Marks", self.marks),
-                    ("", self.cut_folds),
-                    ("Mat", self.mat),
+                    ("cut", self.cut),
+                    ("bleed_mm", self.bleed),
+                    ("marks", self.marks),
+                    ("cut_folds", self.cut_folds),
+                    ("mat", self.mat),
                     ("", self.mat_warning),
                 ),
             ),
@@ -169,14 +143,14 @@ class SheetPanel(QScrollArea):
             form.setVerticalSpacing(8)
             form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            for label, w in fields:
-                if w not in (self.mat_warning, self.fit_warning):
-                    w.setToolTip(SHEET_TIPS.get(label or "cut_folds", ""))
-                if label:
-                    form.addRow(label, w)
+            for name, w in fields:
+                if name:
+                    w.setToolTip(options[name].tooltip)
+                if name and w is not self.cut_folds:
+                    form.addRow(options[name].label, w)
                     lab = form.labelForField(w)
                     lab.setObjectName("FormLabel")
-                    lab.setToolTip(SHEET_TIPS.get(label, ""))
+                    lab.setToolTip(options[name].tooltip)
                     labels.append(lab)
                 else:
                     form.addRow(w)

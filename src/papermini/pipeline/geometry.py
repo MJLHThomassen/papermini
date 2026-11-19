@@ -765,6 +765,9 @@ def trace_cut(
     return CutPath(c, ctrl)
 
 
+MAX_BLEED_MM = 5.0  # the widest bleed a figure is printed with
+
+
 def add_bleed(rgb: np.ndarray, alpha: np.ndarray, bleed_px: float):
     """Print beyond the cut line: extend the colors at the cut edge outwards by
     ``bleed_px`` (each new pixel takes the color of the nearest pixel inside), so a
