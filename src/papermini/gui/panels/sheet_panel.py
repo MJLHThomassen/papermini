@@ -25,6 +25,7 @@ from ...output.sheet import (
 from ...project.sheet_settings import SheetSettings
 from ..fields.combo_box import ComboBox
 from ..fields.double_spin_box import DoubleSpinBox
+from ..preferences import Preferences
 from .section import Section
 
 SHEET_TIPS = {
@@ -63,8 +64,9 @@ class SheetPanel(QScrollArea):
     printClicked = Signal()
     exportClicked = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, prefs: Preferences, parent=None):
         super().__init__(parent)
+        self._prefs = prefs
         self.setObjectName("SheetPanel")
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -162,7 +164,7 @@ class SheetPanel(QScrollArea):
                 ),
             ),
         ):
-            box = Section(heading)
+            box = Section(self._prefs, heading)
             form = QFormLayout(box.body)
             form.setContentsMargins(2, 0, 0, 0)
             form.setHorizontalSpacing(12)

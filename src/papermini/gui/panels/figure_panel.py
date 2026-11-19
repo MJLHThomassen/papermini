@@ -35,6 +35,7 @@ from ..fields.kind_choice import KindChoice
 from ..fields.size_field import SizeField
 from ..fields.slider_field import SliderField
 from ..fields.spin_box import SpinBox
+from ..preferences import Preferences
 from ..widgets.elided_label import ElidedLabel
 from .figure_fields import (
     KIND_SECTIONS,
@@ -67,8 +68,9 @@ class FigurePanel(QScrollArea):
     clearCrop = Signal()
     exportPiece = Signal()  # the Miniature step's Export button (SVG or PNG)
 
-    def __init__(self, parent=None):
+    def __init__(self, prefs: Preferences, parent=None):
         super().__init__(parent)
+        self._prefs = prefs
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
@@ -145,7 +147,7 @@ class FigurePanel(QScrollArea):
         self._w["kind"] = ("radio", kind)
         extra_labels.append(kind_label)
         for step, title, items in SECTIONS:
-            box = Section(title, sub=title in SUBSECTIONS)
+            box = Section(self._prefs, title, sub=title in SUBSECTIONS)
             boxes[title] = box
             sections.append(box)
             self._section_steps.append(step)

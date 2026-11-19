@@ -91,14 +91,14 @@ def test_the_print_button_prints_the_sheet(
     assert out.read_bytes().startswith(b"%PDF")
 
 
-def test_the_export_dialog_writes_only_the_ticked_files(app, tmp_path):
+def test_the_export_dialog_writes_only_the_ticked_files(app, prefs, tmp_path):
     """The Export dialog shows the files it writes (named after the sheet's title),
     writes only what is ticked, and remembers the ticks."""
     from PySide6.QtWidgets import QDialog
 
     from papermini.gui.dialogs.export_dialog import ExportDialog
 
-    d = ExportDialog(tmp_path, "My minis", pages=3, machine=True)
+    d = ExportDialog(prefs, tmp_path, "My minis", pages=3, machine=True)
     assert d.pdf_path() == tmp_path / "My minis.pdf"
     assert [p.name for p in d.cut_paths()] == [
         "My minis-cut.svg",
@@ -116,9 +116,9 @@ def test_the_export_dialog_writes_only_the_ticked_files(app, tmp_path):
     d.cut.setChecked(True)
     d.export_btn.click()
     assert d.result() == QDialog.Accepted
-    again = ExportDialog(tmp_path, "My minis", pages=1, machine=True)
+    again = ExportDialog(prefs, tmp_path, "My minis", pages=1, machine=True)
     assert not again.pdf.isChecked() and again.cut.isChecked()  # remembered
-    hand = ExportDialog(tmp_path, "My minis", pages=1, machine=False)
+    hand = ExportDialog(prefs, tmp_path, "My minis", pages=1, machine=False)
     hand.pdf.setChecked(True)
     assert hand.chosen() == [tmp_path / "My minis.pdf"]  # cut by hand: no cut file
     assert not hand.cut.isVisibleTo(hand)

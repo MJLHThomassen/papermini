@@ -19,7 +19,7 @@ def test_the_kind_switches_the_settings_groups(app, prefs):
     from papermini.gui.panels.figure_fields import MINIATURE
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel()
+    p = FigurePanel(prefs)
     got = []
     p.changed.connect(got.append)
     p.set_settings(FigureSettings(label="Boss"), "x", "x")

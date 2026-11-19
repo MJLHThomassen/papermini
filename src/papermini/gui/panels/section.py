@@ -3,7 +3,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
-from .. import prefs, theme
+from .. import theme
+from ..preferences import Preferences
 
 SUB_INDENT = 14
 
@@ -13,11 +14,12 @@ class Section(QWidget):
     (remembered between sessions). A group with a switch that is off shows only its
     header and cannot be opened. ``sub``: a group inside another one (indented)."""
 
-    def __init__(self, title: str, parent=None, sub: bool = False):
+    def __init__(self, prefs: Preferences, title: str, parent=None, sub: bool = False):
         super().__init__(parent)
+        self._prefs = prefs
+        self._title = title
         self.setObjectName("SubSection" if sub else "Section")
         self.setAttribute(Qt.WA_StyledBackground)
-        self._key = f"sections/{title}"
         self._active = True
         self.parent_section = None  # the group a sub-group is inside
         v = QVBoxLayout(self)
@@ -36,7 +38,7 @@ class Section(QWidget):
         v.addLayout(self._head)
         v.addWidget(self.body)
         self.header.toggled.connect(self._toggle)
-        open_ = prefs.store().value(self._key, True, type=bool)
+        open_ = prefs.section_open(title)
         self.header.setChecked(open_)
         self._toggle(open_)
 
@@ -67,4 +69,4 @@ class Section(QWidget):
             )
         )
         if remember:
-            prefs.store().setValue(self._key, open_)
+            self._prefs.set_section_open(self._title, open_)

@@ -22,7 +22,9 @@ def _projects(tmp_path, *names):
     return paths
 
 
-def test_recent_projects_are_newest_first_and_at_most_ten(prefs, tmp_path):
+def test_recent_projects_are_newest_first_and_at_most_ten(
+    prefs, settings_store, tmp_path
+):
     paths = _projects(tmp_path, *[f"p{i}.yaml" for i in range(12)])
     for p in paths:
         prefs.add_recent(p)
@@ -32,19 +34,19 @@ def test_recent_projects_are_newest_first_and_at_most_ten(prefs, tmp_path):
     assert got[0] == paths[5] and got.count(paths[5]) == 1 and len(got) == 10
     paths[11].unlink()  # gone: left out, and forgotten
     assert paths[11] not in prefs.recent_projects()
-    assert len(prefs.store().value(prefs.RECENT_KEY)) == 9
+    assert len(settings_store.value("recent_projects")) == 9
     prefs.clear_recent()
     assert prefs.recent_projects() == []
 
 
-def test_one_recent_project_is_read_back_as_a_list(prefs, tmp_path):
+def test_one_recent_project_is_read_back_as_a_list(prefs, settings_store, tmp_path):
     """QSettings hands back a list of one as a plain string."""
     (p,) = _projects(tmp_path, "only.yaml")
-    prefs.store().setValue(prefs.RECENT_KEY, str(p))
+    settings_store.setValue("recent_projects", str(p))
     assert prefs.recent_projects() == [p]
 
 
-def test_opening_and_saving_count_as_recent(window, tmp_path):
+def test_opening_and_saving_count_as_recent(window, prefs, tmp_path):
     from papermini.project.project import Project
     from papermini.project.project_files import save_project
 
@@ -52,8 +54,6 @@ def test_opening_and_saving_count_as_recent(window, tmp_path):
     a.parent.mkdir()
     save_project(Project(path=a), a)
     window.load(a)
-    from papermini.gui import prefs
-
     assert prefs.recent_projects() == [a.resolve()]
     b = tmp_path / "b.yaml"
     window.project.path = b
@@ -67,9 +67,7 @@ def test_opening_and_saving_count_as_recent(window, tmp_path):
     assert [r.path for r in rows] == [b.resolve(), a.resolve()]
 
 
-def test_the_open_recent_menu_opens_a_project(window, tmp_path, monkeypatch):
-    from papermini.gui import prefs
-
+def test_the_open_recent_menu_opens_a_project(window, prefs, tmp_path, monkeypatch):
     window.menu.aboutToShow.emit()
     assert not window.recent_menu.menuAction().isEnabled()  # nothing yet
     a, b = _projects(tmp_path, "D&D/a.yaml", "b.yaml")

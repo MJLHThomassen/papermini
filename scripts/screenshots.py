@@ -70,6 +70,7 @@ def main() -> None:
     from PIL import Image
 
     from papermini.gui import theme
+    from papermini.gui.preferences import Preferences
     from papermini.gui.views.drawing import draw_mini
     from papermini.gui.window.main_window import MainWindow
     from papermini.pipeline.segmentation import segment
@@ -93,7 +94,7 @@ def main() -> None:
 
     def window(mode: str, size=(1360, 820)) -> MainWindow:
         theme.apply(app, mode)
-        w = MainWindow()
+        w = MainWindow(Preferences())
         w.setAttribute(Qt.WA_DontShowOnScreen)
         w.resize(*size)
         w.show()

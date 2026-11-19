@@ -39,11 +39,13 @@ def _start(app, files):
         import ctypes
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("papermini")
-    from . import prefs, theme
+    from . import theme
+    from .preferences import Preferences
 
-    theme.apply(app, prefs.store().value("theme", "system", type=str))
+    prefs = Preferences()
+    theme.apply(app, prefs.theme())
     app.setWindowIcon(theme.app_icon())
-    w = MainWindow()
+    w = MainWindow(prefs)
     if files:
         w.open_paths(files)
     w.show()

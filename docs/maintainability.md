@@ -328,12 +328,14 @@ builds a whole panel into one builder method per section.
 
 *Soft trigger:* an `__init__` over about 60 lines.
 
-### G2. Preferences go through `gui.prefs.store()`
+### G2. Preferences go through the `Preferences` service
 
-Read and write preferences only through `gui.prefs.store()`, never with
-`QSettings("papermini", "papermini")` directly. The tests redirect the store to
-a temporary folder. A direct `QSettings` would write to the user's real
-settings.
+Read and write preferences only through the `Preferences` service in
+`gui/preferences.py`, which has one accessor per key. Never use `QSettings`
+directly. The tests redirect the service's store to a temporary folder, and a
+direct `QSettings` could write to the user's real settings. Keep each key
+string and default as it is: a changed key loses what users saved under it, and
+a test checks each one.
 
 ### G3. Builds are debounced and matched to their settings
 
@@ -413,7 +415,7 @@ editing them. If it doesn't, the tests are checking implementation.
 - No sleeping, and no dependence on timing.
 - Files go in temporary folders, never in the repository or the user's home
   folder.
-- Preferences go through `gui.prefs.store()` (G2).
+- Preferences go through the `Preferences` service (G2).
 - GUI tests run off-screen. `tests/conftest.py` gives them preferences in a
   temporary folder, cleared before each test, and deletes the windows a test
   leaves behind. Open windows with its `window` or `new_window` fixture.

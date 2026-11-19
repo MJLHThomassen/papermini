@@ -11,7 +11,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import ClassVar
 
-from PySide6.QtCore import QByteArray, QSize, Qt, QThreadPool, QTimer
+from PySide6.QtCore import QSize, Qt, QThreadPool, QTimer
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -51,13 +51,15 @@ from ...project.figure_settings import FigureSettings
 from ...project.project import Project
 from ...project.project_files import load_project, save_project
 from ...support import fonts, log, remote
-from .. import errors, prefs, theme
+from .. import errors, theme
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.export_dialog import ExportDialog
+from ..dialogs.preferences_dialog import PreferencesDialog
 from ..panels.figure_fields import PER_IMAGE
 from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
 from ..panels.sheet_panel import SheetPanel
+from ..preferences import Preferences
 from ..views.crop_view import CropView
 from ..views.drawing import draw_mini_page, draw_sheet, print_sheet
 from ..views.images import adjusted_preview, load_qimage, pil_to_qimage
@@ -106,8 +108,9 @@ def _log_update(state: str, data) -> None:
 class MainWindow(QMainWindow):
     """The main window: the figure list, the live previews and the settings."""
 
-    def __init__(self):
+    def __init__(self, prefs: Preferences):
         super().__init__()
+        self._prefs = prefs
         self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = self._fresh_project()
@@ -169,7 +172,7 @@ class MainWindow(QMainWindow):
             None,
         )  # (image path, QImage): the shown image, loaded once
 
-        self._theme_mode = prefs.store().value("theme", "system", type=str)
+        self._theme_mode = prefs.theme()
         self._make_ui()
         self._make_actions()
         self._restore_layout()
@@ -203,10 +206,10 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self.panel = FigurePanel()
+        self.panel = FigurePanel(self._prefs)
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
-        self.sheet_panel = SheetPanel()
+        self.sheet_panel = SheetPanel(self._prefs)
         self.sheet_panel.changed.connect(self._sheet_changed)
         self.sheet_panel.printClicked.connect(self.print_sheet)
         self.sheet_panel.exportClicked.connect(self.export_pdf)
@@ -467,7 +470,7 @@ class MainWindow(QMainWindow):
         self.empty.linkClicked.connect(self.focus_link_bar)
         self.empty.folderClicked.connect(self.add_folder_dialog)
         self.empty.recentClicked.connect(self._open_recent)
-        self.empty.set_recent(prefs.recent_projects())
+        self.empty.set_recent(self._prefs.recent_projects())
         grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
         self.banner = Banner()
         self.banner_box = overlay_wrap(self.banner)
@@ -728,13 +731,14 @@ class MainWindow(QMainWindow):
 
     def _restore_layout(self):
         """Panel widths and which panels are collapsed, as they were last time."""
-        st = prefs.store()
-        state = st.value("layout/splitter")
-        if isinstance(state, QByteArray) and not state.isEmpty():
+        state = self._prefs.splitter_state()
+        if state is not None:
             self.splitter.restoreState(state)
             self.splitter.setCollapsible(1, False)  # (not part of the saved state)
-        for i, key in ((0, "layout/left_width"), (2, "layout/right_width")):
-            w = st.value(key, 0, type=int)
+        for i, w in (
+            (0, self._prefs.left_panel_width()),
+            (2, self._prefs.right_panel_width()),
+        ):
             if w > 0:
                 self._side_width[i] = w
         self._sync_sides()
@@ -744,10 +748,9 @@ class MainWindow(QMainWindow):
         for i in self._side_width:
             if sizes[i] > 0:
                 self._side_width[i] = sizes[i]
-        st = prefs.store()
-        st.setValue("layout/splitter", self.splitter.saveState())
-        st.setValue("layout/left_width", self._side_width[0])
-        st.setValue("layout/right_width", self._side_width[2])
+        self._prefs.set_splitter_state(self.splitter.saveState())
+        self._prefs.set_left_panel_width(self._side_width[0])
+        self._prefs.set_right_panel_width(self._side_width[2])
 
     def _side_dragged(self):
         # remember open widths while dragging, so a panel dragged shut reopens at the
@@ -783,7 +786,7 @@ class MainWindow(QMainWindow):
     # region theme
     def set_theme(self, mode: str):
         self._theme_mode = mode
-        prefs.store().setValue("theme", mode)
+        self._prefs.set_theme(mode)
         app = QApplication.instance()
         if app is not None:
             theme.apply(app, mode)
@@ -837,12 +840,9 @@ class MainWindow(QMainWindow):
             return sizes.apply(FigureSettings(), sizes.DEFAULT_SIZE, self.project.sizes)
         return replace(base, label=None, crop=None, mask=None)
 
-    @staticmethod
-    def _fresh_project() -> Project:
+    def _fresh_project(self) -> Project:
         """A new project, with the user's default creature size preset."""
-        from ..size_presets import default_table
-
-        return Project(sizes=default_table())
+        return Project(sizes=self._prefs.default_table())
 
     def add_images(self, paths, settings: FigureSettings | None = None, names=None):
         """Add image files; links among ``paths`` are downloaded first (in the background).
@@ -1758,7 +1758,7 @@ class MainWindow(QMainWindow):
     def _png_scale(self) -> float:
         """Pixels per mm of an exported PNG, as the preferences set it (pixels per grid
         square on the project's grid, or a dpi)."""
-        return prefs.png_px_per_mm(self.project.sizes.grid_mm)
+        return self._prefs.png_px_per_mm(self.project.sizes.grid_mm)
 
     def _write(self, fig: Figure, path: Path, fmt: str) -> list[Path]:
         """Write a figure as ``fmt`` ("svg" or "png") at ``path`` (one file per numbered copy)."""
@@ -1858,7 +1858,7 @@ class MainWindow(QMainWindow):
             return
         if not self._all_fit(lay, "Export"):
             return
-        dlg = ExportDialog(folder, sh.title, lay.pages, lay.machine, self)
+        dlg = ExportDialog(self._prefs, folder, sh.title, lay.pages, lay.machine, self)
         if not self._run_export_dialog(dlg):
             return
         pdf = dlg.pdf_path() if dlg.pdf.isChecked() else None
@@ -1994,11 +1994,11 @@ class MainWindow(QMainWindow):
     # region recent projects
     def _remember(self, path: Path) -> None:
         """Put the project at the top of Open recent and the start screen's list."""
-        prefs.add_recent(path)
-        self.empty.set_recent(prefs.recent_projects())
+        self._prefs.add_recent(path)
+        self.empty.set_recent(self._prefs.recent_projects())
 
     def _sync_recent_menu(self) -> None:
-        self.recent_menu.menuAction().setEnabled(bool(prefs.recent_projects()))
+        self.recent_menu.menuAction().setEnabled(bool(self._prefs.recent_projects()))
 
     def _fill_recent_menu(self) -> None:
         """Open recent: each project's name and its folder (shortened in the middle),
@@ -2006,7 +2006,7 @@ class MainWindow(QMainWindow):
         m = self.recent_menu
         m.clear()
         fm = m.fontMetrics()
-        for p in prefs.recent_projects():
+        for p in self._prefs.recent_projects():
             folder = fm.elidedText(str(p.parent), Qt.ElideMiddle, 320)
             a = m.addAction(f"{p.name}\t{folder}".replace("&", "&&"))
             a.setToolTip(str(p))
@@ -2021,12 +2021,12 @@ class MainWindow(QMainWindow):
     def _open_recent(self, path: str) -> None:
         if not Path(path).is_file():  # (gone since the list was shown)
             self._warn(f"{path} is no longer there.")
-            self.empty.set_recent(prefs.recent_projects())
+            self.empty.set_recent(self._prefs.recent_projects())
             return
         self.load(Path(path))
 
     def _clear_recent(self) -> None:
-        prefs.clear_recent()
+        self._prefs.clear_recent()
         self.empty.set_recent([])
 
     def load(self, path: Path):
@@ -2097,7 +2097,7 @@ class MainWindow(QMainWindow):
         """Add every image in ``folder`` (and its subfolders, as set in Preferences), in
         natural order; asks about images already in the project. Returns how many."""
         folder = Path(folder).resolve()
-        images, skipped = remote.folder_images(folder, prefs.add_subfolders())
+        images, skipped = remote.folder_images(folder, self._prefs.add_subfolders())
         if not images:
             QMessageBox.information(
                 self,
@@ -2197,9 +2197,7 @@ class MainWindow(QMainWindow):
     def show_preferences(self, page: str = "sizes"):
         """Open the Preferences window at ``page``. When it closes, the project takes the
         size table picked or edited there; figures with a size follow it."""
-        from ..dialogs.preferences_dialog import PreferencesDialog
-
-        dlg = PreferencesDialog(self, page)
+        dlg = self.preferences_dialog(page)
         dlg.exec()
         table = dlg.sizes.project_table()
         if table != self.project.sizes:
@@ -2207,10 +2205,24 @@ class MainWindow(QMainWindow):
         else:
             self._sync_size_label()  # (a preset may have been renamed or deleted)
 
-    def _sync_size_label(self) -> None:
-        from ..size_presets import table_label
+    def preferences_dialog(self, page: str = "sizes") -> PreferencesDialog:
+        """Build the Preferences window at ``page``, connected to this window."""
+        dlg = PreferencesDialog(
+            self._prefs,
+            self.project.sizes,
+            lambda: [f.entry.image for f in self.figures],
+            page,
+            self,
+        )
+        dlg.themeChanged.connect(self.set_theme)
+        dlg.autoUpdatesChanged.connect(self.set_auto_updates)
+        dlg.modelsChanged.connect(self._models_changed)
+        return dlg
 
-        self.panel.set_size_table(self.project.sizes, table_label(self.project.sizes))
+    def _sync_size_label(self) -> None:
+        self.panel.set_size_table(
+            self.project.sizes, self._prefs.table_label(self.project.sizes)
+        )
 
     def set_size_table(self, table: sizes.SizeTable) -> None:
         """Use ``table`` for this project: every figure with a creature size takes its
@@ -2253,6 +2265,10 @@ class MainWindow(QMainWindow):
         from ..dialogs.about_dialog import AboutDialog
 
         self._about = AboutDialog(self)
+        self._about.updateRequested.connect(self.download_update)
+        self._about.releasePageRequested.connect(self._open_release_page)
+        self._about.restartRequested.connect(self._restart_for_update)
+        self._about.checkRequested.connect(lambda: self.check_updates(source="about"))
         try:
             if self._update_ready is not None:
                 self._about.update_state("ready", None, version=self._update_ready[0])
@@ -2318,8 +2334,8 @@ class MainWindow(QMainWindow):
         if ready is not None:
             self._show_update_ready(ready[0], ready[1], "")
             return
-        last = prefs.store().value("updates/last_check", 0.0, type=float)
-        if self.auto_updates() and time.time() - last > 24 * 3600:
+        last = self._prefs.last_update_check()
+        if self._prefs.auto_updates() and time.time() - last > 24 * 3600:
             self.check_updates(False)
 
     def check_updates(self, asked: bool = False, source: str = ""):
@@ -2333,7 +2349,7 @@ class MainWindow(QMainWindow):
             return
         self._checking_updates = True
         update_log.info("Checking for updates (%s)", source)
-        download = source == "menu" or (source == "auto" and self.auto_updates())
+        download = source == "menu" or (source == "auto" and self._prefs.auto_updates())
         if source == "menu":
             self._status("Checking for updates…")
         threading.Thread(
@@ -2394,7 +2410,7 @@ class MainWindow(QMainWindow):
             self._checking_updates = False
         _log_update(state, data)
         if state in ("latest", "available", "ready", "downloading"):
-            prefs.store().setValue("updates/last_check", time.time())
+            self._prefs.set_last_update_check(time.time())
         asked = source == "menu"
         if state == "latest":
             self._status("papermini is up to date")
@@ -2481,11 +2497,6 @@ class MainWindow(QMainWindow):
         if not self.close():  # (the user kept the window open, e.g. to save first)
             self._restart_after_update = False
 
-    @staticmethod
-    def auto_updates() -> bool:
-        """Whether papermini looks for, downloads and installs updates by itself."""
-        return prefs.store().value("updates/auto", True, type=bool)
-
     def _find_fonts(self):
         """Look for the fonts installed on this computer (a worker thread)."""
         try:
@@ -2496,7 +2507,7 @@ class MainWindow(QMainWindow):
         self.sig.fonts_found.emit(names)
 
     def set_auto_updates(self, on: bool):
-        prefs.store().setValue("updates/auto", bool(on))
+        self._prefs.set_auto_updates(on)
         ui_log.info("Automatic updates %s", "on" if on else "off")
         if on:
             QTimer.singleShot(0, self._startup_updates)
