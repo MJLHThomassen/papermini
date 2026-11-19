@@ -52,6 +52,9 @@ def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(
 ):
     """Switching the sheet to machine cutting builds every figure with the bleed, and
     Export PDF also writes the cut file."""
+    from PySide6.QtWidgets import QDialog
+
+    from papermini.gui.dialogs.export_dialog import ExportDialog
 
     im = np.full((600, 500, 3), 255, np.uint8)
     cv2.ellipse(im, (250, 300), (150, 220), 0, 0, 360, (60, 60, 60), -1)
@@ -77,7 +80,13 @@ def test_cut_by_machine_rebuilds_with_bleed_and_exports_the_cut_file(
         dlg.cut.setChecked(True)
         return True
 
-    monkeypatch.setattr(w, "_run_export_dialog", run)
+    monkeypatch.setattr(
+        ExportDialog,
+        "exec",
+        lambda dlg: (
+            QDialog.DialogCode.Accepted if run(dlg) else QDialog.DialogCode.Rejected
+        ),
+    )
     w.export_pdf()
     assert seen["name"] == "Paper miniatures"  # (named after the sheet's title)
     assert wait(lambda: (tmp_path / "sheet-cut.svg").exists())
@@ -147,7 +156,7 @@ def test_a_figure_too_big_for_the_paper_is_listed_and_left_off(
     Print asks before leaving them off."""
     from PySide6.QtWidgets import QMessageBox
 
-    from papermini.gui.window.main_window import MainWindow
+    from papermini.gui.exporting.export_dialogs import ExportDialogs
     from papermini.project.sheet_settings import SheetSettings
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
@@ -161,9 +170,9 @@ def test_a_figure_too_big_for_the_paper_is_listed_and_left_off(
         QMessageBox, "question", lambda *a, **k: asked.append(a[2]) or QMessageBox.No
     )
     monkeypatch.setattr(
-        MainWindow,
-        "_print_dialog",
-        lambda self, printer, pages: printed.append(pages) or False,
+        ExportDialogs,
+        "print_options",
+        lambda self, parent, printer, pages: printed.append(pages) or False,
     )
     w = new_window()
     w.add_images([tmp_path / "hero.png", tmp_path / "imp.png"])

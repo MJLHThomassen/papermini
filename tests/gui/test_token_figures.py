@@ -10,6 +10,7 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog, QToolButton
 
+from papermini.gui.exporting.export_dialogs import ExportDialogs
 from papermini.pipeline.token_options import min_ring_mm
 from papermini.project.figure_settings import FigureSettings
 from papermini.project.settings import settings_with_size
@@ -146,9 +147,9 @@ def test_a_figure_exports_as_svg_or_png(app, window, tmp_path, monkeypatch, pref
 
     assert item.data(SUBTITLE_ROLE) == "⌀ 25 mm"
     for name, filt in (
-        ("a.png", w.PNG_FILTER),
-        ("b", w.PNG_FILTER),
-        ("c.svg", w.SVG_FILTER),
+        ("a.png", ExportDialogs.PNG_FILTER),
+        ("b", ExportDialogs.PNG_FILTER),
+        ("c.svg", ExportDialogs.SVG_FILTER),
     ):
         monkeypatch.setattr(
             QFileDialog,
@@ -163,19 +164,19 @@ def test_a_figure_exports_as_svg_or_png(app, window, tmp_path, monkeypatch, pref
     monkeypatch.setattr(
         QFileDialog,
         "getSaveFileName",
-        staticmethod(lambda *a: (str(tmp_path / "d.png"), w.PNG_FILTER)),
+        staticmethod(lambda *a: (str(tmp_path / "d.png"), ExportDialogs.PNG_FILTER)),
     )
     w.export_current()
     assert Image.open(tmp_path / "d.png").width == pytest.approx(26 * 5, abs=3)
     # Export all asks which files to write
     out = tmp_path / "all"
     out.mkdir()
-    monkeypatch.setattr(w, "_ask_format", lambda: "both")
+    monkeypatch.setattr(ExportDialogs, "ask_format", lambda self, parent: "both")
     monkeypatch.setattr(
         QFileDialog, "getExistingDirectory", staticmethod(lambda *a: str(out))
     )
     w.export_all()
     assert sorted(p.suffix for p in out.iterdir()) == [".png", ".svg"]
-    monkeypatch.setattr(w, "_ask_format", lambda: None)  # (cancelled: nothing)
+    monkeypatch.setattr(ExportDialogs, "ask_format", lambda self, parent: None)
     w.export_all()
     assert len(list(out.iterdir())) == 2

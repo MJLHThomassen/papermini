@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
-    QProgressDialog,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -40,9 +39,6 @@ from PySide6.QtWidgets import (
 )
 
 from ... import __version__
-from ...output.png import write_pngs
-from ...output.sheet import default_cut_file, pack, write_cut_files, write_pdf
-from ...output.svg import write_svgs
 from ...pipeline.mini import Mini
 from ...pipeline.segmentation import segment
 from ...project import sizes
@@ -53,15 +49,16 @@ from ...project.project_files import load_project, save_project
 from ...support import fonts, log, remote
 from .. import errors, theme
 from ..dialogs.download_dialog import DownloadDialog
-from ..dialogs.export_dialog import ExportDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
+from ..exporting.export_controller import ExportController
+from ..exporting.export_dialogs import ExportDialogs
 from ..panels.figure_fields import PER_IMAGE
 from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
 from ..panels.sheet_panel import SheetPanel
 from ..preferences import Preferences
 from ..views.crop_view import CropView
-from ..views.drawing import draw_mini_page, draw_sheet, print_sheet
+from ..views.drawing import draw_mini_page, draw_sheet
 from ..views.images import adjusted_preview, load_qimage, pil_to_qimage
 from ..views.mini_view import MiniView
 from ..views.source_legend import SourceLegend
@@ -116,9 +113,6 @@ class MainWindow(QMainWindow):
         self.project = self._fresh_project()
         self.figures: list[Figure] = []
         self._uids = itertools.count(1)
-        self._export = (
-            None  # (figures, callback, progress dialog, count) while exporting
-        )
         self._modified = False
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(1)  # one model run at a time
@@ -133,6 +127,10 @@ class MainWindow(QMainWindow):
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
         self.sig.update.connect(self._on_update)
+        self.exporter = ExportController(self, prefs, ExportDialogs(prefs))
+        self.exporter.status.connect(self._status)
+        self.exporter.warning.connect(self._warn)
+        self.exporter.build.connect(self._queue)
         self._update_ready = None  # (version, unpacked app) to install on quit
         self._about = None  # the About window while it is open
         self._restart_after_update = False
@@ -1150,22 +1148,7 @@ class MainWindow(QMainWindow):
         self._set_modified()
         self._sheet_timer.start()
 
-    def _pack(self, figs: list[Figure]):
-        """The sheet layout of ``figs`` (built) with the project's sheet settings; a
-        figure too big for the paper is left off it (see the layout's ``left_out``)."""
-        sh = self.project.sheet
-        return pack(
-            [(f.mini, f.entry.settings.copies) for f in figs],
-            sh.page,
-            sh.margin_mm,
-            sh.gap_mm,
-            cut=sh.cut,
-            marks=sh.marks,
-            orientation=sh.orientation,
-            leave_out=True,
-        )
-
-    def _too_big(self, lay) -> tuple[str, list[str], str]:
+    def too_big(self, lay) -> tuple[str, list[str], str]:
         """The figures too big for the paper: a line saying so, their names, and what to
         do about it."""
         sh = self.project.sheet
@@ -1178,15 +1161,8 @@ class MainWindow(QMainWindow):
             )
         else:
             other = "landscape" if sh.orientation == "portrait" else "portrait"
-            turned = pack(
-                [(m, 1) for m in lay.left_out],
-                sh.page,
-                sh.margin_mm,
-                sh.gap_mm,
-                cut=sh.cut,
-                marks=sh.marks,
-                orientation=other,
-                leave_out=True,
+            turned = replace(sh, orientation=other).layout(
+                [(m, 1) for m in lay.left_out], leave_out=True
             )
             if not turned.left_out:
                 advice = (
@@ -1202,12 +1178,6 @@ class MainWindow(QMainWindow):
         return intro, lay.too_big_names(self._names()), advice
 
     @staticmethod
-    def _too_big_plain(intro: str, names: list[str], advice: str = "") -> str:
-        """The too-big message as plain text (a bullet per figure), for a dialog."""
-        lines = "\n".join(f"\u2022 {n}" for n in names)
-        return f"{intro}\n{lines}" + (f"\n\n{advice}" if advice else "")
-
-    @staticmethod
     def _too_big_list(names: list[str]) -> str:
         """The figures too big for the paper as a bulleted list (rich text)."""
         items = "".join(f"<li>{html.escape(n)}</li>" for n in names)
@@ -1219,29 +1189,6 @@ class MainWindow(QMainWindow):
     def _names(self) -> dict:
         """The figures' names, by ``id(mini.art)`` (as the sheet's minis share it)."""
         return {id(f.mini.art): f.entry.display_name for f in self.figures if f.mini}
-
-    def _all_fit(self, lay, verb: str) -> bool:
-        """Before printing or exporting: whether to go on when figures are too big for the
-        paper (they are left off; asks first)."""
-        if not lay.left_out:
-            return True
-        intro, names, advice = self._too_big(lay)
-        if not lay.placements:
-            self._warn(
-                f"{self._too_big_plain(intro, names, advice)}\n\nNothing fits on the "
-                f"paper, so there is nothing to {verb.lower()}."
-            )
-            return False
-        left = "It is" if len(names) == 1 else "They are"
-        return (
-            QMessageBox.question(
-                self,
-                "papermini",
-                f"{self._too_big_plain(intro, names)}\n\n{left} left off the "
-                f"sheet. {verb} the other figures anyway?",
-            )
-            == QMessageBox.Yes
-        )
 
     # endregion
 
@@ -1289,7 +1236,7 @@ class MainWindow(QMainWindow):
         if fig is self.current():
             self._show_mini(fig)
         self._status("Ready")
-        self._check_export()
+        self.exporter.check()
         if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
@@ -1302,7 +1249,7 @@ class MainWindow(QMainWindow):
         self._refresh_card(fig)
         if fig is self.current():
             self._show_mini(fig)
-        self._check_export()
+        self.exporter.check()
         self._status(f"{fig.entry.image.name}: {msg.splitlines()[0]}")
 
     def _on_cancelled(self, uid, gen, key):
@@ -1326,7 +1273,7 @@ class MainWindow(QMainWindow):
             return
         fig.cancelled, fig.queued = seg[1], None  # (a build still waiting is skipped)
         self._refresh_card(fig)
-        self._check_export()
+        self.exporter.check()
         self._status(f"{fig.entry.image.name}: background removal cancelled")
         if fig is self.current():
             self.busy_box.hide()
@@ -1657,14 +1604,16 @@ class MainWindow(QMainWindow):
             )
             return
         try:
-            lay = self._pack(ready)
+            lay = sh.layout(
+                [(f.mini, f.entry.settings.copies) for f in ready], leave_out=True
+            )
         except ValueError as e:
             sc.clear()
             self.sheet_panel.info.setText(str(e))
             return
         if lay.left_out:  # nothing on the sheet until every figure fits
             sc.clear()
-            intro, names, advice = self._too_big(lay)
+            intro, names, advice = self.too_big(lay)
             body = self._too_big_list(names) + html.escape(advice)
             self.sheet_banner.show_message(html.escape(intro), body)
             self.sheet_banner_box.show()
@@ -1704,276 +1653,23 @@ class MainWindow(QMainWindow):
     # endregion
 
     # region export
-    def _when_built(self, figs: list[Figure], then) -> None:
-        """Build stale figures in the background (UI stays responsive), then ``then()``."""
-        todo = [f for f in figs if not f.up_to_date]
-        if not todo:
-            then()
-            return
-        dlg = QProgressDialog("Building miniatures…", "Cancel", 0, len(todo), self)
-        dlg.setWindowModality(Qt.WindowModal)
-        dlg.setMinimumDuration(0)
-        dlg.canceled.connect(lambda: setattr(self, "_export", None))
-        self._export = (figs, then, dlg, len(todo))
-        for f in todo:
-            f.error = f.cancelled = None  # retry figures that failed or were stopped
-            self._queue(f)
-        self._check_export()
-
-    def _check_export(self):
-        if self._export is None:
-            return
-        figs, then, dlg, n = self._export
-        figs = [f for f in figs if f in self.figures]
-        failed = [f for f in figs if not f.up_to_date and f.error is not None]
-        left = [f for f in figs if not f.up_to_date]
-        if failed:
-            self._export = None
-            dlg.close()
-            f = failed[0]
-            self._warn(f"{f.entry.image.name}: {f.error.splitlines()[0]}")
-        elif not left:
-            self._export = None
-            dlg.close()
-            then()
-        else:
-            dlg.setValue(n - len(left))
-            dlg.setLabelText(f"Building {left[0].entry.image.name}…")
-
-    def _out_dir(self) -> Path:
-        return (
-            self.project.output_dir
-            if self.project.path
-            else (self.figures[0].entry.image.parent if self.figures else Path.home())
-        )
-
-    SVG_FILTER = "SVG, to print or cut (*.svg)"
-    PNG_FILTER = "PNG, for a virtual tabletop (*.png)"
-
     def export_current(self):
+        """Save the selected figure as an SVG or a PNG."""
         fig = self.current()
         if fig is not None:
-            self._when_built([fig], lambda: self._save_piece(fig))
-
-    def _png_scale(self) -> float:
-        """Pixels per mm of an exported PNG, as the preferences set it (pixels per grid
-        square on the project's grid, or a dpi)."""
-        return self._prefs.png_px_per_mm(self.project.sizes.grid_mm)
-
-    def _write(self, fig: Figure, path: Path, fmt: str) -> list[Path]:
-        """Write a figure as ``fmt`` ("svg" or "png") at ``path`` (one file per numbered copy)."""
-        copies = fig.entry.settings.copies
-        if fmt == "png":
-            return write_pngs(
-                fig.mini, path.with_suffix(".png"), self._png_scale(), copies
-            )
-        return write_svgs(fig.mini, path.with_suffix(".svg"), copies)
-
-    def _save_piece(self, fig: Figure):
-        f, chosen = QFileDialog.getSaveFileName(
-            self,
-            "Export",
-            str(self._out_dir() / fig.entry.svg_name()),
-            f"{self.SVG_FILTER};;{self.PNG_FILTER}",
-        )
-        if not f:
-            return
-        path = Path(f)
-        fmt = (
-            "png"
-            if path.suffix.lower() == ".png"
-            or (path.suffix.lower() != ".svg" and chosen == self.PNG_FILTER)
-            else "svg"
-        )
-        try:
-            paths = self._write(fig, path, fmt)
-        except OSError as e:
-            self._warn(str(e))
-            return
-        ui_log.info("Exported %s", ", ".join(map(str, paths)))
-        self._status(
-            f"Saved {paths[0]}"
-            if len(paths) == 1
-            else f"Saved {len(paths)} {fmt.upper()}s, one per numbered copy, to "
-            f"{paths[0].parent}"
-        )
+            self.exporter.export_figure(fig)
 
     def export_all(self):
-        if self.figures:
-            self._when_built(list(self.figures), self._save_all)
-
-    def _ask_format(self) -> str | None:
-        """Which files Export all writes: "svg", "png", "both", or None (cancelled)."""
-        box = QMessageBox(
-            QMessageBox.Question,
-            "Export all",
-            "Save every figure as an SVG (to print or cut), a PNG (for a "
-            "virtual tabletop) or both?",
-            parent=self,
-        )
-        buttons = {
-            box.addButton(text, QMessageBox.AcceptRole): fmt
-            for text, fmt in (("SVG", "svg"), ("PNG", "png"), ("Both", "both"))
-        }
-        box.addButton(QMessageBox.Cancel)
-        box.exec()
-        return buttons.get(box.clickedButton())
-
-    def _save_all(self):
-        fmt = self._ask_format()
-        if fmt is None:
-            return
-        d = QFileDialog.getExistingDirectory(
-            self, "Export all to", str(self._out_dir())
-        )
-        if not d:
-            return
-        kinds = ("svg", "png") if fmt == "both" else (fmt,)
-        try:
-            n = sum(
-                len(self._write(f, Path(d) / f.entry.svg_name(), k))
-                for f in self.figures
-                for k in kinds
-            )
-        except OSError as e:
-            self._warn(str(e))
-            return
-        ui_log.info("Exported %d file(s) to %s", n, d)
-        self._status(f"Saved {n} file{'s' * (n != 1)} to {d}")
+        """Save every figure as an SVG, a PNG or both."""
+        self.exporter.export_all()
 
     def export_pdf(self):
-        if self.figures:
-            self._when_built(list(self.figures), self._save_pdf)
-
-    def _save_pdf(self):
-        sh = self.project.sheet
-        # named after the sheet's title, in the project's sheet folder (or next to the images)
-        folder = (
-            self.project.sheet_path.parent if self.project.path else self._out_dir()
-        )
-        try:
-            lay = self._pack(self.figures)
-        except ValueError as e:
-            self._warn(str(e))
-            return
-        if not self._all_fit(lay, "Export"):
-            return
-        dlg = ExportDialog(self._prefs, folder, sh.title, lay.pages, lay.machine, self)
-        if not self._run_export_dialog(dlg):
-            return
-        pdf = dlg.pdf_path() if dlg.pdf.isChecked() else None
-        cut = lay.machine and dlg.cut.isChecked()
-        try:
-            if pdf is not None:
-                write_pdf(lay, pdf, sh.title)
-            files = ([pdf] if pdf is not None else []) + (
-                write_cut_files(
-                    lay, default_cut_file(dlg.pdf_path()), sh.cut_folds, sh.title
-                )
-                if cut
-                else []
-            )
-        except OSError as e:
-            self._warn(str(e))
-            return
-        ui_log.info(
-            "Exported the sheet: %s (%d pieces, %d page(s))",
-            ", ".join(str(f) for f in files),
-            len(lay.placements),
-            lay.pages,
-        )
-        self._status(
-            f"Saved {', '.join(f.name for f in files)} in {files[0].parent} "
-            f"({len(lay.placements)} pieces, {lay.pages} page(s))"
-        )
-
-    def _run_export_dialog(self, dlg) -> bool:  # (the tests replace this)
-        return dlg.exec() == QDialog.Accepted
+        """Save the sheet to print (PDF) and, cut by machine, its cut files."""
+        self.exporter.export_sheet()
 
     def print_sheet(self):
-        if self.figures:
-            self._when_built(list(self.figures), self._print)
-
-    def _print(self):
-        from PySide6.QtCore import QSizeF
-        from PySide6.QtGui import QPageLayout, QPageSize
-        from PySide6.QtPrintSupport import QPrinter
-
-        sh = self.project.sheet
-        try:
-            lay = self._pack(self.figures)
-        except ValueError as e:
-            self._warn(str(e))
-            return
-        if not self._all_fit(lay, "Print"):
-            return
-        printer = QPrinter(QPrinter.HighResolution)
-        pw, ph = lay.paper
-        named = {
-            "a3": QPageSize.A3,
-            "a4": QPageSize.A4,
-            "a5": QPageSize.A5,
-            "letter": QPageSize.Letter,
-            "legal": QPageSize.Legal,
-            "tabloid": QPageSize.Tabloid,
-        }
-        if sh.paper in named:
-            page = QPageSize(named[sh.paper])
-        else:  # a custom size: given upright, turned with the orientation
-            page = QPageSize(
-                QSizeF(min(pw, ph), max(pw, ph)),
-                QPageSize.Millimeter,
-                "Custom",
-                QPageSize.ExactMatch,
-            )
-        printer.setPageSize(page)
-        printer.setPageOrientation(
-            QPageLayout.Landscape if pw > ph else QPageLayout.Portrait
-        )
-        printer.setFullPage(True)  # true size: no scaling to the printable area
-        printer.setDocName(
-            self.project.path.stem if self.project.path else "papermini sheet"
-        )
-        printer.setFromTo(0, 0)
-        if not self._print_dialog(printer, lay.pages):
-            return
-        chosen = printer.pageLayout().fullRect(QPageLayout.Millimeter)
-        turned = " landscape" if chosen.width() > chosen.height() else ""
-        other = abs(chosen.width() - pw) > 1 or abs(chosen.height() - ph) > 1
-        if (
-            other
-            and QMessageBox.question(
-                self,
-                "papermini",
-                f"The sheet is laid out for {sh.paper_text()} paper, but the printer is set to "
-                f"{printer.pageLayout().pageSize().name()}{turned}. The minis still print at "
-                "their real size, but parts of the sheet may be cut off.\n\nPrint anyway?",
-            )
-            != QMessageBox.Yes
-        ):
-            return
-        n = print_sheet(printer, lay, sh.title)
-        ui_log.info(
-            "Printed %d of %d page(s) on %s",
-            n,
-            lay.pages,
-            printer.printerName() or "the printer",
-        )
-        if n:
-            self._status(
-                f"Sent {n} page(s) to {printer.printerName() or 'the printer'}"
-            )
-        else:
-            self._warn("Could not print: the printer did not start.")
-
-    def _print_dialog(self, printer, pages: int) -> bool:
-        from PySide6.QtPrintSupport import QAbstractPrintDialog, QPrintDialog
-
-        dlg = QPrintDialog(printer, self)
-        dlg.setWindowTitle("Print sheet")
-        dlg.setMinMax(1, pages)
-        dlg.setOption(QAbstractPrintDialog.PrintPageRange, pages > 1)
-        return dlg.exec() == QDialog.Accepted
+        """Print the sheet at its real size."""
+        self.exporter.print_sheet()
 
     # endregion
 
@@ -2073,7 +1769,7 @@ class MainWindow(QMainWindow):
         files, _ = QFileDialog.getOpenFileNames(
             self,
             "Open project or images",
-            str(self._out_dir()),
+            str(self.out_dir()),
             f"{PROJECT_FILTER};;{IMAGE_FILTER};;All files (*)",
         )
         if files:
@@ -2081,14 +1777,14 @@ class MainWindow(QMainWindow):
 
     def add_images_dialog(self):
         files, _ = QFileDialog.getOpenFileNames(
-            self, "Add images", str(self._out_dir()), IMAGE_FILTER
+            self, "Add images", str(self.out_dir()), IMAGE_FILTER
         )
         if files:
             self.add_images(files)
 
     def add_folder_dialog(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "Add a folder of images", str(self._out_dir())
+            self, "Add a folder of images", str(self.out_dir())
         )
         if folder:
             self.add_folder(Path(folder))
@@ -2159,7 +1855,7 @@ class MainWindow(QMainWindow):
         return True
 
     def save_as(self) -> bool:
-        start = self.project.path or (self._out_dir() / "minis.yaml")
+        start = self.project.path or (self.out_dir() / "minis.yaml")
         f, _ = QFileDialog.getSaveFileName(
             self, "Save project", str(start), PROJECT_FILTER
         )
@@ -2167,6 +1863,15 @@ class MainWindow(QMainWindow):
             return False
         self.project.path = Path(f)
         return self.save()
+
+    def out_dir(self) -> Path:
+        """The folder file dialogs start in: the project's output folder, or the
+        folder of the first image."""
+        return (
+            self.project.output_dir
+            if self.project.path
+            else (self.figures[0].entry.image.parent if self.figures else Path.home())
+        )
 
     def _maybe_save(self) -> bool:
         if not self._modified or not self.figures:

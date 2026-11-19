@@ -62,7 +62,7 @@ def test_the_print_button_prints_the_sheet(
 ):
     from PySide6.QtPrintSupport import QPrinter
 
-    from papermini.gui.window.main_window import MainWindow
+    from papermini.gui.exporting.export_dialogs import ExportDialogs
 
     im = Image.new("RGBA", (300, 450), (0, 0, 0, 0))
     from PIL import ImageDraw
@@ -72,13 +72,13 @@ def test_the_print_button_prints_the_sheet(
     out = tmp_path / "printed.pdf"
     seen = []
 
-    def fake_dialog(self, printer, pages):  # instead of the system print dialog
+    def fake_dialog(self, parent, printer, pages):  # instead of the print dialog
         seen.append((printer.fullPage(), printer.pageLayout().pageSize().id(), pages))
         printer.setOutputFormat(QPrinter.PdfFormat)
         printer.setOutputFileName(str(out))
         return True
 
-    monkeypatch.setattr(MainWindow, "_print_dialog", fake_dialog)
+    monkeypatch.setattr(ExportDialogs, "print_options", fake_dialog)
     w = new_window()
     w.add_images([tmp_path / "hero.png"])
     w.tabs.setCurrentIndex(w.SHEET)
@@ -129,18 +129,18 @@ def test_the_print_sets_the_paper_size_and_orientation(
 ):
     from PySide6.QtGui import QPageLayout
 
-    from papermini.gui.window.main_window import MainWindow
+    from papermini.gui.exporting.export_dialogs import ExportDialogs
     from papermini.project.sheet_settings import SheetSettings
 
     Image.new("RGBA", (300, 450), (200, 40, 30, 255)).save(tmp_path / "hero.png")
     seen = []
 
-    def fake_dialog(self, printer, pages):
+    def fake_dialog(self, parent, printer, pages):
         r = printer.pageLayout().fullRect(QPageLayout.Millimeter)
         seen.append((round(r.width()), round(r.height())))
         return False
 
-    monkeypatch.setattr(MainWindow, "_print_dialog", fake_dialog)
+    monkeypatch.setattr(ExportDialogs, "print_options", fake_dialog)
     w = new_window()
     w.add_images([tmp_path / "hero.png"])
     assert wait(lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
@@ -652,6 +652,37 @@ def test_the_print_uses_the_sheets_named_paper(built_window, modal, wait):
         (ids.A4, True),
         (ids.Custom, True),
     ]
+
+
+def test_the_export_controller_prints_on_a_printer_from_its_factory(
+    built_window, prefs, tmp_path
+):
+    """The controller takes its dialogs and printers from what it is given."""
+    from PySide6.QtPrintSupport import QPrinter
+
+    from papermini.gui.exporting.export_controller import ExportController
+    from papermini.gui.exporting.export_dialogs import ExportDialogs
+
+    class PrintEverything(ExportDialogs):
+        def print_options(self, parent, printer, pages):
+            return True
+
+    out = tmp_path / "sheet.pdf"
+
+    def pdf_printer():
+        printer = QPrinter()
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(str(out))
+        return printer
+
+    sent = []
+    exporter = ExportController(
+        built_window, prefs, PrintEverything(prefs), pdf_printer
+    )
+    exporter.status.connect(sent.append)
+    exporter.print_sheet()
+    assert out.read_bytes().startswith(b"%PDF")
+    assert len(sent) == 1 and sent[0].startswith("Sent 1 page(s) to ")
 
 
 def test_dropped_image_files_are_added(app, window, tmp_path, figure_image):
