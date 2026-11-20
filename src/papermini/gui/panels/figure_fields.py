@@ -1,37 +1,32 @@
-"""The fields of the figure panel: its groups, steps, choices, visibility rules and tooltips."""
+"""The layout of the figure panel: its steps, the sections of each step and the fields in
+each section, the fields not built from their option alone, and which fields are shown
+when."""
 
 from __future__ import annotations
 
-from ...project import sizes
+from dataclasses import replace
+from functools import partial
+
 from ...project.figure_settings import FigureSettings
+from ...project.option import Option
+from ..fields.area_field import AreaField
+from ..fields.choice_field import ChoiceField
+from ..fields.dimensions_field import DimensionsField
+from ..fields.field_factory import FieldMaker
+from ..fields.font_field import FontField
+from ..fields.kind_field import KindField
+from ..fields.mask_file_field import MaskFileField
+from ..fields.model_field import ModelField
+from ..fields.switch_field import SwitchField
+from ..fields.switched_field import SwitchedField
+from ..fields.text_field import TextField
 
-# value -> what the (editable) model box shows, where they differ
-MODEL_NAMES = {"mask": "mask image file"}
-MODEL_VALUES = {v: k for k, v in MODEL_NAMES.items()}
-MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
+_SETTINGS = FigureSettings.options()
 
-# The steps of the workflow, one view each: the settings panel shows the active
-# step's groups. (step, group title, fields); fields are (field, label, kind, extra) -
-# kind: f=float, i=int, b=bool, c=choice, s=str, col=color, size=height and width
-# with a link toggle, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
-# switch=a checkbox in the group's header that turns the whole group on or off (extra
-# "invert": the setting is the opposite, e.g. no_tab), nolabel=the Label group's
-# switch (off = label ""),
-# reset=a button that puts the listed fields back to their defaults (not a setting)
+# The steps of the workflow, one view each: the settings panel shows the active step's
+# sections.
 STEPS = ["Source", "Miniature", "Print sheet"]
 SOURCE, MINIATURE, PRINT = range(3)
-
-TAB_CHOICES = [
-    ("label", "Label"),
-    ("number", "Number"),
-    ("label_number", "Label and number"),
-]
-
-TOKEN_TEXT_CHOICES = [
-    ("label", "Label"),
-    ("number", "Number"),
-    ("label_number", "Label and number"),
-]  # (off: the group's switch)
 
 STEP_HINTS = [
     "Crop the picture first: background removal only looks inside the box.",
@@ -46,221 +41,102 @@ TOKEN_STEP_HINT = (
     "How big the token prints, how the figure sits in it, and its ring and text."
 )
 
+# The sections of each step, in order: (step, title, fields). A field has the name of
+# the setting it edits, or another name in OPTIONS; a name in RESETS is a button.
 SECTIONS = [
-    (
-        SOURCE,
-        "Crop",
-        [
-            ("crop", "Area", "crop", None),
-        ],
-    ),
+    (SOURCE, "Crop", ("crop",)),
     (
         SOURCE,
         "Background removal",
-        [
-            ("model", "Model", "model", None),
-            ("mask", "Mask image file", "file", None),
-            ("strength", "Strength", "slider", (0, 254, 254, "", False)),
-            ("fill_gaps", "Gap filling", "slider", (0, 1000, 40, " px", True)),
-            ("keep_all", "Keep detached parts", "b", None),
-            ("min_area", "Min. part area", "i", (0, 10_000_000, 100, " px")),
-        ],
+        ("model", "mask", "strength", "fill_gaps", "keep_all", "min_area"),
     ),
     (
         SOURCE,
-        "Image adjustments",
-        [  # what is printed; the model never sees them
-            ("greyscale", "Greyscale (black and white)", "b", None),
-            ("brightness", "Brightness", "slider", (-100, 100, 100, "", False)),
-            ("contrast", "Contrast", "slider", (-100, 100, 100, "", False)),
-            ("saturation", "Saturation", "slider", (-100, 100, 100, "", False)),
-            ("hue", "Hue", "slider", (-180, 180, 180, "\u00b0", False)),
-            (
-                "_reset_adjust",
-                "Reset adjustments",
-                "reset",
-                ("greyscale", "brightness", "contrast", "saturation", "hue"),
-            ),
-        ],
+        "Image adjustments",  # what is printed; the model never sees them
+        ("greyscale", "brightness", "contrast", "saturation", "hue", "_reset_adjust"),
     ),
     (
         MINIATURE,
-        "Size",
-        [  # first (after the Kind): how big the figure prints
-            (
-                "size",
-                "Creature size",
-                "c",
-                [(s, sizes.label(s)) for s in sizes.SIZE_CHOICES],
-            ),
-            ("dimensions", "Size", "size", None),
-            ("token_diameter_mm", "Diameter", "f", (5, 300, 0.5, 1, " mm")),
-            ("dpi", "Image resolution", "i", (72, 2400, 50, " dpi")),
-        ],
+        "Size",  # first (after the Kind): how big the figure prints
+        ("size", "dimensions", "token_diameter_mm", "dpi"),
     ),
     (
         MINIATURE,
-        "Token",
-        [  # a token: the figure in a circle, inside a ring
-            ("token_area", "Area", "tokenarea", None),
-            (
-                "token_fill",
-                "Background",
-                "c",
-                [("color", "Color"), ("image", "Original image")],
-            ),
-            ("token_fill_color", "Background color", "col", None),
-            ("token_border_mm", "Ring width", "f", (0, 30, 0.5, 1, " mm")),
-            ("token_border_color", "Ring color", "col", None),
-        ],
+        "Token",  # a token: the figure in a circle, inside a ring
+        (
+            "token_area",
+            "token_fill",
+            "token_fill_color",
+            "token_border_mm",
+            "token_border_color",
+        ),
     ),
     (
         MINIATURE,
         "Token text",
-        [
-            ("token_text_on", "Print text", "tokentext", None),
-            ("token_text", "Shows", "c", TOKEN_TEXT_CHOICES),
-            (
-                "token_text_style",
-                "Style",
-                "c",
-                [
-                    ("nameplate", "Nameplate and badge"),
-                    ("curved", "Curved along the ring"),
-                ],
-            ),
-            ("token_text_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
-            ("token_label", "Label", "tlabel", None),
-            ("token_text_color", "Color", "col", None),
-        ],
+        (
+            "token_text",
+            "token_text_style",
+            "token_text_mm",
+            "token_label",
+            "token_text_color",
+        ),
     ),
     (
         MINIATURE,
-        "Back side",
-        [  # it decides what the rest of the piece is
-            ("double_sided", "Print a back side", "switch", None),
-            (
-                "back",
-                "Shows",
-                "c",
-                [
-                    ("mirror", "Mirrored drawing"),
-                    ("blank", "Blank"),
-                    ("text", "Text"),
-                    ("number", "Number"),
-                    ("text_number", "Text and number"),
-                ],
-            ),
-            ("back_color", "Color", "col", None),
-            ("back_text", "Text", "s", None),
-            ("back_text_color", "Text color", "col", None),
-        ],
+        "Back side",  # it decides what the rest of the piece is
+        ("double_sided", "back", "back_color", "back_text", "back_text_color"),
     ),
     (
         MINIATURE,
-        "Image outline",
-        [  # around the drawing: a mini's margin, a token's outline
-            (
-                "token_outline",
-                "Print an outline",
-                "switch",
-                None,
-            ),  # (a token's; a mini has one)
-            ("margin_mm", "Margin", "f", (0, 15, 0.1, 2, " mm")),
-            (
-                "margin_fill",
-                "Margin fill type",
-                "c",
-                [("color", "Color"), ("image", "Original image")],
-            ),
-            ("margin_color", "Margin fill color", "col", None),
-            ("smooth_mm", "Outline smoothing", "f", (0, 5, 0.1, 2, " mm")),
-        ],
+        "Image outline",  # around the drawing: a mini's margin, a token's outline
+        ("token_outline", "margin_mm", "margin_fill", "margin_color", "smooth_mm"),
     ),
     (
         MINIATURE,
         "Cut line",
-        [
-            (
-                "token_cut_line",
-                "Print a cut line",
-                "switch",
-                None,
-            ),  # (a token's; a mini has one)
-            ("no_smooth", "Straight segments only (no curves)", "b", None),
-            ("simplify_mm", "Simplify", "f", (0.01, 2, 0.05, 3, " mm")),
-            ("cut_color", "Color", "col", None),
-            ("cut_width_mm", "Width", "f", (0.01, 2, 0.05, 2, " mm")),
-        ],
+        ("token_cut_line", "no_smooth", "simplify_mm", "cut_color", "cut_width_mm"),
     ),
     (
         MINIATURE,
         "Tab",
-        [
-            ("no_tab", "Print a tab", "switch", "invert"),
-            (
-                "tab_shape",
-                "Shape",
-                "c",
-                [("square", "Square (stand)"), ("round", "Round (base)")],
-            ),
-            ("tab_width_mm", "Width", "f", (2, 200, 1, 1, " mm")),
-            ("tab_radius_mm", "Radius", "f", (1, 100, 0.5, 1, " mm")),
-            ("tab_height_mm", "Height", "f", (1, 100, 0.5, 1, " mm")),
-            ("tab_overlap_mm", "Overlap into figure", "f", (0, 30, 0.5, 1, " mm")),
-            ("fold_mm", "Fold above lowest point", "f", (0, 20, 0.1, 1, " mm")),
-            ("tab_color", "Fill color", "col", None),
-        ],
+        (
+            "no_tab",
+            "tab_shape",
+            "tab_width_mm",
+            "tab_radius_mm",
+            "tab_height_mm",
+            "tab_overlap_mm",
+            "fold_mm",
+            "tab_color",
+        ),
     ),
-    (
-        MINIATURE,
-        "Label",
-        [  # on the tab: a sub-group of Tab (SUBSECTIONS)
-            ("no_label", "Print a label", "nolabel", None),
-            ("label", "Text", "label", None),
-            ("label_size_mm", "Size", "f", (0.5, 20, 0.1, 1, " mm")),
-            ("label_color", "Color", "col", None),
-        ],
-    ),
-    (
-        MINIATURE,
-        "Text",
-        [  # one font for all of the piece's text
-            ("font", "Font", "font", None),
-        ],
-    ),
-    (
-        MINIATURE,
-        "Number",
-        [  # the copy numbers on the tabs: a sub-group of Tab
-            ("tab_front", "Front tab", "c", TAB_CHOICES),
-            ("tab_back", "Back tab", "c", TAB_CHOICES),
-        ],
-    ),
+    (MINIATURE, "Label", ("label", "label_size_mm", "label_color")),  # on the tab
+    (MINIATURE, "Text", ("font",)),  # one font for all of the piece's text
+    (MINIATURE, "Number", ("tab_front", "tab_back")),  # the copy numbers on the tabs
 ]
 
-# groups shown inside another group (indented, at its end): sub-group -> group
+# sections shown inside another section (indented, at its end): sub-section -> section
 SUBSECTIONS = {"Label": "Tab", "Number": "Tab"}
 
-# the settings each field sets ("dimensions" sets two, "no_label" is the label "", the
-# Token text switch off is token_text "none"), and the creature size also fills in the
-# height, the tabs and a token's diameter
+# buttons that put settings back to their defaults: button -> the settings
+RESETS = {"_reset_adjust": ("greyscale", "brightness", "contrast", "saturation", "hue")}
+
+# the settings each field sets ("dimensions" sets two), and the creature size also fills
+# in the height, the tabs and a token's diameter
 FIELD_SETTINGS = {
     "dimensions": ("height_mm", "width_mm"),
-    "no_label": ("label",),
-    "size": ("size",)
-    + tuple(k for k, o in FigureSettings.options().items() if o.sized),
+    "size": ("size",) + tuple(k for k, o in _SETTINGS.items() if o.sized),
     "token_label": ("label",),
-    "token_text_on": ("token_text",),
 }
 
 # a token's field that sets the same setting as a mini's (shown for the kind in use)
 TWINS = {"token_label": "label"}
 
-# the switches of groups a token can turn off but a mini always has (hidden for a mini)
+# the switches of sections a token can turn off but a mini always has (hidden for a mini)
 TOKEN_SWITCHES = ("token_outline", "token_cut_line")
 
-# groups that only one kind of figure has (the others belong to both)
+# sections that only one kind of figure has (the others belong to both)
 KIND_SECTIONS = {
     "Back side": "mini",
     "Tab": "mini",
@@ -276,25 +152,72 @@ def step_settings(step: int) -> set:
     """The FigureSettings fields edited in ``step`` (the Kind is at the top of Miniature)."""
     return {
         k
-        for st, _, items in SECTIONS
+        for st, _, names in SECTIONS
         if st == step
-        for name, _, kind, _ in items
-        if kind != "reset"
+        for name in names
+        if name not in RESETS
         for k in FIELD_SETTINGS.get(name, (name,))
     } | ({"kind"} if step == MINIATURE else set())
 
 
-# each setting's tooltip comes from its option; the others belong to fields that are
-# not a setting of their own
-TIPS = {
-    **{name: o.tooltip for name, o in FigureSettings.options().items()},
-    "token_text_on": "Print text on the token: its label, its copy number or both.",
-    "token_label": "The label on the token (empty = the file name).",
-    "size_link": "Linked: the figure keeps its proportions, so setting the height sets the\n"
-    "width and the other way round.\n"
-    "Unlinked: set height and width separately; the figure is stretched.",
-    "no_label": "Print a label: text on the tab.\n"
-    "Off for a plain tab in its fill color.",
-    "_reset_adjust": "Back to the original colors.\n"
-    "(One slider: double-click it to put it back to 0.)",
+# the option of each field: a setting's own, or the label and tooltip of a field that is
+# not a setting of its own
+OPTIONS = {
+    **_SETTINGS,
+    "dimensions": Option(name="dimensions"),
+    "token_label": replace(
+        _SETTINGS["label"],
+        label="Label",
+        tooltip="The label on the token (empty = the file name).",
+    ),
+    "_reset_adjust": Option(
+        name="_reset_adjust",
+        label="Reset adjustments",
+        tooltip="Back to the original colors.\n"
+        "(One slider: double-click it to put it back to 0.)",
+    ),
+}
+
+# the switches of the fields that are off at one of their values
+_LABEL_SWITCH = Option(
+    name="no_label",
+    label="Print a label",
+    tooltip="Print a label: text on the tab.\nOff for a plain tab in its fill color.",
+)
+_TOKEN_TEXT_SWITCH = Option(
+    name="token_text_on",
+    label="Print text",
+    tooltip="Print text on the token: its label, its copy number or both.",
+)
+
+# the fields not built from their option alone
+SPECIAL_FIELDS: dict[str, FieldMaker] = {
+    "kind": KindField,
+    "dimensions": partial(
+        DimensionsField, height=_SETTINGS["height_mm"], width=_SETTINGS["width_mm"]
+    ),
+    "crop": partial(AreaField, placeholder="whole image - drag a box on it"),
+    "token_area": partial(
+        AreaField, placeholder="whole figure, fitted - drag it in the view"
+    ),
+    "mask": MaskFileField,
+    "model": ModelField,
+    "font": FontField,
+    "back_text": partial(TextField, placeholder="the label (or file name)"),
+    "double_sided": SwitchField,
+    "token_outline": SwitchField,
+    "token_cut_line": SwitchField,
+    "no_tab": partial(SwitchField, invert=True),
+    "label": partial(
+        SwitchedField,
+        inner=TextField,
+        switch=_LABEL_SWITCH,
+        off="",
+    ),
+    "token_text": partial(
+        SwitchedField,
+        inner=partial(ChoiceField, hidden=("none",)),
+        switch=_TOKEN_TEXT_SWITCH,
+        off="none",
+    ),
 }

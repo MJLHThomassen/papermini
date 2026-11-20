@@ -2,55 +2,45 @@ from __future__ import annotations
 
 import html
 from dataclasses import replace
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
-    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QScrollArea,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from ...pipeline import token as tok
 from ...pipeline.segmentation import segment
 from ...pipeline.token_options import min_ring_mm
 from ...project import sizes
 from ...project.figure_settings import FigureSettings
-from ...support import fonts, remote
+from ...support import fonts
 from .. import theme
-from ..fields.color_button import ColorButton
-from ..fields.combo_box import ComboBox
-from ..fields.double_spin_box import DoubleSpinBox
-from ..fields.kind_choice import KindChoice
+from ..fields.field import Field
+from ..fields.field_factory import FieldFactory
+from ..fields.font_field import FontField
 from ..fields.size_field import SizeField
-from ..fields.slider_field import SliderField
-from ..fields.spin_box import SpinBox
 from ..preferences import Preferences
 from ..widgets.elided_label import ElidedLabel
 from .figure_fields import (
     KIND_SECTIONS,
     MINIATURE,
-    MODEL_NAMES,
-    MODEL_VALUES,
-    MODELS,
+    OPTIONS,
     PER_IMAGE,
     PRINT,
+    RESETS,
     SECTIONS,
     SOURCE,
+    SPECIAL_FIELDS,
     STEP_HINTS,
     STEPS,
     SUBSECTIONS,
-    TIPS,
     TOKEN_STEP_HINT,
     TOKEN_SWITCHES,
     TWINS,
@@ -73,22 +63,46 @@ class FigurePanel(QScrollArea):
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
-        self._w: dict[str, Any] = {}
-        self._shown: dict[str, Any] = {}  # widget values as last shown/emitted
-        self._rows: dict[
-            str, Any
-        ] = {}  # name -> (form layout, row widget), to hide rows
-        self._switches: dict[str, Any] = {}  # name -> Section whose header holds it
-        self._invert: set = set()  # switches whose setting is the opposite
-        self._resets: dict[str, Any] = {}  # name -> (button, fields it resets)
-        self._loading = False
+        self._factory = FieldFactory(SPECIAL_FIELDS)
+        self._fields: dict[str, Field] = {}
+        self._shown: dict[str, Any] = {}  # field values as last shown or emitted
+        self._rows: dict[str, tuple[QFormLayout, QWidget]] = {}  # to hide rows
+        # each switch, with the section whose header it is in
+        self._switches: dict[str, tuple[QCheckBox, Section]] = {}
+        self._resets: dict[str, QPushButton] = {}
+        self._labels: list[tuple[QLabel, int]] = []  # form labels and their indent
+        self._step = SOURCE
+        self._empty = True
+        self._measuring = False  # (all sections shown, of both kinds of figure)
+        self._auto_method: str | None = None
+        self._size_table = sizes.BUILTIN
+        self._size_label = ""
+        self._figure_width: float | None = None
+        self._loading = True
         body = QWidget()
         lay = QVBoxLayout(body)
         lay.setContentsMargins(18, 16, 14, 16)
         lay.setSpacing(0)
-        self.title = ElidedLabel(
-            "No figure selected"
-        )  # a long name never widens the panel
+        self._build_header(lay)
+        self._build_empty_state(lay)
+        self._build_kind_row(lay)
+        self._build_sections(lay)
+        self._build_hints()
+        self._line_up_labels()
+        self._build_buttons(lay)
+        self.setWidget(body)
+        self.size_field: SizeField = self.field("dimensions")
+        self.label_switch = self._switch("label")
+        self.token_text_switch = self._switch("token_text")
+        self._loading = False
+        self.refresh_icons()
+        self._min_width = self._widest_step()
+        self.set_step(SOURCE)
+        self.set_empty(True)
+
+    # region building
+    def _build_header(self, lay: QVBoxLayout) -> None:
+        self.title = ElidedLabel("No figure selected")  # a long name never widens it
         self.title.setObjectName("PanelTitle")
         lay.addWidget(self.title)
         self.subtitle = QLabel("Settings for the selected figure")
@@ -101,7 +115,8 @@ class FigurePanel(QScrollArea):
         lay.addWidget(self.step_hint)
         lay.addSpacing(8)
 
-        # shown instead of the settings when no figure is selected
+    def _build_empty_state(self, lay: QVBoxLayout) -> None:
+        """Build what is shown instead of the settings when no figure is selected."""
         self.empty_box = QWidget()
         self.empty_box.setObjectName("PanelEmpty")
         ev = QVBoxLayout(self.empty_box)
@@ -121,141 +136,113 @@ class FigurePanel(QScrollArea):
             ev.addWidget(w)
         ev.addStretch(3)  # a little above the middle looks centred
         lay.addWidget(self.empty_box, 1)
-        self.refresh_icons()
 
-        sections = []
-        self._section_steps = []
-        self._section_titles = []
-        extra_labels = []  # labels inside compound fields, lined up with the form labels
-
-        forms, boxes, sub_labels = {}, {}, []
-        # the Kind, above the groups of the Miniature step
+    def _build_kind_row(self, lay: QVBoxLayout) -> None:
+        """Build the Kind, above the sections of the Miniature step."""
+        kind = self._factory.build("kind", OPTIONS["kind"], self._emit)
+        self._fields["kind"] = kind
         self.kind_row = QWidget()
         kh = QHBoxLayout(self.kind_row)
         kh.setContentsMargins(2, 0, 0, 12)
         kh.setSpacing(12)
-        kind_label = QLabel("Kind")
-        kind_label.setObjectName("FormLabel")
-        kind_label.setToolTip(TIPS["kind"])
-        kind = KindChoice()
-        kind.setToolTip(TIPS["kind"])
-        kind.valueChanged.connect(self._emit)
-        kh.addWidget(kind_label)
-        kh.addWidget(kind, 1)
+        label = QLabel(kind.label)
+        label.setObjectName("FormLabel")
+        label.setToolTip(kind.option.tooltip)
+        kh.addWidget(label)
+        kh.addWidget(kind.widget, 1)
         lay.addWidget(self.kind_row)
-        self._w["kind"] = ("radio", kind)
-        extra_labels.append(kind_label)
-        for step, title, items in SECTIONS:
+        self._labels.append((label, 0))
+
+    def _build_sections(self, lay: QVBoxLayout) -> None:
+        self.sections: list[Section] = []
+        boxes: dict[str, Section] = {}
+        for _, title, names in SECTIONS:
             box = Section(self._prefs, title, sub=title in SUBSECTIONS)
-            boxes[title] = box
-            sections.append(box)
-            self._section_steps.append(step)
-            self._section_titles.append(title)
-            form = QFormLayout(box.body)
-            form.setContentsMargins(2, 0, 0, 0)
-            form.setHorizontalSpacing(12)
-            form.setVerticalSpacing(8)
-            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-            forms[title] = form
-            for name, label, kind, extra in items:
-                if kind == "reset":
-                    b = QPushButton(label)
-                    b.setObjectName("ResetButton")
-                    b.setToolTip(TIPS.get(name, ""))
-                    b.clicked.connect(lambda _=False, names=extra: self._reset(names))
-                    form.addRow(b)
-                    self._rows[name] = (form, b)
-                    self._resets[name] = (b, extra)
-                    continue
-                w = self._make(name, kind, extra)
-                if kind in (
-                    "switch",
-                    "nolabel",
-                    "tokentext",
-                ):  # in the header, for the group
-                    w.setObjectName("SectionSwitch")
-                    w.setAccessibleName(label)
-                    w.setToolTip(TIPS[name])
-                    w.setCursor(Qt.PointingHandCursor)
-                    box.set_switch(w)
-                    self._switches[name] = box
-                    continue
-                self._rows[name] = (form, w)
-                if kind == "size":  # brings its own labels
-                    form.addRow(w)
-                    extra_labels += w.labels
-                    continue
-                if name in TIPS:
-                    w.setToolTip(TIPS[name])
-                if kind == "b":
-                    form.addRow(w)
+            indent = SUB_INDENT if title in SUBSECTIONS else 0
+            for name in names:
+                if name in RESETS:
+                    self._add_reset(box.form, name)
                 else:
-                    form.addRow(label, w)
-                    form.labelForField(w).setToolTip(TIPS.get(name, ""))
-                    form.labelForField(w).setObjectName("FormLabel")
-                    if title in SUBSECTIONS:
-                        sub_labels.append(form.labelForField(w))
-                if name == "font":  # a font this computer does not have
-                    self.font_warning = QLabel()
-                    self.font_warning.setObjectName("WarnBox")
-                    self.font_warning.setWordWrap(True)
-                    self.font_warning.setVisible(False)
-                    form.addRow(self.font_warning)
-                if name == "size":
-                    # the size's squares and base, and a warning for a wide figure
-                    self.size_hint = QLabel()
-                    self.size_hint.setObjectName("Hint")
-                    self.size_hint.setWordWrap(True)
-                    form.addRow(self.size_hint)
-                    self.size_warning = QLabel()
-                    self.size_warning.setObjectName("WarnBox")
-                    self.size_warning.setWordWrap(True)
-                    self.size_warning.setVisible(False)
-                    form.addRow(self.size_warning)
-                if name == "model":
-                    self.auto_hint = QLabel()
-                    self.auto_hint.setWordWrap(True)
-                    self.auto_hint.setObjectName("MethodBox")
-                    self.auto_hint.setTextFormat(Qt.RichText)
-                    self.auto_hint.setVisible(False)
-                    form.addRow(self.auto_hint)
-                    # the licence of a non-commercial model, while it is the one used
-                    self.licence_hint = QLabel()
-                    self.licence_hint.setWordWrap(True)
-                    self.licence_hint.setObjectName("LicenceBox")
-                    self.licence_hint.setTextFormat(Qt.RichText)
-                    self.licence_hint.setVisible(False)
-                    form.addRow(self.licence_hint)
-                if name == "token_border_mm":  # curved text: the ring's least width
-                    self.ring_hint = QLabel()
-                    self.ring_hint.setWordWrap(True)
-                    self.ring_hint.setObjectName("Hint")
-                    self.ring_hint.setVisible(False)
-                    form.addRow(self.ring_hint)
-                if name == "tab_overlap_mm":
-                    self.overlap_hint = QLabel()
-                    self.overlap_hint.setWordWrap(True)
-                    self.overlap_hint.setObjectName("Hint")
-                    self.overlap_hint.setVisible(False)
-                    form.addRow(self.overlap_hint)
-            if title in SUBSECTIONS:  # at the end of its group, folded away with it
-                box.parent_section = boxes[SUBSECTIONS[title]]
-                forms[SUBSECTIONS[title]].addRow(box)
+                    self._add_field(box, name, indent)
+            if title in SUBSECTIONS:  # at the end of its section, folded away with it
+                parent = boxes[SUBSECTIONS[title]]
+                box.parent_section = parent
+                parent.form.addRow(box)
             else:
                 lay.addWidget(box)
+            boxes[title] = box
+            self.sections.append(box)
 
-        labels = [
-            lab
-            for form, _ in self._rows.values()
-            for lab in [form.labelForField(_)]
-            if isinstance(lab, QLabel)
-        ] + extra_labels
-        widest = max((lab.sizeHint().width() for lab in labels), default=0)
-        for lab in labels:  # one column of fields, also inside the indented sub-groups
-            lab.setMinimumWidth(widest - (SUB_INDENT if lab in sub_labels else 0))
-        self.sections = sections
-        self.size_field = self._w["dimensions"][1]
+    def _add_field(self, box: Section, name: str, indent: int) -> None:
+        field = self._factory.build(name, OPTIONS[name], self._emit)
+        form = box.form
+        self._fields[name] = field
+        if field.switch is not None:
+            box.set_switch(field.switch)
+            self._switches[field.switch_name] = (field.switch, box)
+        if field.row is None:
+            return
+        self._rows[name] = (form, field.row)
+        self._labels += [(label, 0) for label in field.labels]
+        if not field.label:
+            form.addRow(field.row)
+            return
+        form.addRow(field.label, field.row)
+        label = form.labelForField(field.row)
+        assert isinstance(label, QLabel)
+        label.setObjectName("FormLabel")
+        label.setToolTip(field.option.tooltip)
+        self._labels.append((label, indent))
+
+    def _add_reset(self, form: QFormLayout, name: str) -> None:
+        """Add a button that puts the settings of ``name`` in RESETS back to their
+        defaults."""
+        b = QPushButton(OPTIONS[name].label)
+        b.setObjectName("ResetButton")
+        b.setToolTip(OPTIONS[name].tooltip)
+        b.clicked.connect(lambda: self._reset(RESETS[name]))
+        form.addRow(b)
+        self._rows[name] = (form, b)
+        self._resets[name] = b
+
+    def _build_hints(self) -> None:
+        """Build the notes under some fields, hidden until there is something to say."""
+        (self.font_warning,) = self._hints_under("font", "WarnBox")
+        # the size's squares and base, and a warning for a wide figure
+        self.size_hint, self.size_warning = self._hints_under("size", "Hint", "WarnBox")
+        self.size_hint.setVisible(True)
+        # how auto found the figure, and the licence of a non-commercial model while it
+        # is the one used
+        self.auto_hint, self.licence_hint = self._hints_under(
+            "model", "MethodBox", "LicenceBox"
+        )
+        for hint in (self.auto_hint, self.licence_hint):
+            hint.setTextFormat(Qt.RichText)
+        (self.ring_hint,) = self._hints_under("token_border_mm", "Hint")  # curved text
+        (self.overlap_hint,) = self._hints_under("tab_overlap_mm", "Hint")
+
+    def _hints_under(self, name: str, *object_names: str) -> list[QLabel]:
+        """Add hidden notes under the field ``name``, one per object name."""
+        form, row = self._rows[name]
+        index = cast(tuple[int, Any], form.getWidgetPosition(row))[0]
+        hints = []
+        for offset, object_name in enumerate(object_names, 1):
+            hint = QLabel()
+            hint.setObjectName(object_name)
+            hint.setWordWrap(True)
+            hint.setVisible(False)
+            form.insertRow(index + offset, hint)
+            hints.append(hint)
+        return hints
+
+    def _line_up_labels(self) -> None:
+        """Give the labels one width, so the fields form one column, also inside the
+        indented sub-sections."""
+        widest = max((label.sizeHint().width() for label, _ in self._labels), default=0)
+        for label, indent in self._labels:
+            label.setMinimumWidth(widest - indent)
+
+    def _build_buttons(self, lay: QVBoxLayout) -> None:
         lay.addSpacing(12)
         self.apply_all = QPushButton("Apply to all figures")
         self.apply_all.clicked.connect(
@@ -263,9 +250,7 @@ class FigurePanel(QScrollArea):
         )
         lay.addWidget(self.apply_all)
         lay.addSpacing(8)
-        self.export_piece = QPushButton(
-            "Export…"
-        )  # (Miniature step: this figure's piece)
+        self.export_piece = QPushButton("Export…")  # (Miniature step: this figure's)
         self.export_piece.setToolTip(
             "Save this figure as an SVG (the piece with its cut line, for Inkscape or a "
             "cutting machine) or a PNG (a picture of the piece, for a virtual tabletop)  "
@@ -275,11 +260,15 @@ class FigurePanel(QScrollArea):
         self.export_piece.clicked.connect(self.exportPiece)
         lay.addWidget(self.export_piece)
         lay.addStretch()
-        self.setWidget(body)
-        self._empty = True
-        self._min_width = self._widest_step()
-        self.set_step(SOURCE)
-        self.set_empty(True)
+
+    def _switch(self, name: str) -> Any:
+        """Return the switch of the field ``name``."""
+        return self._fields[name].switch
+
+    def _font(self) -> FontField:
+        font = self._fields["font"]
+        assert isinstance(font, FontField)
+        return font
 
     def _widest_step(self) -> int:
         """The width that shows every control of every step, measured with each step's
@@ -287,7 +276,7 @@ class FigurePanel(QScrollArea):
         body = self.widget()
         widths = []
         self._empty = False
-        self._measuring = True  # (the groups of both kinds of figure)
+        self._measuring = True
         for box in self.sections:  # (a folded group still needs its room when opened)
             box.body.setVisible(True)
         for step in range(len(STEPS)):
@@ -300,6 +289,8 @@ class FigurePanel(QScrollArea):
             box._toggle(box.header.isChecked(), remember=False)
         frame = 2 * self.frameWidth() + self.verticalScrollBar().sizeHint().width()
         return max(widths) + frame
+
+    # endregion
 
     def minimumSizeHint(self) -> QSize:
         """Never narrower than its widest step, so no control is cut off at the right
@@ -334,22 +325,16 @@ class FigurePanel(QScrollArea):
 
     def is_token(self) -> bool:
         """Whether the figure shown is a token (its Kind field)."""
-        return "kind" in self._w and self._w["kind"][1].value() == "token"
+        return self._fields["kind"].value() == "token"
 
     def _sync_sections(self):
         kind = "token" if self.is_token() else "mini"
-        if hasattr(self, "kind_row"):
-            self.kind_row.setVisible(not self._empty and self._step == MINIATURE)
-        for box, step, title in zip(
-            self.sections, self._section_steps, self._section_titles
-        ):
+        self.kind_row.setVisible(not self._empty and self._step == MINIATURE)
+        for box, (step, title, _) in zip(self.sections, SECTIONS, strict=True):
             box.setVisible(
                 not self._empty
                 and step == self._step
-                and (
-                    KIND_SECTIONS.get(title, kind) == kind
-                    or getattr(self, "_measuring", False)
-                )
+                and (KIND_SECTIONS.get(title, kind) == kind or self._measuring)
             )
         self.step_hint.setText(
             TOKEN_STEP_HINT
@@ -370,136 +355,7 @@ class FigurePanel(QScrollArea):
 
     def refresh_icons(self):
         self.empty_icon.setPixmap(theme.pixmap("sliders", theme.current.muted, 40))
-        if hasattr(self, "size_field"):
-            self.size_field.refresh_icons()
-
-    # region widgets
-    def _make(self, name: str, kind: str, extra):
-        if kind == "f":
-            lo, hi, step, dec, suffix = extra
-            w = DoubleSpinBox()
-            w.setRange(lo, hi)
-            w.setSingleStep(step)
-            w.setDecimals(dec)
-            w.setSuffix(suffix)
-            w.setKeyboardTracking(False)
-            w.valueChanged.connect(self._emit)
-        elif kind == "i":
-            lo, hi, step, suffix = extra
-            w = SpinBox()
-            w.setRange(lo, hi)
-            w.setSingleStep(step)
-            w.setSuffix(suffix)
-            w.setKeyboardTracking(False)
-            w.valueChanged.connect(self._emit)
-        elif kind == "slider":
-            lo, hi, slider_hi, suffix, auto = extra
-            w = SliderField(lo, hi, slider_hi, suffix, auto)
-            w.valueChanged.connect(self._emit)
-        elif kind == "b":
-            w = QCheckBox({n: l for _, _, its in SECTIONS for n, l, *_ in its}[name])
-            w.toggled.connect(self._emit)
-        elif kind == "switch":
-            w = QCheckBox()  # ticked = the group is on, whatever the setting is called
-            w.toggled.connect(self._emit)
-            if extra == "invert":
-                self._invert.add(name)
-        elif kind == "size":
-            w = SizeField()
-            w.valueChanged.connect(self._emit)
-        elif kind == "c":
-            w = ComboBox()
-            for item in extra:
-                value, text = item if isinstance(item, tuple) else (item, item)
-                w.addItem(text, value)
-            w.currentIndexChanged.connect(self._emit)
-        elif kind == "font":
-            w = ComboBox()
-            w.setMaxVisibleItems(16)
-            for f in fonts.bundled():
-                self._add_font(w, f.name)
-            w.currentIndexChanged.connect(self._emit)
-        elif kind == "s":
-            w = QLineEdit()
-            w.setPlaceholderText("the label (or file name)")
-            w.editingFinished.connect(self._emit)
-        elif kind == "col":
-            w = ColorButton()
-            w.colorChanged.connect(self._emit)
-        elif kind == "model":
-            w = ComboBox()
-            w.setEditable(True)
-            w.addItems([MODEL_NAMES.get(m, m) for m in MODELS])
-            w.activated.connect(self._emit)
-            w.lineEdit().editingFinished.connect(self._emit)
-        elif kind == "file":
-            w = QWidget()
-            h = QHBoxLayout(w)
-            h.setContentsMargins(0, 0, 0, 0)
-            edit = QLineEdit()
-            edit.setPlaceholderText("choose a mask image (white = figure)")
-            edit.editingFinished.connect(self._emit)
-            b = QToolButton()
-            b.setText("…")
-            b.clicked.connect(lambda: self._browse_mask(edit))
-            h.addWidget(edit)
-            h.addWidget(b)
-            w.edit = edit
-        elif kind == "crop":
-            w = QWidget()
-            h = QHBoxLayout(w)
-            h.setContentsMargins(0, 0, 0, 0)
-            edit = QLineEdit()
-            edit.setPlaceholderText("whole image - drag a box on it")
-            edit.editingFinished.connect(self._emit)
-            b = QToolButton()
-            b.setText("Clear")
-            b.clicked.connect(lambda: (edit.clear(), self._emit()))
-            h.addWidget(edit)
-            h.addWidget(b)
-            w.edit = edit
-        elif kind == "tokenarea":
-            w = QWidget()
-            h = QHBoxLayout(w)
-            h.setContentsMargins(0, 0, 0, 0)
-            edit = QLineEdit()
-            edit.setPlaceholderText("whole figure, fitted - drag it in the view")
-            edit.editingFinished.connect(self._emit)
-            b = QToolButton()
-            b.setText("Clear")
-            b.clicked.connect(lambda: (edit.clear(), self._emit()))
-            h.addWidget(edit)
-            h.addWidget(b)
-            w.edit = edit
-        elif kind in ("label", "tlabel"):
-            w = QLineEdit()
-            w.editingFinished.connect(self._emit)
-        elif kind == "tokentext":
-            # not a setting of its own: unticked means token_text "none" (see _read)
-            w = QCheckBox()
-            w.toggled.connect(self._emit)
-            self.token_text_switch = w
-            return w
-        elif kind == "nolabel":
-            # not a setting of its own: unticked means label "" (see _read)
-            w = QCheckBox()
-            w.toggled.connect(self._emit)
-            self.label_switch = w
-            return w
-        else:  # pragma: no cover
-            raise ValueError(kind)
-        self._w[name] = (kind, w)
-        return w
-
-    def _browse_mask(self, edit: QLineEdit):
-        f, _ = QFileDialog.getOpenFileName(
-            self, "Mask image (white = figure)", "", remote.IMAGE_FILTER
-        )
-        if f:
-            edit.setText(f)
-            self._emit()
-
-    # endregion
+        self.size_field.refresh_icons()
 
     # region values
     def set_settings(self, s: FigureSettings, title: str = "", stem: str = ""):
@@ -507,41 +363,10 @@ class FigurePanel(QScrollArea):
         try:
             self._s = s
             self.title.setText(title)
-            for name, (kind, w) in self._w.items():
-                if kind == "size":
-                    w.set_value(s.height_mm, s.width_mm)
-                    continue
-                v = getattr(s, TWINS.get(name, name))
-                if kind in ("f", "i", "radio") or kind == "slider":
-                    w.setValue(v)
-                elif kind == "b":
-                    w.setChecked(bool(v))
-                elif kind == "switch":
-                    w.setChecked(bool(v) != (name in self._invert))
-                elif kind == "c":
-                    w.setCurrentIndex(max(0, w.findData(v)))
-                elif kind == "font":
-                    self._show_font(v)
-                elif kind == "s":
-                    w.setText(v or "")
-                elif kind == "col":
-                    w.set_color(v)
-                elif kind == "tlabel":
-                    w.setPlaceholderText(stem or "file name")
-                    w.setText(v or "")
-                elif kind == "tokenarea":
-                    w.edit.setText(_crop_text(v))
-                elif kind == "model":
-                    w.setCurrentText(MODEL_NAMES.get(v, v))
-                elif kind == "file":
-                    w.edit.setText(v or "")
-                elif kind == "crop":
-                    w.edit.setText(_crop_text(v))
-                elif kind == "label":
-                    w.setPlaceholderText(stem or "file name")
-                    self.label_switch.setChecked(v != "")
-                    w.setText(v or "")
-            self.token_text_switch.setChecked(s.token_text != "none")
+            for field in self._fields.values():
+                field.show(s)
+            for name in (*TWINS, *TWINS.values()):  # the label's fields
+                self.field(name).setPlaceholderText(stem or "file name")
             self._sync_visible()
             self.set_empty(False)
             self._shown = self._read()
@@ -558,47 +383,11 @@ class FigurePanel(QScrollArea):
     def _read(self) -> dict[str, Any]:
         vals: dict[str, Any] = {}
         token = self.is_token()
-        for name, (kind, w) in self._w.items():
+        for name, field in self._fields.items():
             # a setting with a field for each kind of figure: read the one in use
             if (name in TWINS.values() and token) or (name in TWINS and not token):
                 continue
-            if kind in ("f", "i"):
-                vals[name] = w.value()
-            elif kind == "size":
-                vals["height_mm"], vals["width_mm"] = w.value()
-            elif kind == "slider":
-                vals[name] = w.value()
-            elif kind == "b":
-                vals[name] = w.isChecked()
-            elif kind == "switch":
-                vals[name] = w.isChecked() != (name in self._invert)
-            elif kind in ("c", "font"):
-                vals[name] = w.currentData()
-            elif kind == "radio":
-                vals[name] = w.value()
-            elif kind == "s":
-                vals[name] = w.text().strip() or None
-            elif kind == "col":
-                vals[name] = w.color()
-            elif kind == "tlabel":
-                vals[TWINS[name]] = w.text().strip() or None
-            elif kind == "tokenarea":
-                vals[name] = _parse_area_text(w.edit.text(), self._s.token_area)
-            elif kind == "model":
-                text = w.currentText().strip() or "auto"
-                vals[name] = MODEL_VALUES.get(text, text)
-            elif kind == "file":
-                vals[name] = w.edit.text().strip() or None
-            elif kind == "crop":
-                vals[name] = _parse_crop_text(w.edit.text(), self._s.crop)
-            elif kind == "label":
-                vals[name] = (
-                    ""
-                    if not self.label_switch.isChecked()
-                    else (w.text().strip() or None)
-                )
-        if not self.token_text_switch.isChecked():
-            vals["token_text"] = "none"
+            vals.update(field.read())
         return vals
 
     OVERLAP_HINTS: ClassVar = {
@@ -610,9 +399,7 @@ class FigurePanel(QScrollArea):
 
     def set_overlap_hint(self, kind=None, joint: float = 0.0):
         """Note under 'Overlap into figure': None, "unused" or "narrow" (with the joint width)."""
-        show = (
-            kind in self.OVERLAP_HINTS and self._w["no_tab"][1].isChecked()
-        )  # (tab on)
+        show = kind in self.OVERLAP_HINTS and not self._value("no_tab")
         if show:
             self.overlap_hint.setText(self.OVERLAP_HINTS[kind].format(joint=joint))
         self.overlap_hint.setVisible(show)
@@ -639,51 +426,28 @@ class FigurePanel(QScrollArea):
     # endregion
 
     # region fonts
-    def _add_font(self, w: QComboBox, name: str, missing: bool = False) -> None:
-        w.addItem(f"{name} (not on this computer)" if missing else name, name)
-        if not missing:  # (each font shown in itself)
-            from ..views.drawing import qt_family
-
-            w.setItemData(w.count() - 1, QFont(qt_family(name)), Qt.FontRole)
-
     def set_installed_fonts(self, names) -> None:
         """List the fonts installed on this computer (found in the background) after the
         bundled ones."""
-        w = self._w["font"][1]
-        current = w.currentData()
         self._loading, loading = True, self._loading
         try:
-            bundled = [f.name for f in fonts.bundled()]
-            while w.count() > len(bundled):  # (anything after them: listed again below)
-                w.removeItem(w.count() - 1)
-            new = [n for n in names if n not in bundled]
-            if new:
-                w.insertSeparator(w.count())
-                for n in new:
-                    self._add_font(w, n)
-            self._installed_fonts = set(names)
-            self._show_font(current)
+            self._font().set_installed(names)
         finally:
             self._loading = loading
+        self._sync_font_warning()
 
-    def _show_font(self, name: str) -> None:
-        w = self._w["font"][1]
-        i = w.findData(name)
-        known = getattr(self, "_installed_fonts", None)
-        if i < 0 and known is not None:  # (only once the installed fonts are known)
-            self._add_font(w, name, missing=True)
-            i = w.count() - 1
-        elif i < 0:
-            self._add_font(w, name)  # (shown as is until the scan says otherwise)
-            i = w.count() - 1
-        w.setCurrentIndex(i)
-        missing = w.itemText(i).endswith("(not on this computer)")
+    def _sync_font_warning(self) -> None:
+        font = self._font()
+        missing = font.missing()
         self.font_warning.setText(
-            f"{name} is not on this computer: this figure prints in {fonts.DEFAULT}."
+            f"{font.value()} is not on this computer: this figure prints in "
+            f"{fonts.DEFAULT}."
             if missing
             else ""
         )
         self.font_warning.setVisible(missing)
+
+    # endregion
 
     def set_size_table(self, table: sizes.SizeTable, label: str = ""):
         """The project's creature size table and its name (its preset, or that it is the
@@ -704,45 +468,34 @@ class FigurePanel(QScrollArea):
         self._loading = True
         try:
             self._s = s
-            w = self._w["size"][1]
-            w.setCurrentIndex(max(0, w.findData(s.size)))
+            self._fields["size"].show(s)
             if s.size != sizes.CUSTOM:  # (Custom: leave the field being edited alone)
-                self._w["dimensions"][1].set_value(s.height_mm, s.width_mm)
-                for name in (
-                    "tab_radius_mm",
-                    "tab_width_mm",
-                    "tab_height_mm",
-                    "token_diameter_mm",
-                ):
-                    if name in self._w:
-                        self._w[name][1].setValue(getattr(s, name))
+                self._fields["dimensions"].show(s)
+                for name, option in OPTIONS.items():
+                    if option.sized and name in self._fields:
+                        self._fields[name].show(s)
             self._sync_visible()
             self._shown = self._read()
         finally:
             self._loading = False
 
     def _sync_size_hint(self):
-        if not hasattr(self, "size_hint"):
-            return
-        table = getattr(self, "_size_table", sizes.BUILTIN)
-        size = self._w["size"][1].currentData() or sizes.CUSTOM
-        text = sizes.footprint_text(size, table)
-        label = getattr(self, "_size_label", "")
+        size = self._value("size") or sizes.CUSTOM
+        text = sizes.footprint_text(size, self._size_table)
+        label = self._size_label
         self.size_hint.setText(f"{text} · {label}" if text and label else text)
         self.size_hint.setVisible(bool(text))
         warning = (
             ""
             if self.is_token()
-            else sizes.width_warning(
-                size, getattr(self, "_figure_width", None) or 0, table
-            )
+            else sizes.width_warning(size, self._figure_width or 0, self._size_table)
         )
         self.size_warning.setText(warning)
         self.size_warning.setVisible(bool(warning))
 
     def _sync_auto_hint(self):
-        model = self._w["model"][1].currentText().strip()
-        method = getattr(self, "_auto_method", None)
+        model = self.field("model").currentText().strip()
+        method = self._auto_method
         self.auto_hint.setVisible(bool(method) and model == "auto")
         used = (
             method if model == "auto" else model
@@ -759,7 +512,7 @@ class FigurePanel(QScrollArea):
 
     def set_auto_fill_gaps(self, px: int):
         """The gap filling the last build picked automatically, shown while Auto is on."""
-        self._w["fill_gaps"][1].set_auto_value(px)
+        self.field("fill_gaps").set_auto_value(px)
 
     def set_aspect(self, aspect):
         """The selected figure's own width / height, for the linked size fields."""
@@ -767,22 +520,26 @@ class FigurePanel(QScrollArea):
 
     def set_crop(self, crop):
         """Crop set by dragging a box on the Source view."""
-        self._w["crop"][1].edit.setText(_crop_text(crop))
+        self._fields["crop"].set_value(crop)
         self._emit()
 
     def set_token_area(self, area):
         """A token's framing set by dragging the figure in the Miniature view."""
-        self._w["token_area"][1].edit.setText(_crop_text(area))
+        self._fields["token_area"].set_value(area)
         self._emit()
 
     def field(self, name: str) -> Any:
         """Return the input widget of the setting ``name``."""
-        return self._w[name][1]
+        return self._fields[name].widget
+
+    def _value(self, name: str) -> Any:
+        """Return the value the field ``name`` shows."""
+        return self._fields[name].value()
 
     def is_shown(self, name: str) -> bool:
         """Whether a field is shown; for a group's switch, whether it can be used."""
         if name in self._switches:  # usable unless the group it is inside is off
-            box = self._switches[name].parent_section
+            box = self._switches[name][1].parent_section
             return box is None or box.active()
         form, w = self._rows[name]
         return form.isRowVisible(w)
@@ -790,23 +547,22 @@ class FigurePanel(QScrollArea):
     def _sync_visible(self):
         """Only show the fields that do something in the current state; a group that
         is switched off shows only its header."""
-        val = lambda n: self._w[n][1].currentData()
-        tab = self._w["no_tab"][1].isChecked()  # (the switch is "print a tab")
+        val = self._value
+        tab = not val("no_tab")
         label = tab and self.label_switch.isChecked()
         # (a mini always has its outline, the margin, and its cut line: only a token's can
         # be switched off)
         token = self.is_token()
         for name in TOKEN_SWITCHES:
-            self._switches[name].switch.setVisible(token)
-        always = set() if token else {self._switches[n] for n in TOKEN_SWITCHES}
-        for box in set(self._switches.values()):  # off: only the header, not openable
-            box.set_active(box.switch.isChecked() or box in always)
+            self._switches[name][0].setVisible(token)
+        always = set() if token else set(TOKEN_SWITCHES)
+        for name, (switch, box) in self._switches.items():  # off: only the header
+            box.set_active(switch.isChecked() or name in always)
         square = val("tab_shape") == "square"
-        double = self._w["double_sided"][1].isChecked()
-        model = self._w["model"][1].currentText().strip()
+        double = val("double_sided")
         show = {
-            "mask": MODEL_VALUES.get(model, model) == "mask",
-            "min_area": self._w["keep_all"][1].isChecked(),
+            "mask": val("model") == "mask",
+            "min_area": val("keep_all"),
             "margin_color": val("margin_fill") == "color",
             "tab_shape": tab,
             "tab_width_mm": tab and square,
@@ -825,10 +581,10 @@ class FigurePanel(QScrollArea):
             and val("back") in ("text", "number", "text_number"),
             "tab_back": double,
         }
-        grey = self._w["greyscale"][1].isChecked()
+        grey = val("greyscale")
         show["saturation"] = show["hue"] = not grey
         # a token: its own fields instead of the mini's; the margin makes its outline
-        text = val("token_text") if self.token_text_switch.isChecked() else "none"
+        text = val("token_text")
         show.update(
             {
                 "dimensions": not token,
@@ -849,18 +605,19 @@ class FigurePanel(QScrollArea):
             form, w = self._rows[name]
             form.setRowVisible(w, visible)
         read, d = self._read(), FigureSettings()
-        for b, names in self._resets.values():  # only when there is something to reset
-            b.setEnabled(any(read[n] != getattr(d, n) for n in names))
+        for name, b in self._resets.items():  # only when there is something to reset
+            b.setEnabled(any(read[n] != getattr(d, n) for n in RESETS[name]))
         if not tab:
             self.overlap_hint.setVisible(False)
         self._sync_sections()
         self._sync_auto_hint()
         self._sync_size_hint()
+        self._sync_font_warning()
 
     def _sync_ring(self, curved: bool) -> None:
         """Curved text needs a ring at least this wide: the field stops there, and says so."""
-        w = self._w["token_border_mm"][1]
-        least = min_ring_mm(self._w["token_text_mm"][1].value()) if curved else 0.0
+        w = self.field("token_border_mm")
+        least = min_ring_mm(self._value("token_text_mm")) if curved else 0.0
         w.blockSignals(True)
         w.setMinimum(least)
         w.blockSignals(False)
@@ -875,11 +632,8 @@ class FigurePanel(QScrollArea):
     def _sync_twins(self, s: FigureSettings) -> None:
         """Show ``s`` in the field of the kind not in use too (the label has a field for
         minis and one for tokens), so switching kind keeps what was typed."""
-        if self.is_token():
-            self._w["label"][1].setText(s.label or "")
-            self.label_switch.setChecked(s.label != "")
-        else:
-            self._w["token_label"][1].setText(s.label or "")
+        for token_field, mini_field in TWINS.items():
+            self._fields[mini_field if self.is_token() else token_field].show(s)
 
     def _reset(self, names):
         """Put ``names`` back to their defaults, as one change."""
@@ -887,11 +641,7 @@ class FigurePanel(QScrollArea):
         self._loading = True
         try:
             for name in names:
-                kind, w = self._w[name]
-                if kind in ("b", "switch"):
-                    w.setChecked(bool(getattr(d, name)) != (name in self._invert))
-                else:
-                    w.setValue(getattr(d, name))
+                self._fields[name].set_value(getattr(d, name))
         finally:
             self._loading = False
         self._emit()
@@ -912,32 +662,3 @@ class FigurePanel(QScrollArea):
             self.changed.emit(new)
 
     # endregion
-
-
-def _crop_text(crop) -> str:
-    if crop is None or crop == "":
-        return ""
-    if isinstance(crop, str):
-        return crop
-    return ", ".join(f"{v:g}" for v in crop)
-
-
-def _parse_area_text(text: str, old):
-    """A token area typed in its field (None when empty; the old one when it cannot be read)."""
-    if not text.strip():
-        return None
-    try:
-        return tok.parse_area(text)
-    except ValueError:
-        return old
-
-
-def _parse_crop_text(text: str, old):
-    text = text.strip()
-    if not text:
-        return None
-    try:
-        vals = [float(v) for v in text.replace(" ", "").split(",")]
-    except ValueError:
-        return old
-    return vals if len(vals) == 4 else old

@@ -3,36 +3,45 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QGridLayout, QLabel, QToolButton, QWidget
 
+from ...project.option import Option
 from .. import theme
-from ..panels.figure_fields import TIPS
 from .double_spin_box import DoubleSpinBox
+from .field import Field
 
 
 class SizeField(QWidget):
     """Figure height and width with a link toggle beside them, like an image editor's
     resize dialog. Linked, the figure keeps its proportions: the field you type in sets
     the size and the other one follows (shown once the figure's proportions are known,
-    "—" before). Unlinked, both are set and the figure is stretched to them."""
+    "—" before). Unlinked, both are set and the figure is stretched to them.
+
+    Each field takes its label, tooltip, range, decimals and unit from the option of its
+    setting, ``height`` or ``width``."""
 
     valueChanged = Signal()
+    LINK_TIP = (
+        "Linked: the figure keeps its proportions, so setting the height sets the\n"
+        "width and the other way round.\n"
+        "Unlinked: set height and width separately; the figure is stretched."
+    )
 
-    def __init__(self, parent=None):
+    def __init__(self, height: Option, width: Option, parent=None):
         super().__init__(parent)
         g = QGridLayout(self)
         g.setContentsMargins(0, 0, 0, 0)
         g.setHorizontalSpacing(12)
         g.setVerticalSpacing(8)
-        self.labels = [QLabel("Figure height"), QLabel("Figure width")]
+        self.labels = [QLabel(height.label), QLabel(width.label)]
         self.h, self.w = DoubleSpinBox(), DoubleSpinBox()
-        for row, (lab, spin, tip) in enumerate(
-            zip(self.labels, (self.h, self.w), (TIPS["height_mm"], TIPS["width_mm"]))
+        for row, (lab, spin, option) in enumerate(
+            zip(self.labels, (self.h, self.w), (height, width))
         ):
             lab.setObjectName("FormLabel")
-            lab.setToolTip(tip)
-            spin.setToolTip(tip)
-            spin.setRange(0, 1000)
-            spin.setDecimals(2)
-            spin.setSuffix(" mm")
+            lab.setToolTip(option.tooltip)
+            spin.setToolTip(option.tooltip)
+            spin.setRange(*option.widget)
+            spin.setDecimals(option.decimals)
+            spin.setSuffix(Field.suffix(option.unit))
             spin.setSpecialValueText("—")  # 0: follows the other one, not known yet
             g.addWidget(lab, row, 0)
             g.addWidget(spin, row, 1)
@@ -40,7 +49,7 @@ class SizeField(QWidget):
         self.link.setObjectName("SizeLink")
         self.link.setCheckable(True)
         self.link.setChecked(True)
-        self.link.setToolTip(TIPS["size_link"])
+        self.link.setToolTip(self.LINK_TIP)
         self.link.setAccessibleName("Keep proportions")
         self.link.setCursor(Qt.PointingHandCursor)
         self.link.setIconSize(QSize(18, 18))

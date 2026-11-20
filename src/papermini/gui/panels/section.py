@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFormLayout,
+    QHBoxLayout,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import theme
 from ..preferences import Preferences
@@ -12,7 +19,8 @@ SUB_INDENT = 14
 class Section(QWidget):
     """A settings group with a clickable header that folds it open/closed
     (remembered between sessions). A group with a switch that is off shows only its
-    header and cannot be opened. ``sub``: a group inside another one (indented)."""
+    header and cannot be opened. ``sub``: a group inside another one (indented). Its
+    fields go in ``form``, labels on the left."""
 
     def __init__(self, prefs: Preferences, title: str, parent=None, sub: bool = False):
         super().__init__(parent)
@@ -31,6 +39,16 @@ class Section(QWidget):
         self.header.setCursor(Qt.PointingHandCursor)
         self.header.setFocusPolicy(Qt.NoFocus)
         self.body = QWidget()
+        self.form = QFormLayout(self.body)
+        self.form.setContentsMargins(2, 0, 0, 0)
+        self.form.setHorizontalSpacing(12)
+        self.form.setVerticalSpacing(8)
+        self.form.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
         self.switch = None
         self._head = QHBoxLayout()
         self._head.setContentsMargins(0, 0, 4, 0)
@@ -44,6 +62,8 @@ class Section(QWidget):
 
     def set_switch(self, box: QCheckBox):
         """A checkbox at the right of the header that turns the whole group on or off."""
+        box.setObjectName("SectionSwitch")
+        box.setCursor(Qt.CursorShape.PointingHandCursor)
         self.switch = box
         self._head.addWidget(box, 0, Qt.AlignVCenter)
 
