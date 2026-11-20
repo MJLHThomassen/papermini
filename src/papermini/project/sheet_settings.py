@@ -8,9 +8,11 @@ from ..output.sheet import (
     CUSTOM_PAPER_MM,
     CUT_MODES,
     MARKS,
+    MAT_LABELS,
     MATS,
     ORIENTATIONS,
     PAPER_CHOICES,
+    PAPER_LABELS,
     Paper,
     mat_warning,
     pack,
@@ -34,6 +36,7 @@ class SheetSettings:
         help="paper size; custom: give --paper-width-mm and --paper-height-mm",
         tooltip="The paper size of the sheet. Custom: a width and height of your own.",
         choices=PAPER_CHOICES,
+        choice_labels=tuple(PAPER_LABELS[p] for p in PAPER_CHOICES),
     ).field("a4")
     paper_width_mm: float | None = Option(
         label="Width",
@@ -44,6 +47,7 @@ class SheetSettings:
         high=CUSTOM_PAPER_MM[1],
         widget=CUSTOM_PAPER_MM,
         unit="mm",
+        decimals=1,
     ).field(None)
     paper_height_mm: float | None = Option(
         label="Height",
@@ -54,6 +58,7 @@ class SheetSettings:
         high=CUSTOM_PAPER_MM[1],
         widget=CUSTOM_PAPER_MM,
         unit="mm",
+        decimals=1,
     ).field(None)
     orientation: str = Option(
         label="Orientation",
@@ -61,6 +66,7 @@ class SheetSettings:
         tooltip="Portrait: the page upright. Landscape: the page on its side, for wide\n"
         "figures and rows.",
         choices=ORIENTATIONS,
+        choice_labels=("Portrait", "Landscape"),
     ).field("portrait")
     copies: int = Option(
         help="copies of each figure",
@@ -102,6 +108,7 @@ class SheetSettings:
         "writes a cut file (SVG) with the cut lines and the same marks, to line up in\n"
         "your cutting machine's software.",
         choices=CUT_MODES,
+        choice_labels=("By hand", "Machine"),
     ).field("hand")
     bleed_mm: float = Option(
         label="Bleed",
@@ -113,6 +120,8 @@ class SheetSettings:
         high=MAX_BLEED_MM,
         widget=(0, MAX_BLEED_MM),
         unit="mm",
+        step=0.1,
+        decimals=1,
     ).field(1.0)
     marks: str = Option(
         label="Marks",
@@ -124,6 +133,7 @@ class SheetSettings:
         "and bottom-left; length 20 mm, thickness 0.5 mm, inset = the margin).\n"
         "None: no marks; line up the cut file with the page edges.",
         choices=MARKS,
+        choice_labels=("Corners", "Silhouette", "None"),
     ).field("corners")
     cut_folds: bool = Option(
         label="Fold lines in cut file",
@@ -141,6 +151,7 @@ class SheetSettings:
         "is\n"
         "bigger than the mat (turned either way). Any size: no warning.",
         choices=tuple(MATS),
+        choice_labels=tuple(MAT_LABELS[m] for m in MATS),
     ).field(None)
 
     @classmethod

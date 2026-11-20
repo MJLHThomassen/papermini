@@ -37,6 +37,7 @@ class FigureSettings:
         "tabletop.",
         group="kind",
         choices=KINDS,
+        choice_labels=("Standing mini", "Token"),
     ).field("mini")
     size: str = Option(
         label="Creature size",
@@ -50,6 +51,7 @@ class FigureSettings:
         "Changing the height or a tab size by hand makes it Custom.",
         group=_SIZE,
         choices=sizes.SIZE_CHOICES,
+        choice_labels=tuple(sizes.label(s) for s in sizes.SIZE_CHOICES),
     ).field(sizes.DEFAULT_SIZE)
     height_mm: float | None = Option(
         label="Figure height",
@@ -84,6 +86,7 @@ class FigureSettings:
         group=_SIZE,
         widget=(0, 15),
         unit="mm",
+        step=0.1,
     ).field(1.6)
     smooth_mm: float = Option(
         label="Outline smoothing",
@@ -92,6 +95,7 @@ class FigureSettings:
         group=_SIZE,
         widget=(0, 5),
         unit="mm",
+        step=0.1,
     ).field(0.6)
     tab_width_mm: float = Option(
         label="Width",
@@ -102,6 +106,7 @@ class FigureSettings:
         unit="mm",
         sized=True,
         kinds=("mini",),
+        decimals=1,
     ).field(_MEDIUM.tab_width_mm)
     tab_radius_mm: float = Option(
         label="Radius",
@@ -112,6 +117,8 @@ class FigureSettings:
         unit="mm",
         sized=True,
         kinds=("mini",),
+        step=0.5,
+        decimals=1,
     ).field(_MEDIUM.base_mm / 2)
     tab_height_mm: float = Option(
         label="Height",
@@ -122,6 +129,8 @@ class FigureSettings:
         unit="mm",
         sized=True,
         kinds=("mini",),
+        step=0.5,
+        decimals=1,
     ).field(_MEDIUM.tab_height_mm)
     tab_overlap_mm: float = Option(
         label="Overlap into figure",
@@ -133,6 +142,8 @@ class FigureSettings:
         widget=(0, 30),
         unit="mm",
         kinds=("mini",),
+        step=0.5,
+        decimals=1,
     ).field(0.0)
     fold_mm: float = Option(
         label="Fold above lowest point",
@@ -142,6 +153,8 @@ class FigureSettings:
         widget=(0, 20),
         unit="mm",
         kinds=("mini",),
+        step=0.1,
+        decimals=1,
     ).field(0.0)
     no_tab: bool = Option(
         label="Print a tab",
@@ -161,6 +174,7 @@ class FigureSettings:
         group=_SIZE,
         choices=geo.TAB_SHAPES,
         kinds=("mini",),
+        choice_labels=("Square (stand)", "Round (base)"),
     ).field("square")
     tab_color: str = Option(
         label="Fill color",
@@ -191,6 +205,13 @@ class FigureSettings:
         group=_SIZE,
         choices=geo.BACK_MODES,
         kinds=("mini",),
+        choice_labels=(
+            "Mirrored drawing",
+            "Blank",
+            "Text",
+            "Number",
+            "Text and number",
+        ),
     ).field("mirror")
     back_text: str | None = Option(
         label="Text",
@@ -260,6 +281,7 @@ class FigureSettings:
         "Lower keeps faint pencil lines; higher removes more background.",
         group=_MASK,
         widget=(0, 254),
+        slider=254,
     ).field(40)
     fill_gaps: int | None = Option(
         label="Gap filling",
@@ -271,6 +293,7 @@ class FigureSettings:
         widget=(0, 1000),
         unit="px",
         auto=True,
+        slider=40,
     ).field(None)
     keep_all: bool = Option(
         label="Keep detached parts",
@@ -287,6 +310,7 @@ class FigureSettings:
         group=_MASK,
         widget=(0, 10_000_000),
         unit="px",
+        step=100,
     ).field(1000)
     margin_fill: str = Option(
         label="Margin fill type",
@@ -298,6 +322,7 @@ class FigureSettings:
         "Original image: the picture around the figure, as it is in the image.",
         group=_SIZE,
         choices=geo.MARGIN_FILLS,
+        choice_labels=("Color", "Original image"),
     ).field("color")
     margin_color: str = Option(
         label="Margin fill color",
@@ -323,6 +348,7 @@ class FigureSettings:
         low=-100,
         high=100,
         widget=(-100, 100),
+        slider=100,
     ).field(0)
     contrast: int = Option(
         label="Contrast",
@@ -333,6 +359,7 @@ class FigureSettings:
         low=-100,
         high=100,
         widget=(-100, 100),
+        slider=100,
     ).field(0)
     saturation: int = Option(
         label="Saturation",
@@ -342,6 +369,7 @@ class FigureSettings:
         low=-100,
         high=100,
         widget=(-100, 100),
+        slider=100,
     ).field(0)
     hue: int = Option(
         label="Hue",
@@ -352,6 +380,7 @@ class FigureSettings:
         high=180,
         widget=(-180, 180),
         unit="°",
+        slider=180,
     ).field(0)
     label: str | None = Option(
         label="Text",
@@ -371,6 +400,7 @@ class FigureSettings:
         group=_OUTPUT,
         choices=TAB_SHOWS,
         kinds=("mini",),
+        choice_labels=("Label", "Number", "Label and number"),
     ).field("label")
     tab_back: str = Option(
         label="Back tab",
@@ -380,6 +410,7 @@ class FigureSettings:
         group=_OUTPUT,
         choices=TAB_SHOWS,
         kinds=("mini",),
+        choice_labels=("Label", "Number", "Label and number"),
     ).field("label")
     dpi: int = Option(
         label="Image resolution",
@@ -388,6 +419,7 @@ class FigureSettings:
         group=_OUTPUT,
         widget=(72, 2400),
         unit="dpi",
+        step=50,
     ).field(300)
     simplify_mm: float = Option(
         label="Simplify",
@@ -397,6 +429,8 @@ class FigureSettings:
         widget=(0.01, 2),
         unit="mm",
         kinds=("mini",),
+        step=0.05,
+        decimals=3,
     ).field(0.15)
     no_smooth: bool = Option(
         label="Straight segments only (no curves)",
@@ -421,6 +455,7 @@ class FigureSettings:
         group=_OUTPUT,
         widget=(0.01, 2),
         unit="mm",
+        step=0.05,
     ).field(0.3)
     label_color: str = Option(
         label="Color",
@@ -438,6 +473,8 @@ class FigureSettings:
         widget=(0.5, 20),
         unit="mm",
         kinds=("mini",),
+        step=0.1,
+        decimals=1,
     ).field(3.4)
     font: str = Option(
         label="Font",
@@ -466,6 +503,8 @@ class FigureSettings:
         unit="mm",
         sized=True,
         kinds=("token",),
+        step=0.5,
+        decimals=1,
     ).field(_MEDIUM.base_mm)
     token_area: Any = Option(  # noqa: RUF009 (a dataclass field)
         label="Area",
@@ -490,6 +529,7 @@ class FigureSettings:
         group=_TOKEN,
         choices=tok.TOKEN_FILLS,
         kinds=("token",),
+        choice_labels=("Color", "Original image"),
     ).field("color")
     token_fill_color: str = Option(
         label="Background color",
@@ -510,6 +550,8 @@ class FigureSettings:
         widget=(0, 30),
         unit="mm",
         kinds=("token",),
+        step=0.5,
+        decimals=1,
     ).field(2.0)
     token_border_color: str = Option(
         label="Ring color",
@@ -549,6 +591,7 @@ class FigureSettings:
         group=_TOKEN,
         choices=tok.TOKEN_TEXTS,
         kinds=("token",),
+        choice_labels=("None", "Label", "Number", "Label and number"),
     ).field("none")
     token_text_style: str = Option(
         label="Style",
@@ -563,6 +606,7 @@ class FigureSettings:
         group=_TOKEN,
         choices=tok.TOKEN_TEXT_STYLES,
         kinds=("token",),
+        choice_labels=("Nameplate and badge", "Curved along the ring"),
     ).field("nameplate")
     token_text_mm: float = Option(
         label="Size",
@@ -578,6 +622,8 @@ class FigureSettings:
         widget=(0.5, 20),
         unit="mm",
         kinds=("token",),
+        step=0.1,
+        decimals=1,
     ).field(2.5)
     token_text_color: str = Option(
         label="Color",
