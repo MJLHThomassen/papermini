@@ -5,6 +5,7 @@ from dataclasses import dataclass
 NUMBER_PLACEHOLDER = (
     "#"  # a figure's number where no copy number is known (the preview)
 )
+TEXT_BASELINE_DROP = 0.35  # the baseline lies this share of the size below the centre
 
 
 @dataclass

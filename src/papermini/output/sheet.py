@@ -15,9 +15,26 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from ..pipeline.mini import Mini
+from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
+from ..pipeline.text_item import TEXT_BASELINE_DROP
 from ..support import fonts
 from .placement import Placement
-from .sheet_layout import SheetLayout
+from .sheet_layout import (
+    BAR_ABOVE_MM,
+    BAR_END_TICK_MM,
+    BAR_LABEL,
+    BAR_LABEL_DROP_MM,
+    BAR_LABEL_GAP_MM,
+    BAR_MM,
+    BAR_TICK_MM,
+    BAR_TICK_STEP_MM,
+    BAR_TICK_WIDTH_MM,
+    BAR_WIDTH_MM,
+    INSTRUCTIONS_BASELINE_MM,
+    INSTRUCTIONS_LINE_MM,
+    TITLE_BASELINE_MM,
+    SheetLayout,
+)
 
 # paper sizes, portrait (width, height mm), and their names in the app
 PAPER = {
@@ -305,26 +322,32 @@ def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
             c.rect(X(x), Y(y + h), w * mm, h * mm, stroke=0, fill=1)
         # header
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(X(hx), Y(margin_mm + 4), title)
+        c.drawString(X(hx), Y(margin_mm + TITLE_BASELINE_MM), title)
         c.setFont("Helvetica", 7.5)
         for i, line in enumerate(layout.instructions()):
-            c.drawString(X(hx), Y(margin_mm + 8.5 + 3.4 * i), line)
+            c.drawString(
+                X(hx),
+                Y(margin_mm + INSTRUCTIONS_BASELINE_MM + INSTRUCTIONS_LINE_MM * i),
+                line,
+            )
         if layout.pages > 1:
             c.drawRightString(
                 X(layout.header_right),
-                Y(margin_mm + 4),
+                Y(margin_mm + TITLE_BASELINE_MM),
                 f"page {page + 1}/{layout.pages}",
             )
-        # 50 mm calibration bar
-        cy = margin_mm + layout.header_mm - 4
-        c.setLineWidth(0.4 * mm)
-        c.line(X(hx), Y(cy), X(hx + 50), Y(cy))
-        c.setLineWidth(0.2 * mm)
-        for t in range(0, 51, 10):
-            h = 1.6 if t % 50 == 0 else 1.0
+        # calibration bar
+        cy = margin_mm + layout.header_mm - BAR_ABOVE_MM
+        c.setLineWidth(BAR_WIDTH_MM * mm)
+        c.line(X(hx), Y(cy), X(hx + BAR_MM), Y(cy))
+        c.setLineWidth(BAR_TICK_WIDTH_MM * mm)
+        for t in range(0, BAR_MM + 1, BAR_TICK_STEP_MM):
+            h = BAR_END_TICK_MM if t % BAR_MM == 0 else BAR_TICK_MM
             c.line(X(hx + t), Y(cy - h), X(hx + t), Y(cy + h))
         c.setFont("Helvetica", 7)
-        c.drawString(X(hx + 52), Y(cy + 1), "50 mm")
+        c.drawString(
+            X(hx + (BAR_MM + BAR_LABEL_GAP_MM)), Y(cy + BAR_LABEL_DROP_MM), BAR_LABEL
+        )
 
         for p in layout.placements:
             if p.page == page:
@@ -350,7 +373,7 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
     c.saveState()
     c.setStrokeColor(HexColor(st.fold_color))
     c.setLineWidth(st.fold_width_mm * mm)
-    c.setDash([1.2 * mm, 0.8 * mm])
+    c.setDash([FOLD_DASH_MM * mm, FOLD_GAP_MM * mm])
     for x0, x1, y in m.folds:
         c.line(X(p.x + x0), Y(p.y + y), X(p.x + x1), Y(p.y + y))
     c.restoreState()
@@ -361,7 +384,7 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
         c.setFont(fonts.pdf_name(st.font, t.bold), t.size_mm * mm)
         c.translate(X(p.x + t.cx), Y(p.y + t.cy))
         c.rotate(-t.rot)
-        c.drawCentredString(0, -0.35 * t.size_mm * mm, t.text)
+        c.drawCentredString(0, -TEXT_BASELINE_DROP * t.size_mm * mm, t.text)
         c.restoreState()
     if not cut_line or not st.cut_line:
         return
@@ -500,16 +523,16 @@ def write_previews(
         d.text((hx * s, (margin_mm) * s), title, fill="black", font=_font(round(4 * s)))
         for i, line in enumerate(layout.instructions()):
             d.text(
-                (hx * s, (margin_mm + 6 + 3.4 * i) * s),
+                (hx * s, (margin_mm + 6 + INSTRUCTIONS_LINE_MM * i) * s),
                 line,
                 fill="black",
                 font=_font(round(2.6 * s)),
             )
-        cy = (margin_mm + layout.header_mm - 4) * s
+        cy = (margin_mm + layout.header_mm - BAR_ABOVE_MM) * s
         d.line(
-            [(hx * s, cy), ((hx + 50) * s, cy)],
+            [(hx * s, cy), ((hx + BAR_MM) * s, cy)],
             fill="black",
-            width=max(1, round(0.4 * s)),
+            width=max(1, round(BAR_WIDTH_MM * s)),
         )
         for p in layout.placements:
             if p.page != page:

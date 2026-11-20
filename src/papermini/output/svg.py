@@ -15,8 +15,8 @@ from PIL import Image
 
 from ..pipeline.cut_path import CutPath
 from ..pipeline.mini import Mini
-from ..pipeline.style import Style
-from ..pipeline.text_item import TextItem
+from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM, Style
+from ..pipeline.text_item import TEXT_BASELINE_DROP, TextItem
 from ..support import fonts
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -65,7 +65,7 @@ def to_svg(m: Mini) -> str:
     for i, (x0, x1, y) in enumerate(m.folds):
         out.append(
             f'<line id="fold{i}" class="fold" x1="{_f(x0)}" y1="{_f(y)}" x2="{_f(x1)}" y2="{_f(y)}" '
-            f'stroke="{st.fold_color}" stroke-width="{_f(st.fold_width_mm)}" stroke-dasharray="1.2,0.8"/>'
+            f'stroke="{st.fold_color}" stroke-width="{_f(st.fold_width_mm)}" stroke-dasharray="{_f(FOLD_DASH_MM)},{_f(FOLD_GAP_MM)}"/>'
         )
     count: dict = {}
     for t in m.text_items():  # labels, numbers, the back text and a token's text
@@ -79,7 +79,7 @@ def to_svg(m: Mini) -> str:
         tr = f' transform="rotate({_f(t.rot)},{_f(t.cx)},{_f(t.cy)})"' if t.rot else ""
         weight = ' font-weight="bold"' if t.bold else ""
         out.append(
-            f'<text id="{ident}{i}" class="{t.kind}" x="{_f(t.cx)}" y="{_f(t.cy + 0.35 * t.size_mm)}" '
+            f'<text id="{ident}{i}" class="{t.kind}" x="{_f(t.cx)}" y="{_f(t.cy + TEXT_BASELINE_DROP * t.size_mm)}" '
             f'font-family={quoteattr(fonts.svg_family(st.font))} font-size="{_f(t.size_mm)}"{weight} '
             f'text-anchor="middle" fill="{t.color}"{tr}>{escape(t.text)}</text>'
         )
@@ -235,7 +235,7 @@ def read_svg(path: Path) -> Mini:
         if m:
             rot = float(m.group(1))
         cx = float(t.get("x")) * sx
-        cy = float(t.get("y")) * sx - 0.35 * size
+        cy = float(t.get("y")) * sx - TEXT_BASELINE_DROP * size
         labels.append((cx, cy, rot))
     texts = []
     for t in el("text", cls="backtext"):
@@ -247,7 +247,7 @@ def read_svg(path: Path) -> Mini:
                 "backtext",
                 "".join(t.itertext()),
                 float(t.get("x")) * sx,
-                float(t.get("y")) * sx - 0.35 * size_t,
+                float(t.get("y")) * sx - TEXT_BASELINE_DROP * size_t,
                 float(m.group(1)) if m else 0.0,
                 size_t,
                 style.back_text_color,
@@ -262,7 +262,7 @@ def read_svg(path: Path) -> Mini:
                 t.get("class"),
                 "".join(t.itertext()),
                 float(t.get("x")) * sx,
-                float(t.get("y")) * sx - 0.35 * size_t,
+                float(t.get("y")) * sx - TEXT_BASELINE_DROP * size_t,
                 float(m.group(1)) if m else 0.0,
                 size_t,
                 t.get("fill", style.label_color),
