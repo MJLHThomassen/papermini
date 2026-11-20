@@ -14,9 +14,9 @@ MODELS = ["auto", "rmbg-1.4", "birefnet", "birefnet-lite", "alpha", "mask"]
 # step's groups. (step, group title, fields); fields are (field, label, kind, extra) -
 # kind: f=float, i=int, b=bool, c=choice, s=str, col=color, size=height and width
 # with a link toggle, slider=int slider (lo, hi, slider_hi, suffix, auto checkbox),
-# heading=sub-heading inside a group (not a setting), switch=a checkbox in the group's
-# header that turns the whole group on or off (extra "invert": the setting is the
-# opposite, e.g. no_tab), nolabel=the Label group's switch (off = label ""),
+# switch=a checkbox in the group's header that turns the whole group on or off (extra
+# "invert": the setting is the opposite, e.g. no_tab), nolabel=the Label group's
+# switch (off = label ""),
 # reset=a button that puts the listed fields back to their defaults (not a setting)
 STEPS = ["Source", "Miniature", "Print sheet"]
 SOURCE, MINIATURE, PRINT = range(3)
@@ -279,7 +279,7 @@ def step_settings(step: int) -> set:
         for st, _, items in SECTIONS
         if st == step
         for name, _, kind, _ in items
-        if kind not in ("heading", "reset")
+        if kind != "reset"
         for k in FIELD_SETTINGS.get(name, (name,))
     } | ({"kind"} if step == MINIATURE else set())
 

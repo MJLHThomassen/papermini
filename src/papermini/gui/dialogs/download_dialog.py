@@ -157,7 +157,7 @@ class DownloadDialog(QDialog):
                         done, total or 0
                     ),
                 )
-            except (Exception, SystemExit) as e:  # noqa: BLE001 - always report back
+            except Exception as e:  # noqa: BLE001 - always report back
                 sig.finished.emit(str(e) or type(e).__name__)
             else:
                 sig.finished.emit("")

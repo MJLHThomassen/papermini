@@ -51,8 +51,8 @@ class BuildJob(QRunnable):
                 )
         except Cancelled:
             self.sig.cancelled.emit(self.uid, self.key)
-        except (Exception, SystemExit) as e:
-            expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
+        except Exception as e:
+            expected = (ValueError, FileNotFoundError, ModelError)
             if isinstance(e, expected):
                 msg = str(e)
                 logger.warning(

@@ -65,7 +65,6 @@ class FigurePanel(QScrollArea):
 
     changed = Signal(object)
     applyToAll = Signal(object)  # the settings to copy (those of the shown step)
-    clearCrop = Signal()
     exportPiece = Signal()  # the Miniature step's Export button (SVG or PNG)
 
     def __init__(self, prefs: Preferences, parent=None):
@@ -160,12 +159,6 @@ class FigurePanel(QScrollArea):
             form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
             forms[title] = form
             for name, label, kind, extra in items:
-                if kind == "heading":
-                    h = QLabel(label.upper())
-                    h.setObjectName("SubHeading")
-                    form.addRow(h)
-                    self._rows[name] = (form, h)
-                    continue
                 if kind == "reset":
                     b = QPushButton(label)
                     b.setObjectName("ResetButton")
@@ -363,14 +356,15 @@ class FigurePanel(QScrollArea):
             if self._step == MINIATURE and kind == "token"
             else STEP_HINTS[self._step]
         )
-        names = {SOURCE: "source", MINIATURE: "miniature", PRINT: "size"}
+        if self._step == PRINT:
+            return  # the window shows the sheet panel in this step
+        names = {SOURCE: "source", MINIATURE: "miniature"}
         self.apply_all.setText(f"Apply {names[self._step]} settings to all figures")
         self.apply_all.setToolTip(
             "Copies the settings shown here to every figure"
             + {
                 SOURCE: ", except the crop and mask file",
                 MINIATURE: ", except the label",
-                PRINT: ", except the copies",
             }[self._step]
         )
 
