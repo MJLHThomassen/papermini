@@ -933,10 +933,13 @@ papermini make Monsters -o minis
 | `--back-text` | label | text for `--back text` or `text_number`; auto-sized and wrapped to fit the figure |
 | `--back-color` | #ffffff | color of a back that is not `mirror` |
 | `--back-text-color` | #2f5597 | color of the text and the number on the back |
+| `--model` | auto | how the figure is separated from the background: `auto` (the PNG's transparency if it has any, else `rmbg-1.4`), `rmbg-1.4`, `birefnet`, `birefnet-lite`, `alpha` (the PNG's own transparency), `mask` (with `--mask`) or the path of an `.onnx` model; see [Model](#model) |
+| `--mask` | | your own mask image (white = figure, black = background) instead of a model |
 | `--crop x0,y0,x1,y1` | | region the model looks at, as fractions (0–1) or pixels |
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
 | `--fill-gaps` | auto | fill gaps and notches in the outline up to this many px; 0 = off (auto ≈ 9 px at a 1400 px image) |
 | `--keep-all` / `--min-area` | / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
+| `--no-cache` | | make the mask again instead of reusing the cached one (see [Caching and speed](#caching-and-speed)) |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
 | `--margin-color` | #ffffff | color of the margin around the drawing |
 | `--greyscale` | | print in black and white |
@@ -952,6 +955,7 @@ papermini make Monsters -o minis
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
 | `--no-smooth` | | straight segments only (by default the cut line uses Bézier curves) |
 | `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | cut line style |
+| `--label-color` / `--label-size-mm` | #2f5597 / 3.4 | color and largest size of the tab label; a long label shrinks to fit the tab |
 | `--bleed-mm` | 0 | print the edge colors this far beyond the cut line, for a sheet cut by machine (`papermini sheet --cut machine`) |
 | `--debug` | | write intermediate masks and a red overlay preview to `debug/` |
 | `--no-subfolders` | | a folder: only its own images, not those in its subfolders |
@@ -1088,6 +1092,12 @@ papermini batch examples/dragons/samples.yaml
 ```bash
 papermini batch examples/dragons/samples-machine.yaml
 ```
+
+| option | default | meaning |
+|---|---|---|
+| `--debug` | | write intermediate masks and a red overlay preview of each figure to `debug/` in the output folder, as `debug: true` in the project does |
+| `--preview` | | also write a PNG preview of each sheet page, as the sheet's `preview: true` does |
+| `--no-cache` | | make every mask again instead of reusing the cached ones |
 
 ## Model licence
 
