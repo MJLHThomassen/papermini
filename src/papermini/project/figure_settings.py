@@ -30,8 +30,8 @@ class FigureSettings:
 
     kind: str = Option(
         label="Kind",
-        help="mini: a standing paper miniature (default); token: a flat round "
-        "token (see the token options)",
+        help="mini: a standing paper miniature; token: a flat round "
+        "token, set up with the token options",
         tooltip="Standing mini: a paper figure that stands up, on a tab or a base.\n"
         "Token: a flat round token, the figure in a circle, for the table or a virtual\n"
         "tabletop.",
@@ -41,7 +41,7 @@ class FigureSettings:
     size: str = Option(
         label="Creature size",
         help="creature size: fills in the height and the tabs from the size "
-        "table (medium). --height-mm or a tab size given as well wins "
+        "table; --height-mm or a tab size given as well wins "
         "and makes it custom",
         tooltip="The D&D creature size: fills in the figure height and the tabs (round "
         "base\n"
@@ -67,6 +67,7 @@ class FigureSettings:
         label="Figure width",
         help="width of the drawn figure; alone it scales by width, with "
         "--height-mm the figure is stretched to both",
+        none_means="set by the height",
         tooltip="Width of the drawn figure on paper, without margin.",
         group=_SIZE,
         low=0,
@@ -182,7 +183,7 @@ class FigureSettings:
     ).field(True)
     back: str = Option(
         label="Shows",
-        help="double-sided back: mirrored image (default), blank, text, the copy "
+        help="double-sided back: mirrored image, blank, text, the copy "
         "number (large), or text_number (the number above the text)",
         tooltip="mirror: the drawing seen from behind; blank: plain paper; "
         "text: plain paper with text (a name or stats); number: the copy's number,\n"
@@ -193,7 +194,8 @@ class FigureSettings:
     ).field("mirror")
     back_text: str | None = Option(
         label="Text",
-        help="text on the back with --back text or text_number (default: the label)",
+        help="text on the back with --back text or text_number",
+        none_means="the label",
         tooltip="Text for the back (empty = the tab label). It is sized to fit the "
         "body.",
         group=_SIZE,
@@ -243,6 +245,7 @@ class FigureSettings:
     crop: Any = Option(  # noqa: RUF009 (a dataclass field)
         label="Area",
         help="x0,y0,x1,y1 region (fractions or px) the model looks at",
+        none_means="the whole image",
         tooltip="Background removal only looks inside this box (x0,y0,x1,y1, fractions "
         "or px),\n"
         "which helps a lot with busy backgrounds. Drag a box on the image to set it.",
@@ -260,8 +263,8 @@ class FigureSettings:
     ).field(40)
     fill_gaps: int | None = Option(
         label="Gap filling",
-        help="fill gaps and notches in the outline up to this many px; 0 = off "
-        "(default scales with the image: 9 px at 1400 px)",
+        help="fill gaps and notches in the outline up to this many px; 0 = off",
+        none_means="scales with the image, 9 px at 1400 px",
         tooltip="Fills gaps and notches in the outline up to this size (0 = off).\n"
         "Auto scales with the image: 9 px at 1400 px.",
         group=_MASK,
@@ -287,7 +290,7 @@ class FigureSettings:
     ).field(1000)
     margin_fill: str = Option(
         label="Margin fill type",
-        help="what shows between drawing and cut line: --margin-color (default) "
+        help="what shows between drawing and cut line: --margin-color "
         "or the original image",
         tooltip="What fills the margin, the strip between the cut-out drawing and its\n"
         "cut line:\n"
@@ -352,14 +355,15 @@ class FigureSettings:
     ).field(0)
     label: str | None = Option(
         label="Text",
-        help="text on the tab (default: file name; '' for none)",
+        help="text on the tab; '' for none",
+        none_means="the file name",
         tooltip="Text printed on the tab (empty = the file name). Also the default back "
         "text.",
         group=_OUTPUT,
     ).field(None)
     tab_front: str = Option(
         label="Front tab",
-        help="what the front tab shows: the label (default), the copy number, or "
+        help="what the front tab shows: the label, the copy number, or "
         "label_number (the number above the label)",
         tooltip="What the front tab shows: the label, the copy's number, or both (the\n"
         "number above the label). Each copy on the sheet gets its own number,\n"
@@ -452,7 +456,7 @@ class FigureSettings:
     ).field(1)
     token_diameter_mm: float = Option(
         label="Diameter",
-        help="the token's diameter (the creature size's base)",
+        help="the token's diameter, ring included",
         tooltip="The token's diameter, ring included. The creature size fills it in\n"
         "(the size's base); changing it by hand makes it Custom.",
         group=_TOKEN,
@@ -466,7 +470,8 @@ class FigureSettings:
     token_area: Any = Option(  # noqa: RUF009 (a dataclass field)
         label="Area",
         help="x0,y0,x1,y1: the square of the picture that fills the circle, as "
-        "fractions of the picture (default: the whole figure, fitted)",
+        "fractions of the picture",
+        none_means="the whole figure, fitted",
         tooltip="The square of the picture that fills the circle (x0,y0,x1,y1, "
         "fractions).\n"
         "Empty: the whole figure, fitted with room around it. In the view, drag the\n"
@@ -478,7 +483,7 @@ class FigureSettings:
     ).field(None)
     token_fill: str = Option(
         label="Background",
-        help="behind the figure: --token-fill-color (default) or the original image",
+        help="behind the figure: --token-fill-color or the original image",
         tooltip="What fills the circle behind the figure:\n"
         "Color: one solid color (Background color).\n"
         "Original image: the picture around the figure, as it is in the image.",
@@ -526,8 +531,8 @@ class FigureSettings:
     ).field(False)
     token_cut_line: bool = Option(
         label="Print a cut line",
-        help="print the cut line around the token (by default the ring's edge "
-        "shows where to cut)",
+        help="print the cut line around the token; without it, the ring's edge "
+        "shows where to cut",
         tooltip="Print the cut line around the token. Off: the ring's edge shows where "
         "to\n"
         "cut. A sheet cut by machine never prints cut lines.",
@@ -536,8 +541,7 @@ class FigureSettings:
     ).field(False)
     token_text: str = Option(
         label="Shows",
-        help="what the token shows: none (default), the label, the copy number, or "
-        "label_number",
+        help="what the token shows: none, the label, the copy number, or label_number",
         tooltip="What the token shows: the label, the copy's number, or both. Each\n"
         "copy on the sheet gets its own number, 1, 2, 3…; this preview shows # "
         "where\n"
@@ -549,7 +553,7 @@ class FigureSettings:
     token_text_style: str = Option(
         label="Style",
         help="nameplate: the label on a band across the bottom, the number on a "
-        "badge (default); curved: along the ring, which is then at least as "
+        "badge; curved: along the ring, which is then at least as "
         "wide as the text needs",
         tooltip="Nameplate and badge: the label on a band across the bottom, the "
         "number\n"

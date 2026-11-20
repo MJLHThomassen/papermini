@@ -22,6 +22,7 @@ class Option:
 
     label: str = ""  # the name of its field in the settings panel
     help: str = ""  # one line for the command line's help, without the default
+    none_means: str = ""  # what a value of None does, for the help; empty: none
     tooltip: str = ""  # the settings panel's tooltip
     group: str = ""  # the group of command-line flags it belongs to
     choices: tuple[Any, ...] = ()  # the values it allows; empty: any value
