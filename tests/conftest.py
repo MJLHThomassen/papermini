@@ -14,6 +14,7 @@ import urllib.error
 import urllib.request
 from email.message import Message
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -512,6 +513,72 @@ def keys():
 def sign(scripts):
     """Returns ``sign(data, private)``, which signs ``data`` as a release is signed."""
     return scripts("sign_release").sign
+
+
+# endregion
+
+
+# region pipeline inputs
+@pytest.fixture
+def params():
+    """Returns ``params(**fields)``, which makes the layout parameters of a one-sided
+    mini with the default figure settings, with ``fields`` changed."""
+    from dataclasses import replace
+
+    from papermini.project.figure_settings import FigureSettings
+
+    def params(**fields):
+        return replace(FigureSettings(double_sided=False).params(), **fields)
+
+    return params
+
+
+@pytest.fixture
+def mask_options():
+    """Returns ``mask_options(**fields)``, which makes the background-removal options
+    of the default figure settings, with ``fields`` changed."""
+    from dataclasses import replace
+
+    from papermini.project.figure_settings import FigureSettings
+
+    def mask_options(**fields):
+        return replace(FigureSettings().mask_options(), **fields)
+
+    return mask_options
+
+
+@pytest.fixture
+def pipeline_mini(params, mask_options):
+    """Returns ``pipeline_mini(image, prm, mask, **arguments)``, which builds the mini
+    of ``image`` with ``make_mini`` and logs nothing. ``prm`` and ``mask`` default to
+    ``params()`` and ``mask_options()``, and every other argument not given comes
+    from the default figure settings."""
+    from papermini.pipeline.mini import make_mini
+    from papermini.project.figure_settings import FigureSettings
+
+    def pipeline_mini(image, prm=None, mask=None, **arguments):
+        s = FigureSettings()
+        defaults: dict[str, Any] = {
+            "label": s.label,
+            "back_text": s.back_text,
+            "tab_front": s.tab_front,
+            "tab_back": s.tab_back,
+            "dpi": s.dpi,
+            "simplify_mm": s.simplify_mm,
+            "smooth_path": not s.no_smooth,
+            "bleed_mm": 0.0,
+            "adjust": s.adjustments(),
+            "style": s.style(),
+            "log": lambda *_: None,
+        }
+        return make_mini(
+            image,
+            params() if prm is None else prm,
+            mask_options() if mask is None else mask,
+            **(defaults | arguments),
+        )
+
+    return pipeline_mini
 
 
 # endregion

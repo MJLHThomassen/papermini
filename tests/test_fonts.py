@@ -6,8 +6,6 @@ import shutil
 import pytest
 
 from papermini.output.sheet import pack, write_pdf
-from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import make_mini
 from papermini.pipeline.style import Style
 from papermini.support import fonts
 
@@ -70,18 +68,18 @@ def test_installed_fonts_are_indexed_once(font_folder):
     assert sorted(reads) == ["fake.ttf", "other.ttf"]
 
 
-def test_an_installed_font_is_found_and_printed(goblin_figure, font_folder, tmp_path):
+def test_an_installed_font_is_found_and_printed(
+    goblin_figure, font_folder, tmp_path, pipeline_mini, mask_options
+):
     _, add, _ = font_folder
     add("fake.ttf", "Fake Serif")
     assert fonts.resolve("Fake Serif")[1]
     img, mask = goblin_figure
-    m = make_mini(
+    m = pipeline_mini(
         img,
-        geo.Params(),
-        mask_path=mask,
+        mask=mask_options(mask_path=mask),
         label="Hero",
         style=Style(font="Fake Serif"),
-        log=lambda *_: None,
     )
     assert m.style.font == "Fake Serif"
     pdf = write_pdf(pack([(m, 1)]), tmp_path / "s.pdf").read_bytes()

@@ -126,10 +126,11 @@ read as a short sequence of named steps.
 *Soft triggers:* a function over about 60 lines, nesting deeper than about
 three levels, or more than about six parameters.
 
-*Example:* `make_mini` in `pipeline/mini.py` takes twenty keyword arguments and
-runs the whole pipeline in one body. Related parameters, such as the segmentation
-options, could travel together in a small dataclass, the way `geo.Params` and
-`Style` already do.
+*Example:* `make_mini` in `pipeline/mini.py` takes seventeen parameters and runs
+the whole pipeline in one body. Related parameters travel together in small
+dataclasses, such as `MaskOptions` for background removal and `geo.Params` for
+the layout. The rest could be grouped the same way, and the stages split into
+steps.
 
 ### S3. Names say what things are
 

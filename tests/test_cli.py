@@ -10,8 +10,6 @@ from PIL import Image
 from papermini import cli
 from papermini.cli import main
 from papermini.output.svg import read_svg, write_svg
-from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import make_mini
 from papermini.project.figure_settings import FigureSettings
 from papermini.project.project_files import load_project
 
@@ -68,9 +66,9 @@ def test_cli_makes_double_sided_minis_unless_told_not_to(hero_figure, tmp_path):
     assert both.height_mm > 1.8 * front.height_mm  # front and back, one above the other
 
 
-def test_cli_width_alone_scales_by_width(hero_figure, tmp_path):
-    from papermini.project.figure_settings import FigureSettings
-
+def test_cli_width_alone_scales_by_width(
+    hero_figure, tmp_path, pipeline_mini, params, mask_options
+):
     img, mask = hero_figure
     out = tmp_path / "w.svg"
     assert (
@@ -90,12 +88,7 @@ def test_cli_width_alone_scales_by_width(hero_figure, tmp_path):
         == 0
     )
     r = read_svg(out)
-    by_h = make_mini(
-        img,
-        FigureSettings(double_sided=False).params(),
-        mask_path=mask,
-        log=lambda *_: None,
-    )
+    by_h = pipeline_mini(img, params(double_sided=False), mask_options(mask_path=mask))
     # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not
     # Medium's 32 mm (margin and tab stay the same, so compare the difference)
     assert r.height_mm - by_h.height_mm == pytest.approx(25 / by_h.aspect - 32, abs=0.5)
@@ -141,7 +134,9 @@ def test_sheet_cut_by_machine_writes_the_cut_file(hero_figure, tmp_path):
     assert 'id="registration"' in svg and 'id="cut"' in svg and 'id="fold"' in svg
 
 
-def test_batch_cut_by_machine_builds_the_bleed(hero_figure, tmp_path):
+def test_batch_cut_by_machine_builds_the_bleed(
+    hero_figure, tmp_path, pipeline_mini, mask_options
+):
     img, mask = hero_figure
     (tmp_path / "p.yaml").write_text(
         f"output: out\nsheet:\n  output: out/s.pdf\n  cut: machine\n  bleed_mm: 1.5\n"
@@ -157,7 +152,7 @@ def test_batch_cut_by_machine_builds_the_bleed(hero_figure, tmp_path):
     ).exists()
     from papermini.output.svg import read_svg
 
-    plain = make_mini(img, geo.Params(), mask_path=mask, log=lambda *_: None)
+    plain = pipeline_mini(img, mask=mask_options(mask_path=mask))
     bled = read_svg(tmp_path / "out" / "b.svg")
     assert bled.width_mm > plain.width_mm + 2  # built with the sheet's bleed
 

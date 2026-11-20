@@ -24,6 +24,7 @@ from PIL import Image
 from ..support import cache, fonts
 from . import adjust as adj_mod
 from . import geometry as geo
+from .mask_options import MaskOptions
 from .mini import (
     NUMBER_PLACEHOLDER,
     Mini,
@@ -413,49 +414,32 @@ def _render(
 def make_token(
     image_path: Path,
     o: TokenOptions,
+    mask_options: MaskOptions,
     *,
-    label: str | None = None,
-    threshold: int = 40,
-    close_px: int | None = None,
-    keep_all: bool = False,
-    min_area: int = 1000,
-    crop=None,
-    model: str = "auto",
-    mask_path: Path | None = None,
-    dpi: int = 300,
-    bleed_mm: float = 0.0,
-    adjust: adj_mod.Adjustments | None = None,
+    label: str | None,
+    dpi: int,
+    bleed_mm: float,
+    adjust: adj_mod.Adjustments,
+    style: Style,
     use_cache: bool = True,
-    style: Style | None = None,
     log=print,
     on_stage=None,
 ) -> Mini:
     """Build one token: background removal as for a mini, then the figure framed in a
     circle on its background, inside a ring, with a circular cut line."""
     image_path = Path(image_path)
-    style = check_font(style or Style(), image_path.name, log)
+    style = check_font(style, image_path.name, log)
     fm = figure_mask(
-        image_path,
-        threshold=threshold,
-        close_px=close_px,
-        keep_all=keep_all,
-        min_area=min_area,
-        crop=crop,
-        model=model,
-        mask_path=mask_path,
-        use_cache=use_cache,
-        log=log,
-        on_stage=on_stage,
+        image_path, mask_options, use_cache=use_cache, log=log, on_stage=on_stage
     )
-    adj = adjust or adj_mod.Adjustments()
     label = image_path.stem if label is None else label
     bleed_mm = min(max(0.0, bleed_mm), geo.MAX_BLEED_MM)
     pad_mm = max(style.cut_width_mm + 0.3, bleed_mm + 0.2 if bleed_mm else 0.0)
     # a cut line printed for cutting by hand lies just outside the ring, so it never
     # covers its edge (cut by machine, the cut follows the ring and the bleed is beyond)
     cut_out = style.cut_width_mm / 2 if style.cut_line and not bleed_mm else 0.0
-    key = ("token", fm.key, o, adj, bleed_mm, pad_mm, bool(label))
-    make = lambda: _render(fm, o, adj, bleed_mm, pad_mm, bool(label))
+    key = ("token", fm.key, o, adjust, bleed_mm, pad_mm, bool(label))
+    make = lambda: _render(fm, o, adjust, bleed_mm, pad_mm, bool(label))
     rgba, n, ring, ri, text_mm, plate, badge, area, fbox, (fx, fy, f) = (
         cache.layouts.get_or_make(key, make) if use_cache else make()
     )

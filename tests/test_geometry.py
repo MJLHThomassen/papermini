@@ -23,28 +23,28 @@ def rgb_like(m):
     return np.dstack([255 - m // 2] * 3).astype(np.uint8)
 
 
-def test_fill_holes_closes_translucent_areas():
+def test_fill_holes_closes_translucent_areas(mask_options):
     m = ghost(ring=True)
     assert m[700, 550] == 0
-    clean = geo.clean_mask(m, threshold=40, close_px=9)
+    clean = geo.clean_mask(m, mask_options(threshold=40, close_px=9))
     assert clean[700, 550] == 255
 
 
-def test_largest_component_drops_specks_and_keep_all_keeps_props():
+def test_largest_component_drops_specks_and_keep_all_keeps_props(mask_options):
     m = ghost()
     cv2.circle(m, (100, 100), 4, 255, -1)  # speck
     cv2.circle(m, (950, 300), 40, 255, -1)  # floating prop
-    only = geo.clean_mask(m, close_px=5)
+    only = geo.clean_mask(m, mask_options(close_px=5))
     assert only[300, 950] == 0 and only[100, 100] == 0
-    both = geo.clean_mask(m, close_px=5, keep_all=True, min_area=1000)
+    both = geo.clean_mask(m, mask_options(close_px=5, keep_all=True, min_area=1000))
     assert both[300, 950] == 255 and both[100, 100] == 0
 
 
-def test_keep_all_bridges_a_separate_prop_into_one_cut_shape():
+def test_keep_all_bridges_a_separate_prop_into_one_cut_shape(params, mask_options):
     m = ghost()
     cv2.circle(m, (980, 800), 50, 255, -1)  # a prop beside the robe
-    clean = geo.clean_mask(m, close_px=5, keep_all=True, min_area=1000)
-    prm = geo.Params(keep_all=True, tab=False)
+    clean = geo.clean_mask(m, mask_options(close_px=5, keep_all=True, min_area=1000))
+    prm = params(keep_all=True, tab=False)
     lay = geo.build_layout(clean, rgb_like(clean), prm)
     n_cut, _ = cv2.connectedComponents((lay.cut > 0).astype(np.uint8))
     n_fig, _ = cv2.connectedComponents((lay.figure > 0).astype(np.uint8))
@@ -71,16 +71,16 @@ def test_too_many_separate_parts_to_bridge():
 
 
 @pytest.mark.parametrize("height_mm", [34.0, 42.0, 56.0])
-def test_mm_scaling(height_mm):
-    clean = geo.clean_mask(ghost(), close_px=9)
-    lay = geo.build_layout(clean, rgb_like(clean), geo.Params(height_mm=height_mm))
+def test_mm_scaling(height_mm, params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
+    lay = geo.build_layout(clean, rgb_like(clean), params(height_mm=height_mm))
     _x0, y0, _x1, y1 = geo.bbox(lay.figure)
     assert (y1 - y0 + 1) / lay.px_per_mm == pytest.approx(height_mm, abs=1e-9)
 
 
-def test_margin_width():
-    clean = geo.clean_mask(ghost(), close_px=9)
-    prm = geo.Params(margin_mm=1.6, tab=False)
+def test_margin_width(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
+    prm = params(margin_mm=1.6, tab=False)
     lay = geo.build_layout(clean, rgb_like(clean), prm)
     # distance from every cut-shape boundary pixel to the figure, in mm
     dist = cv2.distanceTransform(255 - lay.figure, cv2.DIST_L2, 5) / lay.px_per_mm
@@ -90,9 +90,9 @@ def test_margin_width():
     assert np.median(d) == pytest.approx(1.6, abs=0.25)
 
 
-def test_tab_placement():
-    clean = geo.clean_mask(ghost(), close_px=9)
-    prm = geo.Params(tab_width_mm=22, tab_height_mm=12, fold_mm=1.0)
+def test_tab_placement(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
+    prm = params(tab_width_mm=22, tab_height_mm=12, fold_mm=1.0)
     lay = geo.build_layout(clean, rgb_like(clean), prm)
     pxmm = lay.px_per_mm
     ((fx0, fx1, fy),) = lay.folds
@@ -110,9 +110,9 @@ def test_tab_placement():
 
 
 @pytest.mark.parametrize("smooth", [False, True])
-def test_cut_path_is_closed_single_path_outside_drawing(smooth):
-    clean = geo.clean_mask(ghost(touch_border=True), close_px=9)
-    lay = geo.build_layout(clean, rgb_like(clean), geo.Params())
+def test_cut_path_is_closed_single_path_outside_drawing(smooth, params, mask_options):
+    clean = geo.clean_mask(ghost(touch_border=True), mask_options(close_px=9))
+    lay = geo.build_layout(clean, rgb_like(clean), params())
     path = geo.trace_cut(lay.cut, lay.px_per_mm, 0.15, smooth)
     inside = geo.rasterize(path, lay.cut.shape, antialias=False)
     n, _ = cv2.connectedComponents(inside)
@@ -120,25 +120,25 @@ def test_cut_path_is_closed_single_path_outside_drawing(smooth):
     assert not np.any((lay.figure > 0) & (inside == 0))  # drawing never cut
 
 
-def test_border_touching_figure_gets_margin_beyond_old_edge():
-    clean = geo.clean_mask(ghost(touch_border=True), close_px=9)
+def test_border_touching_figure_gets_margin_beyond_old_edge(params, mask_options):
+    clean = geo.clean_mask(ghost(touch_border=True), mask_options(close_px=9))
     assert clean[:, 0].any()  # touches the left edge
-    lay = geo.build_layout(clean, rgb_like(clean), geo.Params(margin_mm=1.6))
+    lay = geo.build_layout(clean, rgb_like(clean), params(margin_mm=1.6))
     fx0 = geo.bbox(lay.figure)[0]
     cx0 = geo.bbox(lay.cut)[0]
     assert (fx0 - cx0) / lay.px_per_mm == pytest.approx(1.6, abs=0.3)
 
 
-def test_double_sided_is_mirror_symmetric():
-    clean = geo.clean_mask(ghost(), close_px=9)
-    lay = geo.build_layout(clean, rgb_like(clean), geo.Params(double_sided=True))
+def test_double_sided_is_mirror_symmetric(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
+    lay = geo.build_layout(clean, rgb_like(clean), params(double_sided=True))
     assert np.array_equal(lay.cut, lay.cut[::-1])
     assert len(lay.folds) == 3 and len(lay.labels) == 2
     n, _ = cv2.connectedComponents(lay.cut)
     assert n == 2
 
 
-def test_top_fold_is_where_a_raised_wing_meets_the_fold():
+def test_top_fold_is_where_a_raised_wing_meets_the_fold(params, mask_options):
     # a body with a wing raised high on the left and the head lower on the right:
     # the halves meet at the wing, so the bridge and the fold belong there, not in
     # the gap between wing and head
@@ -148,8 +148,8 @@ def test_top_fold_is_where_a_raised_wing_meets_the_fold():
         m, [np.array([(300, 700), (150, 100), (350, 100), (450, 600)])], 255
     )  # wing
     cv2.circle(m, (750, 330), 100, 255, -1)  # head
-    clean = geo.clean_mask(m, close_px=9)
-    lay = geo.build_layout(clean, rgb_like(clean), geo.Params(double_sided=True))
+    clean = geo.clean_mask(m, mask_options(close_px=9))
+    lay = geo.build_layout(clean, rgb_like(clean), params(double_sided=True))
     h = int(lay.front_top)
     top = [(a, b) for a, b, y in lay.folds if y == h]
     paper = np.flatnonzero(lay.cut[h])
@@ -167,9 +167,9 @@ def test_top_fold_is_where_a_raised_wing_meets_the_fold():
     )  # centred on it
 
 
-def test_bezier_stays_close_to_polygon():
-    clean = geo.clean_mask(ghost(), close_px=9)
-    lay = geo.build_layout(clean, rgb_like(clean), geo.Params())
+def test_bezier_stays_close_to_polygon(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
+    lay = geo.build_layout(clean, rgb_like(clean), params())
     poly = geo.trace_cut(lay.cut, lay.px_per_mm, 0.15, smooth=False)
     curve = geo.trace_cut(lay.cut, lay.px_per_mm, 0.15, smooth=True)
     poly_c = poly.points.astype(np.float32).reshape(-1, 1, 2)
@@ -181,10 +181,10 @@ def test_bezier_stays_close_to_polygon():
 
 
 @pytest.mark.parametrize("back", ["mirror", "blank", "text"])
-def test_double_sided_back_modes(back):
-    clean = geo.clean_mask(ghost(), close_px=9)
+def test_double_sided_back_modes(back, params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     rgb = rgb_like(clean)
-    lay = geo.build_layout(clean, rgb, geo.Params(double_sided=True, back=back))
+    lay = geo.build_layout(clean, rgb, params(double_sided=True, back=back))
     h = lay.cut.shape[0] // 2
     assert np.array_equal(lay.cut, lay.cut[::-1])  # shape always mirrored
     back_half = lay.rgb[:h][lay.cut[:h] > 0]
@@ -202,25 +202,24 @@ def test_double_sided_back_modes(back):
         assert lay.back_box is None
 
 
-def test_bad_back_mode():
-    clean = geo.clean_mask(ghost(), close_px=9)
+def test_bad_back_mode(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     with pytest.raises(ValueError, match="back must be"):
-        geo.build_layout(
-            clean, rgb_like(clean), geo.Params(double_sided=True, back="nope")
-        )
+        geo.build_layout(clean, rgb_like(clean), params(double_sided=True, back="nope"))
 
 
-def test_tab_overlap_only_matters_for_narrow_bottoms():
+def test_tab_overlap_only_matters_for_narrow_bottoms(params, mask_options):
     # wide bottom (a ~30 mm robe, wider than the 22 mm tab): overlap changes nothing
     wide = np.zeros((1400, 1100), np.uint8)
     cv2.ellipse(wide, (550, 450), (300, 260), 0, 0, 360, 255, -1)
     cv2.rectangle(wide, (190, 450), (910, 1200), 255, -1)
-    clean = geo.clean_mask(wide, close_px=9)
+    clean = geo.clean_mask(wide, mask_options(close_px=9))
+    robe = {"height_mm": 42.0, "tab_width_mm": 22.0}
     areas = [
         int(
             (
                 geo.build_layout(
-                    clean, rgb_like(clean), geo.Params(tab_overlap_mm=ov)
+                    clean, rgb_like(clean), params(tab_overlap_mm=ov, **robe)
                 ).cut
                 > 0
             ).sum()
@@ -228,15 +227,15 @@ def test_tab_overlap_only_matters_for_narrow_bottoms():
         for ov in (0, 3, 10)
     ]
     assert len(set(areas)) == 1
-    assert not geo.build_layout(clean, rgb_like(clean), geo.Params()).tab_overlap_used
+    lay = geo.build_layout(clean, rgb_like(clean), params(**robe))
+    assert not lay.tab_overlap_used
 
     # narrow 'leg': more overlap = more paper joining tab and figure
     m = np.zeros((1400, 1000), np.uint8)
     cv2.ellipse(m, (500, 500), (250, 350), 0, 0, 360, 255, -1)
     cv2.rectangle(m, (470, 800), (530, 1250), 255, -1)
     lays = [
-        geo.build_layout(m, rgb_like(m), geo.Params(tab_overlap_mm=ov))
-        for ov in (1, 3, 10)
+        geo.build_layout(m, rgb_like(m), params(tab_overlap_mm=ov)) for ov in (1, 3, 10)
     ]
     areas = [int((lay.cut > 0).sum()) for lay in lays]
     assert areas[0] < areas[1] < areas[2]
@@ -246,10 +245,10 @@ def test_tab_overlap_only_matters_for_narrow_bottoms():
         assert not np.any((lay.figure > 0) & (lay.cut == 0))
 
 
-def test_round_tab_is_a_half_disc():
-    clean = geo.clean_mask(ghost(), close_px=9)
+def test_round_tab_is_a_half_disc(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     lay = geo.build_layout(
-        clean, rgb_like(clean), geo.Params(tab_shape="round", tab_radius_mm=12.5)
+        clean, rgb_like(clean), params(tab_shape="round", tab_radius_mm=12.5)
     )
     pxmm = lay.px_per_mm
     ((fx0, fx1, fy),) = lay.folds
@@ -265,11 +264,11 @@ def test_round_tab_is_a_half_disc():
     assert not np.any((lay.figure > 0) & (lay.cut == 0))
 
 
-def test_tab_and_margin_colors():
-    clean = geo.clean_mask(ghost(), close_px=9)
+def test_tab_and_margin_colors(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     rgb = rgb_like(clean)
     lay = geo.build_layout(
-        clean, rgb, geo.Params(tab_color="#3b6e2a", margin_color="#f3e6c8")
+        clean, rgb, params(tab_color="#3b6e2a", margin_color="#f3e6c8")
     )
     ((_fx0, _fx1, fy),) = lay.folds
     below = lay.rgb[int(fy) + 3 :][lay.cut[int(fy) + 3 :] > 0]
@@ -279,20 +278,18 @@ def test_tab_and_margin_colors():
     assert (lay.rgb[margin] == (0xF3, 0xE6, 0xC8)).all()  # margin in the margin color
     # with the original image in the margin, the tab background is plain white
     lay = geo.build_layout(
-        clean, rgb, geo.Params(margin_fill="image", margin_color="#000000")
+        clean, rgb, params(margin_fill="image", margin_color="#000000")
     )
     ((_fx0, _fx1, fy),) = lay.folds
     assert (lay.rgb[int(fy) + 3 :][lay.cut[int(fy) + 3 :] > 0] == 255).all()
 
 
-def test_double_sided_blank_back_keeps_tab_color():
-    clean = geo.clean_mask(ghost(), close_px=9)
+def test_double_sided_blank_back_keeps_tab_color(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     lay = geo.build_layout(
         clean,
         rgb_like(clean),
-        geo.Params(
-            double_sided=True, back="blank", tab_shape="round", tab_color="#3b6e2a"
-        ),
+        params(double_sided=True, back="blank", tab_shape="round", tab_color="#3b6e2a"),
     )
     assert np.array_equal(lay.cut, lay.cut[::-1])
     green = (lay.rgb == (0x3B, 0x6E, 0x2A)).all(-1)
@@ -302,16 +299,16 @@ def test_double_sided_blank_back_keeps_tab_color():
     )  # both tabs colored
 
 
-def test_margin_color_does_not_color_the_label_tab():
+def test_margin_color_does_not_color_the_label_tab(params, mask_options):
     """Regression: the margin color used to show behind the tab label."""
-    clean = geo.clean_mask(ghost(), close_px=9)
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     rgb = rgb_like(clean)
     for tab_color, expected in (
         (None, (255, 255, 255)),
         ("#ddeeff", (0xDD, 0xEE, 0xFF)),
     ):
         kw = {"tab_color": tab_color} if tab_color else {}
-        lay = geo.build_layout(clean, rgb, geo.Params(margin_color="#f3e6c8", **kw))
+        lay = geo.build_layout(clean, rgb, params(margin_color="#f3e6c8", **kw))
         ((_fx0, _fx1, fy),) = lay.folds
         assert lay.labels  # the label is still printed on the tab
         tab = lay.rgb[int(fy) + 3 :][lay.cut[int(fy) + 3 :] > 0]
@@ -323,24 +320,24 @@ def test_margin_color_does_not_color_the_label_tab():
         ).all()  # margin keeps its own color
 
 
-def test_tab_joint_width_and_overlap():
+def test_tab_joint_width_and_overlap(params):
     """With fold and overlap at 0 a pointed bottom is joined to the tab by a sliver;
     the overlap widens that joint to the full tab."""
     m = np.zeros((1400, 1000), np.uint8)
     cv2.fillPoly(m, [np.array([[250, 300], [750, 300], [500, 1250]])], 255)
     rgb = rgb_like(m)
-    thin = geo.build_layout(m, rgb, geo.Params())
-    wide = geo.build_layout(m, rgb, geo.Params(tab_overlap_mm=3))
+    thin = geo.build_layout(m, rgb, params(tab_width_mm=22.0))
+    wide = geo.build_layout(m, rgb, params(tab_width_mm=22.0, tab_overlap_mm=3))
     assert thin.tab_joint_px / thin.px_per_mm < 8
     assert wide.tab_joint_px / wide.px_per_mm == pytest.approx(22, abs=0.5)
 
 
-def test_blank_back_has_its_own_color():
-    clean = geo.clean_mask(ghost(), close_px=9)
+def test_blank_back_has_its_own_color(params, mask_options):
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     lay = geo.build_layout(
         clean,
         rgb_like(clean),
-        geo.Params(
+        params(
             double_sided=True,
             back="blank",
             back_color="#202040",
@@ -398,14 +395,14 @@ def test_alpha_cutout_blends_into_the_margin():
 
 @pytest.mark.parametrize("simplify_mm", [0.01, 0.15])
 @pytest.mark.parametrize("double", [False, True])
-def test_round_tab_cut_line_is_a_true_circle(simplify_mm, double):
+def test_round_tab_cut_line_is_a_true_circle(simplify_mm, double, params, mask_options):
     """Regression: at a fine simplify setting the round tab traced the pixel staircase
     and came out lumpy (up to 0.2 mm off)."""
-    clean = geo.clean_mask(ghost(), close_px=9)
+    clean = geo.clean_mask(ghost(), mask_options(close_px=9))
     lay = geo.build_layout(
         clean,
         rgb_like(clean),
-        geo.Params(tab_shape="round", tab_radius_mm=12.5, double_sided=double),
+        params(tab_shape="round", tab_radius_mm=12.5, double_sided=double),
     )
     path = geo.trace_cut(lay.cut, lay.px_per_mm, simplify_mm, True, lay.tab_circles)
     pts = path.flatten(24)
