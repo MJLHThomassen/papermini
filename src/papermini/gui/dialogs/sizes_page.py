@@ -23,6 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from ...project import sizes
+from ...project.size_calculator import SizeCalculator
+from ...project.size_row import SizeRow
+from ...project.size_table import GRID_MM, MEDIUM_MM
 from .. import theme
 from ..fields.double_spin_box import DoubleSpinBox
 from ..preferences import Preferences
@@ -112,9 +115,16 @@ class SizesPage(QWidget):
     """Manage the size table presets, and pick the open project's table and the default
     for new projects. ``project_table()`` is the project's table after the changes."""
 
-    def __init__(self, prefs: Preferences, project_table: sizes.SizeTable, parent=None):
+    def __init__(
+        self,
+        prefs: Preferences,
+        size_calculator: SizeCalculator,
+        project_table: sizes.SizeTable,
+        parent=None,
+    ):
         super().__init__(parent)
         self._prefs = prefs
+        self._size_calculator = size_calculator
         self._project = project_table
         self._user = prefs.user_presets()
         self._default = prefs.default_preset_name()
@@ -178,7 +188,7 @@ class SizesPage(QWidget):
         top = QHBoxLayout()
         top.setSpacing(8)
         top.addWidget(QLabel("Grid square"))
-        self.grid = _spin(sizes.GRID_MM, 5, 200)
+        self.grid = _spin(GRID_MM, 5, 200)
         self.grid.setToolTip("The size of one square of your battle map's grid")
         self.grid.valueChanged.connect(self._sync_inch)
         top.addWidget(self.grid)
@@ -186,7 +196,7 @@ class SizesPage(QWidget):
         top.addWidget(self.inch)
         top.addSpacing(10)
         top.addWidget(QLabel("Medium height"))
-        self.medium = _spin(sizes.MEDIUM_MM, 5, 300)
+        self.medium = _spin(MEDIUM_MM, 5, 300)
         self.medium.setToolTip(
             "How tall a Medium figure is. The other sizes are calculated from it."
         )
@@ -210,14 +220,14 @@ class SizesPage(QWidget):
             g.addWidget(h, 0, c)
         self.spins = {}
         for r, s in enumerate(sizes.SIZES, start=1):
-            g.addWidget(QLabel(f"<b>{sizes.label(s)}</b>"), r, 0)
+            g.addWidget(QLabel(f"<b>{sizes.LABELS[s]}</b>"), r, 0)
             sq = sizes.SQUARES[s]
             squares = QLabel("½" if sq < 1 else f"{sq:g} × {sq:g}")
             squares.setObjectName("Muted")
             g.addWidget(squares, r, 1)
             for c, (key, text) in enumerate(COLUMNS, start=2):
                 w = _spin(1)
-                w.setAccessibleName(f"{sizes.label(s)} {text.lower()}")
+                w.setAccessibleName(f"{sizes.LABELS[s]} {text.lower()}")
                 g.addWidget(w, r, c)
                 self.spins[s, key] = w
         right.addLayout(g)
@@ -392,7 +402,7 @@ class SizesPage(QWidget):
     # -- editing
     def _shown(self, name: str) -> sizes.SizeTable:
         rows = {
-            s: sizes.SizeRow(*(round(self.spins[s, k].value(), 2) for k, _ in COLUMNS))
+            s: SizeRow(*(round(self.spins[s, k].value(), 2) for k, _ in COLUMNS))
             for s in sizes.SIZES
         }
         return sizes.SizeTable(
@@ -418,7 +428,7 @@ class SizesPage(QWidget):
 
     def calculate(self) -> None:
         """Every row of the selected table from the grid square and Medium height."""
-        table = sizes.calculate(self.grid.value(), self.medium.value())
+        table = self._size_calculator.calculate(self.grid.value(), self.medium.value())
         self._loading = True
         for s in sizes.SIZES:
             for k, _ in COLUMNS:

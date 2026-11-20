@@ -20,6 +20,7 @@ from ...pipeline.segmentation import segment
 from ...pipeline.token_options import min_ring_mm
 from ...project import sizes
 from ...project.figure_settings import FigureSettings
+from ...project.size_calculator import SizeCalculator
 from ...support import fonts
 from .. import theme
 from ..fields.field import Field
@@ -57,9 +58,12 @@ class FigurePanel(QScrollArea):
     applyToAll = Signal(object)  # the settings to copy (those of the shown step)
     exportPiece = Signal()  # the Miniature step's Export button (SVG or PNG)
 
-    def __init__(self, prefs: Preferences, parent=None):
+    def __init__(
+        self, prefs: Preferences, size_calculator: SizeCalculator, parent=None
+    ):
         super().__init__(parent)
         self._prefs = prefs
+        self._size_calculator = size_calculator
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
@@ -481,14 +485,16 @@ class FigurePanel(QScrollArea):
 
     def _sync_size_hint(self):
         size = self._value("size") or sizes.CUSTOM
-        text = sizes.footprint_text(size, self._size_table)
+        text = self._size_calculator.footprint_text(size, self._size_table)
         label = self._size_label
         self.size_hint.setText(f"{text} · {label}" if text and label else text)
         self.size_hint.setVisible(bool(text))
         warning = (
             ""
             if self.is_token()
-            else sizes.width_warning(size, self._figure_width or 0, self._size_table)
+            else self._size_calculator.width_warning(
+                size, self._figure_width or 0, self._size_table
+            )
         )
         self.size_warning.setText(warning)
         self.size_warning.setVisible(bool(warning))

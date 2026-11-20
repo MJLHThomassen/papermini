@@ -45,7 +45,8 @@ from ...project import sizes
 from ...project.figure_entry import FigureEntry
 from ...project.figure_settings import FigureSettings
 from ...project.project import Project
-from ...project.project_files import load_project, save_project
+from ...project.project_store import ProjectStore
+from ...project.size_calculator import SizeCalculator
 from ...support import fonts, log, remote
 from .. import errors, theme
 from ..dialogs.download_dialog import DownloadDialog
@@ -105,9 +106,16 @@ def _log_update(state: str, data) -> None:
 class MainWindow(QMainWindow):
     """The main window: the figure list, the live previews and the settings."""
 
-    def __init__(self, prefs: Preferences):
+    def __init__(
+        self,
+        prefs: Preferences,
+        project_store: ProjectStore,
+        size_calculator: SizeCalculator,
+    ):
         super().__init__()
         self._prefs = prefs
+        self._project_store = project_store
+        self._size_calculator = size_calculator
         self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = self._fresh_project()
@@ -201,7 +209,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self.panel = FigurePanel(self._prefs)
+        self.panel = FigurePanel(self._prefs, self._size_calculator)
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
         self.sheet_panel = SheetPanel(self._prefs)
@@ -832,7 +840,9 @@ class MainWindow(QMainWindow):
 
     def _new_settings(self, base: FigureSettings | None) -> FigureSettings:
         if base is None:  # Medium, from the project's size table
-            return sizes.apply(FigureSettings(), sizes.DEFAULT_SIZE, self.project.sizes)
+            return self._size_calculator.apply(
+                FigureSettings(), sizes.DEFAULT_SIZE, self.project.sizes
+            )
         return replace(base, label=None, crop=None, mask=None)
 
     def _fresh_project(self) -> Project:
@@ -1055,7 +1065,7 @@ class MainWindow(QMainWindow):
         s = replace(
             s, copies=old.copies
         )  # (the copies are set on the card, not the panel)
-        matched = sizes.reconcile(old, s, self.project.sizes)
+        matched = self._size_calculator.reconcile(old, s, self.project.sizes)
         if (
             matched != s
         ):  # a picked size filled in its values, or a hand edit made it custom
@@ -1723,7 +1733,7 @@ class MainWindow(QMainWindow):
             return
         QApplication.setOverrideCursor(Qt.WaitCursor)  # images from links may download
         try:
-            proj = load_project(path)
+            proj = self._project_store.load(path)
         except Exception as e:  # noqa: BLE001
             QApplication.restoreOverrideCursor()
             self._warn(f"Could not open {path}:\n{e}")
@@ -1834,7 +1844,7 @@ class MainWindow(QMainWindow):
             return self.save_as()
         self.project.figures = [f.entry for f in self.figures]
         try:
-            save_project(self.project, self.project.path)
+            self._project_store.save(self.project, self.project.path)
         except OSError as e:
             self._warn(str(e))
             return False
@@ -1907,6 +1917,7 @@ class MainWindow(QMainWindow):
         """Build the Preferences window at ``page``, connected to this window."""
         dlg = PreferencesDialog(
             self._prefs,
+            self._size_calculator,
             self.project.sizes,
             lambda: [f.entry.image for f in self.figures],
             page,
@@ -1932,7 +1943,7 @@ class MainWindow(QMainWindow):
             s = f.entry.settings
             if s.size == sizes.CUSTOM:
                 continue
-            new = sizes.apply(s, s.size, table)
+            new = self._size_calculator.apply(s, s.size, table)
             if new != s:
                 f.entry.settings = new
                 f.invalidate()

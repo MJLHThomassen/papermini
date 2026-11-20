@@ -46,13 +46,12 @@ def test_one_recent_project_is_read_back_as_a_list(prefs, settings_store, tmp_pa
     assert prefs.recent_projects() == [p]
 
 
-def test_opening_and_saving_count_as_recent(window, prefs, tmp_path):
+def test_opening_and_saving_count_as_recent(window, prefs, tmp_path, project_store):
     from papermini.project.project import Project
-    from papermini.project.project_files import save_project
 
     a = tmp_path / "D&D" / "a.yaml"
     a.parent.mkdir()
-    save_project(Project(path=a), a)
+    project_store.save(Project(path=a), a)
     window.load(a)
     assert prefs.recent_projects() == [a.resolve()]
     b = tmp_path / "b.yaml"

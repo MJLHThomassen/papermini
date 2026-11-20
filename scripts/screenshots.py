@@ -75,10 +75,14 @@ def main() -> None:
     from papermini.gui.window.main_window import MainWindow
     from papermini.pipeline.segmentation import segment
     from papermini.project.figure_settings import FigureSettings
+    from papermini.project.project_store import ProjectStore
     from papermini.project.settings import build_mini
+    from papermini.project.size_calculator import SizeCalculator
 
     args.out.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
+    size_calculator = SizeCalculator()
+    project_store = ProjectStore(size_calculator)
     ratio = float(args.scale)
 
     def settle(cond=lambda: True, timeout=600):
@@ -94,7 +98,7 @@ def main() -> None:
 
     def window(mode: str, size=(1360, 820)) -> MainWindow:
         theme.apply(app, mode)
-        w = MainWindow(Preferences())
+        w = MainWindow(Preferences(), project_store, size_calculator)
         w.setAttribute(Qt.WA_DontShowOnScreen)
         w.resize(*size)
         w.show()
@@ -327,16 +331,15 @@ def main() -> None:
         from papermini.gui.views.drawing import draw_sheet
         from papermini.output.sheet import cut_file_svg
         from papermini.project import sizes
-        from papermini.project.project_files import load_project
 
-        proj = load_project(args.project)
+        proj = project_store.load(args.project)
         sh = replace(proj.sheet, cut="machine")
 
         def smaller(s):  # one creature size down, so all three dragons fit on one page
             if s.size not in sizes.SIZES:
                 return s
             down = sizes.SIZES[max(sizes.SIZES.index(s.size) - 1, 0)]
-            return sizes.apply(s, down, proj.sizes)
+            return size_calculator.apply(s, down, proj.sizes)
 
         lay = sh.layout(
             [
@@ -455,7 +458,7 @@ def settings_images(mini, piece, bottom, compare, QRectF) -> None:
             (
                 sized(s),
                 None,
-                sizes.label(s),
+                sizes.LABELS[s],
                 f"{sizes.BUILTIN.row(s).height_mm:g} mm tall, {sizes.BUILTIN.row(s).base_mm:g} mm base",
             )
             for s in ("small", "medium", "large")

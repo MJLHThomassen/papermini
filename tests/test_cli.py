@@ -11,7 +11,6 @@ from papermini import cli
 from papermini.cli import main
 from papermini.output.svg import read_svg, write_svg
 from papermini.project.figure_settings import FigureSettings
-from papermini.project.project_files import load_project
 
 
 def test_batch_writes_the_minis_and_the_sheet(hero_figure, tmp_path):
@@ -330,7 +329,7 @@ def test_make_takes_the_number_options(goblin_figure, tmp_path):
     assert [t.text for t in read_svg(tmp_path / "goblin-3.svg").extra] == ["3", "3"]
 
 
-def test_batch_numbers_the_copies(goblin_figure, tmp_path):
+def test_batch_numbers_the_copies(goblin_figure, tmp_path, project_store):
     img, mask = goblin_figure
     proj = tmp_path / "minis.yaml"
     proj.write_text(
@@ -344,7 +343,7 @@ figures:
 """,
         encoding="utf-8",
     )
-    assert load_project(proj).figures[0].settings.copies == 4
+    assert project_store.load(proj).figures[0].settings.copies == 4
     assert main(["batch", str(proj)]) == 0
     assert sorted(p.name for p in (tmp_path / "out").glob("*.svg")) == [
         f"goblin-{i}.svg" for i in range(1, 5)

@@ -162,7 +162,23 @@ def wait(app):
 
 
 @pytest.fixture
-def new_window(prefs):
+def size_calculator():
+    """Returns the service that calculates size tables and figure sizes."""
+    from papermini.project.size_calculator import SizeCalculator
+
+    return SizeCalculator()
+
+
+@pytest.fixture
+def project_store(size_calculator):
+    """Returns the service that loads and saves project files."""
+    from papermini.project.project_store import ProjectStore
+
+    return ProjectStore(size_calculator)
+
+
+@pytest.fixture
+def new_window(prefs, project_store, size_calculator):
     """Returns ``new_window()``, which opens a main window with the ``prefs``
     preferences. The windows close after the test without asking to save."""
     from papermini.gui.window.main_window import MainWindow
@@ -170,7 +186,7 @@ def new_window(prefs):
     made = []
 
     def new_window():
-        made.append(MainWindow(prefs))
+        made.append(MainWindow(prefs, project_store, size_calculator))
         return made[-1]
 
     yield new_window
@@ -410,13 +426,13 @@ def transparent_figure():
 
 
 @pytest.fixture
-def build_token():
+def build_token(size_calculator):
     """Returns ``build_token(path, **settings)``, which builds a token of the
     picture at ``path``, cut out by the picture's transparency."""
-    from papermini.project.settings import build_mini, settings_with_size
+    from papermini.project.settings import build_mini
 
     def build_token(path, **kw):
-        s = settings_with_size(dict(kind="token", model="alpha", **kw))
+        s = size_calculator.settings_with_size(dict(kind="token", model="alpha", **kw))
         return build_mini(path, s, log=lambda *a: None)
 
     return build_token

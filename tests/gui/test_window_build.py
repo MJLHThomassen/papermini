@@ -19,7 +19,12 @@ pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
 def test_a_figure_builds_rebuilds_after_an_edit_and_saves(
-    app, tmp_path, new_window, wait, crop_view_marks
+    app,
+    tmp_path,
+    new_window,
+    wait,
+    crop_view_marks,
+    project_store,
 ):
     im = np.full((900, 700, 3), 255, np.uint8)
     cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
@@ -56,9 +61,8 @@ def test_a_figure_builds_rebuilds_after_an_edit_and_saves(
 
     w.project.path = Path(tmp_path / "proj.yaml")
     assert w.save()
-    from papermini.project.project_files import load_project
 
-    p = load_project(tmp_path / "proj.yaml")
+    p = project_store.load(tmp_path / "proj.yaml")
     assert p.figures[0].settings.height_mm == 30
     assert p.figures[0].settings.crop == [0.1, 0.1, 0.9, 0.9]
 

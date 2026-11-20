@@ -51,7 +51,7 @@ class FigureSettings:
         "Changing the height or a tab size by hand makes it Custom.",
         group=_SIZE,
         choices=sizes.SIZE_CHOICES,
-        choice_labels=tuple(sizes.label(s) for s in sizes.SIZE_CHOICES),
+        choice_labels=tuple(sizes.LABELS[s] for s in sizes.SIZE_CHOICES),
     ).field(sizes.DEFAULT_SIZE)
     height_mm: float | None = Option(
         label="Figure height",
@@ -641,9 +641,7 @@ class FigureSettings:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> FigureSettings:
-        from .settings import norm_keys
-
-        d = norm_keys(d)
+        d = Option.norm_keys(d)
         unknown = set(d) - FIGURE_OPTIONS
         if unknown:
             raise ValueError(f"unknown option(s) {', '.join(sorted(unknown))}")

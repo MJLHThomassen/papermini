@@ -28,10 +28,8 @@ def _names(w):
     return [f.entry.image.stem for f in w.figures]
 
 
-def _saved_names(path):
-    from papermini.project.project_files import load_project
-
-    return [f.image.stem for f in load_project(path).figures]
+def _saved_names(project_store, path):
+    return [f.image.stem for f in project_store.load(path).figures]
 
 
 @pytest.fixture
@@ -59,7 +57,11 @@ def three_figures(app, tmp_path, monkeypatch, new_window, wait):
 
 @pytest.mark.parametrize("button", ["Cancel", "Discard", "Save"])
 def test_a_new_project_asks_to_save_unsaved_changes(
-    three_figures, monkeypatch, button, unsaved
+    three_figures,
+    monkeypatch,
+    button,
+    unsaved,
+    project_store,
 ):
     from PySide6.QtWidgets import QMessageBox
 
@@ -73,7 +75,7 @@ def test_a_new_project_asks_to_save_unsaved_changes(
         assert _names(w) == [] and w.windowTitle().startswith("untitled —")
     assert path.exists() == (button == "Save")
     if button == "Save":
-        assert _saved_names(path) == ["a", "b", "c"]
+        assert _saved_names(project_store, path) == ["a", "b", "c"]
 
 
 def test_a_saved_project_does_not_ask(three_figures, monkeypatch):
@@ -122,7 +124,9 @@ def test_a_save_that_fails_warns_and_keeps_the_changes(
     assert len(warned) == 2 and _names(w) == ["a", "b", "c"]
 
 
-def test_save_as_asks_for_a_file(three_figures, monkeypatch, tmp_path, unsaved):
+def test_save_as_asks_for_a_file(
+    three_figures, monkeypatch, tmp_path, unsaved, project_store
+):
     from papermini.gui.window import main_window
 
     w = three_figures
@@ -138,10 +142,10 @@ def test_save_as_asks_for_a_file(three_figures, monkeypatch, tmp_path, unsaved):
     chosen[0] = str(tmp_path / "picked.yaml")
     assert w.save()
     assert w.windowTitle().startswith("picked.yaml —")
-    assert _saved_names(tmp_path / "picked.yaml") == ["a", "b", "c"]
+    assert _saved_names(project_store, tmp_path / "picked.yaml") == ["a", "b", "c"]
 
 
-def test_moving_a_figure_changes_the_saved_order(three_figures, unsaved):
+def test_moving_a_figure_changes_the_saved_order(three_figures, unsaved, project_store):
     from PySide6.QtCore import QModelIndex
 
     w = three_figures
@@ -149,7 +153,7 @@ def test_moving_a_figure_changes_the_saved_order(three_figures, unsaved):
     assert w.list.model().moveRow(QModelIndex(), 2, QModelIndex(), 0)  # c to the top
     assert _names(w) == ["c", "a", "b"] and unsaved(w)
     assert w.save()
-    assert _saved_names(w.project.path) == ["c", "a", "b"]
+    assert _saved_names(project_store, w.project.path) == ["c", "a", "b"]
 
 
 def test_opening_a_project_asks_to_save_unsaved_changes(three_figures, monkeypatch):

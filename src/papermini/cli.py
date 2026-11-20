@@ -5,19 +5,22 @@ from __future__ import annotations
 import argparse
 import glob
 import sys
+from functools import partial
 from pathlib import Path
 
 from . import __version__
 from .output.png import PX_PER_SQUARE
 from .pipeline.segmentation.model_error import ModelError
-from .project import sizes
 from .project.figure_entry import safe_name
 from .project.figure_settings import FIGURE_OPTIONS, FigureSettings
 from .project.option_flags import OptionFlags
 from .project.project import Project
-from .project.project_files import load_project
-from .project.settings import build_mini, settings_with_size
+from .project.project_store import ProjectStore
+from .project.settings import build_mini
 from .project.sheet_settings import SheetSettings
+from .project.size_calculator import SizeCalculator
+from .project.size_table import GRID_MM, SizeTable
+from .project.sizes import BUILTIN
 from .support import fonts, remote
 
 DS = SheetSettings()
@@ -32,7 +35,7 @@ def add_figure_args(flags: OptionFlags) -> None:
         type=float,
         help=flags.with_default(
             "grid square for --size: the bases and heights scale with it",
-            sizes.GRID_MM,
+            GRID_MM,
             "mm",
         ),
     )
@@ -114,7 +117,7 @@ def add_figure_args(flags: OptionFlags) -> None:
 # region commands
 
 
-def cmd_make(a: argparse.Namespace) -> int:
+def cmd_make(a: argparse.Namespace, size_calculator: SizeCalculator) -> int:
     from .output.png import px_per_mm, write_pngs
     from .output.svg import write_svgs
 
@@ -148,8 +151,8 @@ def cmd_make(a: argparse.Namespace) -> int:
             raise SystemExit(f"{flag} must be above 0")
     if a.grid_mm is not None and a.grid_mm <= 0:
         raise SystemExit("--grid-mm must be above 0")
-    table = sizes.for_grid(a.grid_mm) if a.grid_mm else sizes.BUILTIN
-    s = settings_with_size(
+    table = size_calculator.for_grid(a.grid_mm) if a.grid_mm else BUILTIN
+    s = size_calculator.settings_with_size(
         {k: v for k, v in vars(a).items() if k in FIGURE_OPTIONS and v is not None},
         table,
     )
@@ -183,7 +186,7 @@ def cmd_make(a: argparse.Namespace) -> int:
             outs += write_pngs(m, stem.with_suffix(".png"), scale, a.copies)
         for out in outs:
             print(f"  -> {out}")
-        _warn_width(img.name, s, m, table)
+        _warn_width(img.name, s, m, table, size_calculator)
     return 0
 
 
@@ -251,19 +254,25 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
     return 0
 
 
-def _warn_width(name: str, s: FigureSettings, m, table: sizes.SizeTable) -> None:
+def _warn_width(
+    name: str, s: FigureSettings, m, table: SizeTable, size_calculator: SizeCalculator
+) -> None:
     """Say so when a mini is wider than its creature size's squares."""
     warning = (
         ""
         if s.kind == "token"
-        else sizes.width_warning(s.size, m.figure_width_mm, table)
+        else size_calculator.width_warning(s.size, m.figure_width_mm, table)
     )
     if warning:
         print(f"  ! {name}: {warning}", file=sys.stderr)
 
 
 def run_project(
-    proj: Project, debug: bool = False, preview: bool = False, use_cache: bool = True
+    proj: Project,
+    size_calculator: SizeCalculator,
+    debug: bool = False,
+    preview: bool = False,
+    use_cache: bool = True,
 ) -> int:
     from .output.svg import write_svgs
 
@@ -282,15 +291,25 @@ def run_project(
         )
         for out in write_svgs(m, out_dir / f.svg_name(), f.settings.copies):
             print(f"  -> {out}")
-        _warn_width(f.image.name, f.settings, m, proj.sizes)
+        _warn_width(f.image.name, f.settings, m, proj.sizes, size_calculator)
         minis.append((m, f.settings.copies))
     if sh.enabled:
         write_sheet(minis, proj.sheet_path, sh, preview or sh.preview)
     return 0
 
 
-def cmd_batch(a: argparse.Namespace) -> int:
-    return run_project(load_project(Path(a.config)), a.debug, a.preview, not a.no_cache)
+def cmd_batch(
+    a: argparse.Namespace,
+    project_store: ProjectStore,
+    size_calculator: SizeCalculator,
+) -> int:
+    return run_project(
+        project_store.load(Path(a.config)),
+        size_calculator,
+        a.debug,
+        a.preview,
+        not a.no_cache,
+    )
 
 
 def cmd_gui(a: argparse.Namespace) -> int:
@@ -321,7 +340,9 @@ def _expand(patterns: list[str]) -> list[str]:
     return out
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(
+    size_calculator: SizeCalculator, project_store: ProjectStore
+) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="papermini",
         description="Turn illustrations into print-ready paper miniatures. "
@@ -397,7 +418,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     add_figure_args(flags)
-    mk.set_defaults(func=cmd_make)
+    mk.set_defaults(func=partial(cmd_make, size_calculator=size_calculator))
 
     sh = sub.add_parser("sheet", help="papermini SVGs -> printable PDF sheet")
     flags = OptionFlags(sh, SheetSettings, given_only={"paper"})
@@ -443,7 +464,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=flags.with_default("do not reuse cached model masks", False),
     )
-    bt.set_defaults(func=cmd_batch)
+    bt.set_defaults(
+        func=partial(
+            cmd_batch, project_store=project_store, size_calculator=size_calculator
+        )
+    )
 
     gu = sub.add_parser(
         "gui", help="open the desktop app (also what papermini does without a command)"
@@ -471,7 +496,9 @@ def route(argv: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    a = build_parser().parse_args(route(sys.argv[1:] if argv is None else argv))
+    size_calculator = SizeCalculator()
+    parser = build_parser(size_calculator, ProjectStore(size_calculator))
+    a = parser.parse_args(route(sys.argv[1:] if argv is None else argv))
     try:
         return a.func(a)
     except (ValueError, FileNotFoundError, ModelError) as e:

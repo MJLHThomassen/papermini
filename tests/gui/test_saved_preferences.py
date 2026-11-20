@@ -2,7 +2,6 @@
 what users saved before is read back. Off-screen, no model."""
 
 import json
-from dataclasses import replace
 
 import pytest
 
@@ -10,9 +9,9 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QByteArray
 
-from papermini.project import sizes
+from papermini.project.size_table import SizeTable
 
-CLUB = replace(sizes.calculate(30), name="Club")
+CLUB = SizeTable(grid_mm=30.0, name="Club")
 
 # (preference, its key, its default, a value, the value as stored)
 SAVED = [

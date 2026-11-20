@@ -21,10 +21,10 @@ class SizeTable:
     name: str = ""
 
     def __post_init__(self):
-        from .sizes import SIZES, calculate_row
+        from .sizes import SIZES
 
         missing = {
-            s: calculate_row(s, self.grid_mm, self.medium_mm)
+            s: SizeRow.calculated(s, self.grid_mm, self.medium_mm)
             for s in SIZES
             if s not in self.rows
         }
@@ -44,10 +44,10 @@ class SizeTable:
 
     def calculated(self) -> bool:
         """Whether every row is what the grid and Medium's height give."""
-        from .sizes import SIZES, calculate_row
+        from .sizes import SIZES
 
         return all(
-            self.rows[s] == calculate_row(s, self.grid_mm, self.medium_mm)
+            self.rows[s] == SizeRow.calculated(s, self.grid_mm, self.medium_mm)
             for s in SIZES
         )
 
@@ -70,7 +70,7 @@ class SizeTable:
     def from_dict(cls, d: dict[str, Any] | None) -> SizeTable:
         """A table from a project (``None``: the built-in one). Sizes left out are
         calculated from the grid and Medium's height."""
-        from .sizes import BUILTIN, SIZES, calculate_row
+        from .sizes import BUILTIN, SIZES
 
         if not d:
             return BUILTIN
@@ -103,7 +103,7 @@ class SizeTable:
                     f"unknown sizes {s} entr{'y' if len(unknown) == 1 else 'ies'} "
                     f"{', '.join(sorted(unknown))}"
                 )
-            calc = calculate_row(s, grid, medium)
+            calc = SizeRow.calculated(s, grid, medium)
             rows[s] = SizeRow(
                 *(
                     _positive(r.get(k, getattr(calc, k)), f"sizes {s} {k}")

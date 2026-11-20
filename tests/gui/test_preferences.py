@@ -35,10 +35,10 @@ def _answer(monkeypatch, name):
     )
 
 
-def test_presets_in_the_preferences(prefs, settings_store):
+def test_presets_in_the_preferences(prefs, settings_store, size_calculator):
     assert prefs.presets() == [sizes.BUILTIN]
     assert prefs.default_table() == sizes.BUILTIN
-    mine = replace(sizes.calculate(30), name="Mine")
+    mine = replace(size_calculator.calculate(30), name="Mine")
     prefs.save_user_presets([mine])
     prefs.set_default_preset_name("Mine")
     assert prefs.presets() == [sizes.BUILTIN, mine]
@@ -46,7 +46,7 @@ def test_presets_in_the_preferences(prefs, settings_store):
     assert prefs.preset_of(mine) == "Mine"
     assert prefs.preset_of(replace(mine, medium_mm=40)) == ""  # changed since
     assert prefs.table_label(mine) == "Mine"
-    assert prefs.table_label(sizes.calculate(28)) == "this project's table"
+    assert prefs.table_label(size_calculator.calculate(28)) == "this project's table"
     # entries that cannot be read, or would hide the built-in one, are left out
     good = mine.to_dict()
     settings_store.setValue(
@@ -66,10 +66,10 @@ def test_presets_in_the_preferences(prefs, settings_store):
     assert prefs.user_presets() == [] and prefs.default_table() == sizes.BUILTIN
 
 
-def test_the_builtin_preset_is_read_only(prefs):
+def test_the_builtin_preset_is_read_only(prefs, size_calculator):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(prefs, sizes.BUILTIN)
+    page = SizesPage(prefs, size_calculator, sizes.BUILTIN)
     assert _names(page) == [
         (
             "Standard 1-inch",
@@ -87,10 +87,12 @@ def test_the_builtin_preset_is_read_only(prefs):
     assert page.project_table() == sizes.BUILTIN
 
 
-def test_own_presets_copy_rename_use_default_edit_delete(prefs, monkeypatch):
+def test_own_presets_copy_rename_use_default_edit_delete(
+    prefs, monkeypatch, size_calculator
+):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(prefs, sizes.BUILTIN)
+    page = SizesPage(prefs, size_calculator, sizes.BUILTIN)
     page.copy_preset()
     assert _names(page)[1] == ("Standard 1-inch copy", "")
     page.grid.setValue(30)
@@ -142,12 +144,12 @@ def test_own_presets_copy_rename_use_default_edit_delete(prefs, monkeypatch):
     assert "not on this computer" in page.status.text()
 
 
-def test_a_project_table_that_matches_no_preset(prefs, monkeypatch):
+def test_a_project_table_that_matches_no_preset(prefs, monkeypatch, size_calculator):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    prefs.save_user_presets([replace(sizes.calculate(30), name="Club")])
-    changed = replace(sizes.calculate(28), name="Club")  # Club, changed since
-    page = SizesPage(prefs, changed)
+    prefs.save_user_presets([replace(size_calculator.calculate(30), name="Club")])
+    changed = replace(size_calculator.calculate(28), name="Club")  # Club, changed since
+    page = SizesPage(prefs, size_calculator, changed)
     assert _names(page)[-1] == (
         "This project's table",
         "Not a preset · Used in this project",
@@ -171,7 +173,12 @@ def test_a_project_table_that_matches_no_preset(prefs, monkeypatch):
 
 
 def test_closing_preferences_gives_the_project_its_table(
-    window, prefs, tmp_path, monkeypatch, figure_image
+    window,
+    prefs,
+    tmp_path,
+    monkeypatch,
+    figure_image,
+    size_calculator,
 ):
     from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
 
@@ -184,11 +191,11 @@ def test_closing_preferences_gives_the_project_its_table(
         ]
     )
     big, small, own = w.figures
-    big.entry.settings = sizes.apply(big.entry.settings, "large")
+    big.entry.settings = size_calculator.apply(big.entry.settings, "large")
     own.entry.settings = replace(own.entry.settings, size="custom", height_mm=40)
     w.project.path = tmp_path / "project.yaml"
     assert w.save()  # no unsaved changes
-    mine = replace(sizes.calculate(30, 40), name="Mine")
+    mine = replace(size_calculator.calculate(30, 40), name="Mine")
     prefs.save_user_presets([mine])
 
     def pick(dlg):
@@ -209,8 +216,8 @@ def test_closing_preferences_gives_the_project_its_table(
     assert w.panel.size_hint.text() == "2 × 2 squares · 59.06 mm base · Mine"
 
 
-def test_a_new_project_starts_with_the_default_preset(window, prefs):
-    mine = replace(sizes.calculate(30), name="Mine")
+def test_a_new_project_starts_with_the_default_preset(window, prefs, size_calculator):
+    mine = replace(size_calculator.calculate(30), name="Mine")
     prefs.save_user_presets([mine])
     prefs.set_default_preset_name("Mine")
     window.new_project()
@@ -245,11 +252,11 @@ def test_picking_a_size_fills_in_and_an_edit_makes_it_custom(
     assert combo.currentData() == "custom" and w.panel.size_hint.isHidden()
 
 
-def test_the_width_warning(window, tmp_path, figure_image):
+def test_the_width_warning(window, tmp_path, figure_image, size_calculator):
     w = window
     w.add_images(
         [figure_image(tmp_path / "a.png", (200, 300), mask=False)[0]],
-        sizes.apply(FigureSettings(), "large"),
+        size_calculator.apply(FigureSettings(), "large"),
     )
     w.panel.set_figure_width(96)
     assert not w.panel.size_warning.isHidden()
@@ -286,7 +293,7 @@ def test_the_other_pages(window, prefs):
     dlg.close()
 
 
-def test_a_sizes_page_is_freed(prefs):
+def test_a_sizes_page_is_freed(prefs, size_calculator):
     """Regression: a lambda connected to the preset list kept every page alive until
     Python quit, after the QApplication was gone, and Python crashed on exit."""
     import gc
@@ -294,7 +301,7 @@ def test_a_sizes_page_is_freed(prefs):
 
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(prefs, sizes.BUILTIN)
+    page = SizesPage(prefs, size_calculator, sizes.BUILTIN)
     page.copy_preset()  # (the list is filled again)
     ref = weakref.ref(page)
     del page
