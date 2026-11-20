@@ -14,6 +14,7 @@ from ..support import cache, fonts
 from . import adjust as adj_mod
 from . import geometry as geo
 from .figure_mask import FigureMask
+from .mask_options import MaskOptions
 from .segmentation.segment import (
     DEFAULT_MODEL,
     check_cancel,
@@ -278,14 +279,8 @@ def fit_text_block(
 
 def figure_mask(
     image_path: Path,
+    mask_options: MaskOptions,
     *,
-    threshold: int = 40,
-    close_px: int | None = None,
-    keep_all: bool = False,
-    min_area: int = 1000,
-    crop=None,
-    model: str = "auto",
-    mask_path: Path | None = None,
     use_cache: bool = True,
     debug: bool = False,
     log=print,
@@ -302,7 +297,8 @@ def figure_mask(
         fkey, lambda: _load_for_pipeline(image_path)
     )
     W, H = im.size
-    box = parse_crop(crop, W, H)
+    box = parse_crop(mask_options.crop, W, H)
+    model, mask_path = mask_options.model, mask_options.mask_path
 
     # 1. raw mask - cached per image, mask source and crop (the AI model also on disk)
     if mask_path is not None:
@@ -340,23 +336,26 @@ def figure_mask(
     check_cancel()
 
     # 2. clean-up
-    clean_key = (raw_key, threshold, close_px, keep_all, min_area if keep_all else None)
+    clean_key = (
+        raw_key,
+        mask_options.threshold,
+        mask_options.close_px,
+        mask_options.keep_all,
+        mask_options.min_area if mask_options.keep_all else None,
+    )
     if debug:
         stages: dict[str, np.ndarray] | None = {"0_raw": raw}
-        clean = geo.clean_mask(raw, threshold, close_px, keep_all, min_area, stages)
+        clean = geo.clean_mask(raw, mask_options, stages)
     else:
         stages = None
         clean = cache.clean_masks.get_or_make(
-            clean_key,
-            lambda: _frozen(
-                geo.clean_mask(raw, threshold, close_px, keep_all, min_area)
-            ),
+            clean_key, lambda: _frozen(geo.clean_mask(raw, mask_options))
         )
 
     close_used = (
         geo.default_close_px(raw.shape[1], raw.shape[0])
-        if close_px is None
-        else close_px
+        if mask_options.close_px is None
+        else mask_options.close_px
     )
     contours = geo.outline(clean)
     stage("outline", (contours, close_used))
@@ -366,24 +365,19 @@ def figure_mask(
 def make_mini(
     image_path: Path,
     prm: geo.Params,
+    mask_options: MaskOptions,
     *,
-    label: str | None = None,
-    back_text: str | None = None,
-    tab_front: str = "label",
-    tab_back: str = "label",
-    threshold: int = 40,
-    close_px: int | None = None,
-    min_area: int = 1000,
-    crop=None,
-    model: str = "auto",
-    mask_path: Path | None = None,
-    dpi: int = 300,
-    simplify_mm: float = 0.15,
-    smooth_path: bool = True,
-    bleed_mm: float = 0.0,
-    adjust: adj_mod.Adjustments | None = None,
+    label: str | None,
+    back_text: str | None,
+    tab_front: str,
+    tab_back: str,
+    dpi: int,
+    simplify_mm: float,
+    smooth_path: bool,
+    bleed_mm: float,
+    adjust: adj_mod.Adjustments,
+    style: Style,
     use_cache: bool = True,
-    style: Style | None = None,
     debug_dir: Path | None = None,
     log=print,
     on_stage=None,
@@ -392,16 +386,10 @@ def make_mini(
     ``("segment", model)`` just before a model runs (it may take a while) and
     ``("outline", (contours, close_px))`` once the figure is found, before the layout."""
     image_path = Path(image_path)
-    style = check_font(style or Style(), image_path.name, log)
+    style = check_font(style, image_path.name, log)
     fm = figure_mask(
         image_path,
-        threshold=threshold,
-        close_px=close_px,
-        keep_all=prm.keep_all,
-        min_area=min_area,
-        crop=crop,
-        model=model,
-        mask_path=mask_path,
+        mask_options,
         use_cache=use_cache,
         debug=bool(debug_dir),
         log=log,
@@ -429,13 +417,12 @@ def make_mini(
 
     # 2c. color adjustments of the picture, at the working size (cheap there); the mask
     # and outline above never see them, so a slider never runs the model again
-    adj = adjust or adj_mod.Adjustments()
-    if not adj.is_identity():
+    if not adjust.is_identity():
         rgb = (
-            _frozen(adj_mod.apply(rgb, adj))
+            _frozen(adj_mod.apply(rgb, adjust))
             if debug_dir
             else cache.adjusted.get_or_make(
-                (work_key, adj), lambda: _frozen(adj_mod.apply(rgb, adj))
+                (work_key, adjust), lambda: _frozen(adj_mod.apply(rgb, adjust))
             )
         )
 
@@ -449,7 +436,7 @@ def make_mini(
 
     layout_key = (
         work_key,
-        adj,
+        adjust,
         tuple(sorted(asdict(prm).items())),
         simplify_mm,
         smooth_path,
@@ -533,11 +520,7 @@ def make_mini(
                 off = ((len(lines) - 1) / 2 - i) * pitch
                 mini.texts.append((line, bcx, bcy + off, 180.0, size))
 
-    if (
-        prm.tab
-        and not lay.tab_overlap_used
-        and prm.tab_overlap_mm != geo.Params().tab_overlap_mm
-    ):
+    if prm.tab and not lay.tab_overlap_used and prm.tab_overlap_mm:
         log(
             f"  {image_path.name}: note: the tab overlap has no effect here - the figure's "
             "bottom is wider than the tab (it only matters for narrow feet or tails)"

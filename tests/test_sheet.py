@@ -15,8 +15,6 @@ from papermini.output.sheet import (
     write_previews,
 )
 from papermini.output.svg import read_svg, write_svg
-from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import make_mini
 from papermini.project.figure_settings import FigureSettings
 from papermini.project.settings import build_mini
 
@@ -106,10 +104,10 @@ def test_marks_and_cut_files_follow_the_page(tmp_path, square_mini, media_box_mm
 
 
 def test_pack_keeps_the_pieces_inside_the_margins_without_overlap(
-    hero_figure, tmp_path
+    hero_figure, tmp_path, pipeline_mini, params, mask_options
 ):
     img, mask = hero_figure
-    m = make_mini(img, geo.Params(height_mm=60), mask_path=mask, log=lambda *_: None)
+    m = pipeline_mini(img, params(height_mm=60), mask_options(mask_path=mask))
     lay = pack([(m, 9)], "a4")
     assert len(lay.placements) == 9
     for p in lay.placements:
@@ -126,9 +124,11 @@ def test_pack_keeps_the_pieces_inside_the_margins_without_overlap(
     assert out.read_bytes()[:5] == b"%PDF-"
 
 
-def test_pack_refuses_a_figure_too_big_for_the_paper(hero_figure):
+def test_pack_refuses_a_figure_too_big_for_the_paper(
+    hero_figure, pipeline_mini, params, mask_options
+):
     img, mask = hero_figure
-    m = make_mini(img, geo.Params(height_mm=300), mask_path=mask, log=lambda *_: None)
+    m = pipeline_mini(img, params(height_mm=300), mask_options(mask_path=mask))
     with pytest.raises(ValueError, match="does not fit"):
         pack([(m, 1)], "a4")
 

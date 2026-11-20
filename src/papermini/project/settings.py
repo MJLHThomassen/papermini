@@ -48,22 +48,13 @@ def build_mini(
 ) -> Mini:
     """Build one figure. ``bleed_mm``: print the edge colors this far beyond the cut
     line (a sheet cut by machine, see ``SheetSettings.figure_bleed``)."""
-    # model "mask" = your own mask image; "auto" also uses a mask image if one is given
-    use_mask = s.model == "mask" or (s.model == "auto" and bool(s.mask))
-    if s.model == "mask" and not s.mask:
-        raise ValueError("model 'mask' needs a mask image file - choose one")
+    mask_options = s.mask_options()
     if s.kind == "token":
         return tok.make_token(
             Path(image),
             s.token_options(),
+            mask_options,
             label=s.label,
-            threshold=s.strength,
-            close_px=s.fill_gaps,
-            keep_all=s.keep_all,
-            min_area=s.min_area,
-            crop=s.crop,
-            model="auto" if s.model == "mask" else s.model,
-            mask_path=Path(s.mask) if use_mask else None,
             dpi=s.dpi,
             bleed_mm=bleed_mm,
             adjust=s.adjustments(),
@@ -75,16 +66,11 @@ def build_mini(
     return make_mini(
         Path(image),
         s.params(),
+        mask_options,
         label=s.label,
         back_text=s.back_text,
         tab_front=s.tab_front,
         tab_back=s.tab_back,
-        threshold=s.strength,
-        close_px=s.fill_gaps,
-        min_area=s.min_area,
-        crop=s.crop,
-        model="auto" if s.model == "mask" else s.model,
-        mask_path=Path(s.mask) if use_mask else None,
         dpi=s.dpi,
         simplify_mm=s.simplify_mm,
         smooth_path=not s.no_smooth,

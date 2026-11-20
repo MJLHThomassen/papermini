@@ -11,6 +11,7 @@ import numpy as np
 
 from .cut_path import CutPath
 from .layout import Layout
+from .mask_options import MaskOptions
 from .params import Params
 
 
@@ -165,18 +166,18 @@ def default_close_px(width: int, height: int) -> int:
 
 def clean_mask(
     raw: np.ndarray,
-    threshold: int = 40,
-    close_px: int | None = None,
-    keep_all: bool = False,
-    min_area: int = 1000,
+    mask_options: MaskOptions,
     stages: dict[str, np.ndarray] | None = None,
 ) -> np.ndarray:
     """Threshold, close, fill holes and drop specks. Returns a 0/255 mask."""
     h, w = raw.shape
-    if close_px is None:
-        close_px = default_close_px(w, h)
+    close_px = (
+        default_close_px(w, h)
+        if mask_options.close_px is None
+        else mask_options.close_px
+    )
     p = close_px + 2  # pad so closing/flood fill behave at the image border
-    m = np.pad(((raw > threshold) * 255).astype(np.uint8), p)
+    m = np.pad(((raw > mask_options.threshold) * 255).astype(np.uint8), p)
     if stages is not None:
         stages["1_threshold"] = m[p:-p, p:-p]
     if close_px > 0:
@@ -186,7 +187,11 @@ def clean_mask(
     m = fill_holes(m)
     if stages is not None:
         stages["3_filled"] = m[p:-p, p:-p]
-    m = filter_components(m, min_area) if keep_all else largest_component(m)
+    m = (
+        filter_components(m, mask_options.min_area)
+        if mask_options.keep_all
+        else largest_component(m)
+    )
     m = m[p:-p, p:-p]
     if stages is not None:
         stages["4_clean"] = m

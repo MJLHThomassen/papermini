@@ -13,7 +13,6 @@ from papermini.pipeline.mini import (
     NUMBER_PLACEHOLDER,
     figure_mask,
     fit_label_size,
-    make_mini,
 )
 from papermini.pipeline.segmentation import segment
 from papermini.pipeline.style import Style
@@ -30,34 +29,33 @@ def _dark_rows_mm(mini):
 
 
 @pytest.mark.parametrize("height", [30.0, 42.0])
-def test_the_figure_prints_at_the_height_asked_for(hero_figure, height):
+def test_the_figure_prints_at_the_height_asked_for(
+    hero_figure, height, pipeline_mini, params, mask_options
+):
     img, mask = hero_figure
-    m = make_mini(
-        img, geo.Params(height_mm=height), mask_path=mask, log=lambda *_: None
-    )
+    m = pipeline_mini(img, params(height_mm=height), mask_options(mask_path=mask))
     assert _dark_rows_mm(m) == pytest.approx(height, abs=0.5)
 
 
-def test_alpha_png_needs_no_model(tmp_path):
+def test_alpha_png_needs_no_model(tmp_path, pipeline_mini, params):
     a = np.zeros((600, 400, 4), np.uint8)
     cv2.circle(a, (200, 300), 150, (90, 60, 30, 255), -1)
     Image.fromarray(a, "RGBA").save(tmp_path / "cut.png")
-    m = make_mini(
-        tmp_path / "cut.png", geo.Params(height_mm=20, tab=False), log=lambda *_: None
-    )
+    m = pipeline_mini(tmp_path / "cut.png", params(height_mm=20, tab=False))
     assert _dark_rows_mm(m) == pytest.approx(20, abs=0.5)
 
 
-def test_the_back_text_is_upside_down_and_defaults_to_the_label(hero_figure, tmp_path):
+def test_the_back_text_is_upside_down_and_defaults_to_the_label(
+    hero_figure, tmp_path, pipeline_mini, params, mask_options
+):
     img, mask = hero_figure
-    prm = geo.Params(double_sided=True, back="text")
-    m = make_mini(
+    prm = params(double_sided=True, back="text")
+    m = pipeline_mini(
         img,
         prm,
-        mask_path=mask,
+        mask_options(mask_path=mask),
         label="Hero",
         back_text="Hero of the Crypt",
-        log=lambda *_: None,
     )
     assert m.texts and all(rot == 180 for _, _, _, rot, _ in m.texts)
     assert (
@@ -70,7 +68,7 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(hero_figure, tmp
     for _, cx, cy, _, size in m.texts:
         assert 0 < cx < m.width_mm and 0 < cy < m.height_mm / 2 and size > 1
     # default text is the label; round-trips through the SVG
-    m2 = make_mini(img, prm, mask_path=mask, label="Hero", log=lambda *_: None)
+    m2 = pipeline_mini(img, prm, mask_options(mask_path=mask), label="Hero")
     assert [t for t, *_ in m2.texts] == ["Hero"]
     r = read_svg(write_svg(m, tmp_path / "hero.svg"))
     assert [
@@ -170,11 +168,13 @@ def _dark_cols_mm(mini):
     return (cols.max() - cols.min() + 1) * mini.width_mm / a.shape[1]
 
 
-def test_width_alone_keeps_the_proportions_and_both_stretch(hero_figure):
+def test_width_alone_keeps_the_proportions_and_both_stretch(
+    hero_figure, pipeline_mini, params, mask_options
+):
     """Height alone or width alone keep the proportions; both stretch the figure sideways."""
     img, mask = hero_figure
-    quiet = {"mask_path": mask, "log": lambda *_: None}
-    by_h = make_mini(img, geo.Params(height_mm=42.0), **quiet)
+    by_mask = mask_options(mask_path=mask)
+    by_h = pipeline_mini(img, params(height_mm=42.0), by_mask)
     ratio = by_h.figure_width_mm / by_h.figure_height_mm
     assert (
         by_h.aspect
@@ -183,12 +183,12 @@ def test_width_alone_keeps_the_proportions_and_both_stretch(hero_figure):
     )
     assert _dark_cols_mm(by_h) == pytest.approx(42.0 * 301 / 720, abs=0.5)
 
-    by_w = make_mini(img, geo.Params(height_mm=None, width_mm=20.0), **quiet)
+    by_w = pipeline_mini(img, params(height_mm=None, width_mm=20.0), by_mask)
     assert _dark_cols_mm(by_w) == pytest.approx(20.0, abs=0.5)
     assert _dark_rows_mm(by_w) == pytest.approx(20.0 * 720 / 301, abs=0.5)
     assert by_w.figure_width_mm == pytest.approx(20.0)
 
-    both = make_mini(img, geo.Params(height_mm=42.0, width_mm=30.0), **quiet)
+    both = pipeline_mini(img, params(height_mm=42.0, width_mm=30.0), by_mask)
     assert _dark_rows_mm(both) == pytest.approx(42.0, abs=0.5)
     assert _dark_cols_mm(both) == pytest.approx(30.0, abs=0.5)
     assert both.aspect == pytest.approx(by_h.aspect)  # the image's own proportions
@@ -197,10 +197,12 @@ def test_width_alone_keeps_the_proportions_and_both_stretch(hero_figure):
     assert 250 - 40 < x0 < 250 and 550 < x1 < 550 + 40
 
 
-def test_source_outline_is_the_detected_figure(hero_figure):
+def test_source_outline_is_the_detected_figure(
+    hero_figure, pipeline_mini, params, mask_options
+):
     """The outline is what background removal found, without margin or tab."""
     img, mask = hero_figure
-    m = make_mini(img, geo.Params(margin_mm=5.0), mask_path=mask, log=lambda *_: None)
+    m = pipeline_mini(img, params(margin_mm=5.0), mask_options(mask_path=mask))
     pts = np.vstack(m.source_outline)
     assert pts[:, 0].min() == pytest.approx(250, abs=2) and pts[
         :, 0
@@ -210,14 +212,14 @@ def test_source_outline_is_the_detected_figure(hero_figure):
     ].max() == pytest.approx(900, abs=2)
 
 
-def test_on_stage_reports_the_outline_before_the_layout(hero_figure):
+def test_on_stage_reports_the_outline_before_the_layout(
+    hero_figure, pipeline_mini, mask_options
+):
     img, mask = hero_figure
     seen = []
-    make_mini(
+    pipeline_mini(
         img,
-        geo.Params(),
-        mask_path=mask,
-        log=lambda *_: None,
+        mask=mask_options(mask_path=mask),
         use_cache=False,
         on_stage=lambda name, data: seen.append(name),
     )
@@ -240,7 +242,9 @@ def _two_figures(tmp_path, alpha=False):
 
 
 @pytest.mark.parametrize("source", ["mask", "alpha", "model"])
-def test_a_crop_limits_the_figure_to_its_box(tmp_path, monkeypatch, source):
+def test_a_crop_limits_the_figure_to_its_box(
+    tmp_path, monkeypatch, source, mask_options
+):
     img, mask = _two_figures(tmp_path, alpha=source == "alpha")
     seen = []
 
@@ -251,9 +255,11 @@ def test_a_crop_limits_the_figure_to_its_box(tmp_path, monkeypatch, source):
     monkeypatch.setattr(segment, "get_cached_segmenter", lambda model: segmenter)
     fm = figure_mask(
         img,
-        crop=[0.5, 0, 1, 1],  # the right half
-        model={"mask": "auto", "alpha": "alpha", "model": "birefnet-lite"}[source],
-        mask_path=mask if source == "mask" else None,
+        mask_options(
+            crop=[0.5, 0, 1, 1],  # the right half
+            model={"mask": "auto", "alpha": "alpha", "model": "birefnet-lite"}[source],
+            mask_path=mask if source == "mask" else None,
+        ),
         use_cache=False,
         log=lambda *_: None,
     )
@@ -319,17 +325,16 @@ def test_the_number_is_printed_on_the_back(goblin_figure, numbered_mini):
     assert both.texts and all(t[2] < cy - h / 2 for t in both.texts)
 
 
-def test_a_missing_font_prints_in_times(goblin_figure):
+def test_a_missing_font_prints_in_times(goblin_figure, pipeline_mini, mask_options):
     assert fonts.resolve("No Such Font") == (fonts.TIMES, False)
     assert fonts.resolve("Almendra")[1] and fonts.resolve("Times")[1]
     assert fonts.pdf_name("No Such Font") == "Times-Roman"
     assert fonts.pdf_name("Times", bold=True) == "Times-Bold"
     img, mask = goblin_figure
     notes = []
-    m = make_mini(
+    m = pipeline_mini(
         img,
-        geo.Params(),
-        mask_path=mask,
+        mask=mask_options(mask_path=mask),
         label="Hero",
         style=Style(font="No Such Font"),
         log=notes.append,

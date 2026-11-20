@@ -10,13 +10,13 @@ from PIL import Image
 
 from papermini.output.sheet import pack, write_pdf
 from papermini.output.svg import read_svg, to_svg, write_svg, write_svgs
-from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import make_mini
 
 
-def test_an_svg_reads_back_as_the_mini_it_was_written_from(hero_figure, tmp_path):
+def test_an_svg_reads_back_as_the_mini_it_was_written_from(
+    hero_figure, tmp_path, pipeline_mini, mask_options
+):
     img, mask = hero_figure
-    m = make_mini(img, geo.Params(), mask_path=mask, label="Hero", log=lambda *_: None)
+    m = pipeline_mini(img, mask=mask_options(mask_path=mask), label="Hero")
     p = write_svg(m, tmp_path / "hero.svg")
     r = read_svg(p)
     assert r.width_mm == pytest.approx(m.width_mm, abs=1e-3)
@@ -29,11 +29,11 @@ def test_an_svg_reads_back_as_the_mini_it_was_written_from(hero_figure, tmp_path
     assert r.art.size == m.art.size
 
 
-def test_an_unsmoothed_cut_line_reads_back_as_a_polygon(hero_figure, tmp_path):
+def test_an_unsmoothed_cut_line_reads_back_as_a_polygon(
+    hero_figure, tmp_path, pipeline_mini, mask_options
+):
     img, mask = hero_figure
-    m = make_mini(
-        img, geo.Params(), mask_path=mask, smooth_path=False, log=lambda *_: None
-    )
+    m = pipeline_mini(img, mask=mask_options(mask_path=mask), smooth_path=False)
     r = read_svg(write_svg(m, tmp_path / "hero.svg"))
     assert r.cut.controls is None
     assert np.allclose(r.cut.points, m.cut.points, atol=1e-3)

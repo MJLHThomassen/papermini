@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from ..pipeline import geometry as geo
 from ..pipeline import token as tok
 from ..pipeline.adjustments import Adjustments
+from ..pipeline.mask_options import MaskOptions
 from ..pipeline.mini import TAB_SHOWS
 from ..pipeline.style import Style
 from . import sizes
@@ -646,6 +648,22 @@ class FigureSettings:
             margin_color=self.margin_color,
             tab_shape=self.tab_shape,
             tab_color=self.tab_color,
+        )
+
+    def mask_options(self) -> MaskOptions:
+        """Return the background-removal options. Model "mask" uses the mask image
+        file, and model "auto" uses it too when one is given."""
+        if self.model == "mask" and not self.mask:
+            raise ValueError("model 'mask' needs a mask image file - choose one")
+        use_mask = self.mask and self.model in ("mask", "auto")
+        return MaskOptions(
+            model="auto" if self.model == "mask" else self.model,
+            mask_path=Path(self.mask) if use_mask else None,
+            crop=self.crop,
+            threshold=self.strength,
+            close_px=self.fill_gaps,
+            keep_all=self.keep_all,
+            min_area=self.min_area,
         )
 
     def adjustments(self) -> Adjustments:
