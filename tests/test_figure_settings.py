@@ -1,6 +1,8 @@
 """Tests of a figure's settings: their defaults, their checks and their
 dictionary form."""
 
+from dataclasses import replace
+
 import pytest
 
 from papermini.pipeline.adjustments import Adjustments
@@ -142,3 +144,11 @@ def test_the_adjustments_are_checked_and_round_trip():
     ):
         with pytest.raises(ValueError, match=key):
             FigureSettings.from_dict({key: bad})
+
+
+def test_mask_inputs_change_only_with_the_settings_background_removal_uses():
+    s = FigureSettings()
+    for change in ({"model": "birefnet"}, {"mask": "m.png"}, {"crop": "0,0,0.5,1"}):
+        assert replace(s, **change).mask_inputs() != s.mask_inputs()
+    for change in ({"strength": 90}, {"margin_mm": 4}, {"label": "Hero"}):
+        assert replace(s, **change).mask_inputs() == s.mask_inputs()
