@@ -470,21 +470,12 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
     """The PDF sheet, its PNG previews, and cut by machine its cut files."""
     from .output.sheet import (
         default_cut_file,
-        pack,
         write_cut_files,
         write_pdf,
         write_previews,
     )
 
-    lay = pack(
-        minis,
-        sh.page,
-        sh.margin_mm,
-        sh.gap_mm,
-        cut=sh.cut,
-        marks=sh.marks,
-        orientation=sh.orientation,
-    )
+    lay = sh.layout(minis)
     write_pdf(lay, output, sh.title)
     n = len(lay.placements)
     print(

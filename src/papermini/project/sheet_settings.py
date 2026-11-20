@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,9 +13,12 @@ from ..output.sheet import (
     PAPER_CHOICES,
     Paper,
     mat_warning,
+    pack,
     paper_text,
 )
+from ..output.sheet_layout import SheetLayout
 from ..pipeline.geometry import MAX_BLEED_MM
+from ..pipeline.mini import Mini
 from .option import Option
 
 
@@ -160,6 +164,23 @@ class SheetSettings:
         """Cut by machine on a mat: why the paper does not fit it ("" when it does)."""
         return (
             mat_warning(self.page, self.orientation, self.mat) if self.machine else ""
+        )
+
+    def layout(
+        self, minis: Sequence[tuple[Mini, int]], leave_out: bool = False
+    ) -> SheetLayout:
+        """Pack ``minis``, each with its number of copies, onto the pages of this
+        sheet. With ``leave_out``, a piece too big for the paper is left off the
+        sheet instead of being an error."""
+        return pack(
+            minis,
+            self.page,
+            self.margin_mm,
+            self.gap_mm,
+            cut=self.cut,
+            marks=self.marks,
+            orientation=self.orientation,
+            leave_out=leave_out,
         )
 
     @property
