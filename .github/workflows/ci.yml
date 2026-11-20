@@ -172,11 +172,19 @@ jobs:
             tail -3 /tmp/o
           }
           git config --global --add safe.directory "$PWD"
-          for f in tests/gui/test_*.py; do variant "$f" "$f"; done
-          git apply .github/diag/v2-slot.patch && variant "gui, status through a slot" "tests/gui"
-          git checkout -- src
-          git checkout 4a7fa43 -- src tests && variant "gui, main before the build queue (4a7fa43)" "tests/gui"
-          git checkout HEAD -- src tests
+          f=tests/gui/test_option_fields.py
+          variant "$f, try 2" "$f"
+          variant "test_every_figure_setting_has_a_field_or_is_listed" "$f::test_every_figure_setting_has_a_field_or_is_listed"
+          variant "test_each_figure_setting_has_its_panel_field" "$f::test_each_figure_setting_has_its_panel_field"
+          variant "test_each_figure_field_shows_its_setting" "$f::test_each_figure_field_shows_its_setting"
+          variant "test_each_figure_field_edits_its_setting" "$f::test_each_figure_field_edits_its_setting"
+          variant "test_each_figure_field_has_a_tooltip" "$f::test_each_figure_field_has_a_tooltip"
+          variant "test_a_tokens_label_field_edits_the_label" "$f::test_a_tokens_label_field_edits_the_label"
+          variant "test_every_sheet_setting_has_a_field_or_is_listed" "$f::test_every_sheet_setting_has_a_field_or_is_listed"
+          variant "test_each_sheet_field_shows_its_setting" "$f::test_each_sheet_field_shows_its_setting"
+          variant "test_each_sheet_field_edits_its_setting" "$f::test_each_sheet_field_edits_its_setting"
+          variant "test_each_sheet_field_has_a_tooltip" "$f::test_each_sheet_field_has_a_tooltip"
+          variant "$f, try 3" "$f"
           exit 0
         env:
           QT_QPA_PLATFORM: offscreen
