@@ -16,22 +16,16 @@ from PIL import Image, ImageDraw
 from ..pipeline.mini import Mini
 from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
 from ..pipeline.text_item import TEXT_BASELINE_DROP
-from ..support import fonts
+from ..support.font_library import FontLibrary
 
 PX_PER_SQUARE = 256  # the default scale: pixels per grid square...
 DPI = 300  # ...or, sized as printed, this resolution
 SUPERSAMPLE = 2  # drawn this many times larger, then shrunk (smooth lines and text)
 
 
-def _font(name: str, size_px: int, bold: bool):
-    from .sheet import _font as sheet_font
-
-    return sheet_font(max(1, size_px), serif=True, path=fonts.file_for(name, bold))
-
-
-def piece_image(m: Mini, px_per_mm: float) -> Image.Image:
-    """The piece as printed (its art, fold lines, text and cut line), RGBA,
-    ``px_per_mm`` pixels per millimetre."""
+def piece_image(m: Mini, px_per_mm: float, fonts: FontLibrary) -> Image.Image:
+    """The piece as printed (its art, fold lines, text in its font from ``fonts``, and
+    cut line), RGBA, ``px_per_mm`` pixels per millimetre."""
     s = px_per_mm * SUPERSAMPLE
     W, H = max(1, round(m.width_mm * s)), max(1, round(m.height_mm * s))
     im = m.art.convert("RGBA").resize((W, H), Image.LANCZOS)
@@ -47,9 +41,9 @@ def piece_image(m: Mini, px_per_mm: float) -> Image.Image:
                 width=fold_w,
             )
             x += FOLD_DASH_MM + FOLD_GAP_MM
-    for t in m.text_items():
+    for t in m.text_items(fonts):
         size = t.size_mm * s
-        font = _font(st.font, round(size), t.bold)
+        font = fonts.image_font(max(1, round(size)), st.font, t.bold)
         box = font.getbbox(t.text)
         r = int(max(box[2] - box[0], size) * 1.5) + 4  # room to turn it in
         layer = Image.new("RGBA", (2 * r, 2 * r), (0, 0, 0, 0))
@@ -77,24 +71,27 @@ def piece_image(m: Mini, px_per_mm: float) -> Image.Image:
     )
 
 
-def write_png(m: Mini, path: Path, px_per_mm: float) -> Path:
+def write_png(m: Mini, path: Path, px_per_mm: float, fonts: FontLibrary) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    piece_image(m, px_per_mm).save(path, optimize=True)
+    piece_image(m, px_per_mm, fonts).save(path, optimize=True)
     return path
 
 
-def write_pngs(m: Mini, path: Path, px_per_mm: float, copies: int = 1) -> list[Path]:
+def write_pngs(
+    m: Mini, path: Path, px_per_mm: float, fonts: FontLibrary, copies: int = 1
+) -> list[Path]:
     """The PNG of a piece at ``path``; a numbered one gets a file per copy, each with its
     number: ``goblin-1.png`` to ``goblin-6.png``."""
     path = Path(path)
     if not m.numbered:
-        return [write_png(m, path, px_per_mm)]
+        return [write_png(m, path, px_per_mm, fonts)]
     return [
         write_png(
             replace(m, number=i),
             path.with_name(f"{path.stem}-{i}{path.suffix}"),
             px_per_mm,
+            fonts,
         )
         for i in range(1, max(1, copies) + 1)
     ]

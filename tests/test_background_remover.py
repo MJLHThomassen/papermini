@@ -10,7 +10,7 @@ from papermini.pipeline.segmentation.cancelled import Cancelled
 from papermini.pipeline.segmentation.segmenter_registry import SegmenterRegistry
 
 
-def test_a_build_can_be_cancelled_while_the_model_loads():
+def test_a_build_can_be_cancelled_while_the_model_loads(fonts):
     """Loading a model can take longer than running it (BiRefNet-lite: ~10 s): Cancel
     then stops the build as soon as the model is loaded, before it runs. The next
     build is not affected."""
@@ -23,7 +23,7 @@ def test_a_build_can_be_cancelled_while_the_model_loads():
         return lambda im: runs.append(1) or np.zeros(im.size[::-1], np.uint8)
 
     SegmenterRegistry.path("rmbg-1.4").write_bytes(b"not a real model")
-    pipeline = Pipeline(make_segmenter=slow_load)
+    pipeline = Pipeline(fonts, make_segmenter=slow_load)
     cancellation = pipeline.cancellation
     grey = Image.new("RGB", (40, 30), (128, 128, 128))
     result = {}

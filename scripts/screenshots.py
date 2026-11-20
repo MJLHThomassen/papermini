@@ -78,12 +78,20 @@ def main() -> None:
     from papermini.project.project_store import ProjectStore
     from papermini.project.settings import build_mini
     from papermini.project.size_calculator import SizeCalculator
+    from papermini.support.font_library import FontLibrary
+    from papermini.support.image_fetcher import ImageFetcher
+    from papermini.support.log_session import LogSession
+    from papermini.support.update_service import UpdateService
 
     args.out.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
     size_calculator = SizeCalculator()
-    project_store = ProjectStore(size_calculator)
-    pipeline = Pipeline()
+    fonts = FontLibrary()
+    images_from_web = ImageFetcher()
+    updates = UpdateService()
+    logs = LogSession(updates)
+    project_store = ProjectStore(size_calculator, images_from_web)
+    pipeline = Pipeline(fonts)
     ratio = float(args.scale)
 
     def settle(cond=lambda: True, timeout=600):
@@ -99,7 +107,16 @@ def main() -> None:
 
     def window(mode: str, size=(1360, 820)) -> MainWindow:
         theme.apply(app, mode)
-        w = MainWindow(Preferences(), project_store, size_calculator, pipeline)
+        w = MainWindow(
+            Preferences(),
+            project_store,
+            size_calculator,
+            pipeline,
+            fonts,
+            images_from_web,
+            updates,
+            logs,
+        )
         w.setAttribute(Qt.WA_DontShowOnScreen)
         w.resize(*size)
         w.show()
@@ -212,7 +229,7 @@ def main() -> None:
         """A miniature drawn as in the app, on white paper: all of it, or the part in
         ``rect`` (mm), at ``mm`` logical pixels per millimetre."""
         sc = QGraphicsScene()
-        draw_mini(sc, m)
+        draw_mini(sc, m, fonts)
         r = rect or QRectF(0, 0, m.width_mm, m.height_mm)
         r = r.adjusted(-2.5, -2.5, 2.5, 2.5)
         img = QImage(
@@ -377,7 +394,7 @@ def main() -> None:
             return pix
 
         sc = QGraphicsScene()
-        draw_sheet(sc, lay, sh.title)
+        draw_sheet(sc, lay, sh.title, fonts)
         svg = QSvgRenderer(
             bytearray(cut_file_svg(lay, 0, folds=True, title=sh.title), "utf-8")
         )
@@ -427,7 +444,7 @@ def main() -> None:
             )
             pw, ph = lay.paper
             sc = QGraphicsScene()
-            draw_sheet(sc, lay, sh.title)
+            draw_sheet(sc, lay, sh.title, fonts)
             shots.append(
                 (
                     page(

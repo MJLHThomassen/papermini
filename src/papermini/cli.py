@@ -22,7 +22,9 @@ from .project.sheet_settings import SheetSettings
 from .project.size_calculator import SizeCalculator
 from .project.size_table import GRID_MM, SizeTable
 from .project.sizes import BUILTIN
-from .support import fonts, remote
+from .support.font_library import FontLibrary
+from .support.image_fetcher import ImageFetcher
+from .support.image_files import ImageFiles
 
 DS = SheetSettings()
 FORMATS = ("svg", "png", "both")  # what papermini make writes, the first by default
@@ -105,7 +107,7 @@ def add_figure_args(flags: OptionFlags) -> None:
     flags.add_one(
         "font",
         ". A bundled font ("
-        + ", ".join(f.name for f in fonts.bundled()[1:])
+        + ", ".join(FontLibrary.BUNDLED)
         + ") or a TrueType font installed on this computer",
     )
     flags.group_of("font").add_argument(
@@ -119,15 +121,19 @@ def add_figure_args(flags: OptionFlags) -> None:
 
 
 def cmd_make(
-    a: argparse.Namespace, size_calculator: SizeCalculator, pipeline: Pipeline
+    a: argparse.Namespace,
+    size_calculator: SizeCalculator,
+    pipeline: Pipeline,
+    fonts: FontLibrary,
+    images_from_web: ImageFetcher,
 ) -> int:
     from .output.png import px_per_mm, write_pngs
     from .output.svg import write_svgs
 
     images, folders = [], {}  # an image from a folder: the folder it came from
     for src in _expand(a.images):
-        if not remote.is_url(src) and Path(src).is_dir():
-            found, skipped = remote.folder_images(src, not a.no_subfolders)
+        if not ImageFetcher.is_url(src) and Path(src).is_dir():
+            found, skipped = ImageFiles.folder_images(src, not a.no_subfolders)
             print(
                 f"  {src}: {len(found)} image{'s' * (len(found) != 1)}"
                 + (
@@ -165,10 +171,14 @@ def cmd_make(
         else px_per_mm(a.png_px or PX_PER_SQUARE, table.grid_mm)
     )
     for src in images:
-        img = remote.fetch_image(src) if remote.is_url(src) else remote.local_path(src)
+        img = (
+            images_from_web.fetch_image(src)
+            if ImageFetcher.is_url(src)
+            else ImageFiles.local_path(src)
+        )
         out_file = Path(a.output) if single else None
         # next to the image, or for a link (its copy lives in the cache) here
-        here = Path.cwd() if remote.is_url(src) else img.parent
+        here = Path.cwd() if ImageFetcher.is_url(src) else img.parent
         out_dir = out_file.parent if out_file else Path(a.output) if a.output else here
         if (
             a.output and not out_file and src in folders
@@ -185,16 +195,16 @@ def cmd_make(
         stem = out_file.with_suffix("") if out_file else out_dir / safe_name(m.name)
         outs = []
         if a.format in ("svg", "both"):
-            outs += write_svgs(m, stem.with_suffix(".svg"), a.copies)
+            outs += write_svgs(m, stem.with_suffix(".svg"), fonts, a.copies)
         if a.format in ("png", "both"):
-            outs += write_pngs(m, stem.with_suffix(".png"), scale, a.copies)
+            outs += write_pngs(m, stem.with_suffix(".png"), scale, fonts, a.copies)
         for out in outs:
             print(f"  -> {out}")
         _warn_width(img.name, s, m, table, size_calculator)
     return 0
 
 
-def cmd_sheet(a: argparse.Namespace) -> int:
+def cmd_sheet(a: argparse.Namespace, fonts: FontLibrary) -> int:
     from .output.svg import read_svg
 
     minis = [(read_svg(Path(p)), a.copies) for p in _expand(a.svgs)]
@@ -228,10 +238,16 @@ def cmd_sheet(a: argparse.Namespace) -> int:
         )
     except ValueError as e:
         raise SystemExit(str(e).replace("sheet ", "--").replace("_", "-")) from None
-    return write_sheet(minis, Path(a.output), sh, a.preview)
+    return write_sheet(minis, Path(a.output), sh, fonts, a.preview)
 
 
-def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -> int:
+def write_sheet(
+    minis,
+    output: Path,
+    sh: SheetSettings,
+    fonts: FontLibrary,
+    preview: bool = False,
+) -> int:
     """The PDF sheet, its PNG previews, and cut by machine its cut files."""
     from .output.sheet import (
         default_cut_file,
@@ -241,7 +257,7 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
     )
 
     lay = sh.layout(minis)
-    write_pdf(lay, output, sh.title)
+    write_pdf(lay, output, fonts, sh.title)
     n = len(lay.placements)
     print(
         f"  -> {output} ({n} piece{'s' * (n != 1)}, {lay.pages} page{'s' * (lay.pages != 1)}, "
@@ -253,7 +269,7 @@ def write_sheet(minis, output: Path, sh: SheetSettings, preview: bool = False) -
         for p in write_cut_files(lay, default_cut_file(output), sh.cut_folds, sh.title):
             print(f"  -> {p} (cut file)")
     if preview:
-        for p in write_previews(lay, output.with_suffix(".png"), title=sh.title):
+        for p in write_previews(lay, output.with_suffix(".png"), fonts, title=sh.title):
             print(f"  -> {p}")
     return 0
 
@@ -275,6 +291,7 @@ def run_project(
     proj: Project,
     size_calculator: SizeCalculator,
     pipeline: Pipeline,
+    fonts: FontLibrary,
     debug: bool = False,
     preview: bool = False,
     use_cache: bool = True,
@@ -295,12 +312,12 @@ def run_project(
             use_cache=use_cache,
             debug_dir=out_dir / "debug" if debug or proj.debug else None,
         )
-        for out in write_svgs(m, out_dir / f.svg_name(), f.settings.copies):
+        for out in write_svgs(m, out_dir / f.svg_name(), fonts, f.settings.copies):
             print(f"  -> {out}")
         _warn_width(f.image.name, f.settings, m, proj.sizes, size_calculator)
         minis.append((m, f.settings.copies))
     if sh.enabled:
-        write_sheet(minis, proj.sheet_path, sh, preview or sh.preview)
+        write_sheet(minis, proj.sheet_path, sh, fonts, preview or sh.preview)
     return 0
 
 
@@ -309,11 +326,13 @@ def cmd_batch(
     project_store: ProjectStore,
     size_calculator: SizeCalculator,
     pipeline: Pipeline,
+    fonts: FontLibrary,
 ) -> int:
     return run_project(
         project_store.load(Path(a.config)),
         size_calculator,
         pipeline,
+        fonts,
         a.debug,
         a.preview,
         not a.no_cache,
@@ -334,22 +353,26 @@ def _expand(patterns: list[str]) -> list[str]:
     """Expand globs ourselves (Windows shells do not); links are passed through."""
     out: list[str] = []
     for p in patterns:
-        if remote.is_url(p):
+        if ImageFetcher.is_url(p):
             out.append(p)
             continue
-        p = str(remote.local_path(p))
+        p = str(ImageFiles.local_path(p))
         hits = sorted(glob.glob(p)) if any(ch in p for ch in "*?[") else [p]
         if not hits:
             raise SystemExit(f"no files match {p!r}")
         out += hits
     for p in out:
-        if not remote.is_url(p) and not Path(p).exists():
+        if not ImageFetcher.is_url(p) and not Path(p).exists():
             raise SystemExit(f"file not found: {p}")
     return out
 
 
 def build_parser(
-    size_calculator: SizeCalculator, project_store: ProjectStore, pipeline: Pipeline
+    size_calculator: SizeCalculator,
+    project_store: ProjectStore,
+    pipeline: Pipeline,
+    fonts: FontLibrary,
+    images_from_web: ImageFetcher,
 ) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="papermini",
@@ -365,7 +388,7 @@ def build_parser(
         "images",
         nargs="+",
         metavar="IMAGE",
-        help=f"image files ({remote.READABLE}), folders of them, or http(s) "
+        help=f"image files ({ImageFiles.READABLE}), folders of them, or http(s) "
         "links to images",
     )
     mk.add_argument(
@@ -427,7 +450,13 @@ def build_parser(
     )
     add_figure_args(flags)
     mk.set_defaults(
-        func=partial(cmd_make, size_calculator=size_calculator, pipeline=pipeline)
+        func=partial(
+            cmd_make,
+            size_calculator=size_calculator,
+            pipeline=pipeline,
+            fonts=fonts,
+            images_from_web=images_from_web,
+        )
     )
 
     sh = sub.add_parser("sheet", help="papermini SVGs -> printable PDF sheet")
@@ -454,7 +483,7 @@ def build_parser(
         "cut_folds",
         "mat",
     )
-    sh.set_defaults(func=cmd_sheet)
+    sh.set_defaults(func=partial(cmd_sheet, fonts=fonts))
 
     bt = sub.add_parser(
         "batch", help="YAML config: images + per-image options -> SVGs + sheet"
@@ -480,6 +509,7 @@ def build_parser(
             project_store=project_store,
             size_calculator=size_calculator,
             pipeline=pipeline,
+            fonts=fonts,
         )
     )
 
@@ -510,7 +540,15 @@ def route(argv: list[str]) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     size_calculator = SizeCalculator()
-    parser = build_parser(size_calculator, ProjectStore(size_calculator), Pipeline())
+    fonts = FontLibrary()
+    images_from_web = ImageFetcher()
+    parser = build_parser(
+        size_calculator,
+        ProjectStore(size_calculator, images_from_web),
+        Pipeline(fonts),
+        fonts,
+        images_from_web,
+    )
     a = parser.parse_args(route(sys.argv[1:] if argv is None else argv))
     try:
         return a.func(a)

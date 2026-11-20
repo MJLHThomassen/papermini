@@ -13,7 +13,6 @@ from ..fields.area_field import AreaField
 from ..fields.choice_field import ChoiceField
 from ..fields.dimensions_field import DimensionsField
 from ..fields.field_factory import FieldMaker
-from ..fields.font_field import FontField
 from ..fields.kind_field import KindField
 from ..fields.mask_file_field import MaskFileField
 from ..fields.model_field import ModelField
@@ -190,7 +189,8 @@ _TOKEN_TEXT_SWITCH = Option(
     tooltip="Print text on the token: its label, its copy number or both.",
 )
 
-# the fields not built from their option alone
+# the fields not built from their option alone (FigurePanel adds the font field, which
+# needs the fonts)
 SPECIAL_FIELDS: dict[str, FieldMaker] = {
     "kind": KindField,
     "dimensions": partial(
@@ -202,7 +202,6 @@ SPECIAL_FIELDS: dict[str, FieldMaker] = {
     ),
     "mask": MaskFileField,
     "model": ModelField,
-    "font": FontField,
     "back_text": partial(TextField, placeholder="the label (or file name)"),
     "double_sided": SwitchField,
     "token_outline": SwitchField,

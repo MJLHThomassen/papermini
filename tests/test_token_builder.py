@@ -65,7 +65,7 @@ def test_a_printed_cut_line_lies_outside_the_ring(
 
 
 def test_the_token_text_follows_the_ring_and_numbers_each_copy(
-    tmp_path, build_token, transparent_figure
+    fonts, tmp_path, build_token, transparent_figure
 ):
     img = transparent_figure(tmp_path / "goblin.png")
     m = build_token(
@@ -76,7 +76,7 @@ def test_the_token_text_follows_the_ring_and_numbers_each_copy(
         token_text_color="#2f5597",
         token_border_color="#303060",
     )
-    items = m.text_items()
+    items = m.text_items(fonts)
     assert {t.kind for t in items} == {"tokentext"}
     assert (
         "".join(t.text for t in items) == "Goblinboss#"
@@ -87,7 +87,7 @@ def test_the_token_text_follows_the_ring_and_numbers_each_copy(
         letters[0].rot > 20 and letters[-1].rot < -20
     )  # (along the bottom, both ways)
     # numbered copies: a file each, each with its number
-    paths = write_svgs(m, tmp_path / "goblin.svg", 3)
+    paths = write_svgs(m, tmp_path / "goblin.svg", fonts, 3)
     assert [p.name for p in paths] == ["goblin-1.svg", "goblin-2.svg", "goblin-3.svg"]
     assert ">3</text>" in paths[2].read_text()
     plate = build_token(img, label="Goblin", token_text="label_number")
@@ -96,7 +96,7 @@ def test_the_token_text_follows_the_ring_and_numbers_each_copy(
         t.badge is not None
         and t.badge[1] + t.badge[2] <= t.cy + t.inner_mm - t.plate[3]
     )
-    assert [i.text for i in plate.text_items()] == ["Goblin", "#"]
+    assert [i.text for i in plate.text_items(fonts)] == ["Goblin", "#"]
 
 
 def _count(art, channel):

@@ -6,7 +6,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..support import cache
+from ..support.font_library import FontLibrary
+from ..support.stage_caches import StageCaches
 from .adjustments import Adjustments
 from .bleed_painter import MAX_BLEED_MM, BleedPainter
 from .cut_path import CutPath
@@ -49,7 +50,8 @@ class MiniBuilder:
     def __init__(
         self,
         morphology: Morphology,
-        fonts: FontChecker,
+        fonts: FontLibrary,
+        font_checker: FontChecker,
         masker: FigureMasker,
         scaler: FigureScaler,
         adjuster: ImageAdjuster,
@@ -58,9 +60,11 @@ class MiniBuilder:
         bleed: BleedPainter,
         debug: DebugWriter,
         cancellation: Cancellation,
+        caches: StageCaches,
     ):
         self._morph = morphology
         self._fonts = fonts
+        self._font_checker = font_checker
         self._masker = masker
         self._scaler = scaler
         self._adjuster = adjuster
@@ -69,6 +73,7 @@ class MiniBuilder:
         self._bleed = bleed
         self._debug = debug
         self._cancellation = cancellation
+        self._caches = caches
 
     def make(
         self,
@@ -96,7 +101,7 @@ class MiniBuilder:
         and ``("outline", (contours, close_px))`` once the figure is found, before the
         layout."""
         image_path = Path(image_path)
-        style = self._fonts.checked(style, image_path.name, log)
+        style = self._font_checker.checked(style, image_path.name, log)
         debug = bool(debug_dir)
         fm = self._masker.find(
             image_path,
@@ -138,6 +143,7 @@ class MiniBuilder:
             else [],
             label=label,
             label_size_mm=TextFitter.label_size(
+                self._fonts,
                 label,
                 max_w,
                 min(style.label_size_mm, lay.label_max_h_px * s or style.label_size_mm),
@@ -194,7 +200,9 @@ class MiniBuilder:
             )
 
         work_key = (fm.key, height_mm, stretch, max_px_per_mm)
-        clean, rgb = work() if debug else cache.working.get_or_make(work_key, work)
+        clean, rgb = (
+            work() if debug else self._caches.working.get_or_make(work_key, work)
+        )
         return work_key, clean, rgb
 
     def _adjusted(
@@ -206,7 +214,11 @@ class MiniBuilder:
         if adjust.is_identity():
             return rgb
         make = lambda: ReadOnly.array(self._adjuster.apply(rgb, adjust))
-        return make() if debug else cache.adjusted.get_or_make((work_key, adjust), make)
+        return (
+            make()
+            if debug
+            else self._caches.adjusted.get_or_make((work_key, adjust), make)
+        )
 
     def _layout(
         self,
@@ -235,7 +247,7 @@ class MiniBuilder:
             simplify_mm,
             smooth_path,
         )
-        return make() if debug else cache.layouts.get_or_make(layout_key, make)
+        return make() if debug else self._caches.layouts.get_or_make(layout_key, make)
 
     def _art(
         self, lay: Layout, path_px: CutPath, style: Style, bleed_mm: float, dpi: int
@@ -264,8 +276,8 @@ class MiniBuilder:
         art_im = Image.fromarray(art, "RGBA").resize(size, Image.LANCZOS)
         return _Piece(art_im, x0, y0, w_mm, h_mm)
 
-    @staticmethod
     def _add_back(
+        self,
         mini: Mini,
         back_box: tuple[float, float, float, float],
         piece: _Piece,
@@ -286,7 +298,7 @@ class MiniBuilder:
             bcy, bh = bcy - nh / 2, bh - nh
         if back in ("text", "text_number"):
             size, lines = TextFitter.text_block(
-                text, bw, bh, max_size=10.0, font=style.font
+                self._fonts, text, bw, bh, max_size=10.0, font=style.font
             )
             pitch = 1.15 * size
             for i, line in enumerate(lines):

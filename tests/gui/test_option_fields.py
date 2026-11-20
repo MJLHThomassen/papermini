@@ -158,10 +158,10 @@ FIGURE_FIELDS_WITHOUT_A_TOOLTIP: set[str] = set()
 
 
 @pytest.fixture
-def figure_panel(app, prefs, size_calculator):
+def figure_panel(fonts, app, prefs, size_calculator):
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    return FigurePanel(prefs, size_calculator)
+    return FigurePanel(prefs, size_calculator, fonts)
 
 
 def test_every_figure_setting_has_a_field_or_is_listed():

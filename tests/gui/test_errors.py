@@ -15,7 +15,8 @@ from PySide6.QtCore import Qt, QTimer, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
 
 from papermini.project.figure_settings import FigureSettings
-from papermini.support import log
+from papermini.support import log_session
+from papermini.support.update import NEW_ISSUE
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +50,7 @@ def opened(monkeypatch):
 
 
 @pytest.fixture
-def handler(app, monkeypatch):
+def handler(app, monkeypatch, logs):
     """An installed error handler whose dialogs are recorded instead of shown."""
     from papermini.gui import error_handler
 
@@ -58,15 +59,15 @@ def handler(app, monkeypatch):
         error_handler.ErrorDialog, "exec", lambda self: shown.append(self) or 0
     )
     monkeypatch.setattr(error_handler, "_handler", None)
-    h = error_handler.install()
+    h = error_handler.install(logs)
     h.shown_dialogs = shown
     yield h
     qInstallMessageHandler(None)
 
 
-def _log_text() -> str:
-    s = log.session()
-    for h in log.logger.handlers:
+def _log_text(logs) -> str:
+    s = logs.session()
+    for h in log_session.logger.handlers:
         h.flush()
     return s.log.read_text(encoding="utf-8")
 
@@ -81,33 +82,33 @@ def _raise_later(app, message="boom"):
 
 
 def test_an_uncaught_error_is_logged_and_shown_once_and_the_app_keeps_running(
-    app, handler, wait
+    logs, app, handler, wait
 ):
-    log.start()
+    logs.start()
     handler.started(None)
     for _ in range(2):  # the same error (type and place) twice
         _raise_later(app)
     assert len(handler.shown_dialogs) == 1
     dlg = handler.shown_dialogs[0]
     assert "RuntimeError: boom" in dlg.details.toPlainText()
-    text = _log_text()
+    text = _log_text(logs)
     assert text.count("ERROR papermini.error: Unexpected error") == 2
     assert "Traceback (most recent call last)" in text and "RuntimeError: boom" in text
     assert str(Path.home()) not in text
     assert wait(lambda: True)  # (still running)
 
 
-def test_errors_from_threads_reach_the_dialog(app, handler, wait):
+def test_errors_from_threads_reach_the_dialog(logs, app, handler, wait):
     import threading
 
-    log.start()
+    logs.start()
     handler.started(None)
     t = threading.Thread(target=lambda: 1 / 0, name="worker")
     t.start()
     t.join()
     assert wait(lambda: handler.shown_dialogs, 10)
     assert "ZeroDivisionError" in handler.shown_dialogs[0].details.toPlainText()
-    assert "Unexpected error in thread worker" in _log_text()
+    assert "Unexpected error in thread worker" in _log_text(logs)
 
 
 def test_the_error_dialog_unfolds_its_details_in_a_resizable_window(app):
@@ -134,11 +135,11 @@ def test_the_error_dialog_unfolds_its_details_in_a_resizable_window(app):
 
 
 def test_report_a_problem_from_the_error_dialog_fills_in_the_traceback(
-    app, handler, opened, monkeypatch
+    logs, app, handler, opened, monkeypatch
 ):
     from papermini.gui import error_handler
 
-    log.start()
+    logs.start()
     handler.started(None)
     monkeypatch.setattr(
         error_handler.ErrorDialog,
@@ -149,23 +150,22 @@ def test_report_a_problem_from_the_error_dialog_fills_in_the_traceback(
     issue, folder = opened["urls"]
     assert "template=bug_report.yml" in issue and "traceback=" in issue
     assert "reported error" in issue
-    assert (
-        folder.startswith("file:")
-        and Path(folder[len("file:///") :]).name == _folder_name()
-    )
-    assert log.session().log.name in opened["info"][0]
+    assert folder.startswith("file:") and Path(
+        folder[len("file:///") :]
+    ).name == _folder_name(logs)
+    assert logs.session().log.name in opened["info"][0]
 
 
-def _folder_name() -> str:
-    return log.session().log.parent.name
+def _folder_name(logs) -> str:
+    return logs.session().log.parent.name
 
 
-def test_an_error_while_starting_offers_quit_and_exits(app, handler, monkeypatch):
+def test_an_error_while_starting_offers_quit_and_exits(logs, app, handler, monkeypatch):
     from papermini.gui import error_handler
 
     exits = []
     monkeypatch.setattr(error_handler.os, "_exit", exits.append)
-    log.start()
+    logs.start()
     try:
         raise RuntimeError("cannot start")
     except RuntimeError:
@@ -186,7 +186,10 @@ def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
     monkeypatch.setattr(error_handler.os, "_exit", exits.append)
     monkeypatch.setattr(error_handler, "_handler", None)
 
-    def fail(app, files):
+    started = []
+
+    def fail(app, files, updates, logs):
+        started.append(logs)
         raise RuntimeError("no window")
 
     monkeypatch.setattr(gui_app, "_start", fail)
@@ -194,20 +197,22 @@ def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
         assert gui_app.run([]) == 1
     finally:
         qInstallMessageHandler(None)
+        for logs in started:
+            logs.stop()
     assert len(shown) == 1 and exits == [1]
     assert "RuntimeError: no window" in Path(
-        max(Path(os.environ[log.LOG_ENV]).glob("papermini-*.log"))
+        max(Path(os.environ[log_session.LOG_ENV]).glob("papermini-*.log"))
     ).read_text(encoding="utf-8")
 
 
-def test_a_crash_is_offered_once_and_names_its_files(app, opened, monkeypatch):
+def test_a_crash_is_offered_once_and_names_its_files(logs, app, opened, monkeypatch):
     from papermini.gui import errors
 
-    d = Path(os.environ[log.LOG_ENV])
-    crash = d / f"papermini-20261111-100000-77{log.CRASH}"
+    d = Path(os.environ[log_session.LOG_ENV])
+    crash = d / f"papermini-20261111-100000-77{log_session.CRASH}"
     crash.write_text("Fatal Python error: Segmentation fault\n", encoding="utf-8")
     (d / "papermini-20261111-100000-77.log").write_text("log\n", encoding="utf-8")
-    log.start()
+    logs.start()
     asked = []
 
     def answer(box):
@@ -215,51 +220,53 @@ def test_a_crash_is_offered_once_and_names_its_files(app, opened, monkeypatch):
         next(b for b in box.buttons() if b.text() == "Report a problem…").click()
 
     monkeypatch.setattr(errors.QMessageBox, "exec", answer)
-    errors.offer_crash_report(None)
+    errors.offer_crash_report(logs, None)
     assert asked == ["papermini closed unexpectedly"]
-    assert opened["urls"][0].startswith(log.ISSUE_URL)
+    assert opened["urls"][0].startswith(NEW_ISSUE)
     info = opened["info"][0]
     assert (
-        log.reported(crash).name in info and "papermini-20261111-100000-77.log" in info
+        logs.reported(crash).name in info and "papermini-20261111-100000-77.log" in info
     )
-    assert not crash.exists() and log.reported(crash).exists()
-    errors.offer_crash_report(None)  # once only
+    assert not crash.exists() and logs.reported(crash).exists()
+    errors.offer_crash_report(logs, None)  # once only
     assert len(asked) == 1
 
 
-def test_report_a_problem_in_the_menu_names_the_newest_log(app, opened, new_window):
-    s = log.start()
+def test_report_a_problem_in_the_menu_names_the_newest_log(
+    logs, app, opened, new_window
+):
+    s = logs.start()
     w = new_window()
     assert w.a_open_logs.isEnabled()
     assert w.preferences_dialog("logging").detailed_log.isEnabled()
     w.a_report.trigger()
     issue, _folder = opened["urls"]
-    assert issue.startswith(log.ISSUE_URL) and "traceback=" not in issue
+    assert issue.startswith(NEW_ISSUE) and "traceback=" not in issue
     assert s.log.name in opened["info"][0]
 
 
 def test_without_a_log_the_menu_still_reports(
-    app, opened, tmp_path, monkeypatch, new_window
+    logs, app, opened, tmp_path, monkeypatch, new_window
 ):
 
     blocker = tmp_path / "file"
     blocker.write_text("x", encoding="utf-8")
-    monkeypatch.setenv(log.LOG_ENV, str(blocker / "logs"))
-    assert log.start() is None
+    monkeypatch.setenv(log_session.LOG_ENV, str(blocker / "logs"))
+    assert logs.start() is None
     w = new_window()
     assert not w.a_open_logs.isEnabled()
     w.a_report.trigger()
     assert len(opened["urls"]) == 1 and "could not write a log" in opened["info"][0]
 
 
-def test_about_shows_where_the_log_is(app, new_window):
+def test_about_shows_where_the_log_is(logs, app, new_window):
     from PySide6.QtWidgets import QLabel
 
     from papermini.gui.dialogs.about_dialog import AboutDialog
 
-    s = log.start()
+    s = logs.start()
     w = new_window()
-    d = AboutDialog(w)
+    d = AboutDialog(logs, w)
     texts = " ".join(lb.text() for lb in d.findChildren(QLabel))
     assert s.log.name in texts and "Log:" in texts
     d.close()
@@ -285,7 +292,7 @@ def test_about_shows_where_the_log_is(app, new_window):
     ],
 )
 def test_build_errors_are_logged_with_the_figures_settings(
-    app, tmp_path, monkeypatch, error, expected, new_window, wait, figure_image
+    logs, app, tmp_path, monkeypatch, error, expected, new_window, wait, figure_image
 ):
     from papermini.gui.window import build_job
 
@@ -293,21 +300,21 @@ def test_build_errors_are_logged_with_the_figures_settings(
         raise error
 
     monkeypatch.setattr(build_job, "build_mini", fail)
-    log.start()
+    logs.start()
     w = new_window()
     w.add_images(
         [figure_image(tmp_path / "hero.png", (200, 300), mask=False)[0]],
         FigureSettings(height_mm=45),
     )
     assert wait(lambda: w.figures and w.figures[0].error)
-    text = _log_text()
+    text = _log_text(logs)
     assert expected in text
     assert ("Traceback" in text) == isinstance(error, RuntimeError)
     assert "Added 1 image(s): hero.png" in text
 
 
 def test_settings_changes_go_to_the_detailed_log_once_they_settle(
-    app, tmp_path, monkeypatch, wait, new_window, figure_image
+    logs, app, tmp_path, monkeypatch, wait, new_window, figure_image
 ):
     from papermini.gui.window import build_job
 
@@ -316,7 +323,7 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         "build_mini",
         lambda *a, **k: (_ for _ in ()).throw(ValueError("not built in this test")),
     )
-    log.start()
+    logs.start()
     w = new_window()
     try:
         w.add_images([figure_image(tmp_path / "hero.png", (200, 300), mask=False)[0]])
@@ -329,12 +336,12 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         )  # (Preferences → Logging → Detailed log)
         assert not prefs_dlg.detailed_log.isChecked()
         prefs_dlg.detailed_log.setChecked(True)
-        assert log.detailed()
+        assert logs.detailed()
         for h in (51, 52, 53):  # like dragging a spin box
             w.panel.changed.emit(replace(fig.entry.settings, height_mm=h))
         w.sheet_panel.changed.emit(replace(w.project.sheet, paper="letter"))
-        assert wait(lambda: "height_mm 50 → 53" in _log_text(), 10)
-        text = _log_text()
+        assert wait(lambda: "height_mm 50 → 53" in _log_text(logs), 10)
+        text = _log_text(logs)
         assert "hero.png: height_mm 50 → 53" in text and "32 → 50" not in text
         assert "sheet: paper 'a4' → 'letter'" in text
         assert text.count("height_mm 5") == 1  # one line for the three changes
@@ -343,9 +350,9 @@ def test_settings_changes_go_to_the_detailed_log_once_they_settle(
         broken = tmp_path / "broken.yaml"
         broken.write_text("figures: [", encoding="utf-8")
         w.load(broken)
-        text = _log_text()  # (the home folder is written as ~)
+        text = _log_text(logs)  # (the home folder is written as ~)
         assert "WARNING papermini.ui: Could not open " in text
         assert "broken.yaml:; " in text  # one line
     finally:
-        log.set_detailed(False)
+        logs.set_detailed(False)
     assert logging.getLogger("papermini").level == logging.INFO

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 from dataclasses import replace
+from functools import partial
 from typing import Any, ClassVar, cast
 
 from PySide6.QtCore import QSize, Qt, Signal
@@ -22,7 +23,7 @@ from ...pipeline.token_options import TokenOptions
 from ...project import sizes
 from ...project.figure_settings import FigureSettings
 from ...project.size_calculator import SizeCalculator
-from ...support import fonts
+from ...support.font_library import FontLibrary
 from .. import theme
 from ..fields.field import Field
 from ..fields.field_factory import FieldFactory
@@ -60,7 +61,11 @@ class FigurePanel(QScrollArea):
     exportPiece = Signal()  # the Miniature step's Export button (SVG or PNG)
 
     def __init__(
-        self, prefs: Preferences, size_calculator: SizeCalculator, parent=None
+        self,
+        prefs: Preferences,
+        size_calculator: SizeCalculator,
+        fonts: FontLibrary,
+        parent=None,
     ):
         super().__init__(parent)
         self._prefs = prefs
@@ -68,7 +73,9 @@ class FigurePanel(QScrollArea):
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
-        self._factory = FieldFactory(SPECIAL_FIELDS)
+        self._factory = FieldFactory(
+            {**SPECIAL_FIELDS, "font": partial(FontField, fonts=fonts)}
+        )
         self._fields: dict[str, Field] = {}
         self._shown: dict[str, Any] = {}  # field values as last shown or emitted
         self._rows: dict[str, tuple[QFormLayout, QWidget]] = {}  # to hide rows
@@ -446,7 +453,7 @@ class FigurePanel(QScrollArea):
         missing = font.missing()
         self.font_warning.setText(
             f"{font.value()} is not on this computer: this figure prints in "
-            f"{fonts.DEFAULT}."
+            f"{FontLibrary.DEFAULT}."
             if missing
             else ""
         )

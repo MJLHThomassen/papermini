@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..support.font_library import FontLibrary
+from ..support.stage_caches import StageCaches
 from .art_composer import ArtComposer
 from .back_mirror import BackMirror
 from .bleed_painter import BleedPainter
@@ -29,13 +31,19 @@ class Pipeline:
     """The pipeline's services, created once and wired together. An entry point makes
     one and passes on the services its code uses.
 
-    ``downloader`` downloads the models and ``make_segmenter`` makes a segmenter from a
-    model file; tests pass fakes.
+    ``fonts`` are the fonts the pieces' text is measured in. ``downloader`` downloads
+    the models and ``make_segmenter`` makes a segmenter from a model file; tests pass
+    fakes.
     """
 
     def __init__(
-        self, downloader: Downloader | None = None, make_segmenter=OnnxSegmenter
+        self,
+        fonts: FontLibrary,
+        downloader: Downloader | None = None,
+        make_segmenter=OnnxSegmenter,
     ):
+        self.caches = StageCaches()
+
         # background removal
         self.cancellation = Cancellation()
         self.segmenters = SegmenterRegistry(
@@ -51,7 +59,7 @@ class Pipeline:
         self.morphology = Morphology()
         self.cleaner = MaskCleaner(self.morphology)
         self.masker = FigureMasker(
-            self.images, self.remover, self.cleaner, self.cancellation
+            self.images, self.remover, self.cleaner, self.cancellation, self.caches
         )
         self.scaler = FigureScaler(self.morphology)
         self.adjuster = ImageAdjuster()
@@ -61,12 +69,13 @@ class Pipeline:
         )
         self.tracer = CutPathTracer()
         self.bleed = BleedPainter(self.morphology)
-        self.fonts = FontChecker()
+        self.font_checker = FontChecker(fonts)
 
         # the pieces
         self.minis = MiniBuilder(
             self.morphology,
-            self.fonts,
+            fonts,
+            self.font_checker,
             self.masker,
             self.scaler,
             self.adjuster,
@@ -75,13 +84,15 @@ class Pipeline:
             self.bleed,
             DebugWriter(self.morphology),
             self.cancellation,
+            self.caches,
         )
         self.framer = TokenFramer()
         self.tokens = TokenBuilder(
             self.morphology,
-            self.fonts,
+            self.font_checker,
             self.masker,
             TokenRenderer(
                 self.morphology, self.framer, self.adjuster, self.composer, self.bleed
             ),
+            self.caches,
         )

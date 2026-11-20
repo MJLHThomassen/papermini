@@ -10,26 +10,30 @@ def run(files: list[str] | None = None) -> int:
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
-    from ..support import log
+    from ..support.log_session import LogSession
+    from ..support.update_service import UpdateService
 
-    log.start(qt_version)  # first, so start-up problems are in the log
+    updates = UpdateService()
+    logs = LogSession(updates)
+    logs.start(qt_version)  # first, so start-up problems are in the log
     app = QApplication.instance() or QApplication(sys.argv[:1])
     from . import error_handler, errors
 
-    handler = error_handler.install()
+    handler = error_handler.install(logs)
     try:
-        w = _start(app, files)
+        w = _start(app, files, updates, logs)
     except Exception:  # noqa: BLE001 - shown with Quit, then papermini exits
         handler.report_exception(*sys.exc_info())
         QApplication.processEvents()  # (the dialog comes through a queued signal)
         return 1
     handler.started(w)
-    QTimer.singleShot(0, lambda: errors.offer_crash_report(w))
+    QTimer.singleShot(0, lambda: errors.offer_crash_report(logs, w))
     return app.exec()
 
 
-def _start(app, files):
-    """Set up the application and show the main window (with ``files`` opened)."""
+def _start(app, files, updates, logs):
+    """Set up the application and show the main window (with ``files`` opened), with
+    the services the app shares."""
     from .window.main_window import MainWindow
 
     app.setApplicationName("papermini")
@@ -42,14 +46,27 @@ def _start(app, files):
     from ..pipeline.pipeline import Pipeline
     from ..project.project_store import ProjectStore
     from ..project.size_calculator import SizeCalculator
+    from ..support.font_library import FontLibrary
+    from ..support.image_fetcher import ImageFetcher
     from . import theme
     from .preferences import Preferences
 
     prefs = Preferences()
     size_calculator = SizeCalculator()
+    fonts = FontLibrary()
+    images_from_web = ImageFetcher()
     theme.apply(app, prefs.theme())
     app.setWindowIcon(theme.app_icon())
-    w = MainWindow(prefs, ProjectStore(size_calculator), size_calculator, Pipeline())
+    w = MainWindow(
+        prefs,
+        ProjectStore(size_calculator, images_from_web),
+        size_calculator,
+        Pipeline(fonts),
+        fonts,
+        images_from_web,
+        updates,
+        logs,
+    )
     if files:
         w.open_paths(files)
     w.show()

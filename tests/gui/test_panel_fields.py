@@ -31,11 +31,11 @@ SHEET_WIDGETS = {
 
 
 @pytest.fixture
-def figure_widgets(app, prefs, size_calculator):
+def figure_widgets(fonts, app, prefs, size_calculator):
     """Returns each setting's widget in a figure panel, by setting."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator)
+    p = FigurePanel(prefs, size_calculator, fonts)
     p.set_settings(FigureSettings(), "x", "x")
     widgets = {}
     for name in FigureSettings.options():
@@ -130,10 +130,10 @@ def test_each_field_has_its_options_label(settings, figure_widgets, sheet_widget
     assert wrong == {}
 
 
-def test_a_crop_that_cannot_be_read_keeps_the_crop(app, prefs, size_calculator):
+def test_a_crop_that_cannot_be_read_keeps_the_crop(fonts, app, prefs, size_calculator):
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator)
+    p = FigurePanel(prefs, size_calculator, fonts)
     p.set_settings(FigureSettings(crop=[0.1, 0.0, 0.9, 1.0]), "x", "x")
     edit = p.field("crop").edit
     for text in ("not a crop", "1, 2, 3"):

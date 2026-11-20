@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from ..support import fonts
+from ..support.font_library import FontLibrary
 
 
 class TextFitter:
-    """Works out how large a piece's text can be to fit the room it has."""
+    """Works out how large a piece's text can be to fit the room it has. Each method
+    measures the text in the fonts of a ``FontLibrary``."""
 
     @staticmethod
     def label_size(
-        text: str, max_width_mm: float, size_mm: float, font: str = fonts.DEFAULT
+        fonts: FontLibrary,
+        text: str,
+        max_width_mm: float,
+        size_mm: float,
+        font: str = FontLibrary.DEFAULT,
     ) -> float:
         """Shrink the label font so the text fits ``max_width_mm``."""
         if not text:
@@ -18,7 +23,11 @@ class TextFitter:
 
     @staticmethod
     def number_size(
-        text: str, max_w: float, max_h: float, font: str = fonts.DEFAULT
+        fonts: FontLibrary,
+        text: str,
+        max_w: float,
+        max_h: float,
+        font: str = FontLibrary.DEFAULT,
     ) -> float:
         """Return the largest bold font size at which ``text`` fits ``max_w`` x
         ``max_h`` (mm)."""
@@ -27,12 +36,13 @@ class TextFitter:
 
     @staticmethod
     def text_block(
+        fonts: FontLibrary,
         text: str,
         max_w: float,
         max_h: float,
         max_size: float,
         max_lines: int = 4,
-        font: str = fonts.DEFAULT,
+        font: str = FontLibrary.DEFAULT,
     ) -> tuple[float, list[str]]:
         """Return the largest font size (and line split) that fits ``text`` into
         max_w x max_h.

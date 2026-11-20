@@ -10,7 +10,7 @@ import traceback
 
 from PySide6.QtCore import QObject, QtMsgType, Signal, qInstallMessageHandler
 
-from ..support import log
+from ..support.log_session import LogSession
 from .dialogs.error_dialog import ErrorDialog
 from .errors import report_problem
 
@@ -34,9 +34,11 @@ class ErrorHandler:
     """Catches the errors nothing else caught (``sys.excepthook``, ``threading.excepthook``
     and Qt's warnings), logs them, and shows one dialog at a time: each error (its type
     and place) once per session, logged every time. Until ``started()`` is called (the
-    window is up) the dialog offers Quit instead of Continue."""
+    window is up) the dialog offers Quit instead of Continue. ``logs`` is the session's
+    log."""
 
-    def __init__(self):
+    def __init__(self, logs: LogSession):
+        self._logs = logs
         self.window = None
         self.starting = True
         self.showing = False
@@ -94,15 +96,18 @@ class ErrorHandler:
         try:
             quit_ = self.starting
             box = ErrorDialog(
-                self.window, log.redact(summary), log.redact(details), quit_
+                self.window,
+                LogSession.redact(summary),
+                LogSession.redact(details),
+                quit_,
             )
             box.exec()
             if box.reported:
-                report_problem(self.window, details)
+                report_problem(self._logs, self.window, details)
         finally:
             self.showing = False
         if quit_:
-            log.stop()
+            self._logs.stop()
             os._exit(1)
 
     # endregion
@@ -111,10 +116,10 @@ class ErrorHandler:
 _handler: ErrorHandler | None = None
 
 
-def install() -> ErrorHandler:
-    """Catch, log and show the app's unexpected errors from now on (once)."""
+def install(logs: LogSession) -> ErrorHandler:
+    """Catch, log in ``logs`` and show the app's unexpected errors from now on (once)."""
     global _handler
     if _handler is None:
-        _handler = ErrorHandler()
+        _handler = ErrorHandler(logs)
         _handler.install()
     return _handler

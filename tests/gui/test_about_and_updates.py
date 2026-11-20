@@ -10,7 +10,7 @@ pytest.importorskip("PySide6")
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_the_about_window_shows_each_update_state(app, new_window, tmp_path):
+def test_the_about_window_shows_each_update_state(app, new_window, tmp_path, logs):
     from papermini.gui.dialogs.about_dialog import AboutDialog
     from papermini.gui.updating.available_update import AvailableUpdate
     from papermini.gui.updating.download_progress import DownloadProgress
@@ -19,7 +19,7 @@ def test_the_about_window_shows_each_update_state(app, new_window, tmp_path):
     from papermini.support.release import Release
 
     w = new_window()
-    d = AboutDialog(w)
+    d = AboutDialog(logs, w)
     rel = Release("99.0.0", "")
     ready = ReadyUpdate("99.0.0", tmp_path, "")
     for state, data, text, button in (
@@ -51,20 +51,20 @@ def test_the_about_window_shows_each_update_state(app, new_window, tmp_path):
 
 
 @pytest.fixture
-def fake_updates(monkeypatch, tmp_path):
-    """A newer release that this copy can install, without network or helper: records
-    the checks, and what would be downloaded and installed."""
-    from papermini.support import update
+def fake_updates(monkeypatch, tmp_path, updates):
+    """Makes ``updates`` find a newer release that this copy can install, without
+    network or helper: records the checks, and what would be downloaded and installed."""
+    from papermini.support.release import Release
 
     calls = {"check": [], "download": [], "install": []}
-    rel = update.Release("99.0.0", "https://example.invalid/release")
+    rel = Release("99.0.0", "https://example.invalid/release")
 
     def latest_release(*a, **k):
         calls["check"].append(rel.version)
         return rel
 
-    monkeypatch.setattr(update, "latest_release", latest_release)
-    monkeypatch.setattr(update, "unsupported", lambda: None)
+    monkeypatch.setattr(updates, "latest_release", latest_release)
+    monkeypatch.setattr(updates, "unsupported", lambda: None)
 
     def download(r, progress=None, step=None, **k):
         calls["download"].append(r.version)
@@ -78,9 +78,9 @@ def fake_updates(monkeypatch, tmp_path):
         app.mkdir(parents=True, exist_ok=True)
         return app
 
-    monkeypatch.setattr(update, "download", download)
+    monkeypatch.setattr(updates, "download", download)
     monkeypatch.setattr(
-        update,
+        updates,
         "install_on_exit",
         lambda app, restart=False: calls["install"].append((app, restart)),
     )
@@ -96,13 +96,12 @@ def installed(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def waiting_update(monkeypatch, tmp_path):
+def waiting_update(monkeypatch, tmp_path, updates):
     """Puts a downloaded update of papermini 99.0.0 in place, ready to install."""
-    from papermini.support import update
 
     app = tmp_path / "updates" / "99.0.0" / "new" / "papermini"
-    monkeypatch.setattr(update, "pending", lambda: ("99.0.0", app))
-    monkeypatch.setattr(update, "forget_old", lambda: None)
+    monkeypatch.setattr(updates, "pending", lambda: ("99.0.0", app))
+    monkeypatch.setattr(updates, "forget_old", lambda: None)
     return app
 
 
@@ -318,14 +317,12 @@ def test_closing_papermini_without_an_update_installs_nothing(
 
 
 def test_the_about_window_says_when_this_is_the_latest_version(
-    app, fake_updates, monkeypatch, new_window, wait, prefs
+    updates, app, fake_updates, monkeypatch, new_window, wait, prefs
 ):
     from papermini.gui.dialogs.about_dialog import AboutDialog
-    from papermini.support import update
+    from papermini.support.release import Release
 
-    monkeypatch.setattr(
-        update, "latest_release", lambda *a, **k: update.Release("0.0.1", "")
-    )
+    monkeypatch.setattr(updates, "latest_release", lambda *a, **k: Release("0.0.1", ""))
     shown = []
 
     def use(about):  # (instead of the modal exec)
@@ -343,25 +340,24 @@ def test_the_about_window_says_when_this_is_the_latest_version(
 
 
 def test_an_error_from_the_check_shows_in_the_about_window_which_can_try_again(
-    app, fake_updates, monkeypatch, new_window, wait, prefs
+    updates, app, fake_updates, monkeypatch, new_window, wait, prefs
 ):
     """A failed check shows its error in About and in the status bar, and is not
     remembered as a check; Try again checks again."""
     from papermini.gui.dialogs.about_dialog import AboutDialog
-    from papermini.support import update
 
-    working = update.latest_release
+    working = updates.latest_release
 
     def offline(*a, **k):
         raise OSError("Could not check for updates: offline")
 
-    monkeypatch.setattr(update, "latest_release", offline)
+    monkeypatch.setattr(updates, "latest_release", offline)
     shown = []
 
     def use(about):  # (instead of the modal exec)
         assert wait(lambda: about.action.isVisibleTo(about), 20)
         shown.append((about.status.text(), about.action.text(), status(w)))
-        monkeypatch.setattr(update, "latest_release", working)
+        monkeypatch.setattr(updates, "latest_release", working)
         about.action.click()
         shown.append(about.status.text())
         assert wait(lambda: about.action.text() == "Update", 20)
@@ -385,14 +381,13 @@ def test_an_error_from_the_check_shows_in_the_about_window_which_can_try_again(
 
 
 def test_an_error_from_the_daily_check_shows_in_the_status_bar(
-    app, fake_updates, installed, monkeypatch, new_window, wait, prefs
+    updates, app, fake_updates, installed, monkeypatch, new_window, wait, prefs
 ):
-    from papermini.support import update
 
     def offline(*a, **k):
         raise OSError("Could not check for updates: offline")
 
-    monkeypatch.setattr(update, "latest_release", offline)
+    monkeypatch.setattr(updates, "latest_release", offline)
     w = new_window()
     start_up(w, wait)
     assert wait(lambda: status(w) == "Could not check for updates: offline", 20)
@@ -402,17 +397,16 @@ def test_an_error_from_the_daily_check_shows_in_the_status_bar(
 
 
 def test_an_error_from_the_download_shows_in_the_about_window(
-    app, fake_updates, monkeypatch, new_window, wait
+    updates, app, fake_updates, monkeypatch, new_window, wait
 ):
     """A failed download shows its error in About and in the status bar, and leaves
     nothing to install."""
     from papermini.gui.dialogs.about_dialog import AboutDialog
-    from papermini.support import update
 
     def broken(*a, **k):
         raise OSError("The download is damaged")
 
-    monkeypatch.setattr(update, "download", broken)
+    monkeypatch.setattr(updates, "download", broken)
     shown = []
 
     def use(about):  # (instead of the modal exec)
@@ -448,22 +442,22 @@ def test_check_for_updates_is_in_the_menu_and_update_automatically_in_the_prefer
     dlg.close()
 
 
-def test_about_names_the_font_licence(app, monkeypatch, new_window):
+def test_about_names_the_font_licence(app, monkeypatch, new_window, logs):
     """About lists the bundled fonts and their licence, with a link to their folder."""
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import QLabel
 
     from papermini.gui.dialogs.about_dialog import AboutDialog
-    from papermini.support import fonts
+    from papermini.support.font_library import FontLibrary
 
     opened = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
     w = new_window()
-    d = AboutDialog(w)
+    d = AboutDialog(logs, w)
     label = next(
         lb for lb in d.findChildren(QLabel) if "Open Font License" in lb.text()
     )
-    assert all(name in label.text() for name in fonts.BUNDLED)
+    assert all(name in label.text() for name in FontLibrary.BUNDLED)
     label.linkActivated.emit("fonts")
-    assert [u.toLocalFile() for u in opened] == [fonts.HERE.as_posix()]
-    assert (fonts.HERE / "kalam" / "OFL.txt").is_file()
+    assert [u.toLocalFile() for u in opened] == [FontLibrary.FOLDER.as_posix()]
+    assert (FontLibrary.FOLDER / "kalam" / "OFL.txt").is_file()
