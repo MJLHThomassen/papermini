@@ -47,7 +47,11 @@ from ...project.figure_settings import FigureSettings
 from ...project.project import Project
 from ...project.project_store import ProjectStore
 from ...project.size_calculator import SizeCalculator
-from ...support import fonts, log, remote
+from ...support.font_library import FontLibrary
+from ...support.image_fetcher import ImageFetcher
+from ...support.image_files import ImageFiles
+from ...support.log_session import LogSession
+from ...support.update_service import UpdateService
 from .. import errors, theme
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
@@ -76,7 +80,7 @@ from .build_job import BuildJob
 from .figure import Figure
 from .signals import Signals
 
-IMAGE_FILTER = remote.IMAGE_FILTER
+IMAGE_FILTER = ImageFiles.FILTER
 IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
 ui_log = logging.getLogger("papermini.ui")  # what the user does
@@ -91,12 +95,19 @@ class MainWindow(QMainWindow):
         project_store: ProjectStore,
         size_calculator: SizeCalculator,
         pipeline: Pipeline,
+        fonts: FontLibrary,
+        images_from_web: ImageFetcher,
+        updates: UpdateService,
+        logs: LogSession,
     ):
         super().__init__()
         self._prefs = prefs
         self._project_store = project_store
         self._size_calculator = size_calculator
         self._pipeline = pipeline
+        self._fonts = fonts
+        self._images_from_web = images_from_web
+        self._logs = logs
         self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = self._fresh_project()
@@ -115,11 +126,11 @@ class MainWindow(QMainWindow):
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
-        self.exporter = ExportController(self, prefs, ExportDialogs(prefs))
+        self.exporter = ExportController(self, prefs, ExportDialogs(prefs), fonts)
         self.exporter.status.connect(self._status)
         self.exporter.warning.connect(self._warn)
         self.exporter.build.connect(self._queue)
-        self.updater = UpdateController(self, prefs)
+        self.updater = UpdateController(self, prefs, updates, logs)
         self.updater.status.connect(self._status)
         self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = (
@@ -187,7 +198,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self.panel = FigurePanel(self._prefs, self._size_calculator)
+        self.panel = FigurePanel(self._prefs, self._size_calculator, self._fonts)
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
         self.sheet_panel = SheetPanel(self._prefs)
@@ -630,18 +641,18 @@ class MainWindow(QMainWindow):
         )
         self.a_report = act(
             "Report a problem…",
-            lambda: errors.report_problem(self),
+            lambda: errors.report_problem(self._logs, self),
             None,
             "Open a new issue on GitHub with your papermini version and "
             "system filled in, and the log folder to attach the log from",
         )
         self.a_open_logs = act(
             "Open log folder",
-            errors.open_log_folder,
+            lambda: errors.open_log_folder(self._logs),
             None,
             "Show papermini's logs (they stay on your computer)",
         )
-        self.a_open_logs.setEnabled(log.session() is not None)
+        self.a_open_logs.setEnabled(self._logs.session() is not None)
 
         m = self.menu = QMenu(self)
         self.recent_menu = QMenu("Open recent", self)
@@ -831,13 +842,13 @@ class MainWindow(QMainWindow):
         """Add image files; links among ``paths`` are downloaded first (in the background).
         ``names``: a figure name for each path (None: named after the file)."""
         base = self._base_settings(settings)
-        links = [str(p).strip() for p in paths if remote.is_url(p)]
+        links = [str(p).strip() for p in paths if ImageFetcher.is_url(p)]
         added = 0
         for p, name in zip(paths, names or [None] * len(paths)):
-            if remote.is_url(p):
+            if ImageFetcher.is_url(p):
                 continue
-            p = remote.local_path(p).resolve()
-            if not remote.is_image_file(p):
+            p = ImageFiles.local_path(p).resolve()
+            if not ImageFiles.is_image_file(p):
                 continue
             self._append(FigureEntry(p, self._new_settings(base), name))
             added += 1
@@ -859,7 +870,7 @@ class MainWindow(QMainWindow):
         base = self._base_settings(settings)
         for url in links:
             url = url.strip()
-            hit = remote.cached_image(url)
+            hit = self._images_from_web.cached_image(url)
             if hit is not None:
                 self._on_link_done(url, hit, "", base)
                 continue
@@ -870,7 +881,7 @@ class MainWindow(QMainWindow):
 
     def _fetch_link(self, url: str, base):  # on a worker thread
         try:
-            path, err = remote.fetch_image(url, cancel=self._closing), ""
+            path, err = self._images_from_web.fetch_image(url, cancel=self._closing), ""
         except ValueError as e:
             path, err = None, str(e)
         if not self._closing.is_set():
@@ -884,7 +895,7 @@ class MainWindow(QMainWindow):
             self._warn(f"Could not add the image.\n\n{err}")
             return
         self._append(FigureEntry(Path(path), self._new_settings(base), source=url))
-        ui_log.info("Added %s from %s", Path(path).name, log.link_text(url))
+        ui_log.info("Added %s from %s", Path(path).name, LogSession.link_text(url))
         self.list.setCurrentRow(len(self.figures) - 1)
         self._set_modified()
         self._status(f"Added {Path(path).name}")
@@ -894,7 +905,7 @@ class MainWindow(QMainWindow):
         link already filled in."""
         self.set_side_visible(0, True)
         clip = QApplication.clipboard().text().strip()
-        if not self.link_edit.text().strip() and remote.is_url(clip):
+        if not self.link_edit.text().strip() and ImageFetcher.is_url(clip):
             self.link_edit.setText(clip)
         self.link_edit.setFocus(Qt.ShortcutFocusReason)
         self.link_edit.selectAll()
@@ -904,7 +915,7 @@ class MainWindow(QMainWindow):
         words = self.link_edit.text().split()
         if not words:
             return
-        links = [w for w in words if remote.is_url(w)]
+        links = [w for w in words if ImageFetcher.is_url(w)]
         if len(links) != len(words):
             self._status("That is not a link: it should start with http:// or https://")
             self.link_edit.setFocus()
@@ -921,11 +932,14 @@ class MainWindow(QMainWindow):
         files = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
         links = []
         if mime.hasHtml():
-            links = [s for s in IMG_SRC.findall(mime.html()) if remote.is_url(s)][:1]
+            found = IMG_SRC.findall(mime.html())
+            links = [s for s in found if ImageFetcher.is_url(s)][:1]
         if not links:
-            links = [u.toString() for u in mime.urls() if remote.is_url(u.toString())]
+            links = [
+                u.toString() for u in mime.urls() if ImageFetcher.is_url(u.toString())
+            ]
         if not links and not files and mime.hasText():
-            links = [t for t in mime.text().split() if remote.is_url(t)]
+            links = [t for t in mime.text().split() if ImageFetcher.is_url(t)]
         return files, links
 
     def paste(self):
@@ -1091,7 +1105,7 @@ class MainWindow(QMainWindow):
                 if key == "sheet"
                 else (fig.entry.settings if fig else None)
             )
-            diff = log.settings_diff(old, new) if new is not None else ""
+            diff = LogSession.settings_diff(old, new) if new is not None else ""
             if diff:
                 ui_log.debug("%s: %s", name, diff)
 
@@ -1176,7 +1190,7 @@ class MainWindow(QMainWindow):
     def _find_fonts(self):
         """Look for the fonts installed on this computer (a worker thread)."""
         try:
-            names = list(fonts.installed())
+            names = list(self._fonts.installed())
         except Exception:  # noqa: BLE001 - without them, the bundled fonts still work
             ui_log.exception("Could not look for the installed fonts")
             names = []
@@ -1480,7 +1494,7 @@ class MainWindow(QMainWindow):
             self.crop_view.set_outline(None)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
-        draw_mini_page(sc, m)
+        draw_mini_page(sc, m, self._fonts)
         sc.setSceneRect(sc.itemsBoundingRect())
         # a token's framing handles (only on a piece built from the settings shown)
         if m.kind == "token" and fig.up_to_date:
@@ -1621,7 +1635,9 @@ class MainWindow(QMainWindow):
             )
             return
         first = sc.itemsBoundingRect().isEmpty()
-        draw_sheet(sc, lay, sh.title, {id(f.mini.art): f.pixmap for f in ready})
+        draw_sheet(
+            sc, lay, sh.title, self._fonts, {id(f.mini.art): f.pixmap for f in ready}
+        )
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.sheet_view.fit()
@@ -1674,12 +1690,12 @@ class MainWindow(QMainWindow):
     # region project
     def open_paths(self, paths):
         """Open a project and/or add images: files, ``file://`` URIs or web links."""
-        links = [str(p).strip() for p in paths if remote.is_url(p)]
-        paths = [remote.local_path(p) for p in paths if not remote.is_url(p)]
+        links = [str(p).strip() for p in paths if ImageFetcher.is_url(p)]
+        paths = [ImageFiles.local_path(p) for p in paths if not ImageFetcher.is_url(p)]
         projects = [p for p in paths if p.suffix.lower() in (".yaml", ".yml")]
         if projects:
             self.load(projects[0])
-        self.add_images([p for p in paths if remote.is_image_file(p)] + links)
+        self.add_images([p for p in paths if ImageFiles.is_image_file(p)] + links)
         for folder in (p for p in paths if p.is_dir()):
             self.add_folder(folder)
 
@@ -1791,15 +1807,15 @@ class MainWindow(QMainWindow):
         """Add every image in ``folder`` (and its subfolders, as set in Preferences), in
         natural order; asks about images already in the project. Returns how many."""
         folder = Path(folder).resolve()
-        images, skipped = remote.folder_images(folder, self._prefs.add_subfolders())
+        images, skipped = ImageFiles.folder_images(folder, self._prefs.add_subfolders())
         if not images:
             QMessageBox.information(
                 self,
                 "papermini",
-                f"{folder.name} has no images papermini can read ({remote.READABLE}).",
+                f"{folder.name} has no images papermini can read ({ImageFiles.READABLE}).",
             )
             return 0
-        names = remote.figure_names(images, folder)
+        names = ImageFiles.figure_names(images, folder)
         have = {os.path.normcase(str(f.entry.image)) for f in self.figures}
         dup = [
             i
@@ -1917,6 +1933,8 @@ class MainWindow(QMainWindow):
             lambda: [f.entry.image for f in self.figures],
             self._pipeline.segmenters,
             self._pipeline.masks,
+            self._images_from_web,
+            self._logs,
             page,
             self,
         )

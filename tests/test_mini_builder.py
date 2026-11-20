@@ -12,7 +12,7 @@ from papermini.pipeline.style import Style
 from papermini.pipeline.text_item import NUMBER_PLACEHOLDER
 from papermini.project.figure_settings import FigureSettings
 from papermini.project.settings import build_mini
-from papermini.support import cache, fonts
+from papermini.support.font_library import FontLibrary
 
 
 def _dark_rows_mm(mini):
@@ -40,7 +40,7 @@ def test_alpha_png_needs_no_model(tmp_path, pipeline_mini, params):
 
 
 def test_the_back_text_is_upside_down_and_defaults_to_the_label(
-    hero_figure, tmp_path, pipeline_mini, params, mask_options
+    fonts, hero_figure, tmp_path, pipeline_mini, params, mask_options
 ):
     img, mask = hero_figure
     prm = params(double_sided=True, back="text")
@@ -64,7 +64,7 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
     # default text is the label; round-trips through the SVG
     m2 = pipeline_mini(img, prm, mask_options(mask_path=mask), label="Hero")
     assert [t.text for t in m2.texts] == ["Hero"]
-    r = read_svg(write_svg(m, tmp_path / "hero.svg"))
+    r = read_svg(write_svg(m, tmp_path / "hero.svg", fonts))
 
     def rounded(texts):
         return [
@@ -73,7 +73,7 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
         ]
 
     assert rounded(r.texts) == rounded(m.texts)
-    write_pdf(pack([(r, 1)]), tmp_path / "s.pdf")
+    write_pdf(pack([(r, 1)]), tmp_path / "s.pdf", fonts)
 
 
 def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(pipeline, hero_figure):
@@ -226,14 +226,16 @@ def test_on_stage_reports_the_outline_before_the_layout(
     assert seen == ["outline"]  # a mask file runs no model, so no "segment" stage
 
 
-def _kinds(m, rot):
-    return [(t.kind, t.text) for t in m.text_items() if t.rot == rot]
+def _kinds(fonts, m, rot):
+    return [(t.kind, t.text) for t in m.text_items(fonts) if t.rot == rot]
 
 
-def test_a_mini_shows_its_number_only_where_chosen(goblin_figure, numbered_mini):
+def test_a_mini_shows_its_number_only_where_chosen(fonts, goblin_figure, numbered_mini):
     m = numbered_mini(goblin_figure)
     assert not m.numbered and m.number_box is None
-    assert _kinds(m, 0) == [("label", "Goblin")] and _kinds(m, 180)[0] == (
+    assert _kinds(fonts, m, 0) == [("label", "Goblin")] and _kinds(fonts, m, 180)[
+        0
+    ] == (
         "label",
         "Goblin",
     )
@@ -241,21 +243,23 @@ def test_a_mini_shows_its_number_only_where_chosen(goblin_figure, numbered_mini)
         goblin_figure, tab_front="number", tab_back="label_number", back="blank"
     )
     assert m.numbered
-    assert _kinds(m, 0) == [("number", NUMBER_PLACEHOLDER)]  # (no copy number yet)
-    assert _kinds(m, 180) == [("number", "#"), ("label", "Goblin")]
+    assert _kinds(fonts, m, 0) == [
+        ("number", NUMBER_PLACEHOLDER)
+    ]  # (no copy number yet)
+    assert _kinds(fonts, m, 180) == [("number", "#"), ("label", "Goblin")]
     m.number = 4
-    assert [t.text for t in m.text_items() if t.kind == "number"] == ["4", "4"]
-    assert all(t.bold for t in m.text_items() if t.kind == "number")
+    assert [t.text for t in m.text_items(fonts) if t.kind == "number"] == ["4", "4"]
+    assert all(t.bold for t in m.text_items(fonts) if t.kind == "number")
 
 
-def test_number_and_label_share_the_tab(goblin_figure, numbered_mini):
+def test_number_and_label_share_the_tab(fonts, goblin_figure, numbered_mini):
     """With both, the number goes above the label (towards the fold), at least as big."""
     m = numbered_mini(
         goblin_figure, tab_front="label_number", tab_back="label_number", back="blank"
     )
     m.number = 12
     for rot, towards_fold in ((0, -1), (180, 1)):
-        num, label = [t for t in m.text_items() if t.rot == rot]
+        num, label = [t for t in m.text_items(fonts) if t.rot == rot]
         assert (num.kind, label.kind) == ("number", "label")
         assert (num.cy - label.cy) * towards_fold > 0
         assert num.size_mm >= label.size_mm
@@ -263,17 +267,17 @@ def test_number_and_label_share_the_tab(goblin_figure, numbered_mini):
     # a number alone fills the tab's height (or width)
     alone = numbered_mini(goblin_figure, tab_front="number", back="blank")
     alone.number = 12
-    n = next(t for t in alone.text_items() if t.kind == "number")
+    n = next(t for t in alone.text_items(fonts) if t.kind == "number")
     assert alone.label_size_mm < n.size_mm <= alone.tab_room[1] + 1e-6
 
 
-def test_the_number_is_printed_on_the_back(goblin_figure, numbered_mini):
+def test_the_number_is_printed_on_the_back(fonts, goblin_figure, numbered_mini):
     m = numbered_mini(goblin_figure, back="number")
     assert m.numbered and not m.texts
     _cx, cy, w, h = m.number_box
     assert 0 < cy < m.height_mm / 2 and w > 0 and h > 0  # the back half is the top half
     m.number = 3
-    back = [t for t in m.text_items() if t.kind == "number"]
+    back = [t for t in m.text_items(fonts) if t.kind == "number"]
     assert [(t.text, t.rot) for t in back] == [("3", 180.0)]
     assert back[0].size_mm > 2 * m.label_size_mm
     # with text: the number above the text (upside down, so further down the sheet)
@@ -282,8 +286,10 @@ def test_the_number_is_printed_on_the_back(goblin_figure, numbered_mini):
     assert both.texts and all(t.cy < cy - h / 2 for t in both.texts)
 
 
-def test_a_missing_font_prints_in_times(goblin_figure, pipeline_mini, mask_options):
-    assert fonts.resolve("No Such Font") == (fonts.TIMES, False)
+def test_a_missing_font_prints_in_times(
+    fonts, goblin_figure, pipeline_mini, mask_options
+):
+    assert fonts.resolve("No Such Font") == (FontLibrary.TIMES, False)
     assert fonts.resolve("Almendra")[1] and fonts.resolve("Times")[1]
     assert fonts.pdf_name("No Such Font") == "Times-Roman"
     assert fonts.pdf_name("Times", bold=True) == "Times-Bold"
@@ -304,17 +310,16 @@ def test_adjustments_change_the_print_not_the_outline(pipeline, red_disc):
     """The picture is adjusted; the mask, outline and size are exactly as before, and
     the cached mask is reused (the model would not run again)."""
     img, mask = red_disc
-    cache.clear_all()
     base = FigureSettings(mask=str(mask), double_sided=False, label="")
     plain = build_mini(img, base, pipeline=pipeline, log=lambda *_: None)
-    misses = cache.raw_masks.misses
+    misses = pipeline.caches.raw_masks.misses
     grey = build_mini(
         img,
         FigureSettings(**{**base.__dict__, "greyscale": True, "brightness": 10}),
         pipeline=pipeline,
         log=lambda *_: None,
     )
-    assert cache.raw_masks.misses == misses  # no new mask
+    assert pipeline.caches.raw_masks.misses == misses  # no new mask
     assert len(grey.source_outline) == len(plain.source_outline)
     assert all(
         (a == b).all() for a, b in zip(grey.source_outline, plain.source_outline)

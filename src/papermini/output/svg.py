@@ -17,7 +17,7 @@ from ..pipeline.cut_path import CutPath
 from ..pipeline.mini import Mini
 from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM, Style
 from ..pipeline.text_item import TEXT_BASELINE_DROP, TextItem
-from ..support import fonts
+from ..support.font_library import FontLibrary
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -45,7 +45,7 @@ def path_d(p: CutPath) -> str:
     return " ".join(parts) + " Z"
 
 
-def to_svg(m: Mini) -> str:
+def to_svg(m: Mini, fonts: FontLibrary) -> str:
     st = m.style
     b64 = base64.b64encode(m.png_bytes()).decode("ascii")
     W, H = _f(m.width_mm), _f(m.height_mm)
@@ -68,7 +68,7 @@ def to_svg(m: Mini) -> str:
             f'stroke="{st.fold_color}" stroke-width="{_f(st.fold_width_mm)}" stroke-dasharray="{_f(FOLD_DASH_MM)},{_f(FOLD_GAP_MM)}"/>'
         )
     count: dict = {}
-    for t in m.text_items():  # labels, numbers, the back text and a token's text
+    for t in m.text_items(fonts):  # labels, numbers, the back text and a token's text
         i = count[t.kind] = count.get(t.kind, -1) + 1
         ident = {
             "label": "label",
@@ -92,21 +92,25 @@ def to_svg(m: Mini) -> str:
     return "\n".join(out) + "\n"
 
 
-def write_svg(m: Mini, path: Path) -> Path:
+def write_svg(m: Mini, path: Path, fonts: FontLibrary) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(to_svg(m), encoding="utf-8")
+    path.write_text(to_svg(m, fonts), encoding="utf-8")
     return path
 
 
-def write_svgs(m: Mini, path: Path, copies: int = 1) -> list[Path]:
+def write_svgs(m: Mini, path: Path, fonts: FontLibrary, copies: int = 1) -> list[Path]:
     """The SVG file of a miniature at ``path``; a numbered one gets a file per copy, each
     with its number: ``goblin-1.svg`` to ``goblin-6.svg`` (one copy: ``goblin-1.svg``)."""
     path = Path(path)
     if not m.numbered:
-        return [write_svg(m, path)]
+        return [write_svg(m, path, fonts)]
     return [
-        write_svg(replace(m, number=i), path.with_name(f"{path.stem}-{i}{path.suffix}"))
+        write_svg(
+            replace(m, number=i),
+            path.with_name(f"{path.stem}-{i}{path.suffix}"),
+            fonts,
+        )
         for i in range(1, max(1, copies) + 1)
     ]
 
@@ -224,7 +228,7 @@ def read_svg(path: Path) -> Mini:
         )
     first = next(iter(root.iter(f"{{{SVG_NS}}}text")), None)
     if first is not None:  # (one font for all of a piece's text)
-        style.font = fonts.from_svg_family(first.get("font-family", ""))
+        style.font = FontLibrary.from_svg_family(first.get("font-family", ""))
     labels, text, size = [], "", style.label_size_mm
     for t in el("text", cls="label"):
         text = "".join(t.itertext())

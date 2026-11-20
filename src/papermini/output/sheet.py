@@ -12,12 +12,12 @@ from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from ..pipeline.mini import Mini
 from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
 from ..pipeline.text_item import TEXT_BASELINE_DROP
-from ..support import fonts
+from ..support.font_library import FontLibrary
 from .placement import Placement
 from .sheet_layout import (
     BAR_ABOVE_MM,
@@ -299,9 +299,12 @@ def pack(
     )
 
 
-def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
-    """The sheet as a PDF. Cut by machine: without cut lines but with alignment marks
-    (``write_cut_files`` writes the matching cut files)."""
+def write_pdf(
+    layout: SheetLayout, out: Path, fonts: FontLibrary, title: str = TITLE
+) -> Path:
+    """The sheet as a PDF, its pieces' text in their fonts from ``fonts``. Cut by
+    machine: without cut lines but with alignment marks (``write_cut_files`` writes the
+    matching cut files)."""
     from reportlab.lib.units import mm
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas
@@ -351,13 +354,17 @@ def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
 
         for p in layout.placements:
             if p.page == page:
-                _draw_mini(c, p, X, Y, mm, ImageReader, cut_line=not layout.machine)
+                _draw_mini(
+                    c, p, X, Y, mm, ImageReader, fonts, cut_line=not layout.machine
+                )
         c.showPage()
     c.save()
     return out
 
 
-def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) -> None:
+def _draw_mini(
+    c, p: Placement, X, Y, mm, ImageReader, fonts: FontLibrary, cut_line: bool = True
+) -> None:
     from reportlab.lib.colors import HexColor
 
     m, st = p.mini, p.mini.style
@@ -378,7 +385,7 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
         c.line(X(p.x + x0), Y(p.y + y), X(p.x + x1), Y(p.y + y))
     c.restoreState()
     # labels, numbers and the back text
-    for t in m.text_items():
+    for t in m.text_items(fonts):
         c.saveState()
         c.setFillColor(HexColor(t.color))
         c.setFont(fonts.pdf_name(st.font, t.bold), t.size_mm * mm)
@@ -494,22 +501,15 @@ def write_cut_files(
     return paths
 
 
-def _font(size_px: int, serif: bool = False, path=None):
-    names = (
-        ["times.ttf", "DejaVuSerif.ttf"] if serif else ["arial.ttf", "DejaVuSans.ttf"]
-    )
-    for name in ([str(path)] if path else []) + names:
-        try:
-            return ImageFont.truetype(name, size_px)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
 def write_previews(
-    layout: SheetLayout, out: Path, dpi: int = 100, title: str = TITLE
+    layout: SheetLayout,
+    out: Path,
+    fonts: FontLibrary,
+    dpi: int = 100,
+    title: str = TITLE,
 ) -> list[Path]:
-    """One PNG per page (``out`` or ``out-2.png`` ...) for a quick look."""
+    """One PNG per page (``out`` or ``out-2.png`` ...) for a quick look, the pieces'
+    text in their fonts from ``fonts``."""
     out = Path(out)
     s = dpi / 25.4
     pw, ph = layout.paper
@@ -520,13 +520,18 @@ def write_previews(
         d = ImageDraw.Draw(im)
         for x, y, w, h in layout.mark_rects():
             d.rectangle([x * s, y * s, (x + w) * s, (y + h) * s], fill="black")
-        d.text((hx * s, (margin_mm) * s), title, fill="black", font=_font(round(4 * s)))
+        d.text(
+            (hx * s, (margin_mm) * s),
+            title,
+            fill="black",
+            font=fonts.image_font(round(4 * s)),
+        )
         for i, line in enumerate(layout.instructions()):
             d.text(
                 (hx * s, (margin_mm + 6 + INSTRUCTIONS_LINE_MM * i) * s),
                 line,
                 fill="black",
-                font=_font(round(2.6 * s)),
+                font=fonts.image_font(round(2.6 * s)),
             )
         cy = (margin_mm + layout.header_mm - BAR_ABOVE_MM) * s
         d.line(
@@ -549,17 +554,15 @@ def write_previews(
                     [(ox + x0 * s, oy + y * s), (ox + x1 * s, oy + y * s)],
                     fill=m.style.fold_color,
                 )
-            for t in m.text_items():
+            for t in m.text_items(fonts):
                 if t.rot:  # (a quick look: upright text only)
                     continue
                 d.text(
                     (ox + t.cx * s, oy + t.cy * s),
                     t.text,
                     fill=t.color,
-                    font=_font(
-                        max(6, round(t.size_mm * s)),
-                        serif=True,
-                        path=fonts.file_for(m.style.font, t.bold),
+                    font=fonts.image_font(
+                        max(6, round(t.size_mm * s)), m.style.font, t.bold
                     ),
                     anchor="mm",
                 )

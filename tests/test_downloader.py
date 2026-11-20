@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from papermini.pipeline.segmentation.cache_folder import CacheFolder
 from papermini.pipeline.segmentation.downloader import Downloader
 from papermini.pipeline.segmentation.model_error import ModelError
+from papermini.support.cache_folder import CacheFolder
 
 
 class FakeResponse:

@@ -40,7 +40,7 @@ def find_iscc() -> Path | None:
 def build(version: str, dist: Path, out: Path) -> Path:
     """Build the installer of the app in ``dist``, as ``version``, into ``out``;
     returns the installer."""
-    from papermini.support import update
+    from papermini.support.update_service import UpdateService
 
     iscc = find_iscc()
     if iscc is None:
@@ -54,7 +54,7 @@ def build(version: str, dist: Path, out: Path) -> Path:
             "pyinstaller packaging/papermini.spec --noconfirm"
         )
     out.mkdir(parents=True, exist_ok=True)
-    name = update.asset_name(version, "windows-x64", setup=True)
+    name = UpdateService.asset_name(version, "windows-x64", setup=True)
     done = subprocess.run(
         [
             str(iscc),

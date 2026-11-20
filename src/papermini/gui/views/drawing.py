@@ -41,12 +41,12 @@ from ...output.sheet_layout import (
 from ...pipeline.cut_path import CutPath
 from ...pipeline.mini import Mini
 from ...pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
-from ...support import fonts
+from ...support.font_library import FontLibrary
 from .images import pil_to_qimage
 from .paper_item import PaperItem
 
 
-def print_sheet(printer, lay: SheetLayout, title: str) -> int:
+def print_sheet(printer, lay: SheetLayout, title: str, fonts: FontLibrary) -> int:
     """Print the sheet at its real size (1 mm on the sheet = 1 mm on paper), the pages
     chosen in the print dialog or all of them. Returns the number of pages printed.
 
@@ -56,7 +56,7 @@ def print_sheet(printer, lay: SheetLayout, title: str) -> int:
     from PySide6.QtWidgets import QGraphicsScene
 
     scene = QGraphicsScene()
-    pages = draw_sheet(scene, lay, title)
+    pages = draw_sheet(scene, lay, title, fonts)
     first, last = printer.fromPage(), printer.toPage()  # 1-based; 0 = all pages
     chosen = [
         r
@@ -82,9 +82,10 @@ PAGE_GAP_MM = 12.0
 _qt_families: dict = {}
 
 
-def qt_family(name: str) -> str:
+def qt_family(name: str, fonts: FontLibrary) -> str:
     """The font family Qt draws a miniature's font with: Times New Roman for Times, else
-    the font's own files (registered once), so the app shows what the PDF prints."""
+    the font's own files from ``fonts`` (registered once), so the app shows what the PDF
+    prints."""
     if name not in _qt_families:
         font, _ = fonts.resolve(name)
         family = "Times New Roman"
@@ -159,6 +160,7 @@ def cut_painter_path(m: Mini, x: float = 0.0, y: float = 0.0) -> QPainterPath:
 def draw_mini(
     scene: QGraphicsScene,
     m: Mini,
+    fonts: FontLibrary,
     x: float = 0.0,
     y: float = 0.0,
     pixmap: QPixmap | None = None,
@@ -182,8 +184,8 @@ def draw_mini(
     )
     for x0, x1, fy in m.folds:
         scene.addLine(x + x0, y + fy, x + x1, y + fy, pen)
-    family = qt_family(st.font)
-    for t in m.text_items():  # labels, numbers and the back text
+    family = qt_family(st.font, fonts)
+    for t in m.text_items(fonts):  # labels, numbers and the back text
         _text(
             scene,
             t.text,
@@ -211,12 +213,12 @@ def _paper(scene: QGraphicsScene, r: QRectF) -> QGraphicsRectItem:
     return item
 
 
-def draw_mini_page(scene: QGraphicsScene, m: Mini) -> None:
+def draw_mini_page(scene: QGraphicsScene, m: Mini, fonts: FontLibrary) -> None:
     """A single miniature on a bit of white paper."""
     scene.clear()
     pad = 6.0
     _paper(scene, QRectF(-pad, -pad, m.width_mm + 2 * pad, m.height_mm + 2 * pad))
-    draw_mini(scene, m)
+    draw_mini(scene, m, fonts)
     # 10 mm scale bar under the piece
     yb = m.height_mm + pad * 0.55
     pen = QPen(QColor("#333"), 0.3)
@@ -227,7 +229,11 @@ def draw_mini_page(scene: QGraphicsScene, m: Mini) -> None:
 
 
 def draw_sheet(
-    scene: QGraphicsScene, lay: SheetLayout, title: str, pixmaps: dict | None = None
+    scene: QGraphicsScene,
+    lay: SheetLayout,
+    title: str,
+    fonts: FontLibrary,
+    pixmaps: dict | None = None,
 ) -> list[QRectF]:
     """All pages of the sheet stacked vertically, as the PDF prints them; returns the
     page rectangles."""
@@ -299,6 +305,7 @@ def draw_sheet(
         draw_mini(
             scene,
             p.mini,
+            fonts,
             p.x,
             p.page * (ph + PAGE_GAP_MM) + p.y,
             pm,

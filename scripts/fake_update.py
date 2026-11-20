@@ -92,8 +92,9 @@ def make_release(
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     from papermini.support import update
+    from papermini.support.update_service import UpdateService
 
-    tgt = update.target()
+    tgt = UpdateService.target()
     if tgt is None:
         sys.exit("papermini has no downloads for this computer")
     out = out or Path(tempfile.gettempdir()) / "papermini-fake-update"
@@ -106,7 +107,7 @@ def make_release(
 
     installed = None
     if setup is not None:
-        archive = rel / update.asset_name(version, tgt, setup=True)
+        archive = rel / UpdateService.asset_name(version, tgt, setup=True)
         shutil.copy2(setup, archive)
     elif app is not None:
         app = app.resolve()
@@ -124,7 +125,7 @@ def make_release(
             out / "installed", "0.0.1", "installed before the update"
         )
     if setup is None:
-        archive = rel / update.asset_name(version, tgt)
+        archive = rel / UpdateService.asset_name(version, tgt)
         pack(app, archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     sums = f"{digest}  {archive.name}\n".encode()
@@ -142,7 +143,7 @@ def make_release(
         json.dumps(
             {
                 "tag_name": f"v{version}",
-                "html_url": "https://github.com/MJLHThomassen/papermini/releases",
+                "html_url": update.RELEASES,
                 "assets": [
                     {"name": f.name, "browser_download_url": f.resolve().as_uri()}
                     for f in (archive, rel / update.CHECKSUMS, rel / update.SIGNATURE)

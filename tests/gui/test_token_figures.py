@@ -15,11 +15,11 @@ from papermini.pipeline.token_options import TokenOptions
 from papermini.project.figure_settings import FigureSettings
 
 
-def test_the_kind_switches_the_settings_groups(app, prefs, size_calculator):
+def test_the_kind_switches_the_settings_groups(fonts, app, prefs, size_calculator):
     from papermini.gui.panels.figure_fields import MINIATURE
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator)
+    p = FigurePanel(prefs, size_calculator, fonts)
     got = []
     p.changed.connect(got.append)
     p.set_settings(FigureSettings(label="Boss"), "x", "x")

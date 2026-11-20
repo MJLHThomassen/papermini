@@ -8,27 +8,30 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QMessageBox
 
-from ..support import log
+from ..support.log_session import LogSession
 
 
-def open_log_folder() -> None:
-    s = log.session()
-    folder = s.log.parent if s else log.log_dir()
+def open_log_folder(logs: LogSession) -> None:
+    s = logs.session()
+    folder = s.log.parent if s else logs.log_dir()
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
 
 def report_problem(
-    parent=None, details: str = "", files: list[Path] | None = None
+    logs: LogSession,
+    parent=None,
+    details: str = "",
+    files: list[Path] | None = None,
 ) -> None:
     """Open a new bug report on GitHub with the version, the operating system and how
     papermini runs filled in (and ``details``, a traceback, when given), open the log
     folder, and say which file to attach: ``files``, or the newest log."""
-    QDesktopServices.openUrl(QUrl(log.issue_url(details), QUrl.StrictMode))
-    s = log.session()
+    QDesktopServices.openUrl(QUrl(logs.issue_url(details), QUrl.StrictMode))
+    s = logs.session()
     if files is None:
         files = [s.log] if s else []
     if files:
-        open_log_folder()
+        open_log_folder(logs)
         names = "\n".join(f"  {f.name}" for f in files)
         text = (
             "A new issue opened in your browser. Describe what happened and how to make "
@@ -43,10 +46,10 @@ def report_problem(
     QMessageBox.information(parent, "Report a problem", text)
 
 
-def offer_crash_report(parent=None) -> None:
+def offer_crash_report(logs: LogSession, parent=None) -> None:
     """At start: offer to report the newest crash of an earlier session, once. Every
     crash found is marked as offered, whatever the answer."""
-    found = log.crashes()
+    found = logs.crashes()
     if not found:
         return
     crash, crash_log = found[0]
@@ -61,10 +64,10 @@ def offer_crash_report(parent=None) -> None:
     box.addButton("Not now", QMessageBox.RejectRole)
     box.exec()
     for c, _ in found:
-        log.mark_offered(c)
+        logs.mark_offered(c)
     if box.clickedButton() is report:
-        done = log.reported(crash)
+        done = logs.reported(crash)
         files = [done if done.exists() else crash]
         if crash_log.exists():
             files.append(crash_log)
-        report_problem(parent, files=files)
+        report_problem(logs, parent, files=files)

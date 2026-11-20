@@ -26,7 +26,7 @@ def _two_figures(tmp_path, alpha=False):
 
 
 @pytest.mark.parametrize("source", ["mask", "alpha", "model"])
-def test_a_crop_limits_the_figure_to_its_box(tmp_path, source, mask_options):
+def test_a_crop_limits_the_figure_to_its_box(fonts, tmp_path, source, mask_options):
     img, mask = _two_figures(tmp_path, alpha=source == "alpha")
     seen = []
 
@@ -35,7 +35,7 @@ def test_a_crop_limits_the_figure_to_its_box(tmp_path, source, mask_options):
         return np.where(np.asarray(rgb.convert("L")) < 128, 255, 0).astype(np.uint8)
 
     SegmenterRegistry.path("birefnet-lite").write_bytes(b"not a real model")
-    pipeline = Pipeline(make_segmenter=lambda path, *a, **k: segmenter)
+    pipeline = Pipeline(fonts, make_segmenter=lambda path, *a, **k: segmenter)
     fm = pipeline.masker.find(
         img,
         mask_options(

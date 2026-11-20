@@ -93,18 +93,20 @@ def test_figures_too_big_for_the_paper_can_be_left_out(square_mini):
     ]
 
 
-def test_marks_and_cut_files_follow_the_page(tmp_path, square_mini, media_box_mm):
+def test_marks_and_cut_files_follow_the_page(
+    fonts, tmp_path, square_mini, media_box_mm
+):
     lay = pack([(square_mini("m"), 1)], "a3", cut="machine", orientation="landscape")
     rects = lay.mark_rects()
     assert max(x + w for x, y, w, h in rects) == pytest.approx(420 - 12)
     assert max(y + h for x, y, w, h in rects) == pytest.approx(297 - 12)
     cut = write_cut_files(lay, tmp_path / "s-cut.svg")[0].read_text(encoding="utf-8")
     assert 'width="420mm"' in cut and 'height="297mm"' in cut
-    assert media_box_mm(write_pdf(lay, tmp_path / "s.pdf")) == (420, 297)
+    assert media_box_mm(write_pdf(lay, tmp_path / "s.pdf", fonts)) == (420, 297)
 
 
 def test_pack_keeps_the_pieces_inside_the_margins_without_overlap(
-    hero_figure, tmp_path, pipeline_mini, params, mask_options
+    fonts, hero_figure, tmp_path, pipeline_mini, params, mask_options
 ):
     img, mask = hero_figure
     m = pipeline_mini(img, params(height_mm=60), mask_options(mask_path=mask))
@@ -120,7 +122,7 @@ def test_pack_keeps_the_pieces_inside_the_margins_without_overlap(
                 overlap_x = a.x < b.x + m.width_mm and b.x < a.x + m.width_mm
                 overlap_y = a.y < b.y + m.height_mm and b.y < a.y + m.height_mm
                 assert not (overlap_x and overlap_y)
-    out = write_pdf(lay, tmp_path / "s.pdf")
+    out = write_pdf(lay, tmp_path / "s.pdf", fonts)
     assert out.read_bytes()[:5] == b"%PDF-"
 
 
@@ -173,7 +175,7 @@ def test_machine_sheet_keeps_clear_of_the_marks(square_mini):
         pack([(m, 1)], "a4", cut="laser")
 
 
-def test_cut_files_match_the_sheet(tmp_path, square_mini):
+def test_cut_files_match_the_sheet(fonts, tmp_path, square_mini):
     """Cut by machine: the PDF gets no cut lines, and a cut file per page holds the cut
     lines where the pieces are on the page plus the same marks as the PDF."""
     import re
@@ -184,7 +186,7 @@ def test_cut_files_match_the_sheet(tmp_path, square_mini):
     m = square_mini(folds=[(0.0, 30.0, 35.0)])
     lay = pack([(m, 30)], "a4", 12, 7, cut="machine", marks="corners")
     assert lay.pages > 1 and lay.machine
-    pdf = write_pdf(lay, tmp_path / "s.pdf")
+    pdf = write_pdf(lay, tmp_path / "s.pdf", fonts)
     assert pdf.read_bytes()[:5] == b"%PDF-"
     paths = write_cut_files(lay, default_cut_file(pdf))
     assert paths == cut_file_paths(tmp_path / "s-cut.svg", lay.pages)
@@ -211,7 +213,7 @@ def test_cut_files_match_the_sheet(tmp_path, square_mini):
     assert len(folded.findall("s:g[@id='fold']/s:line", ns)) == len(first)
 
 
-def test_the_sheet_numbers_the_copies(goblin_figure, tmp_path, numbered_mini):
+def test_the_sheet_numbers_the_copies(fonts, goblin_figure, tmp_path, numbered_mini):
     a = numbered_mini(goblin_figure, tab_front="number")
     b = numbered_mini(goblin_figure, back="number")
     plain = numbered_mini(goblin_figure)
@@ -223,12 +225,12 @@ def test_the_sheet_numbers_the_copies(goblin_figure, tmp_path, numbered_mini):
     assert sorted(by_art[id(b.art)]) == [1, 2]
     assert by_art[id(plain.art)] == [None, None]
     assert a.number is None  # (the copies are new minis; the figure keeps no number)
-    assert write_pdf(lay, tmp_path / "s.pdf").read_bytes()[:5] == b"%PDF-"
-    assert write_previews(lay, tmp_path / "s.pdf")
+    assert write_pdf(lay, tmp_path / "s.pdf", fonts).read_bytes()[:5] == b"%PDF-"
+    assert write_previews(lay, tmp_path / "s.pdf", fonts)
 
 
 def test_the_pdf_embeds_the_font_and_the_svg_names_it(
-    pipeline, goblin_figure, tmp_path
+    fonts, pipeline, goblin_figure, tmp_path
 ):
     img, mask = goblin_figure
     s = FigureSettings(
@@ -236,9 +238,9 @@ def test_the_pdf_embeds_the_font_and_the_svg_names_it(
     )
     m = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
     assert m.style.font == "Almendra"
-    pdf = write_pdf(pack([(m, 2)]), tmp_path / "s.pdf").read_bytes()
+    pdf = write_pdf(pack([(m, 2)]), tmp_path / "s.pdf", fonts).read_bytes()
     assert b"Almendra-Regular" in pdf and b"Almendra-Bold" in pdf  # (numbers are bold)
-    svg = write_svg(m, tmp_path / "hero.svg").read_text(encoding="utf-8")
+    svg = write_svg(m, tmp_path / "hero.svg", fonts).read_text(encoding="utf-8")
     assert "font-family=\"'Almendra', serif\"" in svg
     assert 'class="number"' in svg and 'font-weight="bold"' in svg
     assert read_svg(tmp_path / "hero.svg").style.font == "Almendra"
@@ -251,6 +253,7 @@ def test_the_pdf_embeds_the_font_and_the_svg_names_it(
             log=lambda *_: None,
         ),
         tmp_path / "t.svg",
+        fonts,
     )
     assert 'font-family="Times New Roman, Times, serif"' in t.read_text(
         encoding="utf-8"
