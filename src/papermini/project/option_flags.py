@@ -41,15 +41,21 @@ class OptionFlags:
     def add_one(self, name: str, more: str = "") -> None:
         """Add the flag of the setting ``name``, with ``more`` after its option's help."""
         option = self._options[name]
-        default = getattr(self._defaults, name)
-        shown = self._shown(default, option.unit, option.none_means)
-        if option.sized:
-            shown += f", from the {sizes.DEFAULT_SIZE.title()} size"
         self.group_of(name).add_argument(
             "--" + name.replace("_", "-"),
-            help=f"{option.help}{more} (default: {shown})",
-            **self._parsing(option, default),
+            help=f"{option.help}{more} (default: {self.default_text(name)})",
+            **self._parsing(option, getattr(self._defaults, name)),
         )
+
+    def default_text(self, name: str) -> str:
+        """Return how the help of the setting ``name``'s flag names its default."""
+        option = self._options[name]
+        shown = self.shown(
+            getattr(self._defaults, name), option.unit, option.none_means
+        )
+        if option.sized:
+            shown += f", from the {sizes.DEFAULT_SIZE.title()} size"
+        return shown
 
     def group_of(self, name: str) -> argparse._ActionsContainer:
         """Return the group of flags that the setting ``name`` belongs to."""
@@ -64,7 +70,22 @@ class OptionFlags:
         self, text: str, default: Any, unit: str = "", none_means: str = ""
     ) -> str:
         """Return the help ``text`` of a flag without an option, ending in ``default``."""
-        return f"{text} (default: {self._shown(default, unit, none_means)})"
+        return f"{text} (default: {self.shown(default, unit, none_means)})"
+
+    def shown(self, value: Any, unit: str = "", none_means: str = "") -> str:
+        """Return how a help names the default ``value``, a number in ``unit``.
+
+        None is ``none_means``, or none when that is empty.
+        """
+        if value is None:
+            return none_means or "none"
+        if isinstance(value, bool):
+            return "on" if value else "off"
+        if isinstance(value, int | float):
+            if not unit:
+                return f"{value:g}"
+            return f"{value:g} {unit}" if unit.isalpha() else f"{value:g}{unit}"
+        return str(value)
 
     def _parsing(self, option: Option, default: Any) -> dict[str, Any]:
         """Return how argparse reads the option's flag: its action or type, choices and
@@ -82,15 +103,3 @@ class OptionFlags:
         if option.choices:
             parsing["choices"] = option.choices
         return parsing
-
-    def _shown(self, value: Any, unit: str, none_means: str) -> str:
-        """Return how the help names the default ``value``."""
-        if value is None:
-            return none_means or "none"
-        if isinstance(value, bool):
-            return "on" if value else "off"
-        if isinstance(value, int | float):
-            if not unit:
-                return f"{value:g}"
-            return f"{value:g} {unit}" if unit.isalpha() else f"{value:g}{unit}"
-        return str(value)

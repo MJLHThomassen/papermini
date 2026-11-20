@@ -228,7 +228,8 @@ Every setting in the app, in the order of the settings panel. Each one shows:
 
 - its name, as in the app;
 - its command-line flag (for `papermini make`, unless another command is
-  named) and its default value in brackets;
+  named), or its project file key when it has no flag, and its default value
+  in brackets, as the command-line help gives it;
 - what it does, in one line;
 - more detail or an example.
 
@@ -239,7 +240,7 @@ The pictures show the same dragon with different values.
 #### Crop
 
 ##### Area
-`--crop x0,y0,x1,y1` [whole image]\
+`--crop x0,y0,x1,y1` [the whole image]\
 The part of the image that background removal looks at.
 
 Drag a box on the image, and anything outside it is left out. That helps a lot
@@ -300,7 +301,7 @@ Go lower when faint pencil lines or a thin sword get lost; go higher when bits
 of background stay.
 
 ##### Gap filling
-`--fill-gaps` [auto]\
+`--fill-gaps` [scales with the image, 9 px at 1400 px]\
 Fills gaps and notches in the outline up to this many pixels.
 
 For example the gap between a leg and a cloak, so the cut line does not dive
@@ -368,7 +369,7 @@ green, as in the picture above.
 ### Step 2, Miniature
 
 ##### Kind
-`--kind mini|token` [Standing mini]\
+`--kind mini|token` [mini]\
 A standing paper miniature, or a flat round token.
 
 At the top of the step. A token has its own groups (*Token* and *Token text*) and
@@ -377,7 +378,7 @@ no back side or tab; see [Tokens](#tokens).
 #### Size
 
 ##### Creature size
-`--size tiny|small|medium|large|huge|gargantuan|custom` [Medium]\
+`--size tiny|small|medium|large|huge|gargantuan|custom` [medium]\
 The D&D size of the creature: it fills in the figure height and the tab.
 
 Picking a size fills in *Figure height*, the tab's *Width*, *Height* and
@@ -390,21 +391,21 @@ squares. See [Creature sizes](#creature-sizes).
 ![The red dragon as Small, Medium and Large, on green round bases](screenshots/settings/creature-size.png)
 
 ##### Figure height
-`--height-mm` [32 mm, from the creature size]\
+`--height-mm` [32 mm, from the Medium size]\
 The height of the drawing itself, without the margin and the tab.
 
 With the link button beside the size on (the default), the figure keeps its
 proportions: set the height and the width follows.
 
 ##### Figure width
-`--width-mm` [follows the height]\
+`--width-mm` [set by the height]\
 The width of the drawing itself, without the margin.
 
 Linked, setting the width sets the height. With the link button off, the
 figure is stretched to both the height and the width.
 
 ##### Diameter
-`--token-diameter-mm` [25 mm, from the creature size]\
+`--token-diameter-mm` [25 mm, from the Medium size]\
 A token's diameter, ring included.
 
 Shown for a token, in place of the figure's height and width. The creature size
@@ -432,7 +433,7 @@ smaller; the figure moves with the mouse, and the token is built again when you
 let go. *Clear* fits it again.
 
 ##### Background
-`--token-fill color|image` [Color]\
+`--token-fill color|image` [color]\
 What fills the circle behind the figure: one color, or the original image.
 
 ![A token on a color, on the original image, and with an image outline](screenshots/settings/token-fill.png)
@@ -460,11 +461,11 @@ off by default.
 ![A token's label and number on a nameplate and badge, and curved along the ring](screenshots/settings/token-text.png)
 
 ##### Shows
-`--token-text label|number|label_number` [off]\
-The label, the copy's number, or both. See [Numbered copies](#numbered-copies).
+`--token-text none|label|number|label_number` [none]\
+Nothing, the label, the copy's number, or both. See [Numbered copies](#numbered-copies).
 
 ##### Style
-`--token-text-style nameplate|curved` [Nameplate and badge]\
+`--token-text-style nameplate|curved` [nameplate]\
 Where the text goes.
 
 *Nameplate and badge*: the label on a band across the bottom of the circle, the
@@ -500,7 +501,7 @@ both sides. Off prints only the front. See
 [Double-sided minis](#double-sided-minis).
 
 ##### Shows
-`--back mirror|blank|text|number|text_number` [Mirrored drawing]\
+`--back mirror|blank|text|number|text_number` [mirror]\
 What is on the back half.
 
 *Mirrored drawing* is the figure seen from behind. *Blank* is plain paper in
@@ -546,7 +547,7 @@ claws and horn tips, stronger.
 ![The red dragon with a margin of 0.8, 1.6 and 3.5 mm](screenshots/settings/margin.png)
 
 ##### Margin fill type
-`--margin-fill color|image` [Color]\
+`--margin-fill color|image` [color]\
 What fills the margin: one color, or the original image.
 
 *Original image* shows the picture around the figure in the margin, as it is
@@ -609,13 +610,13 @@ The tab is the strip under the figure that folds back, so the figure stands
 up. It folds at the dashed line. See [Stands and bases](#stands-and-bases).
 
 ##### Print a tab
-`--no-tab` [on]\
+`--no-tab` [off (the tab is printed)]\
 Adds a tab under the figure.
 
 Turn it off for a figure that goes into a slotted or magnetic base.
 
 ##### Shape
-`--tab-shape square|round` [Square (stand)]\
+`--tab-shape square|round` [square]\
 A square tab for a stand, or a round one that folds out into a base.
 
 *Square* slots into a stand or is glued onto a base. *Round* is a half disc
@@ -625,14 +626,14 @@ two half discs fold out to opposite sides and make a full circle.
 ![A square tab with the label, and a green round tab](screenshots/settings/tab-shape.png)
 
 ##### Width
-`--tab-width-mm` [25 mm, from the creature size]\
+`--tab-width-mm` [25 mm, from the Medium size]\
 The width of a square tab.
 
 Match it to the slot of your stand. The creature size makes it as wide as the
 size's round base.
 
 ##### Radius
-`--tab-radius-mm` [12.5 mm, from the creature size]\
+`--tab-radius-mm` [12.5 mm, from the Medium size]\
 The radius of a round tab.
 
 Shown when *Shape* is *Round*. 12.5 mm makes a 25 mm (one-inch) base; 25 mm
@@ -640,7 +641,7 @@ makes a 50 mm base for a large creature. The creature size sets it to half its
 round base.
 
 ##### Height
-`--tab-height-mm` [12.5 mm, from the creature size]\
+`--tab-height-mm` [12.5 mm, from the Medium size]\
 How far a square tab reaches below the fold.
 
 A taller tab holds better in a deep slot or gives more room to glue.
@@ -719,7 +720,7 @@ where the number goes. See [Numbered copies](#numbered-copies).
 ![The front tab with the label, with the number and with both](screenshots/settings/tab-number.png)
 
 ##### Front tab
-`--tab-front label|number|label_number` [Label]\
+`--tab-front label|number|label_number` [label]\
 What the front tab shows.
 
 *Label* is the label alone. *Number* is the copy's number, as large as the tab
@@ -727,7 +728,7 @@ allows. *Label and number* puts the number above the label, at least as large
 as the label. The number is bold and in the label's color.
 
 ##### Back tab
-`--tab-back label|number|label_number` [Label]\
+`--tab-back label|number|label_number` [label]\
 What the back tab shows.
 
 Shown on a double-sided mini. The choices are those of *Front tab*.
@@ -771,7 +772,7 @@ leaves the figure off the sheet. In a project file it is `copies`.
 #### Paper and layout
 
 ##### Paper
-`papermini sheet --paper a3|a4|a5|letter|legal|tabloid|custom` [A4]\
+`papermini sheet --paper a3|a4|a5|letter|legal|tabloid|custom` [a4]\
 The paper size of the sheet.
 
 The list shows each size: A3 (297 × 420 mm), A4 (210 × 297 mm), A5 (148 × 210
@@ -788,7 +789,7 @@ those figures off the sheet. The command line stops with an error that names
 the figure.
 
 ##### Orientation
-`papermini sheet --orientation portrait|landscape` [Portrait]\
+`papermini sheet --orientation portrait|landscape` [portrait]\
 Whether the page is upright or on its side.
 
 Shown for a named paper size. Landscape fits wide figures and longer rows. A
@@ -829,7 +830,7 @@ A wider gap leaves more room for scissors between the pieces.
 #### Cutting
 
 ##### Cut by
-`papermini sheet --cut hand|machine` [By hand]\
+`papermini sheet --cut hand|machine` [hand]\
 How the pieces are cut: by hand, or with a cutting machine.
 
 *By hand* prints the cut lines on the sheet, for scissors or a knife.
@@ -839,18 +840,18 @@ marks, to load in your cutting machine's software. See
 [Cutting by machine](#cutting-by-machine).
 
 ##### Bleed
-`--bleed-mm` [1 mm]\
+`bleed_mm` [1 mm]\
 Prints the edge colors this far beyond the cut line.
 
 Shown when *Cut by* is *Machine*. The margin, tab or back color goes on past
 the cut line, so a machine cut that is slightly off never shows a white edge.
-In a project file it is the sheet's `bleed_mm`; with `papermini make` it is
+In a project file it goes under `sheet`. With `papermini make` it is
 `--bleed-mm` (0 by default), for SVGs that go on a machine sheet.
 
 ![A wing tip without bleed and with 1 mm bleed; the red line is where the machine cuts](screenshots/settings/bleed.png)
 
 ##### Marks
-`papermini sheet --marks corners|silhouette|none` [Corners]\
+`papermini sheet --marks corners|silhouette|none` [corners]\
 The alignment marks on the sheet and in the cut file.
 
 Shown when *Cut by* is *Machine*. *Corners* is an L in each corner and a
@@ -870,7 +871,7 @@ blue, so the cutting software can score or draw them, or leave them out. They
 are always printed on the sheet.
 
 ##### Mat
-`papermini sheet --mat 12x12|12x24` [Any size]\
+`papermini sheet --mat 12x12|12x24` [any size, no note]\
 The cutting mat you put the sheet on, to check that the paper fits it.
 
 Shown when *Cut by* is *Machine*. A 12 × 12 in mat (305 × 305 mm) takes A4,
@@ -918,7 +919,7 @@ papermini make Monsters -o minis
 | `--size` | medium | D&D creature size (`tiny`, `small`, `medium`, `large`, `huge`, `gargantuan` or `custom`): fills in `--height-mm` and the tab sizes from the built-in size table. An explicit height or tab flag wins and makes the figure `custom`. Prints a warning when the figure is wider than its squares |
 | `--grid-mm` | 25.4 | grid square for `--size`: the size table is calculated for this grid, bases and heights alike (Medium 32 × grid / 25.4 mm) |
 | `--height-mm` | 32 (Medium) | height of the drawn figure, without margin and tab |
-| `--width-mm` | | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
+| `--width-mm` | set by the height | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
 | `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
 | `--smooth-mm` | 0.6 | how much the outline is rounded |
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
@@ -927,71 +928,69 @@ papermini make Monsters -o minis
 | `--tab-color` | #ffffff | tab color (everything below the fold), behind the label; independent of the margin color |
 | `--tab-overlap-mm` | 0 | how far the tab reaches up past the fold. It only adds paper where the figure's bottom is narrower than the tab (feet, a tail), to strengthen the joint; on a wide bottom it has no effect, and the app says so |
 | `--fold-mm` | 0 | fold line distance above the silhouette's lowest point |
-| `--no-tab` | | no tab |
+| `--no-tab` | off | no tab |
 | `--double-sided` / `--no-double-sided` | on | front plus back, joined at a top fold, with a tab at both ends; `--no-double-sided` prints the front only |
 | `--back` | mirror | double-sided back: `mirror` (the drawing seen from behind), `blank` (white paper), `text`, `number` (the copy's number) or `text_number` (the number above the text) |
-| `--back-text` | label | text for `--back text` or `text_number`; auto-sized and wrapped to fit the figure |
+| `--back-text` | the label | text for `--back text` or `text_number`; auto-sized and wrapped to fit the figure |
 | `--back-color` | #ffffff | color of a back that is not `mirror` |
 | `--back-text-color` | #2f5597 | color of the text and the number on the back |
 | `--model` | auto | how the figure is separated from the background: `auto` (the PNG's transparency if it has any, else `rmbg-1.4`), `rmbg-1.4`, `birefnet`, `birefnet-lite`, `alpha` (the PNG's own transparency), `mask` (with `--mask`) or the path of an `.onnx` model; see [Model](#model) |
-| `--mask` | | your own mask image (white = figure, black = background) instead of a model |
-| `--crop x0,y0,x1,y1` | | region the model looks at, as fractions (0–1) or pixels |
+| `--mask` | none | your own mask image (white = figure, black = background) instead of a model |
+| `--crop x0,y0,x1,y1` | the whole image | region the model looks at, as fractions (0–1) or pixels |
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
-| `--fill-gaps` | auto | fill gaps and notches in the outline up to this many px; 0 = off (auto ≈ 9 px at a 1400 px image) |
-| `--keep-all` / `--min-area` | / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
-| `--no-cache` | | make the mask again instead of reusing the cached one (see [Caching and speed](#caching-and-speed)) |
+| `--fill-gaps` | scales with the image, 9 px at 1400 px | fill gaps and notches in the outline up to this many px; 0 = off |
+| `--keep-all` / `--min-area` | off / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
+| `--no-cache` | off | make the mask again instead of reusing the cached one (see [Caching and speed](#caching-and-speed)) |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
 | `--margin-color` | #ffffff | color of the margin around the drawing |
-| `--greyscale` | | print in black and white |
+| `--greyscale` | off | print in black and white |
 | `--brightness` | 0 | −100 (towards black) to 100 (towards white); white paper stays white, black lines stay black |
 | `--contrast` | 0 | −100 (flat grey) to 100 (hard) |
 | `--saturation` | 0 | −100 (grey) to 100 (twice as colorful) |
 | `--hue` | 0 | turn every color around the color wheel, −180 to 180 degrees (red → yellow → green for positive values) |
-| `--label` | file name | text on the tab; `--label ""` for none |
+| `--label` | the file name | text on the tab; `--label ""` for none |
 | `--tab-front` / `--tab-back` | label / label | what the front and back tab show: `label`, `number` (the copy's number) or `label_number` (the number above the label) |
 | `--font` | Times | font of all the text: Times, a bundled font (Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua, Kalam) or an installed one; a font that is not found prints in Times |
 | `--copies` | 1 | a figure with numbers: one file per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
 | `--dpi` | 300 | resolution of the embedded artwork |
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
-| `--no-smooth` | | straight segments only (by default the cut line uses Bézier curves) |
+| `--no-smooth` | off | straight segments only (by default the cut line uses Bézier curves) |
 | `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | cut line style |
 | `--label-color` / `--label-size-mm` | #2f5597 / 3.4 | color and largest size of the tab label; a long label shrinks to fit the tab |
 | `--bleed-mm` | 0 | print the edge colors this far beyond the cut line, for a sheet cut by machine (`papermini sheet --cut machine`) |
-| `--debug` | | write intermediate masks and a red overlay preview to `debug/` |
-| `--no-subfolders` | | a folder: only its own images, not those in its subfolders |
+| `--debug` | off | write intermediate masks and a red overlay preview to `debug/` |
+| `--no-subfolders` | off | a folder: only its own images, not those in its subfolders |
 | `--format` | svg | what to write: `svg` (the piece with its cut line), `png` (a picture of the piece, transparent around it) or `both` |
-| `--png-px` / `--png-dpi` | 256 / | PNG size: pixels per grid square (`--grid-mm`), or a resolution in dpi for the size it prints |
+| `--png-px` / `--png-dpi` | 256 / none | PNG size: pixels per grid square (`--grid-mm`), or a resolution in dpi for the size it prints |
 | `--kind` | mini | `mini` (a standing miniature) or `token` (a flat round token; see [Tokens](#tokens)) |
 | `--token-diameter-mm` | 25 (Medium) | a token's diameter, ring included; filled in from the creature size's base |
-| `--token-area` | | `x0,y0,x1,y1`: the square of the picture that fills the circle, as fractions (default: the figure fitted) |
-| `--token-fill` / `--token-fill-color` | color / #ffffff | behind the figure: a color, or the original `image` |
+| `--token-area` | the whole figure, fitted | `x0,y0,x1,y1`: the square of the picture that fills the circle, as fractions |
+| `--token-fill` / `--token-fill-color` | color / #ffffff | behind the figure: a `color`, or the original `image` |
 | `--token-border-mm` / `--token-border-color` | 2 / #000000 | the ring; 0 for none |
-| `--token-outline` | | an image outline around the figure, made with `--margin-mm`, `--margin-fill` and `--margin-color` |
-| `--token-cut-line` | | print the cut line (by default the ring's edge shows where to cut) |
-| `--token-text` | | `label`, `number` or `label_number` on the token (default: none) |
+| `--token-outline` | off | an image outline around the figure, made with `--margin-mm`, `--margin-fill` and `--margin-color` |
+| `--token-cut-line` | off | print the cut line (by default the ring's edge shows where to cut) |
+| `--token-text` | none | `none`, `label`, `number` or `label_number` on the token |
 | `--token-text-style` | nameplate | `nameplate` (a band and a badge) or `curved` (along the ring) |
 | `--token-text-mm` / `--token-text-color` | 2.5 / #ffffff | the size and color of the token's text |
 
 ### `papermini sheet SVG... [-o minis.pdf]`
 
 Lays papermini SVGs out on pages. Each page has an instruction header and a
-50 mm calibration bar. Pieces are packed in rows with 7 mm gaps and 12 mm page
-margins, and extra pages are added as needed.
+50 mm calibration bar. Pieces are packed in rows, with a gap between them
+(`--gap-mm`) and a margin around each page (`--margin-mm`), and extra pages are
+added as needed.
 
 ```bash
 papermini sheet "minis/*.svg" --copies 2 --paper letter -o minis.pdf --preview
 ```
 
-Options: `--copies`, `--paper a3|a4|a5|letter|legal|tabloid|custom` (a custom size
-with `--paper-width-mm` and `--paper-height-mm`), `--orientation portrait|landscape`,
-`--margin-mm`, `--gap-mm`, `--title`, and `--preview` (also writes a PNG per page). The sheet only reads SVGs written by
-papermini. An SVG that was re-saved in another editor may not load. An SVG of a
-numbered copy keeps its number: `--copies 2` of `goblin-3.svg` prints two 3s.
-Give the sheet every copy's file instead (see
-[Numbered copies](#numbered-copies)).
+The sheet only reads SVGs written by papermini. An SVG that was re-saved in
+another editor may not load. An SVG of a numbered copy keeps its number:
+`--copies 2` of `goblin-3.svg` prints two 3s. Give the sheet every copy's file
+instead (see [Numbered copies](#numbered-copies)).
 
 For a cutting machine, `--cut machine` leaves the cut lines off the PDF, adds
-alignment marks (`--marks corners|silhouette`) and writes a cut file per page
+alignment marks (`--marks corners|silhouette|none`) and writes a cut file per page
 next to it (`minis-cut.svg`, `minis-cut-2.svg` and so on); `--cut-folds` also
 puts the fold lines in it, and `--mat 12x12|12x24` notes when the paper is bigger
 than your cutting mat. Make the SVGs with `papermini make --bleed-mm 1` for
@@ -1000,6 +999,21 @@ a bleed. See [Cutting by machine](#cutting-by-machine).
 ```bash
 papermini sheet "minis/*.svg" --cut machine --marks silhouette -o minis.pdf
 ```
+
+| option | default | meaning |
+|---|---|---|
+| `--copies` | 1 | copies of each figure |
+| `--paper` | a4 | paper size: `a3`, `a4`, `a5`, `letter`, `legal`, `tabloid` or `custom` (with `--paper-width-mm` and `--paper-height-mm`) |
+| `--paper-width-mm` / `--paper-height-mm` | none / none | a custom paper's width and height, 50 to 1200 mm; giving them is enough, the paper is then custom |
+| `--orientation` | portrait | `portrait` or `landscape`, for a named paper size |
+| `--margin-mm` | 12 | page margin; cut by machine, the alignment marks sit in it |
+| `--gap-mm` | 7 | gap between pieces |
+| `--title` | Paper miniatures | the title printed at the top of each page |
+| `--preview` | off | also write a PNG preview of each page |
+| `--cut` | hand | `hand` prints the cut lines on the sheet; `machine` leaves them off, adds alignment marks and writes a cut file per page |
+| `--marks` | corners | cut by machine: the alignment marks, `corners`, `silhouette` (Silhouette Studio's Type 1) or `none` |
+| `--cut-folds` | off | cut by machine: also put the fold lines in the cut file |
+| `--mat` | any size, no note | cut by machine: the cutting mat, `12x12` or `12x24` inches; a note when the paper is bigger |
 
 ### `papermini batch config.yaml`
 
@@ -1095,9 +1109,9 @@ papermini batch examples/dragons/samples-machine.yaml
 
 | option | default | meaning |
 |---|---|---|
-| `--debug` | | write intermediate masks and a red overlay preview of each figure to `debug/` in the output folder, as `debug: true` in the project does |
-| `--preview` | | also write a PNG preview of each sheet page, as the sheet's `preview: true` does |
-| `--no-cache` | | make every mask again instead of reusing the cached ones |
+| `--debug` | off | write intermediate masks and a red overlay preview of each figure to `debug/` in the output folder, as `debug: true` in the project does |
+| `--preview` | off | also write a PNG preview of each sheet page, as the sheet's `preview: true` does |
+| `--no-cache` | off | make every mask again instead of reusing the cached ones |
 
 ## Model licence
 

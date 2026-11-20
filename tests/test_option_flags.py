@@ -122,3 +122,15 @@ def test_a_flag_without_an_option_gets_the_same_default_text(flags):
         flags.with_default("the file", None, none_means="next to the image")
         == "the file (default: next to the image)"
     )
+
+
+def test_a_settings_default_text_is_what_its_help_ends_in(flags):
+    assert flags.default_text("width_mm") == "1.5 mm"
+    assert flags.default_text("count") == "as many as fit"
+    assert flags.default_text("height_mm") == "32 mm, from the Medium size"
+
+
+def test_a_value_is_shown_without_a_unit_unless_given_one(flags):
+    assert flags.shown(1.5) == "1.5"
+    assert flags.shown(1.5, "mm") == "1.5 mm"
+    assert flags.shown(90, "°") == "90°"
