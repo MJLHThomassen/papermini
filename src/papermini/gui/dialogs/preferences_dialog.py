@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...project import sizes
+from ...project.size_calculator import SizeCalculator
 from ...support import log
 from .. import errors
 from ..fields.spin_box import SpinBox
@@ -51,6 +52,7 @@ class PreferencesDialog(QDialog):
     def __init__(
         self,
         prefs: Preferences,
+        size_calculator: SizeCalculator,
         table: sizes.SizeTable,
         in_use: Callable[[], list[Path]],
         page: str = "sizes",
@@ -70,7 +72,7 @@ class PreferencesDialog(QDialog):
         self.nav.setObjectName("PrefNav")
         self.nav.setFixedWidth(150)
         self.stack = QStackedWidget()
-        self.sizes = SizesPage(prefs, table)
+        self.sizes = SizesPage(prefs, size_calculator, table)
         self.cache = CachePage(in_use=in_use)
         self.cache.changed.connect(self.modelsChanged)
         pages = (

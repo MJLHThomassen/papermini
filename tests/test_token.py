@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from papermini.output.svg import write_svgs
 from papermini.pipeline import token as tok
 from papermini.pipeline.token_info import TokenInfo
-from papermini.project.settings import build_mini, settings_with_size
+from papermini.project.settings import build_mini
 
 
 def test_an_area_and_its_framing_match():
@@ -52,7 +52,10 @@ def test_a_fitted_figure_stays_above_the_nameplate(
 
 
 def test_a_printed_cut_line_lies_outside_the_ring(
-    tmp_path, build_token, transparent_figure
+    tmp_path,
+    build_token,
+    transparent_figure,
+    size_calculator,
 ):
     img = transparent_figure(tmp_path / "goblin.png")
     m = build_token(img, token_cut_line=True, cut_width_mm=0.4)
@@ -60,7 +63,9 @@ def test_a_printed_cut_line_lies_outside_the_ring(
     assert m.style.cut_line
     assert np.hypot(*(m.cut.points - (t.cx, t.cy)).T) == pytest.approx(12.5 + 0.2)
     # cut by machine (with bleed) the cut follows the ring
-    s = settings_with_size({"kind": "token", "model": "alpha", "token_cut_line": True})
+    s = size_calculator.settings_with_size(
+        {"kind": "token", "model": "alpha", "token_cut_line": True}
+    )
     m = build_mini(img, s, bleed_mm=1.0, log=lambda *a: None)
     assert np.hypot(*(m.cut.points - (m.token.cx, m.token.cy)).T) == pytest.approx(12.5)
 
@@ -116,7 +121,7 @@ def test_a_token_figure_with_an_outline(tmp_path, build_token, transparent_figur
     assert _count(outlined.art, 1) > 0  # the outline, in the margin color
 
 
-def test_a_token_filled_with_the_picture(tmp_path):
+def test_a_token_filled_with_the_picture(tmp_path, size_calculator):
     im = Image.new("RGB", (300, 400), (0, 0, 255))  # a blue background
     ImageDraw.Draw(im).ellipse([60, 40, 240, 360], fill=(200, 40, 30))
     im.save(tmp_path / "goblin.png")
@@ -132,7 +137,7 @@ def test_a_token_filled_with_the_picture(tmp_path):
     def background(**kw):
         """Builds the token and keeps only its art inside the ring and over 1 mm from
         the figure's box."""
-        s = settings_with_size({**common, **kw})
+        s = size_calculator.settings_with_size({**common, **kw})
         m = build_mini(tmp_path / "goblin.png", s, log=lambda *a: None)
         t, a = m.token, np.asarray(m.art.convert("RGB")).copy()
         assert isinstance(t, TokenInfo) and t.figure_box is not None

@@ -56,6 +56,11 @@ class Option:
             for f in dataclasses.fields(settings)
         }
 
+    @staticmethod
+    def norm_keys(d: dict[str, Any] | None) -> dict[str, Any]:
+        """Return ``d`` with its keys as option names: dashes become underscores."""
+        return {str(k).replace("-", "_"): v for k, v in (d or {}).items()}
+
     def check(self, value: Any, where: str = "") -> Any:
         """Return ``value`` if this option allows it, converted by ``parse``.
 

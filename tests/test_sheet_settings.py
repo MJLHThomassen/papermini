@@ -3,11 +3,10 @@
 import pytest
 
 from papermini.project.project import Project
-from papermini.project.project_files import load_project, save_project
 from papermini.project.sheet_settings import SheetSettings
 
 
-def test_the_paper_options_are_checked_and_saved(tmp_path):
+def test_the_paper_options_are_checked_and_saved(tmp_path, project_store):
     s = SheetSettings.from_dict({"paper": "a3", "orientation": "landscape"})
     assert s.page == "a3" and s.paper_text() == "A3 landscape" and s.mat_warning() == ""
     c = SheetSettings.from_dict(
@@ -40,10 +39,10 @@ def test_the_paper_options_are_checked_and_saved(tmp_path):
         (m, {"paper": "tabloid", "cut": "machine", "mat": "12x12"}),
         (SheetSettings(), None),
     ):
-        path = save_project(
+        path = project_store.save(
             Project(tmp_path / "p.yaml", "minis", sheet, []), tmp_path / "p.yaml"
         )
-        assert load_project(path).sheet == sheet
+        assert project_store.load(path).sheet == sheet
         import yaml
 
         assert yaml.safe_load(path.read_text(encoding="utf-8")).get("sheet") == written

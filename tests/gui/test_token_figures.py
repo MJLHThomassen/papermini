@@ -13,14 +13,13 @@ from PySide6.QtWidgets import QFileDialog, QToolButton
 from papermini.gui.exporting.export_dialogs import ExportDialogs
 from papermini.pipeline.token_options import min_ring_mm
 from papermini.project.figure_settings import FigureSettings
-from papermini.project.settings import settings_with_size
 
 
-def test_the_kind_switches_the_settings_groups(app, prefs):
+def test_the_kind_switches_the_settings_groups(app, prefs, size_calculator):
     from papermini.gui.panels.figure_fields import MINIATURE
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs)
+    p = FigurePanel(prefs, size_calculator)
     got = []
     p.changed.connect(got.append)
     p.set_settings(FigureSettings(label="Boss"), "x", "x")
@@ -66,13 +65,13 @@ def _built(wait, w):
 
 
 @pytest.fixture
-def window(window, wait, tmp_path, transparent_figure):
+def window(window, wait, tmp_path, transparent_figure, size_calculator):
     """The shared main window with one token figure, built, in the Miniature step."""
     w = window
     w.resize(1300, 820)
     w.add_images(
         [transparent_figure(tmp_path / "goblin.png")],
-        settings_with_size({"kind": "token", "model": "alpha"}),
+        size_calculator.settings_with_size({"kind": "token", "model": "alpha"}),
     )
     w.list.setCurrentRow(0)
     w.tabs.setCurrentIndex(w.MINI)

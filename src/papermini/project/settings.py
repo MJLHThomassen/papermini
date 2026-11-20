@@ -1,39 +1,12 @@
-"""Builds a figure's settings from its options and size, and its miniature from them."""
+"""Builds a figure's miniature from its settings."""
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 from ..pipeline import token as tok
 from ..pipeline.mini import Mini, make_mini
-from . import sizes
 from .figure_settings import FigureSettings
-
-
-def settings_with_size(
-    options: dict[str, Any], table: sizes.SizeTable = sizes.BUILTIN
-) -> FigureSettings:
-    """Figure settings from ``options`` (a project's figure, or command-line flags): the
-    figure's size fills in the values not given, from ``table``; a given value that
-    differs from the size's makes the figure custom."""
-    o = norm_keys(options)
-    size = o.get("size", sizes.DEFAULT_SIZE)
-    if size in sizes.SIZES:
-        fills = table.row(size).values()
-        if o.get("width_mm") is not None and "height_mm" not in o:
-            del fills[
-                "height_mm"
-            ]  # (a width alone scales by width: no height to fill in)
-        for k, v in fills.items():
-            o.setdefault(k, v)
-    s = FigureSettings.from_dict(o)
-    return s if sizes.matches(s, table) else replace(s, size=sizes.CUSTOM)
-
-
-def norm_keys(d: dict[str, Any] | None) -> dict[str, Any]:
-    return {str(k).replace("-", "_"): v for k, v in (d or {}).items()}
 
 
 def build_mini(

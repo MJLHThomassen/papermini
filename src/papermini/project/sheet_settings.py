@@ -204,9 +204,7 @@ class SheetSettings:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> SheetSettings:
-        from .settings import norm_keys
-
-        d = norm_keys(d)
+        d = Option.norm_keys(d)
         unknown = set(d) - set(_OPTIONS)
         if unknown:
             raise ValueError(f"unknown sheet option(s) {', '.join(sorted(unknown))}")
