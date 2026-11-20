@@ -243,12 +243,14 @@ def read_svg(path: Path) -> Mini:
         style.back_text_color = t.get("fill", style.back_text_color)
         m = re.match(rf"\s*rotate\(\s*({_NUM})", t.get("transform") or "")
         texts.append(
-            (
+            TextItem(
+                "backtext",
                 "".join(t.itertext()),
                 float(t.get("x")) * sx,
                 float(t.get("y")) * sx - 0.35 * size_t,
                 float(m.group(1)) if m else 0.0,
                 size_t,
+                style.back_text_color,
             )
         )
     numbers = []  # (written into the file: kept as they are, also a token's text)

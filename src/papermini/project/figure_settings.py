@@ -4,12 +4,17 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from ..pipeline import geometry as geo
-from ..pipeline import token as tok
 from ..pipeline.adjustments import Adjustments
 from ..pipeline.mask_options import MaskOptions
 from ..pipeline.mini import TAB_SHOWS
+from ..pipeline.params import BACK_MODES, MARGIN_FILLS, TAB_SHAPES, Params
 from ..pipeline.style import Style
+from ..pipeline.token_options import (
+    TOKEN_FILLS,
+    TOKEN_TEXT_STYLES,
+    TOKEN_TEXTS,
+    TokenOptions,
+)
 from . import sizes
 from .option import Option
 
@@ -172,7 +177,7 @@ class FigureSettings:
         "Round: a half disc that folds out into a round base. On a double-sided\n"
         "mini the two halves fold out to opposite sides and form a full circle.",
         group=_SIZE,
-        choices=geo.TAB_SHAPES,
+        choices=TAB_SHAPES,
         kinds=("mini",),
         choice_labels=("Square (stand)", "Round (base)"),
     ).field("square")
@@ -203,7 +208,7 @@ class FigureSettings:
         "text: plain paper with text (a name or stats); number: the copy's number,\n"
         "large; text and number: the number above the text.",
         group=_SIZE,
-        choices=geo.BACK_MODES,
+        choices=BACK_MODES,
         kinds=("mini",),
         choice_labels=(
             "Mirrored drawing",
@@ -321,7 +326,7 @@ class FigureSettings:
         "Color: one solid color (Margin fill color).\n"
         "Original image: the picture around the figure, as it is in the image.",
         group=_SIZE,
-        choices=geo.MARGIN_FILLS,
+        choices=MARGIN_FILLS,
         choice_labels=("Color", "Original image"),
     ).field("color")
     margin_color: str = Option(
@@ -518,7 +523,7 @@ class FigureSettings:
         "Clear fits it again.",
         group=_TOKEN,
         kinds=("token",),
-        parse=tok.parse_area,
+        parse=TokenOptions.parse_area,
     ).field(None)
     token_fill: str = Option(
         label="Background",
@@ -527,7 +532,7 @@ class FigureSettings:
         "Color: one solid color (Background color).\n"
         "Original image: the picture around the figure, as it is in the image.",
         group=_TOKEN,
-        choices=tok.TOKEN_FILLS,
+        choices=TOKEN_FILLS,
         kinds=("token",),
         choice_labels=("Color", "Original image"),
     ).field("color")
@@ -589,7 +594,7 @@ class FigureSettings:
         "where\n"
         "it goes.",
         group=_TOKEN,
-        choices=tok.TOKEN_TEXTS,
+        choices=TOKEN_TEXTS,
         kinds=("token",),
         choice_labels=("None", "Label", "Number", "Label and number"),
     ).field("none")
@@ -604,7 +609,7 @@ class FigureSettings:
         "Curved along the ring: the label along the bottom of the ring, the\n"
         "number at its top. The ring is then at least as wide as the text needs.",
         group=_TOKEN,
-        choices=tok.TOKEN_TEXT_STYLES,
+        choices=TOKEN_TEXT_STYLES,
         kinds=("token",),
         choice_labels=("Nameplate and badge", "Curved along the ring"),
     ).field("nameplate")
@@ -676,8 +681,8 @@ class FigureSettings:
             d["token_area"] = list(d["token_area"])
         return d
 
-    def params(self) -> geo.Params:
-        return geo.Params(
+    def params(self) -> Params:
+        return Params(
             height_mm=self.height_mm,
             width_mm=self.width_mm,
             margin_mm=self.margin_mm,
@@ -723,9 +728,9 @@ class FigureSettings:
             greyscale=self.greyscale,
         )
 
-    def token_options(self) -> tok.TokenOptions:
+    def token_options(self) -> TokenOptions:
         """The token's options (kind "token"); the outline uses the margin."""
-        return tok.TokenOptions(
+        return TokenOptions(
             diameter_mm=self.token_diameter_mm,
             border_mm=self.token_border_mm,
             border_color=self.token_border_color,

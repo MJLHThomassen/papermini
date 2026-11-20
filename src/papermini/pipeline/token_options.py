@@ -3,6 +3,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+TOKEN_FILLS = ("color", "image")  # behind the figure: a color, or the picture
+TOKEN_TEXTS = ("none", "label", "number", "label_number")
+TOKEN_TEXT_STYLES = ("nameplate", "curved")
+
 CURVED_TEXT = (
     0.72  # curved text: its height as a share of the narrowest ring that holds it
 )
@@ -36,12 +40,32 @@ class TokenOptions:
     def ring_mm(self) -> float:
         """The ring's width as printed: never below what curved text needs."""
         return (
-            max(self.border_mm, min_ring_mm(self.text_mm))
+            max(self.border_mm, self.min_ring_mm(self.text_mm))
             if self.curved
             else self.border_mm
         )
 
+    @staticmethod
+    def min_ring_mm(text_mm: float) -> float:
+        """Return the narrowest ring that holds curved text of this size (to 0.1 mm,
+        rounded up)."""
+        return math.ceil(round(text_mm / CURVED_TEXT * 10, 6)) / 10
 
-def min_ring_mm(text_mm: float) -> float:
-    """The narrowest ring that holds curved text of this size (to 0.1 mm, rounded up)."""
-    return math.ceil(round(text_mm / CURVED_TEXT * 10, 6)) / 10
+    @staticmethod
+    def parse_area(v) -> list[float]:
+        """Read a token area from a project or the command line: x0, y0, x1, y1 as
+        fractions of the picture (a list, or a string "x0,y0,x1,y1"). It may reach past
+        the picture's edges."""
+        try:
+            vals = [
+                float(x)
+                for x in (v.replace(" ", "").split(",") if isinstance(v, str) else v)
+            ]
+        except (TypeError, ValueError):
+            vals = []
+        if len(vals) != 4 or not (vals[2] > vals[0] and vals[3] > vals[1]):
+            raise ValueError(
+                f"token_area must be x0, y0, x1, y1 (fractions of the picture, "
+                f"x1 > x0 and y1 > y0), not {v!r}"
+            )
+        return vals

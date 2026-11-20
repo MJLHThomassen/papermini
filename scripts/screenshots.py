@@ -73,7 +73,7 @@ def main() -> None:
     from papermini.gui.preferences import Preferences
     from papermini.gui.views.drawing import draw_mini
     from papermini.gui.window.main_window import MainWindow
-    from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.pipeline import Pipeline
     from papermini.project.figure_settings import FigureSettings
     from papermini.project.project_store import ProjectStore
     from papermini.project.settings import build_mini
@@ -83,6 +83,7 @@ def main() -> None:
     app = QApplication([])
     size_calculator = SizeCalculator()
     project_store = ProjectStore(size_calculator)
+    pipeline = Pipeline()
     ratio = float(args.scale)
 
     def settle(cond=lambda: True, timeout=600):
@@ -98,7 +99,7 @@ def main() -> None:
 
     def window(mode: str, size=(1360, 820)) -> MainWindow:
         theme.apply(app, mode)
-        w = MainWindow(Preferences(), project_store, size_calculator)
+        w = MainWindow(Preferences(), project_store, size_calculator, pipeline)
         w.setAttribute(Qt.WA_DontShowOnScreen)
         w.resize(*size)
         w.show()
@@ -235,6 +236,7 @@ def main() -> None:
         return build_mini(
             DRAGONS / image,
             FigureSettings(**kw),
+            pipeline=pipeline,
             bleed_mm=bleed_mm,
             log=lambda *_: None,
         )
@@ -291,7 +293,7 @@ def main() -> None:
         im = Image.open(path)
         im.load()
         data = path.read_bytes()
-        masks = {m: segment.compute_mask(im, m, image_bytes=data) for m, _ in MODELS}
+        masks = {m: pipeline.remover.mask(im, m, image_bytes=data) for m, _ in MODELS}
         ref = masks["birefnet"]
         w = window("light", (1100, 760))
         w.crop_view.show_hint = lambda: False  # (no "drag a box" hint in a comparison)
@@ -347,6 +349,7 @@ def main() -> None:
                     build_mini(
                         f.image,
                         smaller(f.settings),
+                        pipeline=pipeline,
                         bleed_mm=sh.figure_bleed,
                         log=lambda *_: None,
                     ),
@@ -400,7 +403,15 @@ def main() -> None:
         # Orientation: the same pieces on A4, upright and on its side (the first page);
         # two red dragons, so landscape fits on one page what portrait needs two for
         hand = [
-            (build_mini(f.image, smaller(f.settings), log=lambda *_: None), n)
+            (
+                build_mini(
+                    f.image,
+                    smaller(f.settings),
+                    pipeline=pipeline,
+                    log=lambda *_: None,
+                ),
+                n,
+            )
             for f, n in zip(proj.figures, (1, 1, 2))
         ]
         shots = []

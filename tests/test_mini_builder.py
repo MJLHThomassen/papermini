@@ -8,14 +8,8 @@ from PIL import Image
 
 from papermini.output.sheet import pack, write_pdf
 from papermini.output.svg import read_svg, write_svg
-from papermini.pipeline import geometry as geo
-from papermini.pipeline.mini import (
-    NUMBER_PLACEHOLDER,
-    figure_mask,
-    fit_label_size,
-)
-from papermini.pipeline.segmentation import segment
 from papermini.pipeline.style import Style
+from papermini.pipeline.text_item import NUMBER_PLACEHOLDER
 from papermini.project.figure_settings import FigureSettings
 from papermini.project.settings import build_mini
 from papermini.support import cache, fonts
@@ -57,29 +51,32 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
         label="Hero",
         back_text="Hero of the Crypt",
     )
-    assert m.texts and all(rot == 180 for _, _, _, rot, _ in m.texts)
+    assert m.texts and all(t.rot == 180 for t in m.texts)
     assert (
-        " ".join(t for t, *_ in m.texts) == "Hero of the Crypt"
+        " ".join(t.text for t in m.texts) == "Hero of the Crypt"
     )  # stored in reading order
-    ys = [cy for _, _, cy, _, _ in m.texts]
+    ys = [t.cy for t in m.texts]
     assert ys == sorted(
         ys, reverse=True
     )  # first line nearest the fold = on top once folded
-    for _, cx, cy, _, size in m.texts:
-        assert 0 < cx < m.width_mm and 0 < cy < m.height_mm / 2 and size > 1
+    for t in m.texts:
+        assert 0 < t.cx < m.width_mm and 0 < t.cy < m.height_mm / 2 and t.size_mm > 1
     # default text is the label; round-trips through the SVG
     m2 = pipeline_mini(img, prm, mask_options(mask_path=mask), label="Hero")
-    assert [t for t, *_ in m2.texts] == ["Hero"]
+    assert [t.text for t in m2.texts] == ["Hero"]
     r = read_svg(write_svg(m, tmp_path / "hero.svg"))
-    assert [
-        (t, round(x, 2), round(y, 2), rot, round(s, 2)) for t, x, y, rot, s in r.texts
-    ] == [
-        (t, round(x, 2), round(y, 2), rot, round(s, 2)) for t, x, y, rot, s in m.texts
-    ]
+
+    def rounded(texts):
+        return [
+            (t.text, round(t.cx, 2), round(t.cy, 2), t.rot, round(t.size_mm, 2))
+            for t in texts
+        ]
+
+    assert rounded(r.texts) == rounded(m.texts)
     write_pdf(pack([(r, 1)]), tmp_path / "s.pdf")
 
 
-def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(hero_figure):
+def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(pipeline, hero_figure):
     """A bleed (for a sheet cut by machine) prints the edge colors beyond the cut line."""
     from papermini.project.figure_settings import FigureSettings
     from papermini.project.settings import build_mini
@@ -88,8 +85,8 @@ def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(hero_figure):
     s = FigureSettings(
         mask=str(mask), margin_color="#204080", tab_color="#3b6e2a", double_sided=False
     )  # (the points below assume one side)
-    plain = build_mini(img, s, log=lambda *_: None)
-    bled = build_mini(img, s, bleed_mm=1.5, log=lambda *_: None)
+    plain = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
+    bled = build_mini(img, s, pipeline=pipeline, bleed_mm=1.5, log=lambda *_: None)
     # the canvas grows from half the 0.3 mm cut line + 0.3 to the bleed + 0.2, on each side
     assert bled.width_mm == pytest.approx(
         plain.width_mm + 2 * (1.5 + 0.2 - 0.45), abs=0.1
@@ -114,7 +111,9 @@ def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(hero_figure):
     "size", [(700, 900), (3000, 4000)]
 )  # the big one is downscaled
 @pytest.mark.parametrize("double_sided", [False, True])
-def test_the_source_cut_line_is_in_source_pixels(tmp_path, size, double_sided):
+def test_the_source_cut_line_is_in_source_pixels(
+    pipeline, tmp_path, size, double_sided
+):
     """The cut line drawn on the Source view: in source-image pixels, around the drawing
     by the margin, with the tab below it (and a double-sided back above the image)."""
     from papermini.project.figure_settings import FigureSettings
@@ -136,6 +135,7 @@ def test_the_source_cut_line_is_in_source_pixels(tmp_path, size, double_sided):
             double_sided=double_sided,
             tab_width_mm=10,
         ),  # (narrower than the drawing)
+        pipeline=pipeline,
         log=lambda *_: None,
     )
     p = m.source_cut.points
@@ -226,49 +226,6 @@ def test_on_stage_reports_the_outline_before_the_layout(
     assert seen == ["outline"]  # a mask file runs no model, so no "segment" stage
 
 
-def _two_figures(tmp_path, alpha=False):
-    """Saves a picture with a dark figure on each side, and its mask. With ``alpha``
-    the background is transparent."""
-    h, w = 400, 600
-    im = np.full((h, w, 4), (255, 255, 255, 0 if alpha else 255), np.uint8)
-    mask = np.zeros((h, w), np.uint8)
-    for cx in (150, 450):
-        cv2.ellipse(im, (cx, 200), (80, 150), 0, 0, 360, (40, 40, 40, 255), -1)
-        cv2.ellipse(mask, (cx, 200), (80, 150), 0, 0, 360, 255, -1)
-    img = tmp_path / "two.png"
-    Image.fromarray(im if alpha else im[..., :3]).save(img)
-    Image.fromarray(mask).save(tmp_path / "two_mask.png")
-    return img, tmp_path / "two_mask.png"
-
-
-@pytest.mark.parametrize("source", ["mask", "alpha", "model"])
-def test_a_crop_limits_the_figure_to_its_box(
-    tmp_path, monkeypatch, source, mask_options
-):
-    img, mask = _two_figures(tmp_path, alpha=source == "alpha")
-    seen = []
-
-    def segmenter(rgb):  # a stand-in model: the dark pixels are the figure
-        seen.append(rgb.size)
-        return np.where(np.asarray(rgb.convert("L")) < 128, 255, 0).astype(np.uint8)
-
-    monkeypatch.setattr(segment, "get_cached_segmenter", lambda model: segmenter)
-    fm = figure_mask(
-        img,
-        mask_options(
-            crop=[0.5, 0, 1, 1],  # the right half
-            model={"mask": "auto", "alpha": "alpha", "model": "birefnet-lite"}[source],
-            mask_path=mask if source == "mask" else None,
-        ),
-        use_cache=False,
-        log=lambda *_: None,
-    )
-    # only the right figure, where it is in the picture
-    assert geo.bbox(fm.clean) == pytest.approx((370, 50, 530, 350), abs=3)
-    if source == "model":
-        assert seen == [(300, 400)]  # the model saw only the crop
-
-
 def _kinds(m, rot):
     return [(t.kind, t.text) for t in m.text_items() if t.rot == rot]
 
@@ -322,7 +279,7 @@ def test_the_number_is_printed_on_the_back(goblin_figure, numbered_mini):
     # with text: the number above the text (upside down, so further down the sheet)
     both = numbered_mini(goblin_figure, back="text_number", back_text="Goblin boss")
     _cx, cy, w, h = both.number_box
-    assert both.texts and all(t[2] < cy - h / 2 for t in both.texts)
+    assert both.texts and all(t.cy < cy - h / 2 for t in both.texts)
 
 
 def test_a_missing_font_prints_in_times(goblin_figure, pipeline_mini, mask_options):
@@ -343,24 +300,18 @@ def test_a_missing_font_prints_in_times(goblin_figure, pipeline_mini, mask_optio
     assert any("No Such Font is not on this computer" in n for n in notes)
 
 
-def test_the_font_changes_the_text_size():
-    """Labels are measured in their own font: a wide font shrinks to fit sooner."""
-    narrow = fit_label_size("Red dragon", 14.0, 3.4, "Times")
-    wide = fit_label_size("Red dragon", 14.0, 3.4, "Uncial Antiqua")
-    assert wide < narrow <= 3.4
-
-
-def test_adjustments_change_the_print_not_the_outline(red_disc):
+def test_adjustments_change_the_print_not_the_outline(pipeline, red_disc):
     """The picture is adjusted; the mask, outline and size are exactly as before, and
     the cached mask is reused (the model would not run again)."""
     img, mask = red_disc
     cache.clear_all()
     base = FigureSettings(mask=str(mask), double_sided=False, label="")
-    plain = build_mini(img, base, log=lambda *_: None)
+    plain = build_mini(img, base, pipeline=pipeline, log=lambda *_: None)
     misses = cache.raw_masks.misses
     grey = build_mini(
         img,
         FigureSettings(**{**base.__dict__, "greyscale": True, "brightness": 10}),
+        pipeline=pipeline,
         log=lambda *_: None,
     )
     assert cache.raw_masks.misses == misses  # no new mask

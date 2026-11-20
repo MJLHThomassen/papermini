@@ -227,12 +227,14 @@ def test_the_sheet_numbers_the_copies(goblin_figure, tmp_path, numbered_mini):
     assert write_previews(lay, tmp_path / "s.pdf")
 
 
-def test_the_pdf_embeds_the_font_and_the_svg_names_it(goblin_figure, tmp_path):
+def test_the_pdf_embeds_the_font_and_the_svg_names_it(
+    pipeline, goblin_figure, tmp_path
+):
     img, mask = goblin_figure
     s = FigureSettings(
         mask=str(mask), label="Hero", font="Almendra", back="text_number"
     )
-    m = build_mini(img, s, log=lambda *_: None)
+    m = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
     assert m.style.font == "Almendra"
     pdf = write_pdf(pack([(m, 2)]), tmp_path / "s.pdf").read_bytes()
     assert b"Almendra-Regular" in pdf and b"Almendra-Bold" in pdf  # (numbers are bold)
@@ -243,7 +245,10 @@ def test_the_pdf_embeds_the_font_and_the_svg_names_it(goblin_figure, tmp_path):
     # Times: the names every program knows
     t = write_svg(
         build_mini(
-            img, FigureSettings(mask=str(mask), label="Hero"), log=lambda *_: None
+            img,
+            FigureSettings(mask=str(mask), label="Hero"),
+            pipeline=pipeline,
+            log=lambda *_: None,
         ),
         tmp_path / "t.svg",
     )

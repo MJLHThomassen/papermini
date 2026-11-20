@@ -11,7 +11,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog, QToolButton
 
 from papermini.gui.exporting.export_dialogs import ExportDialogs
-from papermini.pipeline.token_options import min_ring_mm
+from papermini.pipeline.token_options import TokenOptions
 from papermini.project.figure_settings import FigureSettings
 
 
@@ -47,7 +47,9 @@ def test_the_kind_switches_the_settings_groups(app, prefs, size_calculator):
     style = p.field("token_text_style")
     style.setCurrentIndex(style.findData("curved"))
     ring = p.field("token_border_mm")
-    assert ring.minimum() == min_ring_mm(2.5) and ring.value() == min_ring_mm(2.5)
+    assert ring.minimum() == TokenOptions.min_ring_mm(
+        2.5
+    ) and ring.value() == TokenOptions.min_ring_mm(2.5)
     assert p.ring_hint.isVisibleTo(p) and "3.5 mm" in p.ring_hint.text()
     # a token can switch its outline and cut line off; both off by default
     for name in ("token_outline", "token_cut_line"):

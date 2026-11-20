@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+MARGIN_FILLS = ("color", "image")
+TAB_SHAPES = ("square", "round")
+BACK_MODES = ("mirror", "blank", "text", "number", "text_number")
+
 
 @dataclass
 class Params:
@@ -9,7 +13,7 @@ class Params:
     ``FigureSettings`` for each option's meaning and default)."""
 
     height_mm: float | None  # figure height, excluding margin and tab
-    width_mm: float | None  # figure width; see figure_size()
+    width_mm: float | None  # figure width; see FigureScaler.size()
     margin_mm: float  # distance between drawing and cut line
     smooth_mm: float  # Gaussian sigma that rounds the outline
     tab: bool

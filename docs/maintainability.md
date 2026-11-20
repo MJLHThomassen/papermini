@@ -129,11 +129,10 @@ read as a short sequence of named steps.
 *Soft triggers:* a function over about 60 lines, nesting deeper than about
 three levels, or more than about six parameters.
 
-*Example:* `make_mini` in `pipeline/mini.py` takes seventeen parameters and runs
-the whole pipeline in one body. Related parameters travel together in small
-dataclasses, such as `MaskOptions` for background removal and `geo.Params` for
-the layout. The rest could be grouped the same way, and the stages split into
-steps.
+*Example:* `MiniBuilder.make` in `pipeline/mini_builder.py` takes seventeen
+parameters. Related parameters travel together in small dataclasses, such as
+`MaskOptions` for background removal and `Params` for the layout. The rest could
+be grouped the same way.
 
 ### S3. Names say what things are
 
@@ -200,8 +199,10 @@ running a model, reading preferences or logging. It receives them as arguments
 or callbacks. Tests then pass in fakes, and there is no need to patch module
 globals.
 
-*Example:* `make_mini` takes `log` and `on_stage` callbacks instead of printing
-or signalling the GUI itself. Do the same for new outside work.
+*Example:* `MiniBuilder.make` takes `log` and `on_stage` callbacks instead of
+printing or signalling the GUI itself, and `SegmenterRegistry` receives the
+`Downloader` that fetches the models, so tests pass in a fake one. Do the same for
+new outside work.
 
 S16 says where these collaborators come from: services created once at the
 entry point.
@@ -331,6 +332,10 @@ everything it depends on, so the dependencies can be mapped without reading
 the code. Small pure helpers are private methods of the service that uses
 them. Module-level constants are fine.
 
+*Example:* `Pipeline` in `pipeline/pipeline.py` creates the pipeline's services
+and wires them together. The command line and the desktop app each create one,
+and pass on the services their code uses.
+
 ## Qt and the GUI
 
 ### G1. Keep GUI construction apart from GUI behaviour
@@ -408,9 +413,9 @@ editing them. If it doesn't, the tests are checking implementation.
 ### T3. Tests are easy to find and read
 
 - Test files follow the modules they test, so the tests for
-  `pipeline/geometry.py` are in `test_geometry.py`. A test goes in the file of
-  the module it tests, even when its feature spans modules: every command line
-  test is in `test_cli.py`.
+  `pipeline/layout_builder.py` are in `test_layout_builder.py`. A test goes in the
+  file of the module it tests, even when its feature spans modules: every command
+  line test is in `test_cli.py`.
 - The GUI tests are in `tests/gui/`, one file per feature of the app, such as
   `test_figure_panel.py`. Each starts with `pytest.importorskip("PySide6")`,
   because the desktop app is an optional extra. File names stay unique across

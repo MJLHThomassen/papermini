@@ -11,7 +11,7 @@ class Signals(QObject):
     cancelled = Signal(int, str)  # uid, key: the user stopped the model
     stage = Signal(
         int, str, str, str, object
-    )  # uid, key, mask_key, stage name, data (see make_mini)
+    )  # uid, key, mask_key, stage name, data (see MiniBuilder.make)
     status = Signal(str)
     ask_download = Signal(str, object, object)  # model, answer dict, threading.Event
     link_done = Signal(

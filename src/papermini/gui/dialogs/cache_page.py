@@ -15,6 +15,9 @@ from PySide6.QtWidgets import (
 )
 
 from ...pipeline.segmentation import segment
+from ...pipeline.segmentation.cache_folder import CacheFolder
+from ...pipeline.segmentation.mask_store import MaskStore
+from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from ...support import remote
 from .cache_card import CacheCard
 from .download_dialog import DownloadDialog
@@ -42,13 +45,22 @@ class CachePage(QWidget):
     """The Models and cache page of the Preferences window: the cache folder, which
     background-removal models are downloaded (with actions on them), and papermini's
     other cached files (masks, images from links), which it can clear. The content
-    scrolls when the window is too small for it. ``in_use()`` gives the image files of
-    the open figures, which clearing keeps."""
+    scrolls when the window is too small for it. ``segmenters`` and ``masks`` keep the
+    models and masks. ``in_use()`` gives the image files of the open figures, which
+    clearing keeps."""
 
     changed = Signal(str)  # a model was downloaded or deleted
 
-    def __init__(self, parent=None, in_use=lambda: ()):
+    def __init__(
+        self,
+        segmenters: SegmenterRegistry,
+        masks: MaskStore,
+        parent=None,
+        in_use=lambda: (),
+    ):
         super().__init__(parent)
+        self._segmenters = segmenters
+        self._masks = masks
         self.in_use = in_use
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -72,12 +84,12 @@ class CachePage(QWidget):
         v.addWidget(about)
         top = QHBoxLayout()
         top.setSpacing(10)
-        self.folder = _label(html.escape(str(segment.cache_dir())), "Hint")
+        self.folder = _label(html.escape(str(CacheFolder.path())), "Hint")
         self.folder.setTextInteractionFlags(Qt.TextSelectableByMouse)
         btn_open = QPushButton("Open folder")
         btn_open.clicked.connect(
             lambda: QDesktopServices.openUrl(
-                QUrl.fromLocalFile(str(segment.cache_dir()))
+                QUrl.fromLocalFile(str(CacheFolder.path()))
             )
         )
         self.btn_all = QPushButton("Clear cache…")
@@ -136,11 +148,15 @@ class CachePage(QWidget):
 
     def download(self, model: str):
         DownloadDialog(
-            model, self, ask=False, force=segment.model_path(model).exists()
+            model,
+            self._segmenters,
+            self,
+            ask=False,
+            force=self._segmenters.path(model).exists(),
         ).exec()
         self.cards[model].refresh()
         self.refresh_cache()
-        if segment.model_path(model).exists():
+        if self._segmenters.path(model).exists():
             self.changed.emit(model)
 
     def delete(self, model: str):
@@ -157,7 +173,7 @@ class CachePage(QWidget):
             return
         ui_log.info("Deleting the %s model", model)
         try:
-            segment.delete_model(model)
+            self._segmenters.delete(model)
         except OSError as e:
             ui_log.warning("Could not delete the %s model: %s", model, e)
             QMessageBox.warning(self, "Delete model", f"Could not delete the file: {e}")
@@ -172,7 +188,7 @@ class CachePage(QWidget):
         return [p for p in folder if str(p) in use]
 
     def refresh_cache(self):
-        masks = segment.cached_masks()
+        masks = self._masks.files()
         self.masks.show_state(
             f"{_count(len(masks), 'mask', 'masks')} · {_size(masks)}"
             if masks
@@ -194,7 +210,7 @@ class CachePage(QWidget):
 
     def _downloaded(self) -> list:
         """The built-in models that are downloaded."""
-        return [m for m in segment.ONNX_MODELS if segment.model_path(m).exists()]
+        return [m for m in segment.ONNX_MODELS if self._segmenters.path(m).exists()]
 
     def delete_all(self):
         """Delete the downloaded models, the masks and the images from links (except
@@ -202,8 +218,8 @@ class CachePage(QWidget):
         models = self._downloaded()
         kept = set(map(str, self._kept()))
         files = (
-            [segment.model_path(m) for m in models]
-            + segment.cached_masks()
+            [self._segmenters.path(m) for m in models]
+            + self._masks.files()
             + [p for p in remote.cached_images() if str(p) not in kept]
         )
         ok = QMessageBox.question(
@@ -222,10 +238,10 @@ class CachePage(QWidget):
         failed = []
         for m in models:
             try:
-                segment.delete_model(m)
+                self._segmenters.delete(m)
             except OSError as e:
-                failed.append(f"{segment.model_path(m).name}: {e}")
-        segment.clear_masks()
+                failed.append(f"{self._segmenters.path(m).name}: {e}")
+        self._masks.clear()
         remote.clear_images(keep=self._kept())
         for card in self.cards.values():
             card.refresh()
@@ -239,7 +255,7 @@ class CachePage(QWidget):
             )
 
     def clear_masks(self):
-        ui_log.info("Cleared %d cached mask(s)", segment.clear_masks())
+        ui_log.info("Cleared %d cached mask(s)", self._masks.clear())
         self.refresh_cache()
 
     def clear_images(self):

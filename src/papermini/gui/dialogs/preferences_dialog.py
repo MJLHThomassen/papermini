@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...pipeline.segmentation.mask_store import MaskStore
+from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from ...project import sizes
 from ...project.size_calculator import SizeCalculator
 from ...support import log
@@ -33,8 +35,9 @@ from .sizes_page import SizesPage
 
 class PreferencesDialog(QDialog):
     """The Preferences window, opened at ``page``. ``table`` is the open project's size
-    table, and ``in_use`` returns the images of the open project's figures. The
-    choices that the main window acts on come out as signals."""
+    table, ``in_use`` returns the images of the open project's figures, and
+    ``segmenters`` and ``masks`` keep the models and masks it lists. The choices that the
+    main window acts on come out as signals."""
 
     themeChanged = Signal(str)
     autoUpdatesChanged = Signal(bool)
@@ -55,6 +58,8 @@ class PreferencesDialog(QDialog):
         size_calculator: SizeCalculator,
         table: sizes.SizeTable,
         in_use: Callable[[], list[Path]],
+        segmenters: SegmenterRegistry,
+        masks: MaskStore,
         page: str = "sizes",
         parent=None,
     ):
@@ -73,7 +78,7 @@ class PreferencesDialog(QDialog):
         self.nav.setFixedWidth(150)
         self.stack = QStackedWidget()
         self.sizes = SizesPage(prefs, size_calculator, table)
-        self.cache = CachePage(in_use=in_use)
+        self.cache = CachePage(segmenters, masks, in_use=in_use)
         self.cache.changed.connect(self.modelsChanged)
         pages = (
             self.sizes,

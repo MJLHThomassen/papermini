@@ -505,11 +505,11 @@ def test_cli_makes_a_mini_from_a_link_into_the_current_folder(
     )  # a clear error, no traceback
 
 
-def test_webp_file_works_like_any_other(tmp_path, figure_bytes):
+def test_webp_file_works_like_any_other(pipeline, tmp_path, figure_bytes):
     from papermini.project.settings import build_mini
 
     (tmp_path / "ogre.webp").write_bytes(figure_bytes("WEBP"))
-    m = build_mini(tmp_path / "ogre.webp", FigureSettings())
+    m = build_mini(tmp_path / "ogre.webp", FigureSettings(), pipeline=pipeline)
     assert m.name == "ogre" and abs(m.figure_height_mm - 32) < 0.5
     assert (
         main(["make", (tmp_path / "ogre.webp").as_uri()]) == 0

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..pipeline import token as tok
-from ..pipeline.mini import Mini, make_mini
+from ..pipeline.mini import Mini
+from ..pipeline.pipeline import Pipeline
 from .figure_settings import FigureSettings
 
 
@@ -13,17 +13,18 @@ def build_mini(
     image: Path,
     s: FigureSettings,
     *,
+    pipeline: Pipeline,
     bleed_mm: float = 0.0,
     use_cache: bool = True,
     debug_dir: Path | None = None,
     log=print,
     on_stage=None,
 ) -> Mini:
-    """Build one figure. ``bleed_mm``: print the edge colors this far beyond the cut
-    line (a sheet cut by machine, see ``SheetSettings.figure_bleed``)."""
+    """Build one figure with ``pipeline``. ``bleed_mm``: print the edge colors this far
+    beyond the cut line (a sheet cut by machine, see ``SheetSettings.figure_bleed``)."""
     mask_options = s.mask_options()
     if s.kind == "token":
-        return tok.make_token(
+        return pipeline.tokens.make(
             Path(image),
             s.token_options(),
             mask_options,
@@ -36,7 +37,7 @@ def build_mini(
             log=log,
             on_stage=on_stage,
         )
-    return make_mini(
+    return pipeline.minis.make(
         Path(image),
         s.params(),
         mask_options,

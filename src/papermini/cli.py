@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import __version__
 from .output.png import PX_PER_SQUARE
+from .pipeline.pipeline import Pipeline
 from .pipeline.segmentation.model_error import ModelError
 from .project.figure_entry import safe_name
 from .project.figure_settings import FIGURE_OPTIONS, FigureSettings
@@ -117,7 +118,9 @@ def add_figure_args(flags: OptionFlags) -> None:
 # region commands
 
 
-def cmd_make(a: argparse.Namespace, size_calculator: SizeCalculator) -> int:
+def cmd_make(
+    a: argparse.Namespace, size_calculator: SizeCalculator, pipeline: Pipeline
+) -> int:
     from .output.png import px_per_mm, write_pngs
     from .output.svg import write_svgs
 
@@ -174,6 +177,7 @@ def cmd_make(a: argparse.Namespace, size_calculator: SizeCalculator) -> int:
         m = build_mini(
             img,
             s,
+            pipeline=pipeline,
             bleed_mm=a.bleed_mm,
             use_cache=not a.no_cache,
             debug_dir=out_dir / "debug" if a.debug else None,
@@ -270,6 +274,7 @@ def _warn_width(
 def run_project(
     proj: Project,
     size_calculator: SizeCalculator,
+    pipeline: Pipeline,
     debug: bool = False,
     preview: bool = False,
     use_cache: bool = True,
@@ -285,6 +290,7 @@ def run_project(
         m = build_mini(
             f.image,
             f.settings,
+            pipeline=pipeline,
             bleed_mm=sh.figure_bleed,
             use_cache=use_cache,
             debug_dir=out_dir / "debug" if debug or proj.debug else None,
@@ -302,10 +308,12 @@ def cmd_batch(
     a: argparse.Namespace,
     project_store: ProjectStore,
     size_calculator: SizeCalculator,
+    pipeline: Pipeline,
 ) -> int:
     return run_project(
         project_store.load(Path(a.config)),
         size_calculator,
+        pipeline,
         a.debug,
         a.preview,
         not a.no_cache,
@@ -341,7 +349,7 @@ def _expand(patterns: list[str]) -> list[str]:
 
 
 def build_parser(
-    size_calculator: SizeCalculator, project_store: ProjectStore
+    size_calculator: SizeCalculator, project_store: ProjectStore, pipeline: Pipeline
 ) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="papermini",
@@ -418,7 +426,9 @@ def build_parser(
         ),
     )
     add_figure_args(flags)
-    mk.set_defaults(func=partial(cmd_make, size_calculator=size_calculator))
+    mk.set_defaults(
+        func=partial(cmd_make, size_calculator=size_calculator, pipeline=pipeline)
+    )
 
     sh = sub.add_parser("sheet", help="papermini SVGs -> printable PDF sheet")
     flags = OptionFlags(sh, SheetSettings, given_only={"paper"})
@@ -466,7 +476,10 @@ def build_parser(
     )
     bt.set_defaults(
         func=partial(
-            cmd_batch, project_store=project_store, size_calculator=size_calculator
+            cmd_batch,
+            project_store=project_store,
+            size_calculator=size_calculator,
+            pipeline=pipeline,
         )
     )
 
@@ -497,7 +510,7 @@ def route(argv: list[str]) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     size_calculator = SizeCalculator()
-    parser = build_parser(size_calculator, ProjectStore(size_calculator))
+    parser = build_parser(size_calculator, ProjectStore(size_calculator), Pipeline())
     a = parser.parse_args(route(sys.argv[1:] if argv is None else argv))
     try:
         return a.func(a)

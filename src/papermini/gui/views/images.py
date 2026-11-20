@@ -6,6 +6,8 @@ import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QImageReader
 
+from ...pipeline.image_adjuster import ImageAdjuster
+
 
 def pil_to_qimage(im) -> QImage:
     im = im.convert("RGBA")
@@ -25,11 +27,10 @@ def load_qimage(path) -> QImage:
 PREVIEW_PX = 1600  # longest side of the adjusted picture on the Source view
 
 
-def adjusted_preview(img: QImage, adj) -> QImage:
-    """``img`` with the color adjustments ``adj``, for the Source view: at most
-    PREVIEW_PX on its longest side, so a slider stays smooth on a large photo (the
-    view shows it at the original's size; the print uses the full image)."""
-    from ...pipeline.adjust import apply
+def adjusted_preview(img: QImage, adj, adjuster: ImageAdjuster) -> QImage:
+    """``img`` with the color adjustments ``adj`` applied by ``adjuster``, for the Source
+    view: at most PREVIEW_PX on its longest side, so a slider stays smooth on a large
+    photo (the view shows it at the original's size; the print uses the full image)."""
 
     if max(img.width(), img.height()) > PREVIEW_PX:
         img = img.scaled(
@@ -42,5 +43,7 @@ def adjusted_preview(img: QImage, adj) -> QImage:
     a = np.frombuffer(img.constBits(), np.uint8).reshape(h, img.bytesPerLine())[
         :, : 4 * w
     ]
-    out = np.ascontiguousarray(apply(a.reshape(h, w, 4), adj, premultiplied=False))
+    out = np.ascontiguousarray(
+        adjuster.apply(a.reshape(h, w, 4), adj, premultiplied=False)
+    )
     return QImage(out.data, w, h, 4 * w, QImage.Format_RGBA8888).copy()

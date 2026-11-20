@@ -7,7 +7,7 @@ import numpy as np
 
 @dataclass
 class Layout:
-    """Result of :func:`build_layout`, all in pixels of one canvas."""
+    """The layout of a mini, all in pixels of one canvas (see ``LayoutBuilder``)."""
 
     rgb: np.ndarray  # HxWx3 artwork (white outside the figure)
     cut: np.ndarray  # HxW 0/255 cut shape
@@ -36,7 +36,7 @@ class Layout:
     label_max_h_px: float = 0.0
     paper: tuple[int, int, int] = (255, 255, 255)  # margin color, RGB
     tabfill: np.ndarray | None = None  # HxW bool: tab area (painted in the tab color)
-    # where this canvas lies in the image given to build_layout, for the front side:
+    # where this canvas lies in the image it was built from, for the front side:
     # (sx, sy, dx, dy) with image pixel = ((x - dx) * sx, (y - dy) * sy)
     src: tuple[float, float, float, float] = (1.0, 1.0, 0.0, 0.0)
     front_top: float = 0.0  # canvas row where the front starts (double-sided: the fold)

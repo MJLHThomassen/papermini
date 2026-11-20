@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...pipeline.segmentation import segment
+from ...pipeline.segmentation.cache_folder import CacheFolder
+from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from .model_info import MB, _host, _label, licence_link, ui_log
 
 
@@ -34,8 +36,16 @@ class DownloadDialog(QDialog):
     or closes the dialog after a failed download.
     """
 
-    def __init__(self, model: str, parent=None, ask: bool = True, force: bool = False):
+    def __init__(
+        self,
+        model: str,
+        segmenters: SegmenterRegistry,
+        parent=None,
+        ask: bool = True,
+        force: bool = False,
+    ):
         super().__init__(parent)
+        self._segmenters = segmenters
         self.setObjectName("DownloadDialog")
         self.model, self.force = model, force
         spec = segment.ONNX_MODELS[model]
@@ -53,8 +63,8 @@ class DownloadDialog(QDialog):
         v.setSpacing(10)
         self.title = _label(name="DialogTitle", wrap=False)
         v.addWidget(self.title)
-        folder = html.escape(str(segment.cache_dir()))
-        restricted = segment.non_commercial(
+        folder = html.escape(str(CacheFolder.path()))
+        restricted = SegmenterRegistry.non_commercial(
             model
         )  # (its licence gets a box of its own)
         self.body = _label(
@@ -70,7 +80,7 @@ class DownloadDialog(QDialog):
         self.accept_licence = self.licence_note = None  # (for a non-commercial model)
         if restricted:
             ask = True  # (also from Models and cache: the licence must be accepted)
-            rest = segment.licence_notice(model).split(". ", 1)[1]
+            rest = SegmenterRegistry.licence_notice(model).split(". ", 1)[1]
             note = _label(
                 f'<b>Licence: <a href="{html.escape(spec["licence_url"])}">'
                 f"non-commercial use only</a>.</b> {html.escape(rest)}",
@@ -149,7 +159,7 @@ class DownloadDialog(QDialog):
 
         def run():
             try:
-                segment.fetch_model(
+                self._segmenters.fetch(
                     self.model,
                     force=self.force,
                     cancel=self._cancel,

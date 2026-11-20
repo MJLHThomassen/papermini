@@ -178,13 +178,13 @@ class CropView(ZoomView):
 
     def set_crop(self, crop):
         """Show ``crop`` (fractions/px list or string); ignored while dragging."""
-        from ...pipeline.segmentation.segment import parse_crop
+        from ...pipeline.mask_options import MaskOptions
 
         if self._img_size is None or self._drag is not None:
             return
         W, H = self._img_size
         try:
-            box = parse_crop(crop, W, H)
+            box = MaskOptions.parse_crop(crop, W, H)
         except ValueError:
             box = None
         self._set_box(

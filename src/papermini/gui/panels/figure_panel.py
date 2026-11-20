@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...pipeline.segmentation import segment
-from ...pipeline.token_options import min_ring_mm
+from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
+from ...pipeline.token_options import TokenOptions
 from ...project import sizes
 from ...project.figure_settings import FigureSettings
 from ...project.size_calculator import SizeCalculator
@@ -506,15 +507,17 @@ class FigurePanel(QScrollArea):
         used = (
             method if model == "auto" else model
         )  # (auto: what it picked, once known)
-        if used and segment.non_commercial(used):
+        if used and SegmenterRegistry.non_commercial(used):
             self.licence_hint.setText(
                 f"<b>Non-commercial use only.</b> You are responsible for not using "
                 f"{html.escape(segment.ONNX_MODELS[used]['title'])} commercially, for "
                 f"example to make minis you sell. For commercial use, pick birefnet or "
                 f"birefnet-lite."
             )
-            self.licence_hint.setToolTip(segment.licence_notice(used))
-        self.licence_hint.setVisible(bool(used) and segment.non_commercial(used))
+            self.licence_hint.setToolTip(SegmenterRegistry.licence_notice(used))
+        self.licence_hint.setVisible(
+            bool(used) and SegmenterRegistry.non_commercial(used)
+        )
 
     def set_auto_fill_gaps(self, px: int):
         """The gap filling the last build picked automatically, shown while Auto is on."""
@@ -623,7 +626,9 @@ class FigurePanel(QScrollArea):
     def _sync_ring(self, curved: bool) -> None:
         """Curved text needs a ring at least this wide: the field stops there, and says so."""
         w = self.field("token_border_mm")
-        least = min_ring_mm(self._value("token_text_mm")) if curved else 0.0
+        least = (
+            TokenOptions.min_ring_mm(self._value("token_text_mm")) if curved else 0.0
+        )
         w.blockSignals(True)
         w.setMinimum(least)
         w.blockSignals(False)

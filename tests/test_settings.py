@@ -5,13 +5,18 @@ import pytest
 from papermini.project.figure_settings import FigureSettings
 
 
-def test_the_mask_model_needs_a_mask_image(hero_figure):
+def test_the_mask_model_needs_a_mask_image(pipeline, hero_figure):
     from papermini.project.settings import build_mini
 
     img, mask = hero_figure
     m = build_mini(
-        img, FigureSettings(model="mask", mask=str(mask)), log=lambda *_: None
+        img,
+        FigureSettings(model="mask", mask=str(mask)),
+        pipeline=pipeline,
+        log=lambda *_: None,
     )
     assert m.figure_height_mm == pytest.approx(32, abs=0.05)  # Medium
     with pytest.raises(ValueError, match="needs a mask image"):
-        build_mini(img, FigureSettings(model="mask"), log=lambda *_: None)
+        build_mini(
+            img, FigureSettings(model="mask"), pipeline=pipeline, log=lambda *_: None
+        )

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+NUMBER_PLACEHOLDER = (
+    "#"  # a figure's number where no copy number is known (the preview)
+)
+
 
 @dataclass
 class TextItem:

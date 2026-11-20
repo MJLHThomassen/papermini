@@ -39,6 +39,7 @@ def _start(app, files):
         import ctypes
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("papermini")
+    from ..pipeline.pipeline import Pipeline
     from ..project.project_store import ProjectStore
     from ..project.size_calculator import SizeCalculator
     from . import theme
@@ -48,7 +49,7 @@ def _start(app, files):
     size_calculator = SizeCalculator()
     theme.apply(app, prefs.theme())
     app.setWindowIcon(theme.app_icon())
-    w = MainWindow(prefs, ProjectStore(size_calculator), size_calculator)
+    w = MainWindow(prefs, ProjectStore(size_calculator), size_calculator, Pipeline())
     if files:
         w.open_paths(files)
     w.show()
