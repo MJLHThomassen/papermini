@@ -1,0 +1,16 @@
+diff --git a/tests/gui/test_option_fields.py b/tests/gui/test_option_fields.py
+index 4ced1e5..ecf6832 100644
+--- a/tests/gui/test_option_fields.py
++++ b/tests/gui/test_option_fields.py
+@@ -147,6 +147,11 @@ FIGURE_FIELDS: dict[str, tuple[str, Any, Any, dict[str, Any]]] = {
+     "token_text_color": ("token_text_color", "#444444", "#444444", {}),
+ }
+ 
++import os
++_ONLY = os.environ.get("ONLY_FIELDS")
++if _ONLY:
++    FIGURE_FIELDS = {k: v for k, v in FIGURE_FIELDS.items() if k in _ONLY.split(",")}
++
+ # FigureSettings fields that the figure panel has no field for.
+ FIGURE_SETTINGS_WITHOUT_A_FIELD = {"copies"}  # (set on the figure's card)
+ 

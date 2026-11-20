@@ -176,13 +176,17 @@ jobs:
           git config --global --add safe.directory "$PWD"
           f=tests/gui/test_option_fields.py
           variant "$f, try 2" "$f"
-          variant "figure tests" "$f" -k figure
-          variant "sheet tests" "$f" -k sheet
-          variant "figure tests without edits" "$f" -k "figure and not edits"
-          variant "the two edit tests" "$f" -k edits
-          variant "figure edits + figure shows" "$f" -k "figure_field_edits or figure_field_shows"
-          variant "figure edits + sheet edits" "$f" -k "figure_field_edits or sheet_field_edits"
-          git apply .github/diag/v3-staticmethod.patch && variant "$f, getColor patched as a staticmethod" "$f"
+          git apply .github/diag/v4-only-fields.patch
+          ONLY_FIELDS=kind,size,height_mm,width_mm,margin_mm,smooth_mm,tab_width_mm,tab_radius_mm,tab_height_mm,tab_overlap_mm,fold_mm,no_tab,tab_shape,tab_color,double_sided,back,back_text,back_color,back_text_color,model,mask,crop,strength,fill_gaps,keep_all,min_area,margin_fill,margin_color variant "half 1: kind..margin_color" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=greyscale,brightness,contrast,saturation,hue,label,tab_front,tab_back,dpi,simplify_mm,no_smooth,cut_color,cut_width_mm,label_color,label_size_mm,font,token_diameter_mm,token_area,token_fill,token_fill_color,token_border_mm,token_border_color,token_outline,token_cut_line,token_text,token_text_style,token_text_mm,token_text_color variant "half 2: greyscale..token_text_color" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=kind,size,height_mm,width_mm,margin_mm,smooth_mm,tab_width_mm variant "group 1: kind,size,height_mm,width_mm,margin_mm,smooth_mm,tab_width_mm" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=tab_radius_mm,tab_height_mm,tab_overlap_mm,fold_mm,no_tab,tab_shape,tab_color variant "group 2: tab_radius_mm,tab_height_mm,tab_overlap_mm,fold_mm,no_tab,tab_shape,tab_color" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=double_sided,back,back_text,back_color,back_text_color,model,mask variant "group 3: double_sided,back,back_text,back_color,back_text_color,model,mask" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=crop,strength,fill_gaps,keep_all,min_area,margin_fill,margin_color variant "group 4: crop,strength,fill_gaps,keep_all,min_area,margin_fill,margin_color" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=greyscale,brightness,contrast,saturation,hue,label,tab_front variant "group 5: greyscale,brightness,contrast,saturation,hue,label,tab_front" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=tab_back,dpi,simplify_mm,no_smooth,cut_color,cut_width_mm,label_color variant "group 6: tab_back,dpi,simplify_mm,no_smooth,cut_color,cut_width_mm,label_color" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=label_size_mm,font,token_diameter_mm,token_area,token_fill,token_fill_color,token_border_mm variant "group 7: label_size_mm,font,token_diameter_mm,token_area,token_fill,token_fill_color,token_border_mm" "$f" -k "figure_field_edits or figure_field_shows"
+          ONLY_FIELDS=token_border_color,token_outline,token_cut_line,token_text,token_text_style,token_text_mm,token_text_color variant "group 8: token_border_color,token_outline,token_cut_line,token_text,token_text_style,token_text_mm,token_text_color" "$f" -k "figure_field_edits or figure_field_shows"
           git checkout -- tests
           variant "$f, try 3" "$f"
           exit 0
