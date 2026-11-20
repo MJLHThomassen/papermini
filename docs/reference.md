@@ -976,8 +976,9 @@ papermini make Monsters -o minis
 ### `papermini sheet SVG... [-o minis.pdf]`
 
 Lays papermini SVGs out on pages. Each page has an instruction header and a
-50 mm calibration bar. Pieces are packed in rows with 7 mm gaps and 12 mm page
-margins, and extra pages are added as needed.
+50 mm calibration bar. Pieces are packed in rows, with a gap between them
+(`--gap-mm`) and a margin around each page (`--margin-mm`), and extra pages are
+added as needed.
 
 ```bash
 papermini sheet "minis/*.svg" --copies 2 --paper letter -o minis.pdf --preview
