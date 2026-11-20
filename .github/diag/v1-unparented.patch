@@ -1,0 +1,13 @@
+diff --git a/src/papermini/gui/building/build_queue.py b/src/papermini/gui/building/build_queue.py
+index 516f2a8..b0371c7 100644
+--- a/src/papermini/gui/building/build_queue.py
++++ b/src/papermini/gui/building/build_queue.py
+@@ -58,7 +58,7 @@ class BuildQueue(QObject):
+         self.run: ModelRun | None = None
+         self.pool = QThreadPool(self)
+         self.pool.setMaxThreadCount(1)  # one model run at a time
+-        self._sig = JobSignals(self)
++        self._sig = JobSignals()
+         self._sig.finished.connect(self._on_finished)
+         self._sig.stage.connect(self._on_stage)
+         self._sig.status.connect(self.status)

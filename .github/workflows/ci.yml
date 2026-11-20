@@ -126,7 +126,7 @@ jobs:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
     needs: image
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
+    timeout-minutes: 45  # (diagnostic, temporary)
     container:
       image: ${{ needs.image.outputs.image }}:py${{ matrix.python }}-${{ needs.image.outputs.tag }}
       credentials:  # (the image may still be private)
@@ -160,11 +160,28 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
-      - name: Test under gdb (diagnostic, temporary)
+      - name: Test variants (diagnostic, temporary)
         if: matrix.python == '3.10'
+        timeout-minutes: 40
         run: |
-          apt-get update -qq && apt-get install -y -qq gdb > /dev/null
-          uv run --no-sync gdb -q -batch -ex "set pagination off" -ex "set disable-randomization off" -ex run -ex "bt 80" -ex "info threads" -ex "thread apply all bt 30" --args python -X faulthandler -m pytest -q
+          set +e
+          variant() {
+            echo "=== $1"
+            uv run --no-sync python -m pytest -q -p no:cacheprovider $2 > /tmp/o 2>&1
+            echo "=== $1: exit $?"
+            tail -3 /tmp/o
+          }
+          variant "full suite, try 1" ""
+          variant "gui tests only" "tests/gui"
+          variant "non-gui tests only" "--ignore=tests/gui"
+          git apply .github/diag/v1-unparented.patch && variant "unparented JobSignals" ""
+          git checkout -- src
+          git apply .github/diag/v2-slot.patch && variant "status through a slot" ""
+          git checkout -- src
+          git checkout 4a7fa43 -- src tests && variant "main before the build queue (4a7fa43)" ""
+          git checkout HEAD -- src tests
+          variant "full suite, try 2" ""
+          exit 0
         env:
           QT_QPA_PLATFORM: offscreen
 
