@@ -1021,19 +1021,37 @@ Takes a list of images with per-image options and writes the SVGs plus a sheet.
 See [examples/minis.yaml](../examples/minis.yaml):
 
 ```yaml
-output: minis
-sheet: {output: minis/sheet.pdf, paper: a4, copies: 1, preview: true}
-defaults: {height_mm: 42, strength: 40, fill_gaps: 9}
+output: minis                 # folder for the SVGs (and debug output)
+
+sheet:
+  output: minis/sheet.pdf
+  paper: a4                   # or letter
+  copies: 1                   # default copies per figure
+  preview: true               # also write sheet.png
+  title: Dragon's lair
+
+defaults:
+  height_mm: 42
+  strength: 40
+  fill_gaps: 9
+
 figures:
-  - image: dragon.png
+  # The image has transparency, so it needs no model.
+  - image: dragons/dragon.webp
     label: Red dragon
     copies: 2
-  - image: boss-attic.jpg
-    label: Acererak
-    height_mm: 56
+
+  # A busy landscape behind the figure.
+  - image: dragons/dragon-flying.webp
+    label: Flying dragon
     strength: 60
     fill_gaps: 7
-    crop: [0.08, 0, 0.92, 0.62]
+
+  # A stat block: let the model look only at the figure's region.
+  - image: dragons/statblock-with-dragon.webp
+    label: Whelp
+    height_mm: 34
+    crop: [0.03, 0.15, 0.565, 0.8]
 ```
 
 The `sheet` also takes `orientation`, `title`, `margin_mm`, `gap_mm`, a custom

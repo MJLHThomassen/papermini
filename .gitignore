@@ -7,5 +7,6 @@ build/
 dist/
 debug/
 examples/dragons/out/
+examples/minis/
 *.pyc
 src/papermini/_version.py
