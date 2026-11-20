@@ -163,7 +163,8 @@ the desktop app in depth, and how the pipeline works.
   and the app does not ask again until you pick another model. For rmbg-1.4,
   which is for non-commercial use only, you first tick *I will only use BRIA
   RMBG-1.4 non-commercially*; *Download* stays disabled until you do (also
-  on the *Models and cache* page). See [Model licence](#model-licence).
+  on the *Models and cache* page). See
+  [Background removal models](#model-licence).
 - **Preferences…** (☰ menu, Ctrl+,) holds the app's settings, on pages. Changes
   take effect at once; the window can be resized.
   - **Creature sizes:** the size table presets. See
@@ -283,7 +284,8 @@ The times are for this image (1312 × 1199 pixels) on an Intel Core i7-4770K
 from 2013, without the cache. A model loads once per session; the time per
 image is the median of five runs. Results are cached, so an image is never
 processed twice with the same crop and model. See
-[Model licence](#model-licence) for the licences and the other model choices.
+[Background removal models](#model-licence) for the licences and the other
+model choices.
 
 ##### Mask image file
 `--mask` [none]\
@@ -1131,7 +1133,9 @@ papermini batch examples/dragons/samples-machine.yaml
 | `--preview` | off | also write a PNG preview of each sheet page, as the sheet's `preview: true` does |
 | `--no-cache` | off | make every mask again instead of reusing the cached ones |
 
-## Model licence
+<a id="model-licence"></a>
+
+## Background removal models
 
 The default model, [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4), is
 licensed for **non-commercial use only** (see its model card). papermini itself
