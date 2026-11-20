@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+FOLD_DASH_MM = 1.2  # a fold line is dashed: drawn this long...
+FOLD_GAP_MM = 0.8  # ...then left out this long
+
 
 @dataclass
 class Style:

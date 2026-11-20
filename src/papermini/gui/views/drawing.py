@@ -22,9 +22,25 @@ from PySide6.QtWidgets import (
     QGraphicsSimpleTextItem,
 )
 
-from ...output.sheet_layout import SheetLayout
+from ...output.sheet_layout import (
+    BAR_ABOVE_MM,
+    BAR_END_TICK_MM,
+    BAR_LABEL,
+    BAR_LABEL_DROP_MM,
+    BAR_LABEL_GAP_MM,
+    BAR_MM,
+    BAR_TICK_MM,
+    BAR_TICK_STEP_MM,
+    BAR_TICK_WIDTH_MM,
+    BAR_WIDTH_MM,
+    INSTRUCTIONS_BASELINE_MM,
+    INSTRUCTIONS_LINE_MM,
+    TITLE_BASELINE_MM,
+    SheetLayout,
+)
 from ...pipeline.cut_path import CutPath
 from ...pipeline.mini import Mini
+from ...pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
 from ...support import fonts
 from .images import pil_to_qimage
 from .paper_item import PaperItem
@@ -161,7 +177,9 @@ def draw_mini(
     scene.addItem(art)
 
     pen = QPen(QColor(st.fold_color), st.fold_width_mm)
-    pen.setDashPattern([1.2 / st.fold_width_mm, 0.8 / st.fold_width_mm])
+    pen.setDashPattern(
+        [FOLD_DASH_MM / st.fold_width_mm, FOLD_GAP_MM / st.fold_width_mm]
+    )
     for x0, x1, fy in m.folds:
         scene.addLine(x + x0, y + fy, x + x1, y + fy, pen)
     family = qt_family(st.font)
@@ -233,7 +251,7 @@ def draw_sheet(
             "#000",
             "Arial",
             hx,
-            oy + margin_mm + 4,
+            oy + margin_mm + TITLE_BASELINE_MM,
             anchor="left",
             bold=True,
         )
@@ -245,7 +263,7 @@ def draw_sheet(
                 "#000",
                 "Arial",
                 hx,
-                oy + margin_mm + 8.5 + 3.4 * i,
+                oy + margin_mm + INSTRUCTIONS_BASELINE_MM + INSTRUCTIONS_LINE_MM * i,
                 anchor="left",
             )
         if lay.pages > 1:
@@ -256,17 +274,26 @@ def draw_sheet(
                 "#000",
                 "Arial",
                 lay.header_right - 16,
-                oy + margin_mm + 4,
+                oy + margin_mm + TITLE_BASELINE_MM,
                 anchor="left",
             )
-        cy = oy + margin_mm + lay.header_mm - 4
-        pen = QPen(QColor("#000"), 0.4)
-        scene.addLine(hx, cy, hx + 50, cy, pen)
-        thin = QPen(QColor("#000"), 0.2)
-        for t in range(0, 51, 10):
-            h = 1.6 if t % 50 == 0 else 1.0
+        cy = oy + margin_mm + lay.header_mm - BAR_ABOVE_MM
+        pen = QPen(QColor("#000"), BAR_WIDTH_MM)
+        scene.addLine(hx, cy, hx + BAR_MM, cy, pen)
+        thin = QPen(QColor("#000"), BAR_TICK_WIDTH_MM)
+        for t in range(0, BAR_MM + 1, BAR_TICK_STEP_MM):
+            h = BAR_END_TICK_MM if t % BAR_MM == 0 else BAR_TICK_MM
             scene.addLine(hx + t, cy - h, hx + t, cy + h, thin)
-        _text(scene, "50 mm", 2.4, "#000", "Arial", hx + 52, cy + 1, anchor="left")
+        _text(
+            scene,
+            BAR_LABEL,
+            2.4,
+            "#000",
+            "Arial",
+            hx + (BAR_MM + BAR_LABEL_GAP_MM),
+            cy + BAR_LABEL_DROP_MM,
+            anchor="left",
+        )
     for p in lay.placements:
         pm = (pixmaps or {}).get(id(p.mini.art))  # (numbered copies share their art)
         draw_mini(

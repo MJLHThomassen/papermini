@@ -14,6 +14,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from ..pipeline.mini import Mini
+from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
+from ..pipeline.text_item import TEXT_BASELINE_DROP
 from ..support import fonts
 
 PX_PER_SQUARE = 256  # the default scale: pixels per grid square...
@@ -36,24 +38,28 @@ def piece_image(m: Mini, px_per_mm: float) -> Image.Image:
     d = ImageDraw.Draw(im)
     st = m.style
     fold_w = max(1, round(st.fold_width_mm * s))
-    for x0, x1, y in m.folds:  # dashed: 1.2 mm on, 0.8 mm off
+    for x0, x1, y in m.folds:
         x = x0
         while x < x1:
             d.line(
-                [(x * s, y * s), (min(x + 1.2, x1) * s, y * s)],
+                [(x * s, y * s), (min(x + FOLD_DASH_MM, x1) * s, y * s)],
                 fill=st.fold_color,
                 width=fold_w,
             )
-            x += 2.0
+            x += FOLD_DASH_MM + FOLD_GAP_MM
     for t in m.text_items():
         size = t.size_mm * s
         font = _font(st.font, round(size), t.bold)
         box = font.getbbox(t.text)
         r = int(max(box[2] - box[0], size) * 1.5) + 4  # room to turn it in
         layer = Image.new("RGBA", (2 * r, 2 * r), (0, 0, 0, 0))
-        # centred on (cx, cy), the baseline 0.35 x the size below it (as in the SVG)
+        # centred on (cx, cy), with the baseline where every output puts it
         ImageDraw.Draw(layer).text(
-            (r, r + 0.35 * size), t.text, font=font, fill=t.color, anchor="ms"
+            (r, r + TEXT_BASELINE_DROP * size),
+            t.text,
+            font=font,
+            fill=t.color,
+            anchor="ms",
         )
         if t.rot:
             layer = layer.rotate(-t.rot, resample=Image.BICUBIC, center=(r, r))

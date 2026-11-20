@@ -6,7 +6,7 @@ from functools import lru_cache
 
 from ..support import fonts
 from .text_fitter import TextFitter
-from .text_item import NUMBER_PLACEHOLDER, TextItem
+from .text_item import NUMBER_PLACEHOLDER, TEXT_BASELINE_DROP, TextItem
 
 
 @dataclass
@@ -129,8 +129,8 @@ class TokenInfo:
     def _middle(text: str, font: str, bold: bool = False) -> float:
         """Return where the middle of ``text``'s letters is (ascenders to descenders),
         below a text item's centre, as a share of the text size. A text item is drawn
-        with its baseline 0.35 x the size below its centre; letters with descenders sit
-        lower."""
+        with its baseline ``TEXT_BASELINE_DROP`` times the size below its centre;
+        letters with descenders sit lower."""
         from ..output.sheet import _font
 
         try:
@@ -143,4 +143,4 @@ class TokenInfo:
             ValueError,
         ):  # (a font without metrics: caps-like letters)
             top, bottom = -66, 0
-        return 0.35 + (top + bottom) / 200.0
+        return TEXT_BASELINE_DROP + (top + bottom) / 200.0

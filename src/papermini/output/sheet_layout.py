@@ -5,8 +5,28 @@ from dataclasses import dataclass, field
 from ..pipeline.mini import Mini
 from .placement import Placement
 
+# the baselines of the text in the sheet header, in mm below the page margin
+TITLE_BASELINE_MM = 4.0
+INSTRUCTIONS_BASELINE_MM = 8.5  # the first line of the instructions
+INSTRUCTIONS_LINE_MM = 3.4  # from one line to the next
+
+# the calibration bar at the bottom of the header, in mm
+BAR_MM = 50  # its length
+BAR_ABOVE_MM = 4  # above the bottom of the header
+BAR_WIDTH_MM = 0.4
+BAR_TICK_STEP_MM = 10  # a tick across the bar every this many mm
+BAR_TICK_MM = 1.0  # how far a tick reaches above and below the bar...
+BAR_END_TICK_MM = 1.6  # ...and a tick at either end
+BAR_TICK_WIDTH_MM = 0.2
+BAR_LABEL = f"{BAR_MM} mm"
+BAR_LABEL_GAP_MM = 2  # the label starts this far right of the bar...
+BAR_LABEL_DROP_MM = 1  # ...with its baseline this far below it
+
 INSTRUCTIONS = [
-    "Print at 100% / actual size (no 'fit to page'). Check: the bar below must measure 50 mm.",
+    (
+        "Print at 100% / actual size (no 'fit to page'). "
+        f"Check: the bar below must measure {BAR_LABEL}."
+    ),
     (
         "Cut along the solid line and fold along the dashed lines. Square tabs slot into a stand; "
         "round tabs fold outwards into a base."
