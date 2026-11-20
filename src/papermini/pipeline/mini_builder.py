@@ -25,6 +25,7 @@ from .morphology import Morphology
 from .params import Params
 from .read_only import ReadOnly
 from .segmentation.cancellation import Cancellation
+from .segmentation.download_hooks import DownloadHooks
 from .style import Style
 from .text_fitter import TextFitter
 from .text_item import TextItem
@@ -90,11 +91,13 @@ class MiniBuilder:
         debug_dir: Path | None = None,
         log=print,
         on_stage=None,
+        downloads: DownloadHooks | None = None,
     ) -> Mini:
         """Build one miniature. ``on_stage(name, data)``, if given, hears about
         progress: ``("segment", model)`` just before a model runs (it may take a while)
         and ``("outline", (contours, close_px))`` once the figure is found, before the
-        layout."""
+        layout. ``downloads`` asks before a built-in model downloads, and hears its
+        progress."""
         image_path = Path(image_path)
         style = self._fonts.checked(style, image_path.name, log)
         debug = bool(debug_dir)
@@ -105,6 +108,7 @@ class MiniBuilder:
             debug=debug,
             log=log,
             on_stage=on_stage,
+            downloads=downloads,
         )
 
         # size (by height, by width, or both: stretched sideways)

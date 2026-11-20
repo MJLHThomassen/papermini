@@ -26,8 +26,8 @@ class Downloader:
 
         Works without a console (``papermini-gui`` has no stderr), times out on a
         stalled connection, checks the size, and stops early when ``segment.CANCEL``
-        or ``cancel`` is set. ``progress`` (default ``segment.PROGRESS_HOOK``) is
-        called as ``progress(done_bytes, total_bytes_or_None, message)``.
+        or ``cancel`` is set. ``progress``, if given, is called as
+        ``progress(done_bytes, total_bytes_or_None, message)``.
         """
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_suffix(
@@ -36,7 +36,6 @@ class Downloader:
         err = sys.stderr
         if err is not None:
             print(f"Downloading {url}\n  -> {dest}", file=err)
-        progress = progress or segment.PROGRESS_HOOK
         req = urllib.request.Request(url, headers={"User-Agent": "papermini"})
         bar = None
         try:

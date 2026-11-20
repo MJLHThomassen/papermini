@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..pipeline.mini import Mini
 from ..pipeline.pipeline import Pipeline
+from ..pipeline.segmentation.download_hooks import DownloadHooks
 from .figure_settings import FigureSettings
 
 
@@ -19,9 +20,11 @@ def build_mini(
     debug_dir: Path | None = None,
     log=print,
     on_stage=None,
+    downloads: DownloadHooks | None = None,
 ) -> Mini:
     """Build one figure with ``pipeline``. ``bleed_mm``: print the edge colors this far
-    beyond the cut line (a sheet cut by machine, see ``SheetSettings.figure_bleed``)."""
+    beyond the cut line (a sheet cut by machine, see ``SheetSettings.figure_bleed``).
+    ``downloads`` asks before a built-in model downloads, and hears its progress."""
     mask_options = s.mask_options()
     if s.kind == "token":
         return pipeline.tokens.make(
@@ -36,6 +39,7 @@ def build_mini(
             style=s.style(),
             log=log,
             on_stage=on_stage,
+            downloads=downloads,
         )
     return pipeline.minis.make(
         Path(image),
@@ -55,4 +59,5 @@ def build_mini(
         debug_dir=debug_dir,
         log=log,
         on_stage=on_stage,
+        downloads=downloads,
     )

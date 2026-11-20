@@ -241,12 +241,12 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
 
     assert w.list.item(0).data(SUBTITLE_ROLE).startswith("Cancelled")
-    assert wait(lambda: w.pool.activeThreadCount() == 0, 30)
+    assert wait(lambda: w.builds.pool.activeThreadCount() == 0, 30)
     w.list.setCurrentRow(-1)
     w.list.setCurrentRow(0)  # nothing restarts on its own, not even when selected again
     app.processEvents()  # (selecting it builds it soon after, when it needs a build)
     assert fig.queued is None and w.work.button.text() == "Run again"
-    assert w.pool.activeThreadCount() == 0 and SlowSegmenter.calls == 2
+    assert w.builds.pool.activeThreadCount() == 0 and SlowSegmenter.calls == 2
 
     SlowSegmenter.block = False
     w.work.button.click()  # Run again
@@ -302,7 +302,7 @@ def test_cancel_works_while_the_model_loads(
         assert fig.stopped and w.work.button.text() == "Run again"
         assert "Cancelled" in w.list.item(0).data(SUBTITLE_ROLE)
         SlowLoadSegmenter.loaded.set()
-        assert wait(lambda: w.pool.activeThreadCount() == 0, 30)
+        assert wait(lambda: w.builds.pool.activeThreadCount() == 0, 30)
         assert SlowLoadSegmenter.calls == 0 and not fig.up_to_date
 
         w.panel.changed.emit(replace(fig.entry.settings, margin_mm=4))  # not the mask
@@ -310,7 +310,7 @@ def test_cancel_works_while_the_model_loads(
         while time.time() < end:
             app.processEvents()
             time.sleep(0.02)
-        assert w.pool.activeThreadCount() == 0 and SlowLoadSegmenter.calls == 0
+        assert w.builds.pool.activeThreadCount() == 0 and SlowLoadSegmenter.calls == 0
         assert fig.stopped and w.work.button.text() == "Run again"
 
         w.work.button.click()  # Run again

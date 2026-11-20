@@ -79,7 +79,9 @@ src/papermini/       the package, one class per file (S15)
     exporting/       exporting and printing, and the dialogs they open
     updating/        checking for, downloading and installing updates, and the
                      update bar
-    window/          the main window and its build jobs
+    building/        building the figures' miniatures in the background, and
+                     cancelling their model runs
+    window/          the main window
 tests/               the pytest suite, one file per module (T3): synthetic masks,
                      no network or model (T4)
   gui/               the GUI tests, one file per feature, off-screen
@@ -114,10 +116,10 @@ don't care about.
 or about 40 methods.
 
 *Example:* `MainWindow` in `gui/window/main_window.py` builds the layout,
-queues builds and handles their results, manages recent files and folders, and
-handles drag and drop. Someone who wants to change how builds are queued has to
-find their way through a class of about 2,000 lines. Better: separate
-collaborators that the window creates and wires together, the way it creates
+manages recent files and folders, and handles drag and drop. Someone who wants
+to change how recent files work has to find their way through a class of about
+1,900 lines. Better: separate collaborators that the window creates and wires
+together, the way it creates `BuildQueue` in `gui/building/` for builds,
 `ExportController` in `gui/exporting/` for exporting and printing, and
 `UpdateController` in `gui/updating/` for updates.
 
@@ -129,7 +131,7 @@ read as a short sequence of named steps.
 *Soft triggers:* a function over about 60 lines, nesting deeper than about
 three levels, or more than about six parameters.
 
-*Example:* `MiniBuilder.make` in `pipeline/mini_builder.py` takes seventeen
+*Example:* `MiniBuilder.make` in `pipeline/mini_builder.py` takes eighteen
 parameters. Related parameters travel together in small dataclasses, such as
 `MaskOptions` for background removal and `Params` for the layout. The rest could
 be grouped the same way.
@@ -155,8 +157,8 @@ give it an `Enum`. Names can then be completed by editors and checked by ty.
 Avoid lists of positional tuples and one-letter codes that only a comment
 explains.
 
-*Example:* build callbacks pass `(uid, key)` positionally through several
-methods.
+*Example:* `MainWindow` keeps the steps of its crop undo as `(uid, crop)`
+tuples.
 
 ### S5. Add a variant by adding an entry - SOLID (O)
 
@@ -200,9 +202,10 @@ or callbacks. Tests then pass in fakes, and there is no need to patch module
 globals.
 
 *Example:* `MiniBuilder.make` takes `log` and `on_stage` callbacks instead of
-printing or signalling the GUI itself, and `SegmenterRegistry` receives the
-`Downloader` that fetches the models, so tests pass in a fake one. Do the same for
-new outside work.
+printing or signalling the GUI itself, and `DownloadHooks` with the question to
+ask before a model downloads. `SegmenterRegistry` receives the `Downloader` that
+fetches the models, so tests pass in a fake one. Do the same for new outside
+work.
 
 S16 says where these collaborators come from: services created once at the
 entry point.
@@ -359,9 +362,11 @@ under it. `tests/gui/test_saved_preferences.py` checks each one.
 ### G3. Builds are debounced and matched to their settings
 
 Builds run on a single worker thread, and each result is matched to the
-settings it was started for. Keep the 250 ms debounce. Never call
-`QTimer.start(0)` on the debounce timer, because that sets its interval to 0
-for good. Use `QTimer.singleShot(0, ...)` to run something soon.
+settings it was started for. `BuildQueue` (`gui/building/build_queue.py`) does
+both, and `Figure` (`gui/window/figure.py`) explains the matching. Keep the
+250 ms debounce. Never call `QTimer.start(0)` on the debounce timer, because
+that sets its interval to 0 for good. Use `QTimer.singleShot(0, ...)` to run
+something soon.
 
 ### G4. Workers report every failure
 

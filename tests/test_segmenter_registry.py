@@ -6,6 +6,7 @@ import pytest
 
 from papermini.pipeline.segmentation import segment
 from papermini.pipeline.segmentation.cancellation import Cancellation
+from papermini.pipeline.segmentation.download_hooks import DownloadHooks
 from papermini.pipeline.segmentation.model_error import ModelError
 from papermini.pipeline.segmentation.segmenter_registry import SegmenterRegistry
 
@@ -15,7 +16,6 @@ def registry(monkeypatch, tmp_path, fake_downloader):
     """Returns a registry with its cache in tmp_path and the fake downloads, as on the
     command line (nothing asks before a download)."""
     monkeypatch.setenv("PAPERMINI_CACHE", str(tmp_path / "cache"))
-    monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", None)
     return SegmenterRegistry(fake_downloader, Cancellation())
 
 
@@ -49,20 +49,23 @@ def test_rembg_is_gone(registry):
 
 
 def test_refused_download_explains_and_downloads_nothing(
-    monkeypatch, registry, fake_downloader, fake_ort
+    registry, fake_downloader, fake_ort
 ):
-    asked = []
-    monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", lambda m: asked.append(m) or False)
+    asked, seen = [], []
+    refuse = DownloadHooks(confirm=lambda m: asked.append(m) or False)
     with pytest.raises(ModelError, match="not downloaded.*Models and cache"):
-        registry.get("rmbg-1.4")
+        registry.get("rmbg-1.4", refuse)
     assert asked == ["rmbg-1.4"] and fake_downloader.got == []
-    # an approved download goes ahead; a model that is already there is never asked
-    # about
-    monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", lambda m: asked.append(m) or True)
-    registry.get("rmbg-1.4")
-    SegmenterRegistry(fake_downloader, Cancellation()).get("rmbg-1.4")
+    # an approved download goes ahead with progress; a model that is already there is
+    # never asked about
+    allow = DownloadHooks(
+        confirm=lambda m: asked.append(m) or True,
+        progress=lambda done, total, _msg: seen.append((done, total)),
+    )
+    registry.get("rmbg-1.4", allow)
+    SegmenterRegistry(fake_downloader, Cancellation()).get("rmbg-1.4", allow)
     assert asked == ["rmbg-1.4", "rmbg-1.4"]
-    assert fake_downloader.got == ["rmbg-1.4.onnx"]
+    assert fake_downloader.got == ["rmbg-1.4.onnx"] and seen[-1] == (30, 30)
 
 
 def test_fetch_and_delete_model(registry, fake_downloader, tmp_path, fake_ort):

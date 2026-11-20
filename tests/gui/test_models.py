@@ -101,7 +101,7 @@ def test_build_asks_before_downloading(
         and "lower strength" not in w.banner.text.text()
     )
     assert model_cache == []
-    confirm = segment.CONFIRM_DOWNLOAD  # (what a build calls before a download)
+    confirm = w.builds.downloads.confirm  # (what a build calls before a download)
     assert confirm is not None
     assert confirm("birefnet-lite") is False  # declined: not asked again
     assert asked == ["birefnet-lite"]
@@ -258,11 +258,12 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(
 def test_the_settings_show_the_licence_of_the_model_in_use(
     app, tmp_path, model_cache, new_window, monkeypatch
 ):
-    from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.segmentation.download_hooks import DownloadHooks
 
     Image.new("RGB", (300, 400), (40, 40, 40)).save(tmp_path / "a.png")
     w = new_window()
-    monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", lambda model: False)  # (no prompt)
+    no = DownloadHooks(confirm=lambda model: False)  # (no prompt)
+    monkeypatch.setattr(w.builds, "downloads", no)
     w.add_images([tmp_path / "a.png"])
     p = w.panel
     combo = p.field("model")
@@ -293,8 +294,6 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
 
     from PySide6.QtCore import QRunnable, Qt
 
-    from papermini.pipeline.segmentation import segment
-
     asked = []  # (an exception raised in a Qt slot would only be printed)
 
     class Dialog:
@@ -315,9 +314,9 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
 
     w.sig.ask_download.connect(question, Qt.ConnectionType.DirectConnection)
     got = []
-    confirm = segment.CONFIRM_DOWNLOAD  # (the window clears it when it closes)
+    confirm = w.builds.downloads.confirm  # (what a build calls before a download)
     assert confirm is not None
-    w.pool.start(QRunnable.create(lambda: got.append(confirm("birefnet"))))
+    w.builds.pool.start(QRunnable.create(lambda: got.append(confirm("birefnet"))))
     assert queued.wait(30)  # the window closes before the question is shown
     w.close()
     assert got == [False]

@@ -5,6 +5,7 @@ from PIL import Image
 
 from ..image_loader import ImageLoader
 from .cancellation import Cancellation
+from .download_hooks import DownloadHooks
 from .mask_store import MaskStore
 from .model_error import ModelError
 from .segment import DEFAULT_MODEL, Box
@@ -34,12 +35,14 @@ class BackgroundRemover:
         crop: Box | None = None,
         use_cache: bool = True,
         image_bytes: bytes | None = None,
+        downloads: DownloadHooks | None = None,
     ) -> np.ndarray:
         """Return a full-size greyscale mask (uint8 0-255) for ``im``.
 
         With ``crop`` the model only sees that region and the result is pasted into
         an otherwise empty mask - this is what makes busy backgrounds work.
-        Results are kept on disk by image content, model and crop.
+        Results are kept on disk by image content, model and crop. ``downloads``
+        asks before a built-in model downloads, and hears its progress.
         """
         W, H = im.size
         if model == "alpha":
@@ -54,7 +57,7 @@ class BackgroundRemover:
 
         self._cancellation.check()
         # loading cannot be interrupted: stop right after
-        seg = self._segmenters.get(model)
+        seg = self._segmenters.get(model, downloads)
         self._cancellation.check()
         rgb = im.convert("RGB")
         if self._images.has_alpha(im):

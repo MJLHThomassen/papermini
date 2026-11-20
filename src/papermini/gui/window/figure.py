@@ -13,7 +13,7 @@ class Figure:
     """One figure in the list: its settings and its latest build.
 
     A build is matched to its figure by ``key()``, which holds every setting the build
-    depends on. A build job keeps the key it started with, and the window takes the
+    depends on. A build job keeps the key it started with, and ``BuildQueue`` takes the
     finished build only while that key still equals the figure's ``key()``. A build
     for older settings is dropped, because the build for the new ones follows.
     ``built_key`` is the key of ``mini``, and ``queued`` the key of the job waiting in

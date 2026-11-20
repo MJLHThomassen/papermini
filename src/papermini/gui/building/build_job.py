@@ -8,11 +8,13 @@ from PySide6.QtCore import QRunnable
 
 from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation.cancelled import Cancelled
+from ...pipeline.segmentation.download_hooks import DownloadHooks
 from ...pipeline.segmentation.model_error import ModelError
 from ...project.settings import build_mini
 from ...support import log
-from .figure import Figure
-from .signals import Signals
+from ..window.figure import Figure
+from .build_result import BuildResult
+from .job_signals import JobSignals
 
 logger = logging.getLogger("papermini.build")
 
@@ -20,9 +22,17 @@ logger = logging.getLogger("papermini.build")
 class BuildJob(QRunnable):
     """Builds one miniature in the thread pool."""
 
-    def __init__(self, sig: Signals, fig: Figure, is_current, pipeline: Pipeline):
+    def __init__(
+        self,
+        sig: JobSignals,
+        fig: Figure,
+        is_current,
+        pipeline: Pipeline,
+        downloads: DownloadHooks,
+    ):
         super().__init__()
         self.pipeline = pipeline
+        self.downloads = downloads
         self.sig, self.uid = sig, fig.uid
         self.image, self.settings, self.key = (
             fig.entry.image,
@@ -51,9 +61,10 @@ class BuildJob(QRunnable):
                     on_stage=lambda name, data: self.sig.stage.emit(
                         self.uid, self.key, self.mask_key, name, data
                     ),
+                    downloads=self.downloads,
                 )
         except Cancelled:
-            self.sig.cancelled.emit(self.uid, self.key)
+            self.sig.finished.emit(BuildResult(self.uid, self.key))
         except Exception as e:
             expected = (ValueError, FileNotFoundError, ModelError)
             if isinstance(e, expected):
@@ -71,9 +82,9 @@ class BuildJob(QRunnable):
                     self.image.name,
                     log.settings_text(self.settings.to_dict(with_size=False)),
                 )
-            self.sig.failed.emit(self.uid, self.key, msg)
+            self.sig.finished.emit(BuildResult(self.uid, self.key, error=msg))
         else:
             logger.debug(
                 "Built %s in %.1f s", self.image.name, time.perf_counter() - t0
             )
-            self.sig.done.emit(self.uid, self.key, m)
+            self.sig.finished.emit(BuildResult(self.uid, self.key, mini=m))

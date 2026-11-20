@@ -404,7 +404,7 @@ def test_cancelling_the_build_progress_drops_the_export(
 
     from PySide6.QtWidgets import QProgressDialog, QPushButton
 
-    from papermini.gui.window import build_job
+    from papermini.gui.building import build_job
 
     release = threading.Event()
     real = build_job.build_mini
