@@ -10,36 +10,43 @@ pytest.importorskip("PySide6")
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_the_about_window_shows_each_update_state(app, new_window):
+def test_the_about_window_shows_each_update_state(app, new_window, tmp_path):
     from papermini.gui.dialogs.about_dialog import AboutDialog
+    from papermini.gui.updating.available_update import AvailableUpdate
+    from papermini.gui.updating.download_progress import DownloadProgress
+    from papermini.gui.updating.ready_update import ReadyUpdate
+    from papermini.gui.updating.update_state import UpdateState as S
     from papermini.support.release import Release
 
     w = new_window()
     d = AboutDialog(w)
     rel = Release("99.0.0", "")
+    ready = ReadyUpdate("99.0.0", tmp_path, "")
     for state, data, text, button in (
-        ("checking", None, "Checking", None),
-        ("latest", rel, "latest version", None),
-        ("available", (rel, None), "99.0.0", "Update"),
+        (S.CHECKING, None, "Checking", None),
+        (S.LATEST, rel, "latest version", None),
+        (S.AVAILABLE, AvailableUpdate(rel, None), "99.0.0", "Update"),
         (
-            "available",
-            (rel, "runs from source"),
+            S.AVAILABLE,
+            AvailableUpdate(rel, "runs from source"),
             "runs from source",
             "Release page",
         ),
-        ("downloading", rel, "Downloading", None),
-        ("ready", (rel, None), "ready", "Restart now"),
-        ("error", "Could not check for updates: offline", "offline", "Try again"),
+        (S.DOWNLOADING, rel, "Downloading", None),
+        (S.VERIFYING, rel, "Checking the download", None),
+        (S.UNPACKING, rel, "Unpacking", None),
+        (S.READY, ready, "ready", "Restart now"),
+        (S.ERROR, "Could not check for updates: offline", "offline", "Try again"),
     ):
         d.update_state(state, data)
         assert text in d.status.text(), state
         assert d.action.isVisibleTo(d) == (button is not None), state
         if button:
             assert d.action.text() == button
-    d.update_state("downloading", rel)
-    d.update_state("progress", (58_000_000, 129_000_000))
+    d.update_state(S.DOWNLOADING, rel)
+    d.update_state(S.PROGRESS, DownloadProgress(58_000_000, 129_000_000))
     assert d.progress.isVisibleTo(d) and "58 of 129 MB" in d.progress.format()
-    d.update_state("ready", (rel, None))
+    d.update_state(S.READY, ready)
     assert not d.progress.isVisibleTo(d)
 
 
@@ -115,7 +122,7 @@ def start_up(w, wait):
 
 def daily_check(w):
     """Start the daily update check whatever the preferences say."""
-    w.check_updates(source="auto")
+    w.updater.check(source="auto")
 
 
 def update_bar(w):

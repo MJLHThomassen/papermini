@@ -17,13 +17,14 @@ from PySide6.QtWidgets import (
 from ... import __version__
 from ...support import fonts
 from .. import theme
+from ..updating.update_state import UpdateState
 
 
 class AboutDialog(QDialog):
     """A dialog with the app's version and licences, and the state of the update check
     under the version, with the one action that fits that state (download, restart,
-    open the release page or check again). The main window keeps the state current
-    through ``update_state``, and the actions come out as signals."""
+    open the release page or check again). The update controller keeps the state
+    current through ``update_state``, and the actions come out as signals."""
 
     updateRequested = Signal(object)  # the release to download
     releasePageRequested = Signal()
@@ -148,19 +149,18 @@ class AboutDialog(QDialog):
         if self._do is not None:
             self._do()
 
-    def update_state(self, state: str, data, version: str = ""):
-        """Show a state of the update check (the main window's states, see its
-        check_updates) and offer the action that fits it."""
-        busy = state in ("downloading", "progress", "verifying", "unpacking")
-        self.progress.setVisible(busy)
-        if not busy:
+    def update_state(self, state: UpdateState, data):
+        """Show a state of the update check, with its payload, and offer the action
+        that fits it."""
+        self.progress.setVisible(state.busy)
+        if not state.busy:
             self._offer("")
-        if state == "checking":
+        if state is UpdateState.CHECKING:
             self.status.setText("Checking for updates…")
-        elif state == "latest":
+        elif state is UpdateState.LATEST:
             self.status.setText("This is the latest version.")
-        elif state == "available":
-            rel, why = data
+        elif state is UpdateState.AVAILABLE:
+            rel, why = data.release, data.why
             if why is None:
                 self.status.setText(
                     f"<b>papermini {html.escape(rel.version)}</b> is available."
@@ -172,38 +172,37 @@ class AboutDialog(QDialog):
                     f"available. {html.escape(why)}"
                 )
                 self._offer("Release page", self.releasePageRequested.emit)
-        elif state == "downloading":
+        elif state is UpdateState.DOWNLOADING:
             self._offer("")
             self.status.setText(f"Downloading papermini {html.escape(data.version)}…")
             self.progress.setRange(0, 0)  # (busy, until the size is known)
-        elif state == "progress":
-            done, total = data
+        elif state is UpdateState.PROGRESS:
+            done, total = data.done, data.total
             if total:
                 self.progress.setRange(0, 1000)
                 self.progress.setValue(int(1000 * done / total))
                 self.progress.setFormat(f"{done / 1e6:.0f} of {total / 1e6:.0f} MB")
-        elif state in ("verifying", "unpacking"):
+        elif state in (UpdateState.VERIFYING, UpdateState.UNPACKING):
             self.status.setText(
                 "Checking the download…"
-                if state == "verifying"
+                if state is UpdateState.VERIFYING
                 else "Unpacking the update…"
             )
             self.progress.setRange(0, 0)
-        elif state == "ready":
-            version = version or data[0].version
+        elif state is UpdateState.READY:
             self.status.setText(
-                f"<b>papermini {html.escape(version)}</b> is ready: it is "
+                f"<b>papermini {html.escape(data.version)}</b> is ready: it is "
                 "installed when you close papermini."
             )
             self._offer(
                 "Restart now", lambda: (self.accept(), self.restartRequested.emit())
             )
-        elif state == "error":
+        elif state is UpdateState.ERROR:
             self.status.setText(html.escape(str(data)))
             self._offer(
                 "Try again",
                 lambda: (
-                    self.update_state("checking", None),
+                    self.update_state(UpdateState.CHECKING, None),
                     self.checkRequested.emit(),
                 ),
             )
