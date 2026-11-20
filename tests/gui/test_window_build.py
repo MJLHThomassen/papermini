@@ -108,19 +108,21 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     from PySide6.QtWidgets import QGraphicsPixmapItem
 
     from papermini.gui.views.images import PREVIEW_PX
-    from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.pipeline import Pipeline
 
     im = np.full((2400, 1800, 3), 255, np.uint8)  # larger than a preview
     cv2.circle(im, (900, 1200), 500, (200, 40, 40), -1)
     Image.fromarray(im).save(tmp_path / "a.png")
     runs = []
-    real = segment.OnnxSegmenter.__call__
-    monkeypatch.setattr(
-        segment.OnnxSegmenter,
-        "__call__",
-        lambda self, x: runs.append(1) or real(self, x),
-    )
-    w = new_window()
+
+    def counting_model(path, *a, **k):  # segments by darkness, and counts its runs
+        def run(im):
+            runs.append(1)
+            return np.where(np.asarray(im.convert("L")) < 128, 255, 0).astype(np.uint8)
+
+        return run
+
+    w = new_window(Pipeline(make_segmenter=counting_model))
     w.add_images([tmp_path / "a.png"])
     fig = w.current()
     assert wait(lambda: fig.up_to_date), fig.error
@@ -186,17 +188,16 @@ class FakeRunOptions:
 
 
 def _run_models_on(monkeypatch, session):
-    """Runs the ONNX models through the real segmenter on ``session``, a fake
-    onnxruntime session class."""
-    from papermini.pipeline.segmentation import segment
-    from papermini.pipeline.segmentation.onnx_segmenter import OnnxSegmenter
+    """Returns a pipeline that runs the ONNX models through the real segmenter on
+    ``session``, a fake onnxruntime session class."""
+    from papermini.pipeline.pipeline import Pipeline
 
     onnxruntime = types.SimpleNamespace(
         InferenceSession=session,
         RunOptions=FakeRunOptions,
     )
     monkeypatch.setitem(sys.modules, "onnxruntime", onnxruntime)
-    monkeypatch.setattr(segment, "OnnxSegmenter", OnnxSegmenter)
+    return Pipeline()
 
 
 def test_background_removal_shows_progress_and_can_be_cancelled(
@@ -208,13 +209,13 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
 
     from papermini.pipeline.segmentation import segment
 
-    _run_models_on(monkeypatch, SlowSegmenter)
+    pipeline = _run_models_on(monkeypatch, SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
     SlowSegmenter.started = threading.Event()
     im = np.full((400, 300, 3), 255, np.uint8)
     cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
     Image.fromarray(im).save(tmp_path / "a.png")
-    w = new_window()
+    w = new_window(pipeline)
     w.add_images([tmp_path / "a.png"])
     fig = w.current()
     assert wait(lambda: w.work_box.isVisibleTo(w) and crop_view_dimmed(w.crop_view), 30)
@@ -233,7 +234,8 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
     w.work.button.click()  # Cancel
     assert fig.stopped  # at once
     assert wait(lambda: SlowSegmenter.running == 0, 30)  # and the run really stops
-    assert wait(lambda: segment.cancel_runs() == 0, 30)  # nothing left to stop
+    # nothing left to stop
+    assert wait(lambda: pipeline.cancellation.cancel_runs() == 0, 30)
     assert w.work.button.text() == "Run again" and "cancelled" in w.work.title.text()
     assert not crop_view_dimmed(w.crop_view) and not fig.up_to_date
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
@@ -277,9 +279,8 @@ def test_cancel_works_while_the_model_loads(
     import threading
 
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
-    from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.pipeline import Pipeline
 
-    monkeypatch.setattr(segment, "OnnxSegmenter", SlowLoadSegmenter)
     SlowLoadSegmenter.loading, SlowLoadSegmenter.loaded = (
         threading.Event(),
         threading.Event(),
@@ -288,7 +289,7 @@ def test_cancel_works_while_the_model_loads(
     im = np.full((400, 300, 3), 255, np.uint8)
     cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
     Image.fromarray(im).save(tmp_path / "a.png")
-    w = new_window()
+    w = new_window(Pipeline(make_segmenter=SlowLoadSegmenter))
     try:
         w.add_images([tmp_path / "a.png"])
         fig = w.current()
@@ -327,16 +328,15 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
     import threading
 
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
-    from papermini.pipeline.segmentation import segment
 
-    _run_models_on(monkeypatch, SlowSegmenter)
+    pipeline = _run_models_on(monkeypatch, SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
     SlowSegmenter.started = threading.Event()
     im = np.full((400, 300, 3), 255, np.uint8)
     cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
     for n in "ab":
         Image.fromarray(im).save(tmp_path / f"{n}.png")
-    w = new_window()
+    w = new_window(pipeline)
     w.add_images([tmp_path / "a.png"])
     a = w.current()
     assert wait(
@@ -361,7 +361,7 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
     assert w.work.button.text() == "Cancel" and SlowSegmenter.calls == 2
     w.work.button.click()  # and b's own run
     assert b.stopped and wait(lambda: SlowSegmenter.running == 0, 30)
-    assert wait(lambda: segment.cancel_runs() == 0, 30)
+    assert wait(lambda: pipeline.cancellation.cancel_runs() == 0, 30)
     assert "Cancelled" in w.list.item(0).data(SUBTITLE_ROLE)  # a's card
 
 

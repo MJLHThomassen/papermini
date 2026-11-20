@@ -39,7 +39,7 @@ def test_an_unsmoothed_cut_line_reads_back_as_a_polygon(
     assert np.allclose(r.cut.points, m.cut.points, atol=1e-3)
 
 
-def test_the_svg_keeps_the_back_text_color(hero_figure, tmp_path):
+def test_the_svg_keeps_the_back_text_color(pipeline, hero_figure, tmp_path):
     from papermini.project.figure_settings import FigureSettings
     from papermini.project.settings import build_mini
 
@@ -52,7 +52,7 @@ def test_the_svg_keeps_the_back_text_color(hero_figure, tmp_path):
         label_color="#111111",
         back_text_color="#c0a030",
     )
-    m = build_mini(img, s, log=lambda *_: None)
+    m = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
     svg = write_svg(m, tmp_path / "h.svg").read_text(encoding="utf-8")
     assert 'class="backtext"' in svg and 'fill="#c0a030"' in svg
     assert read_svg(tmp_path / "h.svg").style.back_text_color == "#c0a030"

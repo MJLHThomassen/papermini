@@ -114,9 +114,9 @@ def local_path(s: str | Path) -> Path:
 
 
 def _cache_dir() -> Path:
-    from ..pipeline.segmentation.segment import cache_dir
+    from ..pipeline.segmentation.cache_folder import CacheFolder
 
-    return cache_dir() / "images"
+    return CacheFolder.path() / "images"
 
 
 def cached_image(url: str) -> Path | None:

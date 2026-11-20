@@ -13,7 +13,7 @@ def _nbytes(v: Any) -> int:
         return v.nbytes
     if isinstance(v, (tuple, list)):
         return sum(_nbytes(x) for x in v)
-    if hasattr(v, "__dataclass_fields__"):  # e.g. geometry.Layout
+    if hasattr(v, "__dataclass_fields__"):  # e.g. a Layout
         return sum(_nbytes(getattr(v, f)) for f in v.__dataclass_fields__)
     if isinstance(v, (bytes, bytearray)):
         return len(v)

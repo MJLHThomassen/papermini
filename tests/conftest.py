@@ -10,6 +10,7 @@ import re
 import sys
 import threading
 import time
+import types
 import urllib.error
 import urllib.request
 from email.message import Message
@@ -47,16 +48,14 @@ def isolated_model_cache(monkeypatch, tmp_path_factory):
     """Every test gets an empty model and mask cache, no download hooks, and fetching a
     URL fails loudly.
 
-    Tests that exercise downloads replace ``segment.download`` or ``urlopen`` with fakes.
+    Tests that exercise downloads give their pipeline a fake ``downloader``, or replace
+    ``urlopen`` with a fake.
     """
     from papermini.pipeline.segmentation import segment
 
     monkeypatch.setenv(
         "PAPERMINI_CACHE", str(tmp_path_factory.mktemp("papermini-cache"))
     )
-    monkeypatch.setattr(
-        segment, "_SEGMENTERS", {}
-    )  # no session left over from another test
     monkeypatch.setattr(segment, "PROGRESS_HOOK", None)
     monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", None)
 
@@ -178,15 +177,17 @@ def project_store(size_calculator):
 
 
 @pytest.fixture
-def new_window(prefs, project_store, size_calculator):
-    """Returns ``new_window()``, which opens a main window with the ``prefs``
-    preferences. The windows close after the test without asking to save."""
+def new_window(prefs, project_store, size_calculator, pipeline):
+    """Returns ``new_window(pipeline)``, which opens a main window with the ``prefs``
+    preferences and ``pipeline``, by default the ``pipeline`` fixture's. The windows
+    close after the test without asking to save."""
     from papermini.gui.window.main_window import MainWindow
 
     made = []
+    shared = pipeline
 
-    def new_window():
-        made.append(MainWindow(prefs, project_store, size_calculator))
+    def new_window(pipeline=shared):
+        made.append(MainWindow(prefs, project_store, size_calculator, pipeline))
         return made[-1]
 
     yield new_window
@@ -205,8 +206,9 @@ def window(new_window):
 def downloaded_default_model(isolated_model_cache):
     """Puts a dummy file where the default model goes, so nothing asks to download it."""
     from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.segmentation.segmenter_registry import SegmenterRegistry
 
-    path = segment.model_path(segment.DEFAULT_MODEL)
+    path = SegmenterRegistry.path(segment.DEFAULT_MODEL)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"not a real model")
 
@@ -263,6 +265,40 @@ def unsaved():
     return unsaved
 
 
+class FakeDownloader:
+    """Stands in for the model downloads: records each file it is asked for and writes
+    ``content`` there, reporting progress in three steps. With a ``gate`` event it waits
+    for that first, and a set ``cancel`` event stops it."""
+
+    def __init__(self):
+        self.got: list[str] = []
+        self.urls: list[str] = []
+        self.content = b"x" * 30
+        self.gate: threading.Event | None = None
+
+    def download(self, url, dest, timeout=30.0, progress=None, cancel=None):
+        from papermini.pipeline.segmentation.model_error import ModelError
+
+        if self.gate is not None:
+            self.gate.wait(5)
+        self.got.append(dest.name)
+        self.urls.append(url)
+        for i in range(1, 4):
+            if cancel is not None and cancel.is_set():
+                raise ModelError("model download cancelled")
+            if progress:
+                progress(i * 10, 30, "")
+            time.sleep(0.01)
+        dest.write_bytes(self.content)
+        return dest
+
+
+@pytest.fixture
+def fake_downloader():
+    """Returns a ``FakeDownloader``."""
+    return FakeDownloader()
+
+
 class DarkSegmenter:
     """Stands in for a real model: everything darker than mid-grey is the figure."""
 
@@ -274,13 +310,40 @@ class DarkSegmenter:
 
 
 @pytest.fixture
-def fake_default_model(monkeypatch, downloaded_default_model):
-    """The default model is "downloaded" (a dummy file) and segments by darkness, so
-    figures build without the real model and without a download prompt; the other
-    models stay missing."""
-    from papermini.pipeline.segmentation import segment
+def fake_default_model(downloaded_default_model):
+    """The default model is "downloaded" (a dummy file) and the ``pipeline`` fixture's
+    models segment by darkness, so figures build without the real model and without a
+    download prompt; the other models stay missing."""
 
-    monkeypatch.setattr(segment, "OnnxSegmenter", DarkSegmenter)
+
+@pytest.fixture
+def downloader():
+    """Returns the downloader of the ``pipeline`` fixture: the real one, which fails
+    loudly because tests have no network. Tests of downloads override this fixture."""
+    from papermini.pipeline.segmentation.downloader import Downloader
+
+    return Downloader()
+
+
+@pytest.fixture
+def make_segmenter(request):
+    """Returns what the ``pipeline`` fixture makes its segmenters with: a fake that
+    segments by darkness when the test uses ``fake_default_model``, otherwise the real
+    ONNX segmenter."""
+    from papermini.pipeline.segmentation.onnx_segmenter import OnnxSegmenter
+
+    return (
+        DarkSegmenter if "fake_default_model" in request.fixturenames else OnnxSegmenter
+    )
+
+
+@pytest.fixture
+def pipeline(downloader, make_segmenter):
+    """Returns the pipeline's services, wired as the entry points wire them, with the
+    ``downloader`` and ``make_segmenter`` fixtures' downloads and models."""
+    from papermini.pipeline.pipeline import Pipeline
+
+    return Pipeline(downloader, make_segmenter)
 
 
 @pytest.fixture
@@ -426,20 +489,20 @@ def transparent_figure():
 
 
 @pytest.fixture
-def build_token(size_calculator):
+def build_token(size_calculator, pipeline):
     """Returns ``build_token(path, **settings)``, which builds a token of the
     picture at ``path``, cut out by the picture's transparency."""
     from papermini.project.settings import build_mini
 
     def build_token(path, **kw):
         s = size_calculator.settings_with_size(dict(kind="token", model="alpha", **kw))
-        return build_mini(path, s, log=lambda *a: None)
+        return build_mini(path, s, pipeline=pipeline, log=lambda *a: None)
 
     return build_token
 
 
 @pytest.fixture
-def numbered_mini():
+def numbered_mini(pipeline):
     """Returns ``numbered_mini(figure, **settings)``, which builds the mini of
     ``figure``, an image and its mask, labelled Goblin."""
     from papermini.project.figure_settings import FigureSettings
@@ -450,6 +513,7 @@ def numbered_mini():
         return build_mini(
             img,
             FigureSettings(mask=str(mask), label="Goblin", **settings),
+            pipeline=pipeline,
             log=lambda *_: None,
         )
 
@@ -534,7 +598,86 @@ def sign(scripts):
 # endregion
 
 
+# region a fake onnxruntime
+class FakeInput:
+    def __init__(self, type_="tensor(float)"):
+        self.name, self.shape, self.type = "input", [1, 3, "h", "w"], type_
+
+
+class FakeSession:
+    """Records the model input and returns a fixed output."""
+
+    output = None
+    seen = None
+    input_type = "tensor(float)"
+
+    def __init__(self, path, providers=None):
+        pass
+
+    def get_inputs(self):
+        return [FakeInput(FakeSession.input_type)]
+
+    def run(self, _names, feeds, run_options=None):
+        FakeSession.seen = feeds["input"]
+        if FakeSession.block is not None:  # a long run: wait until it is terminated
+            FakeSession.block.set()
+            while not run_options.terminate:
+                time.sleep(0.01)
+            raise RuntimeError("Exiting due to terminate flag being set to true.")
+        return [FakeSession.output]
+
+    block = None
+
+
+class FakeRunOptions:
+    terminate = False
+
+
+@pytest.fixture
+def fake_ort(monkeypatch):
+    """Replaces onnxruntime with a fake whose session records its input and returns
+    ``FakeSession.output``."""
+    mod = types.SimpleNamespace(InferenceSession=FakeSession, RunOptions=FakeRunOptions)
+    FakeSession.block = None
+    monkeypatch.setitem(sys.modules, "onnxruntime", mod)
+    FakeSession.input_type = "tensor(float)"
+    return FakeSession
+
+
+# endregion
+
+
 # region pipeline inputs
+@pytest.fixture
+def ghost():
+    """Returns ``ghost(h, w, touch_border, ring)``, which makes the 0/255 mask of a blob
+    figure, ``w`` by ``h`` px, with an optional see-through ring (a hole) and an arm
+    that touches the left edge."""
+
+    def ghost(h=1400, w=1100, touch_border=False, ring=False):
+        m = np.zeros((h, w), np.uint8)
+        cv2.ellipse(m, (w // 2, 450), (220, 260), 0, 0, 360, 255, -1)  # head/body
+        cv2.rectangle(m, (w // 2 - 160, 450), (w // 2 + 160, 1200), 255, -1)  # robe
+        if ring:
+            cv2.circle(m, (w // 2, 700), 90, 0, -1)  # translucent hole
+        if touch_border:
+            cv2.rectangle(m, (0, 600), (w // 2, 680), 255, -1)  # arm to the left edge
+        return m
+
+    return ghost
+
+
+@pytest.fixture
+def rgb_like():
+    """Returns ``rgb_like(mask)``, which makes a grey picture of a mask: the figure
+    darker than the paper."""
+
+    def rgb_like(m):
+        return np.dstack([255 - m // 2] * 3).astype(np.uint8)
+
+    return rgb_like
+
+
 @pytest.fixture
 def params():
     """Returns ``params(**fields)``, which makes the layout parameters of a one-sided
@@ -564,12 +707,11 @@ def mask_options():
 
 
 @pytest.fixture
-def pipeline_mini(params, mask_options):
+def pipeline_mini(pipeline, params, mask_options):
     """Returns ``pipeline_mini(image, prm, mask, **arguments)``, which builds the mini
-    of ``image`` with ``make_mini`` and logs nothing. ``prm`` and ``mask`` default to
-    ``params()`` and ``mask_options()``, and every other argument not given comes
-    from the default figure settings."""
-    from papermini.pipeline.mini import make_mini
+    of ``image`` with the ``pipeline`` fixture's ``MiniBuilder`` and logs nothing.
+    ``prm`` and ``mask`` default to ``params()`` and ``mask_options()``, and every other
+    argument not given comes from the default figure settings."""
     from papermini.project.figure_settings import FigureSettings
 
     def pipeline_mini(image, prm=None, mask=None, **arguments):
@@ -587,7 +729,7 @@ def pipeline_mini(params, mask_options):
             "style": s.style(),
             "log": lambda *_: None,
         }
-        return make_mini(
+        return pipeline.minis.make(
             image,
             params() if prm is None else prm,
             mask_options() if mask is None else mask,

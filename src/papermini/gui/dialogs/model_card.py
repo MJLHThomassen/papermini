@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QVBoxLayout
 
 from ...pipeline.segmentation import segment
+from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from .model_info import MB, _host, _label, licence_link
 
 if TYPE_CHECKING:
@@ -34,13 +35,13 @@ class ModelCard(QFrame):
             )
         )
         v.addWidget(_label(html.escape(spec["about"]), "Muted"))
-        restricted = segment.non_commercial(model)
+        restricted = SegmenterRegistry.non_commercial(model)
         self.licence = _label(
             licence_link(model), "LicenceNote" if restricted else "Muted"
         )
         self.licence.setTextInteractionFlags(Qt.TextBrowserInteraction)
         if restricted:
-            self.licence.setToolTip(segment.licence_notice(model))
+            self.licence.setToolTip(SegmenterRegistry.licence_notice(model))
         v.addWidget(self.licence)
         self.state = _label("", "Hint")
         self.state.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -56,7 +57,7 @@ class ModelCard(QFrame):
 
     def refresh(self):
         spec = segment.ONNX_MODELS[self.model]
-        path = segment.model_path(self.model)
+        path = SegmenterRegistry.path(self.model)
         have = path.exists()
         if have:
             size = path.stat().st_size / MB

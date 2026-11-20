@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...pipeline.mini import Mini
+from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation import segment
 from ...project import sizes
 from ...project.figure_entry import FigureEntry
@@ -89,11 +90,13 @@ class MainWindow(QMainWindow):
         prefs: Preferences,
         project_store: ProjectStore,
         size_calculator: SizeCalculator,
+        pipeline: Pipeline,
     ):
         super().__init__()
         self._prefs = prefs
         self._project_store = project_store
         self._size_calculator = size_calculator
+        self._pipeline = pipeline
         self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = self._fresh_project()
@@ -1059,7 +1062,8 @@ class MainWindow(QMainWindow):
         self._note_settings(fig.uid, fig.entry.image.name, old)
         fig.entry.settings = s
         if seg and seg[0] == fig.uid and seg[1] == old_mask != fig.mask_key():
-            segment.cancel_runs()  # its mask is no longer wanted: start the new one now
+            # its mask is no longer wanted: start the new one now
+            self._pipeline.cancellation.cancel_runs()
         if not fig.stopped:
             fig.cancelled = None  # a new image, crop or model: build it
         fig.invalidate()
@@ -1194,7 +1198,9 @@ class MainWindow(QMainWindow):
         fig.queued = key
         # the selected figure jumps ahead of background (sheet) builds
         priority = 10 if fig is self.current() else 0
-        self.pool.start(BuildJob(self.sig, fig, self._is_current), priority)
+        self.pool.start(
+            BuildJob(self.sig, fig, self._is_current, self._pipeline), priority
+        )
 
     def _build_current(self):
         fig = self.current()
@@ -1252,7 +1258,7 @@ class MainWindow(QMainWindow):
         """Cancel: stop the running model. Its figure is marked cancelled at once, even
         when the build only notices later (a model still loading finishes that first)."""
         seg = self._segmenting
-        segment.cancel_runs()
+        self._pipeline.cancellation.cancel_runs()
         if seg is None:
             return
         self._end_segmenting(seg[0])
@@ -1307,7 +1313,8 @@ class MainWindow(QMainWindow):
                 mode = "waiting"
         if mode in ("working", "waiting"):
             secs = int(time.monotonic() - seg[3])
-            model = seg[2] if segment.is_loaded(seg[2]) else f"loading {seg[2]}"
+            loaded = self._pipeline.segmenters.is_loaded(seg[2])
+            model = seg[2] if loaded else f"loading {seg[2]}"
             detail = f"{model} · {secs} s" if secs else model
             if mode == "working":
                 self.work.show_working("Removing the background…", detail)
@@ -1361,12 +1368,13 @@ class MainWindow(QMainWindow):
                 "gone"
             ):  # the build stopped waiting (window closed): do not ask
                 return
-            if segment.model_path(
+            segmenters = self._pipeline.segmenters
+            if segmenters.path(
                 model
             ).exists():  # downloaded meanwhile (Models and cache)
                 answer["ok"] = True
                 return
-            ok = DownloadDialog(model, self).exec() == QDialog.Accepted
+            ok = DownloadDialog(model, segmenters, self).exec() == QDialog.Accepted
             answer["ok"] = ok
             if not ok:
                 self._declined.add(model)
@@ -1527,7 +1535,10 @@ class MainWindow(QMainWindow):
         adj = fig.entry.settings.adjustments()
         if adj.is_identity() or img.isNull():
             return img, None
-        return adjusted_preview(img, adj), (img.width(), img.height())
+        return adjusted_preview(img, adj, self._pipeline.adjuster), (
+            img.width(),
+            img.height(),
+        )
 
     def _refresh_picture(self):
         fig = self.current()
@@ -1904,6 +1915,8 @@ class MainWindow(QMainWindow):
             self._size_calculator,
             self.project.sizes,
             lambda: [f.entry.image for f in self.figures],
+            self._pipeline.segmenters,
+            self._pipeline.masks,
             page,
             self,
         )
@@ -1980,7 +1993,7 @@ class MainWindow(QMainWindow):
                 t.stop()  # no build may start after closing
             self.pool.clear()  # drop queued builds
             segment.CANCEL.set()  # abort a model download in progress
-            segment.cancel_runs()  # and a model run
+            self._pipeline.cancellation.cancel_runs()  # and a model run
             segment.PROGRESS_HOOK = segment.CONFIRM_DOWNLOAD = None
             self.pool.waitForDone(15000)  # builds stop at the next checkpoint
             segment.CANCEL.clear()

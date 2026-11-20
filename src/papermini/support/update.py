@@ -259,9 +259,9 @@ def verify(
 
 
 def updates_dir() -> Path:
-    from ..pipeline.segmentation.segment import cache_dir
+    from ..pipeline.segmentation.cache_folder import CacheFolder
 
-    return cache_dir() / "updates"
+    return CacheFolder.path() / "updates"
 
 
 def _unpack(archive: Path, dest: Path) -> Path:

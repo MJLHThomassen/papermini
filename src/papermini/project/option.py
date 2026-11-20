@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any, TypeVar, get_args, get_type_hints
 
-from ..pipeline import geometry as geo
+from ..pipeline.hex_color import HexColor
 
 T = TypeVar("T")
 
@@ -74,7 +74,7 @@ class Option:
                 f"{where}{self.name} must be one of {shown}, not {value!r}"
             )
         if self.color:
-            geo.hex_rgb(str(value))
+            HexColor.to_rgb(str(value))
         if self.low is not None or self.high is not None:
             self._check_number(value, where)
         return self.parse(value) if self.parse else value

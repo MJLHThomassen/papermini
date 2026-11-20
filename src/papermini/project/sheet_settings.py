@@ -19,7 +19,7 @@ from ..output.sheet import (
     paper_text,
 )
 from ..output.sheet_layout import SheetLayout
-from ..pipeline.geometry import MAX_BLEED_MM
+from ..pipeline.bleed_painter import MAX_BLEED_MM
 from ..pipeline.mini import Mini
 from .option import Option
 

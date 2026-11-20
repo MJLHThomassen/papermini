@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +16,17 @@ class CutPath:
 
     points: np.ndarray
     controls: np.ndarray | None = None
+
+    @classmethod
+    def circle(cls, cx: float, cy: float, r: float, n: int = 8) -> CutPath:
+        """Return a circle as a closed path of ``n`` cubic arcs."""
+        a = np.linspace(0, 2 * np.pi, n, endpoint=False)
+        pts = np.stack([cx + r * np.cos(a), cy + r * np.sin(a)], axis=1)
+        h = 4.0 / 3.0 * math.tan(math.pi / (2 * n)) * r  # handle length of one arc
+        tang = np.stack([-np.sin(a), np.cos(a)], axis=1)
+        nxt = np.roll(np.arange(n), -1)
+        ctrl = np.stack([pts + h * tang, pts[nxt] - h * tang[nxt]], axis=1)
+        return cls(pts, ctrl)
 
     def transformed(self, scale: float, dx: float = 0.0, dy: float = 0.0) -> CutPath:
         f = lambda a: (a - np.array([dx, dy])) * scale

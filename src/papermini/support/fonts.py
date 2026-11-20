@@ -73,9 +73,9 @@ def font_dirs() -> list[Path]:
 
 
 def _index_path() -> Path:
-    from ..pipeline.segmentation.segment import cache_dir
+    from ..pipeline.segmentation.cache_folder import CacheFolder
 
-    return cache_dir() / "fonts.json"
+    return CacheFolder.path() / "fonts.json"
 
 
 def _read_name(path: Path) -> tuple[str, str] | None:

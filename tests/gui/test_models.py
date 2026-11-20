@@ -1,7 +1,5 @@
 """Tests of model downloads, the cache page and the model licences in the app."""
 
-import time
-
 import pytest
 from PIL import Image
 
@@ -13,35 +11,25 @@ pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
 @pytest.fixture
-def model_cache(monkeypatch, tmp_path):
-    """An empty model folder and a fake download (no network, no real model)."""
-    from papermini.pipeline.segmentation import segment
+def downloader(fake_downloader):
+    """The pipeline downloads its models with the fake (no network, no real model)."""
+    return fake_downloader
 
+
+@pytest.fixture
+def model_cache(monkeypatch, tmp_path, fake_downloader):
+    """An empty model folder; returns the files downloaded into it."""
     monkeypatch.setenv("PAPERMINI_CACHE", str(tmp_path / "cache"))
-    calls = []
-
-    def fake_download(url, dest, progress=None, cancel=None, **_):
-        calls.append(dest.name)
-        for i in range(1, 4):
-            if cancel is not None and cancel.is_set():
-                raise segment.ModelError("model download cancelled")
-            if progress:
-                progress(i * 10, 30, "")
-            time.sleep(0.01)
-        dest.write_bytes(b"x" * 30)
-        return dest
-
-    monkeypatch.setattr(segment, "download", fake_download)
-    return calls
+    return fake_downloader.got
 
 
-def test_download_dialog_asks_then_downloads(app, model_cache, wait):
+def test_download_dialog_asks_then_downloads(app, model_cache, pipeline, wait):
     from PySide6.QtWidgets import QDialog
 
     from papermini.gui.dialogs.download_dialog import DownloadDialog
-    from papermini.pipeline.segmentation import segment
 
-    d = DownloadDialog("rmbg-1.4")
+    segmenters = pipeline.segmenters
+    d = DownloadDialog("rmbg-1.4", segmenters)
     assert "Download the BRIA RMBG-1.4 model?" in d.title.text()
     assert "176 MB" in d.body.text()
     assert "non-commercial use only" in d.licence_note.text()
@@ -50,7 +38,7 @@ def test_download_dialog_asks_then_downloads(app, model_cache, wait):
     d.btn_no.click()  # "Not now"
     assert d.result() == QDialog.Rejected and model_cache == []
 
-    d = DownloadDialog("rmbg-1.4")
+    d = DownloadDialog("rmbg-1.4", segmenters)
     assert not d.btn_go.isEnabled()  # the licence is not accepted yet
     d.start()  # (Enter: still nothing happens)
     assert model_cache == [] and d.title.text().startswith("Download the")
@@ -60,50 +48,43 @@ def test_download_dialog_asks_then_downloads(app, model_cache, wait):
     assert d.btn_no.text() == "Cancel" and not d.accept_licence.isEnabled()
     assert wait(lambda: d.result() == QDialog.Accepted, 10)
     assert d.bar.value() == 1000 and d.status.text() == "0 of 0 MB"  # 30 bytes
-    assert segment.model_path("rmbg-1.4").exists() and model_cache == ["rmbg-1.4.onnx"]
+    assert segmenters.path("rmbg-1.4").exists() and model_cache == ["rmbg-1.4.onnx"]
 
 
 def test_cancelling_a_download_stops_it_and_keeps_no_model(
-    app, model_cache, monkeypatch, wait
+    app, model_cache, fake_downloader, pipeline, wait
 ):
     import threading
 
     from PySide6.QtWidgets import QDialog
 
     from papermini.gui.dialogs.download_dialog import DownloadDialog
-    from papermini.pipeline.segmentation import segment
 
-    gate = threading.Event()
-    real = segment.download
-
-    def slow(url, dest, progress=None, cancel=None, **k):
-        gate.wait(5)
-        return real(url, dest, progress=progress, cancel=cancel, **k)
-
-    monkeypatch.setattr(segment, "download", slow)
-    d = DownloadDialog("birefnet-lite", ask=False)
+    gate = fake_downloader.gate = threading.Event()
+    d = DownloadDialog("birefnet-lite", pipeline.segmenters, ask=False)
     d.reject()  # Cancel / Esc while downloading
     assert d.isVisible() is False and d.result() != QDialog.Accepted
     assert "Cancelling" in d.status.text()
     gate.set()
     assert wait(lambda: not d.downloading, 10)
     assert d.result() == QDialog.Rejected
-    assert not segment.model_path("birefnet-lite").exists()
+    assert not pipeline.segmenters.path("birefnet-lite").exists()
 
 
 def test_build_asks_before_downloading(
-    app, tmp_path, model_cache, monkeypatch, new_window, wait
+    app, tmp_path, model_cache, monkeypatch, new_window, pipeline, wait
 ):
     from PySide6.QtWidgets import QDialog
 
     from papermini.gui.dialogs import cache_page
     from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.segmentation.cache_folder import CacheFolder
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "plain.png")
     asked = []
 
     class Refuse:
-        def __init__(self, model, parent=None):
+        def __init__(self, model, segmenters, parent=None):
             asked.append(model)
 
         def exec(self):
@@ -133,13 +114,13 @@ def test_build_asks_before_downloading(
     monkeypatch.setattr(
         cache_page.DownloadDialog,
         "exec",
-        lambda self: segment.fetch_model(self.model, self.force) and 1,
+        lambda self: pipeline.segmenters.fetch(self.model, self.force) and 1,
     )
     card.btn_get.click()
     assert "Downloaded" in card.state.text() and card.btn_get.text() == "Download again"
     assert (
         "birefnet-lite.onnx" in card.state.text()
-        and str(segment.cache_dir()) in dlg.folder.text()
+        and str(CacheFolder.path()) in dlg.folder.text()
     )
     assert confirm("birefnet-lite") is True and fig.error is None
 
@@ -149,20 +130,21 @@ def test_build_asks_before_downloading(
         lambda *a, **k: cache_page.QMessageBox.Yes,
     )
     card.btn_del.click()
-    assert not segment.model_path("birefnet-lite").exists()
+    assert not pipeline.segmenters.path("birefnet-lite").exists()
     assert "Not downloaded" in card.state.text()
 
 
 def test_the_cache_page_clears_masks_images_and_everything(
-    app, model_cache, monkeypatch
+    app, model_cache, monkeypatch, pipeline
 ):
     """The Models and cache page counts the masks and images from links, clears each,
     keeps the images open figures use, and Clear cache also deletes the models."""
     from papermini.gui.dialogs import cache_page
     from papermini.pipeline.segmentation import segment
+    from papermini.pipeline.segmentation.cache_folder import CacheFolder
     from papermini.support import remote
 
-    masks = segment.masks_dir()
+    masks = pipeline.masks.folder()
     masks.mkdir(parents=True)
     for i in range(3):
         (masks / f"m{i}.png").write_bytes(b"x" * 1000)
@@ -171,11 +153,13 @@ def test_the_cache_page_clears_masks_images_and_everything(
         (remote._cache_dir() / key).mkdir(parents=True)
         images.append(remote._cache_dir() / key / f"{key}.png")
         images[-1].write_bytes(b"x" * 1000)
-    model = segment.model_path(segment.DEFAULT_MODEL)
+    model = pipeline.segmenters.path(segment.DEFAULT_MODEL)
     model.write_bytes(b"model")
 
-    dlg = cache_page.CachePage(in_use=lambda: [images[0]])
-    assert str(segment.cache_dir()) in dlg.folder.text()
+    dlg = cache_page.CachePage(
+        pipeline.segmenters, pipeline.masks, in_use=lambda: [images[0]]
+    )
+    assert str(CacheFolder.path()) in dlg.folder.text()
     assert dlg.masks.state.text().startswith("3 masks")
     assert dlg.images.state.text().startswith("2 images")
     assert "1 in use by open figures" in dlg.images.state.text()
@@ -221,18 +205,19 @@ def test_the_cache_page_scrolls_when_the_window_is_short(app, model_cache, new_w
     dlg.close()
 
 
-def test_the_model_licences_are_links(app, model_cache):
+def test_the_model_licences_are_links(app, model_cache, pipeline):
     from papermini.gui.dialogs.cache_page import CachePage
     from papermini.gui.dialogs.download_dialog import DownloadDialog
     from papermini.pipeline.segmentation import segment
 
+    segmenters = pipeline.segmenters
     for model, spec in segment.ONNX_MODELS.items():
         assert spec["licence_url"].startswith("https://")
-        d = DownloadDialog(model)
-        label = d.licence_note if segment.non_commercial(model) else d.body
+        d = DownloadDialog(model, segmenters)
+        label = d.licence_note if segmenters.non_commercial(model) else d.body
         assert f'<a href="{spec["licence_url"]}">' in label.text()
         assert label.openExternalLinks()
-    dlg = CachePage()
+    dlg = CachePage(segmenters, pipeline.masks)
     card = dlg.cards["birefnet"]
     assert (
         'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"'
@@ -242,7 +227,7 @@ def test_the_model_licences_are_links(app, model_cache):
 
 
 def test_a_non_commercial_model_always_asks_to_accept_its_licence(
-    app, model_cache, wait
+    app, model_cache, pipeline, wait
 ):
     """RMBG-1.4 only downloads once the user accepts it is for non-commercial use, also
     from the Models and cache page (which otherwise downloads at once); BiRefNet just
@@ -252,18 +237,22 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(
     from papermini.gui.dialogs.cache_page import CachePage
     from papermini.gui.dialogs.download_dialog import DownloadDialog
 
-    d = DownloadDialog("rmbg-1.4", ask=False)  # the Models and cache page's Download
+    segmenters, masks = pipeline.segmenters, pipeline.masks
+    # the Models and cache page's Download
+    d = DownloadDialog("rmbg-1.4", segmenters, ask=False)
     assert d.accept_licence is not None and not d.btn_go.isEnabled()
     assert model_cache == [] and d.bar.isHidden()
     d.accept_licence.setChecked(True)
     d.btn_go.click()
     assert wait(lambda: d.result() == QDialog.Accepted, 10)
-    d = DownloadDialog("birefnet-lite")
+    d = DownloadDialog("birefnet-lite", segmenters)
     assert d.accept_licence is None and d.licence_note is None and d.btn_go.isEnabled()
-    card = CachePage().cards["rmbg-1.4"]
+    card = CachePage(segmenters, masks).cards["rmbg-1.4"]
     assert card.licence.objectName() == "LicenceNote"
     assert "responsible for not using it commercially" in card.licence.toolTip()
-    assert CachePage().cards["birefnet"].licence.objectName() == "Muted"
+    assert CachePage(segmenters, masks).cards["birefnet"].licence.objectName() == (
+        "Muted"
+    )
 
 
 def test_the_settings_show_the_licence_of_the_model_in_use(
@@ -309,7 +298,7 @@ def test_closed_window_never_asks_to_download(app, monkeypatch, new_window):
     asked = []  # (an exception raised in a Qt slot would only be printed)
 
     class Dialog:
-        def __init__(self, model, parent=None):
+        def __init__(self, model, segmenters, parent=None):
             asked.append(model)
 
         def exec(self):

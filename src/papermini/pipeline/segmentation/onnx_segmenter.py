@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from .cancellation import Cancellation
 from .cancelled import Cancelled
 from .model_error import ModelError
 
@@ -19,9 +20,18 @@ class OnnxSegmenter:
     """
 
     def __init__(
-        self, path: Path, size: int = 1024, mean=0.5, std=1.0, post: str = "minmax"
+        self,
+        path: Path,
+        size: int = 1024,
+        mean=0.5,
+        std=1.0,
+        post: str = "minmax",
+        *,
+        cancellation: Cancellation,
     ):
         import onnxruntime as ort
+
+        self._cancellation = cancellation
 
         try:
             self.sess = ort.InferenceSession(
@@ -61,21 +71,16 @@ class OnnxSegmenter:
         return np.asarray(m.resize(im.size, Image.BILINEAR))
 
     def _run(self, x: np.ndarray) -> np.ndarray:
-        """One model run that ``cancel_runs`` (or closing the window) can stop."""
+        """Run the model once, so that ``Cancellation.cancel_runs`` (or closing the
+        window) can stop it."""
         import onnxruntime as ort
 
-        from .segment import _RUNS, _RUNS_LOCK, check_cancel
-
         ro = ort.RunOptions()
-        with _RUNS_LOCK:
-            _RUNS.add(ro)
-        try:
-            check_cancel()
-            return self.sess.run(None, {self.input_name: x}, ro)[0]
-        except Exception:
-            if ro.terminate:
-                raise Cancelled("cancelled") from None
-            raise
-        finally:
-            with _RUNS_LOCK:
-                _RUNS.discard(ro)
+        with self._cancellation.model_run(ro):
+            try:
+                self._cancellation.check()
+                return self.sess.run(None, {self.input_name: x}, ro)[0]
+            except Exception:
+                if ro.terminate:
+                    raise Cancelled("cancelled") from None
+                raise

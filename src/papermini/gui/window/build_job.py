@@ -6,7 +6,7 @@ import traceback
 
 from PySide6.QtCore import QRunnable
 
-from ...pipeline.segmentation import segment
+from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation.cancelled import Cancelled
 from ...pipeline.segmentation.model_error import ModelError
 from ...project.settings import build_mini
@@ -20,8 +20,9 @@ logger = logging.getLogger("papermini.build")
 class BuildJob(QRunnable):
     """Builds one miniature in the thread pool."""
 
-    def __init__(self, sig: Signals, fig: Figure, is_current):
+    def __init__(self, sig: Signals, fig: Figure, is_current, pipeline: Pipeline):
         super().__init__()
+        self.pipeline = pipeline
         self.sig, self.uid = sig, fig.uid
         self.image, self.settings, self.key = (
             fig.entry.image,
@@ -39,10 +40,12 @@ class BuildJob(QRunnable):
         logger.debug("Building %s", self.image.name)
         t0 = time.perf_counter()
         try:
-            with segment.cancellable():  # Cancel also stops it while the model loads
+            # Cancel also stops it while the model loads
+            with self.pipeline.cancellation.cancellable():
                 m = build_mini(
                     self.image,
                     self.settings,
+                    pipeline=self.pipeline,
                     bleed_mm=self.bleed_mm,
                     log=lambda *_: None,
                     on_stage=lambda name, data: self.sig.stage.emit(

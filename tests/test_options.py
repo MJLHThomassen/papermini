@@ -159,18 +159,18 @@ def test_papermini_has_exactly_its_own_flags(help_flags):
 
 
 @pytest.mark.parametrize("row", FLAGS, ids=_flag_id)
-def test_each_flag_keeps_its_default(row, project_store, size_calculator):
+def test_each_flag_keeps_its_default(row, project_store, size_calculator, pipeline):
     command, _, dest, default, _, _ = row
-    parser = cli.build_parser(size_calculator, project_store)
+    parser = cli.build_parser(size_calculator, project_store, pipeline)
     got = getattr(parser.parse_args([command, *POSITIONALS[command]]), dest)
     assert (type(got), got) == (type(default), default)
 
 
 @pytest.mark.parametrize("row", FLAGS, ids=_flag_id)
-def test_each_flag_sets_its_option(row, project_store, size_calculator):
+def test_each_flag_sets_its_option(row, project_store, size_calculator, pipeline):
     command, flag, dest, _, given, parsed = row
     argv = [command, flag, *([] if given is None else [given]), *POSITIONALS[command]]
-    parser = cli.build_parser(size_calculator, project_store)
+    parser = cli.build_parser(size_calculator, project_store, pipeline)
     got = getattr(parser.parse_args(argv), dest)
     assert (type(got), got) == (type(parsed), parsed)
 
