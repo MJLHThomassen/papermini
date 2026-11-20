@@ -6,9 +6,6 @@ from PySide6.QtCore import QObject, Signal
 class Signals(QObject):
     """Signals the background jobs send to the main window."""
 
-    update = Signal(
-        str, object, str
-    )  # update check: state, data, who asked (see check_updates)
     done = Signal(int, str, object)  # uid, key, Mini
     failed = Signal(int, str, str)  # uid, key, message
     cancelled = Signal(int, str)  # uid, key: the user stopped the model

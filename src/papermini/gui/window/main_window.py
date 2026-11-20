@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import QSize, Qt, QThreadPool, QTimer
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -38,7 +38,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ... import __version__
 from ...pipeline.mini import Mini
 from ...pipeline.segmentation import segment
 from ...project import sizes
@@ -58,6 +57,7 @@ from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
 from ..panels.sheet_panel import SheetPanel
 from ..preferences import Preferences
+from ..updating.update_controller import UpdateController
 from ..views.crop_view import CropView
 from ..views.drawing import draw_mini_page, draw_sheet
 from ..views.images import adjusted_preview, load_qimage, pil_to_qimage
@@ -78,29 +78,7 @@ from .signals import Signals
 IMAGE_FILTER = remote.IMAGE_FILTER
 IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
-update_log = logging.getLogger("papermini.update")
 ui_log = logging.getLogger("papermini.ui")  # what the user does
-
-
-def _log_update(state: str, data) -> None:
-    """Write a step of an update check, download or install to the log."""
-    if state == "latest":
-        update_log.info("papermini is up to date (latest: %s)", data.version)
-    elif state == "available":
-        rel, why = data
-        update_log.info(
-            "papermini %s is available%s", rel.version, f" ({why})" if why else ""
-        )
-    elif state == "downloading":
-        update_log.info("Downloading papermini %s", data.version)
-    elif state in ("verifying", "unpacking"):
-        update_log.info("%s papermini %s", state.capitalize(), data.version)
-    elif state == "ready":
-        update_log.info(
-            "papermini %s is downloaded and verified: %s", data[0].version, data[1]
-        )
-    elif state == "error":
-        update_log.warning("Update failed: %s", data)
 
 
 class MainWindow(QMainWindow):
@@ -134,15 +112,12 @@ class MainWindow(QMainWindow):
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
-        self.sig.update.connect(self._on_update)
         self.exporter = ExportController(self, prefs, ExportDialogs(prefs))
         self.exporter.status.connect(self._status)
         self.exporter.warning.connect(self._warn)
         self.exporter.build.connect(self._queue)
-        self._update_ready = None  # (version, unpacked app) to install on quit
-        self._about = None  # the About window while it is open
-        self._restart_after_update = False
-        self._checking_updates = False
+        self.updater = UpdateController(self, prefs)
+        self.updater.status.connect(self._status)
         self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = (
             set()
@@ -188,7 +163,7 @@ class MainWindow(QMainWindow):
         self._sync_size_label()
         self._update_title()
         self._show_current()
-        QTimer.singleShot(2000, self._startup_updates)  # (after the window is up)
+        QTimer.singleShot(2000, self.updater.start_up)  # (after the window is up)
         self.sig.fonts_found.connect(self.panel.set_installed_fonts)
         threading.Thread(target=self._find_fonts, daemon=True).start()
 
@@ -219,7 +194,7 @@ class MainWindow(QMainWindow):
         self.panel.exportPiece.connect(self.export_current)
         canvas = self._make_canvas()
         root.addWidget(self._make_header())
-        root.addWidget(self._make_update_bar())
+        root.addWidget(self.updater.bar)
 
         split = QSplitter(Qt.Horizontal)
         split.setHandleWidth(1)
@@ -1194,6 +1169,15 @@ class MainWindow(QMainWindow):
         """The figures' names, by ``id(mini.art)`` (as the sheet's minis share it)."""
         return {id(f.mini.art): f.entry.display_name for f in self.figures if f.mini}
 
+    def _find_fonts(self):
+        """Look for the fonts installed on this computer (a worker thread)."""
+        try:
+            names = list(fonts.installed())
+        except Exception:  # noqa: BLE001 - without them, the bundled fonts still work
+            ui_log.exception("Could not look for the installed fonts")
+            names = []
+        self.sig.fonts_found.emit(names)
+
     # endregion
 
     # region building
@@ -1924,7 +1908,7 @@ class MainWindow(QMainWindow):
             self,
         )
         dlg.themeChanged.connect(self.set_theme)
-        dlg.autoUpdatesChanged.connect(self.set_auto_updates)
+        dlg.autoUpdatesChanged.connect(self.updater.set_auto_updates)
         dlg.modelsChanged.connect(self._models_changed)
         return dlg
 
@@ -1968,26 +1952,8 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "papermini", text)
 
     def show_about(self):
-        """Open the About window and start an update check for it, unless an update is
-        already downloaded or a check is running."""
-        from ..dialogs.about_dialog import AboutDialog
-
-        self._about = AboutDialog(self)
-        self._about.updateRequested.connect(self.download_update)
-        self._about.releasePageRequested.connect(self._open_release_page)
-        self._about.restartRequested.connect(self._restart_for_update)
-        self._about.checkRequested.connect(lambda: self.check_updates(source="about"))
-        try:
-            if self._update_ready is not None:
-                self._about.update_state("ready", None, version=self._update_ready[0])
-            elif self._checking_updates:
-                self._about.update_state("checking", None)
-            else:
-                self._about.update_state("checking", None)
-                self.check_updates(source="about")
-            self._about.exec()
-        finally:
-            self._about = None
+        """Open the About window, which checks for updates."""
+        self.updater.show_about()
 
     # endregion
 
@@ -2000,217 +1966,6 @@ class MainWindow(QMainWindow):
     def dropEvent(self, e):
         files, links = self._sources(e.mimeData())
         self.open_paths(files + links)
-
-    # endregion
-
-    # region updates
-    def _make_update_bar(self) -> QFrame:
-        """Build the bar under the header that announces a new version or a downloaded
-        update, with buttons for the release page and for updating or restarting."""
-        bar = QFrame()
-        bar.setObjectName("UpdateBar")
-        h = QHBoxLayout(bar)
-        h.setContentsMargins(16, 6, 10, 6)
-        h.setSpacing(10)
-        self.update_text = QLabel()
-        self.update_text.setObjectName("UpdateText")
-        h.addWidget(self.update_text, 1)
-        self.update_notes = QPushButton("What's new")
-        self.update_notes.clicked.connect(self._open_release_page)
-        self.update_restart = QPushButton("Restart now")
-        self.update_restart.setProperty("primary", True)
-        self.update_restart.clicked.connect(self._update_bar_action)
-        close = QToolButton()
-        close.setText("\u2715")
-        close.setToolTip("Hide")
-        close.clicked.connect(bar.hide)
-        for w in (self.update_notes, self.update_restart, close):
-            w.setCursor(Qt.PointingHandCursor)
-            h.addWidget(w)
-        bar.hide()
-        self.update_bar = bar
-        return bar
-
-    def _startup_updates(self):
-        """At start: offer an update downloaded earlier, or look for one (once a day)."""
-        from ...support import update
-
-        if update.install_dir() is None:  # run from source: no updates of its own
-            return
-        update.forget_old()
-        ready = update.pending()
-        if ready is not None:
-            self._show_update_ready(ready[0], ready[1], "")
-            return
-        last = self._prefs.last_update_check()
-        if self._prefs.auto_updates() and time.time() - last > 24 * 3600:
-            self.check_updates(source="auto")
-
-    def check_updates(self, source: str):
-        """Look for a newer papermini in the background. ``source`` says who asked:
-        "auto" is the daily check. When this copy can install the new version, the
-        check downloads it with automatic updating on, and announces it in the update
-        bar with automatic updating off. "about" is the About window, which reports the
-        result itself and leaves downloading to the user."""
-        if self._checking_updates:
-            return
-        self._checking_updates = True
-        update_log.info("Checking for updates (%s)", source)
-        download = source == "auto" and self._prefs.auto_updates()
-        threading.Thread(
-            target=self._update_job, args=(source, download), daemon=True
-        ).start()
-
-    def download_update(self, rel, source: str = "about"):
-        """Download and verify ``rel`` in the background, ready to install on quit."""
-        if self._checking_updates:
-            return
-        self._checking_updates = True
-        threading.Thread(
-            target=self._download_job, args=(rel, source), daemon=True
-        ).start()
-
-    def _update_job(self, source: str, download: bool):  # on a worker thread
-        from ...support import update
-
-        try:
-            rel = update.latest_release()
-        except Exception as e:  # noqa: BLE001 - always report back
-            self.sig.update.emit("error", str(e), source)
-            return
-        if not update.is_newer(rel.version, __version__):
-            self.sig.update.emit("latest", rel, source)
-            return
-        why = update.unsupported()
-        if why is not None or not download:
-            self.sig.update.emit("available", (rel, why), source)
-            return
-        self._download_job(rel, source)
-
-    def _download_job(self, rel, source: str):  # on a worker thread
-        from ...support import update
-
-        last = [0.0]
-
-        def progress(done, total):  # (at most ten times a second, and the end)
-            now = time.monotonic()
-            if now - last[0] >= 0.1 or done == total:
-                last[0] = now
-                self.sig.update.emit("progress", (done, total), source)
-
-        try:
-            self.sig.update.emit("downloading", rel, source)
-            app = update.download(
-                rel,
-                progress=progress,
-                step=lambda name: self.sig.update.emit(name, rel, source),
-            )
-            self.sig.update.emit("ready", (rel, app), source)
-        except Exception as e:  # noqa: BLE001 - always report back
-            self.sig.update.emit("error", str(e), source)
-
-    def _on_update(self, state: str, data, source: str):
-        if state not in ("downloading", "progress", "verifying", "unpacking"):
-            self._checking_updates = False
-        _log_update(state, data)
-        if state in ("latest", "available", "ready", "downloading"):
-            self._prefs.set_last_update_check(time.time())
-        if state == "latest":
-            self._status("papermini is up to date")
-        elif state == "available":
-            rel, why = data
-            self._release_page = rel.url
-            # the About window shows it itself; the daily check announces it only when
-            # this copy can install it
-            if source == "auto" and why is None:
-                self._show_update_available(rel)
-        elif state == "downloading":
-            self._status(f"Downloading papermini {data.version}…")
-        elif state == "progress":
-            done, total = data
-            if total:
-                self._status(f"Downloading the update… {100 * done // total}%")
-        elif state == "ready":
-            rel, app = data
-            self._show_update_ready(rel.version, app, rel.url)
-        elif state == "error":
-            self._status(data)
-        if self._about is not None:
-            self._about.update_state(state, data)
-
-    def _show_update_available(self, rel):
-        """Announce a new version in the update bar, with a button that opens the About
-        window to update (for the daily check with automatic updating off)."""
-        self.update_text.setText(f"papermini {rel.version} is available.")
-        self.update_restart.setText("Update…")
-        self.update_bar.show()
-
-    def _update_bar_action(self):
-        if self._update_ready is not None:
-            self._restart_for_update()
-        else:
-            self.update_bar.hide()
-            self.show_about()  # (it checks again and offers Update, with its progress)
-
-    def _show_update_ready(self, version: str, app, page: str):
-        self.update_restart.setText("Restart now")
-        self._update_ready = (version, app)
-        self._release_page = (
-            page
-            or f"https://github.com/MJLHThomassen/papermini/releases/tag/v{version}"
-        )
-        self.update_text.setText(
-            f"papermini {version} is ready: it is installed when you close papermini."
-        )
-        self.update_bar.show()
-        self._status(f"papermini {version} is ready to install")
-
-    def _open_release_page(self):
-        from PySide6.QtCore import QUrl
-
-        url = (
-            getattr(self, "_release_page", "")
-            or "https://github.com/MJLHThomassen/papermini/releases/latest"
-        )
-        QDesktopServices.openUrl(QUrl(url))
-
-    def _restart_for_update(self):
-        self._restart_after_update = True
-        if not self.close():  # (the user kept the window open, e.g. to save first)
-            self._restart_after_update = False
-
-    def _find_fonts(self):
-        """Look for the fonts installed on this computer (a worker thread)."""
-        try:
-            names = list(fonts.installed())
-        except Exception:  # noqa: BLE001 - without them, the bundled fonts still work
-            ui_log.exception("Could not look for the installed fonts")
-            names = []
-        self.sig.fonts_found.emit(names)
-
-    def set_auto_updates(self, on: bool):
-        self._prefs.set_auto_updates(on)
-        ui_log.info("Automatic updates %s", "on" if on else "off")
-        if on:
-            QTimer.singleShot(0, self._startup_updates)
-
-    def _install_update_on_quit(self):
-        """Start the helper that installs a downloaded update once papermini has quit."""
-        if self._update_ready is None:
-            return
-        from ...support import update
-
-        update_log.info(
-            "Installing papermini %s when papermini has closed%s",
-            self._update_ready[0],
-            ", then restarting" if self._restart_after_update else "",
-        )
-        try:
-            update.install_on_exit(
-                self._update_ready[1], restart=self._restart_after_update
-            )
-        except Exception:  # noqa: BLE001 - never block quitting
-            update_log.exception("Could not install the update")
 
     def closeEvent(self, e):
         if self._maybe_save():
@@ -2230,7 +1985,7 @@ class MainWindow(QMainWindow):
             self.pool.waitForDone(15000)  # builds stop at the next checkpoint
             segment.CANCEL.clear()
             self._save_layout()
-            self._install_update_on_quit()
+            self.updater.install_on_quit()
             e.accept()
         else:
             e.ignore()
