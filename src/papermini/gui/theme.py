@@ -349,7 +349,6 @@ QRadioButton::indicator:checked {{ border-color: {t.accent}; background: qradial
     stop:0.48 {t.accent}, stop:1 {t.accent}); }}
 
 /* side panels */
-#Side {{ background: {t.surface}; }}
 #SideLeft {{ background: {t.surface}; border-right: 1px solid {t.border}; }}
 #SideRight {{ background: {t.surface}; border-left: 1px solid {t.border}; }}
 #PanelTitle {{ font-weight: 600; font-size: 10pt; }}
@@ -392,7 +391,6 @@ QPushButton#LinkButton:hover {{ text-decoration: underline; }}
 #SizeLink:hover {{ background: {t.surface2}; }}
 #StepArrow {{ padding: 0 1px; }}
 #ErrorBanner QLabel {{ color: {t.text}; }}
-#SheetBar {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
 #Busy {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 12px;
          padding: 5px 14px; color: {t.muted}; }}
 QTabWidget::pane {{ border: none; }}

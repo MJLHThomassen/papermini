@@ -155,7 +155,7 @@ explains.
 *Example:* the field specs in `gui/panels/figure_fields.py` are tuples of
 `(field, label, kind, extra)`, where `kind` is a code such as `"f"` or `"col"`,
 explained in a long comment above `STEPS`. Build callbacks pass
-`(uid, gen, key)` positionally through several methods.
+`(uid, key)` positionally through several methods.
 
 ### S5. Add a variant by adding an entry - SOLID (O)
 

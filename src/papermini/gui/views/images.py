@@ -15,14 +15,6 @@ def pil_to_qimage(im) -> QImage:
     ).copy()
 
 
-def array_to_qimage(a: np.ndarray) -> QImage:
-    a = np.ascontiguousarray(a)
-    h, w = a.shape[:2]
-    if a.ndim == 2:
-        return QImage(a.data, w, h, w, QImage.Format_Grayscale8).copy()
-    return QImage(a.data, w, h, 3 * w, QImage.Format_RGB888).copy()
-
-
 def load_qimage(path) -> QImage:
     """Load an image with EXIF orientation applied (matches PIL's exif_transpose)."""
     r = QImageReader(str(path))

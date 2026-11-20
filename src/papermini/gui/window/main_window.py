@@ -135,9 +135,6 @@ class MainWindow(QMainWindow):
         self._about = None  # the About window while it is open
         self._restart_after_update = False
         self._checking_updates = False
-        self._update_available = (
-            None  # (release, why it cannot be installed) of the last check
-        )
         self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = (
             set()
@@ -1080,8 +1077,7 @@ class MainWindow(QMainWindow):
             segment.cancel_runs()  # its mask is no longer wanted: start the new one now
         if not fig.stopped:
             fig.cancelled = None  # a new image, crop or model: build it
-        fig.gen += 1
-        fig.error = fig.queued = None
+        fig.invalidate()
         self._refresh_card(fig)
         self.crop_view.set_crop(s.crop)
         self._sync_legend()
@@ -1122,8 +1118,7 @@ class MainWindow(QMainWindow):
             if f is cur:
                 continue
             f.entry.settings = replace(f.entry.settings, **{k: src[k] for k in names})
-            f.gen += 1
-            f.error = f.queued = None
+            f.invalidate()
         self._set_modified()
         ui_log.info(
             "Applied %s of %s to %d other figure(s)",
@@ -1142,8 +1137,7 @@ class MainWindow(QMainWindow):
                 f
             ) in self.figures:  # cut by machine (or not): every piece gets its bleed
                 f.bleed_mm = s.figure_bleed
-                f.gen += 1
-                f.error = f.queued = None
+                f.invalidate()
             self._build_timer.start()
         self._set_modified()
         self._sheet_timer.start()
@@ -1222,7 +1216,7 @@ class MainWindow(QMainWindow):
         else:
             self._show_mini(fig)  # settings went back to what is already built
 
-    def _on_done(self, uid, gen, key, mini: Mini):
+    def _on_done(self, uid, key, mini: Mini):
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
             return  # settings changed meanwhile (a newer build is queued)
@@ -1240,7 +1234,7 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
-    def _on_failed(self, uid, gen, key, msg):
+    def _on_failed(self, uid, key, msg):
         self._end_segmenting(uid)
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
@@ -1252,7 +1246,7 @@ class MainWindow(QMainWindow):
         self.exporter.check()
         self._status(f"{fig.entry.image.name}: {msg.splitlines()[0]}")
 
-    def _on_cancelled(self, uid, gen, key):
+    def _on_cancelled(self, uid, key):
         """A build stopped: by Cancel (``_cancel_run`` already marked the figure), or
         because a new crop or model made it useless (that one is built next)."""
         self._end_segmenting(uid)
@@ -1391,7 +1385,6 @@ class MainWindow(QMainWindow):
         for f in self.figures:
             if f.error and not f.up_to_date:
                 f.error = None
-                f.gen += 1
                 self._refresh_card(f)
         self._build_current()
         if self.tabs.currentIndex() == self.SHEET:
@@ -1942,8 +1935,7 @@ class MainWindow(QMainWindow):
             new = sizes.apply(s, s.size, table)
             if new != s:
                 f.entry.settings = new
-                f.gen += 1
-                f.error = f.queued = None
+                f.invalidate()
                 self._refresh_card(f)
                 changed += 1
         ui_log.info(
@@ -2041,22 +2033,19 @@ class MainWindow(QMainWindow):
             return
         last = self._prefs.last_update_check()
         if self._prefs.auto_updates() and time.time() - last > 24 * 3600:
-            self.check_updates(False)
+            self.check_updates(source="auto")
 
-    def check_updates(self, asked: bool = False, source: str = ""):
-        """Look for a newer papermini in the background, and download it when this copy
-        can install it. ``source`` says who asked, which decides whether to download
-        and how to report the result: "menu" (report it, and download), "auto" (the
-        daily check: download only with automatic updating on) or "about" (the About
-        window reports it and leaves downloading to the user)."""
-        source = source or ("menu" if asked else "auto")
+    def check_updates(self, source: str):
+        """Look for a newer papermini in the background. ``source`` says who asked:
+        "auto" is the daily check. When this copy can install the new version, the
+        check downloads it with automatic updating on, and announces it in the update
+        bar with automatic updating off. "about" is the About window, which reports the
+        result itself and leaves downloading to the user."""
         if self._checking_updates:
             return
         self._checking_updates = True
         update_log.info("Checking for updates (%s)", source)
-        download = source == "menu" or (source == "auto" and self._prefs.auto_updates())
-        if source == "menu":
-            self._status("Checking for updates…")
+        download = source == "auto" and self._prefs.auto_updates()
         threading.Thread(
             target=self._update_job, args=(source, download), daemon=True
         ).start()
@@ -2110,41 +2099,20 @@ class MainWindow(QMainWindow):
             self.sig.update.emit("error", str(e), source)
 
     def _on_update(self, state: str, data, source: str):
-
         if state not in ("downloading", "progress", "verifying", "unpacking"):
             self._checking_updates = False
         _log_update(state, data)
         if state in ("latest", "available", "ready", "downloading"):
             self._prefs.set_last_update_check(time.time())
-        asked = source == "menu"
         if state == "latest":
             self._status("papermini is up to date")
-            if asked:
-                QMessageBox.information(
-                    self, "papermini", f"papermini {__version__} is the latest version."
-                )
         elif state == "available":
             rel, why = data
-            self._update_available = (rel, why)
             self._release_page = rel.url
-            if source == "about":
-                pass  # (the About window shows it and offers to update)
-            elif source == "auto" and why is None:  # (Update automatically is off)
+            # the About window shows it itself; the daily check announces it only when
+            # this copy can install it
+            if source == "auto" and why is None:
                 self._show_update_available(rel)
-            elif asked:
-                box = QMessageBox(
-                    QMessageBox.Information,
-                    "papermini",
-                    f"papermini {rel.version} is available (you have {__version__}).",
-                    parent=self,
-                )
-                if why:
-                    box.setInformativeText(why)
-                page = box.addButton("Open the release page", QMessageBox.AcceptRole)
-                box.addButton(QMessageBox.Close)
-                box.exec()
-                if box.clickedButton() is page:
-                    self._open_release_page()
         elif state == "downloading":
             self._status(f"Downloading papermini {data.version}…")
         elif state == "progress":
@@ -2156,8 +2124,6 @@ class MainWindow(QMainWindow):
             self._show_update_ready(rel.version, app, rel.url)
         elif state == "error":
             self._status(data)
-            if asked:
-                QMessageBox.warning(self, "papermini", data)
         if self._about is not None:
             self._about.update_state(state, data)
 
