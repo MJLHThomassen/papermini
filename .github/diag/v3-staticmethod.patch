@@ -1,0 +1,13 @@
+diff --git a/tests/gui/test_option_fields.py b/tests/gui/test_option_fields.py
+index 4ced1e5..6d74e79 100644
+--- a/tests/gui/test_option_fields.py
++++ b/tests/gui/test_option_fields.py
+@@ -74,7 +74,7 @@ def _enter(w, value, monkeypatch) -> None:
+         w.setText(value)
+         QTest.keyClick(w, Qt.Key.Key_Return)
+     elif isinstance(w, ColorButton):
+-        monkeypatch.setattr(QColorDialog, "getColor", lambda *a: QColor(value))
++        monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a: QColor(value)))
+         w.click()
+     else:
+         raise TypeError(w)

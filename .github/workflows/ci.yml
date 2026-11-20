@@ -166,24 +166,24 @@ jobs:
         run: |
           set +e
           variant() {
-            echo "=== $1"
-            uv run --no-sync python -m pytest -q -p no:cacheprovider $2 > /tmp/o 2>&1
-            echo "=== $1: exit $?"
+            name=$1
+            shift
+            echo "=== $name"
+            uv run --no-sync python -m pytest -q -p no:cacheprovider "$@" > /tmp/o 2>&1
+            echo "=== $name: exit $?"
             tail -3 /tmp/o
           }
           git config --global --add safe.directory "$PWD"
           f=tests/gui/test_option_fields.py
           variant "$f, try 2" "$f"
-          variant "test_every_figure_setting_has_a_field_or_is_listed" "$f::test_every_figure_setting_has_a_field_or_is_listed"
-          variant "test_each_figure_setting_has_its_panel_field" "$f::test_each_figure_setting_has_its_panel_field"
-          variant "test_each_figure_field_shows_its_setting" "$f::test_each_figure_field_shows_its_setting"
-          variant "test_each_figure_field_edits_its_setting" "$f::test_each_figure_field_edits_its_setting"
-          variant "test_each_figure_field_has_a_tooltip" "$f::test_each_figure_field_has_a_tooltip"
-          variant "test_a_tokens_label_field_edits_the_label" "$f::test_a_tokens_label_field_edits_the_label"
-          variant "test_every_sheet_setting_has_a_field_or_is_listed" "$f::test_every_sheet_setting_has_a_field_or_is_listed"
-          variant "test_each_sheet_field_shows_its_setting" "$f::test_each_sheet_field_shows_its_setting"
-          variant "test_each_sheet_field_edits_its_setting" "$f::test_each_sheet_field_edits_its_setting"
-          variant "test_each_sheet_field_has_a_tooltip" "$f::test_each_sheet_field_has_a_tooltip"
+          variant "figure tests" "$f" -k figure
+          variant "sheet tests" "$f" -k sheet
+          variant "figure tests without edits" "$f" -k "figure and not edits"
+          variant "the two edit tests" "$f" -k edits
+          variant "figure edits + figure shows" "$f" -k "figure_field_edits or figure_field_shows"
+          variant "figure edits + sheet edits" "$f" -k "figure_field_edits or sheet_field_edits"
+          git apply .github/diag/v3-staticmethod.patch && variant "$f, getColor patched as a staticmethod" "$f"
+          git checkout -- tests
           variant "$f, try 3" "$f"
           exit 0
         env:
