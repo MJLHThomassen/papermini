@@ -95,4 +95,4 @@ core = "sysmon"  # also measures the threads Qt starts
 show_missing = true
 skip_covered = true
 precision = 1
-fail_under = 95  # the lower of the CI and local totals, rounded down
+fail_under = 96  # the lower of the CI and local totals, rounded down
