@@ -176,18 +176,13 @@ jobs:
           git config --global --add safe.directory "$PWD"
           f=tests/gui/test_option_fields.py
           variant "$f, try 2" "$f"
-          git apply .github/diag/v4-only-fields.patch
-          ONLY_FIELDS=kind,size,height_mm,width_mm,margin_mm,smooth_mm,tab_width_mm,tab_radius_mm,tab_height_mm,tab_overlap_mm,fold_mm,no_tab,tab_shape,tab_color,double_sided,back,back_text,back_color,back_text_color,model,mask,crop,strength,fill_gaps,keep_all,min_area,margin_fill,margin_color variant "half 1: kind..margin_color" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=greyscale,brightness,contrast,saturation,hue,label,tab_front,tab_back,dpi,simplify_mm,no_smooth,cut_color,cut_width_mm,label_color,label_size_mm,font,token_diameter_mm,token_area,token_fill,token_fill_color,token_border_mm,token_border_color,token_outline,token_cut_line,token_text,token_text_style,token_text_mm,token_text_color variant "half 2: greyscale..token_text_color" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=kind,size,height_mm,width_mm,margin_mm,smooth_mm,tab_width_mm variant "group 1: kind,size,height_mm,width_mm,margin_mm,smooth_mm,tab_width_mm" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=tab_radius_mm,tab_height_mm,tab_overlap_mm,fold_mm,no_tab,tab_shape,tab_color variant "group 2: tab_radius_mm,tab_height_mm,tab_overlap_mm,fold_mm,no_tab,tab_shape,tab_color" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=double_sided,back,back_text,back_color,back_text_color,model,mask variant "group 3: double_sided,back,back_text,back_color,back_text_color,model,mask" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=crop,strength,fill_gaps,keep_all,min_area,margin_fill,margin_color variant "group 4: crop,strength,fill_gaps,keep_all,min_area,margin_fill,margin_color" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=greyscale,brightness,contrast,saturation,hue,label,tab_front variant "group 5: greyscale,brightness,contrast,saturation,hue,label,tab_front" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=tab_back,dpi,simplify_mm,no_smooth,cut_color,cut_width_mm,label_color variant "group 6: tab_back,dpi,simplify_mm,no_smooth,cut_color,cut_width_mm,label_color" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=label_size_mm,font,token_diameter_mm,token_area,token_fill,token_fill_color,token_border_mm variant "group 7: label_size_mm,font,token_diameter_mm,token_area,token_fill,token_fill_color,token_border_mm" "$f" -k "figure_field_edits or figure_field_shows"
-          ONLY_FIELDS=token_border_color,token_outline,token_cut_line,token_text,token_text_style,token_text_mm,token_text_color variant "group 8: token_border_color,token_outline,token_cut_line,token_text,token_text_style,token_text_mm,token_text_color" "$f" -k "figure_field_edits or figure_field_shows"
-          git checkout -- tests
+          apt-get update -qq && apt-get install -y -qq valgrind > /dev/null
+          PYTHONMALLOC=malloc uv run --no-sync valgrind --undef-value-errors=no --num-callers=40 --log-file=/tmp/vg.log python -m pytest -q -p no:cacheprovider "$f" -k "figure_field_edits or figure_field_shows" > /tmp/o 2>&1
+          echo "=== valgrind: exit $?"
+          tail -3 /tmp/o
+          grep -c "^==[0-9]*== Invalid" /tmp/vg.log
+          grep -A45 "^==[0-9]*== Invalid\|^==[0-9]*== Mismatched" /tmp/vg.log | head -400
+          tail -20 /tmp/vg.log
           variant "$f, try 3" "$f"
           exit 0
         env:
