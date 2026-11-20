@@ -719,6 +719,12 @@ class FigureSettings:
             min_area=self.min_area,
         )
 
+    def mask_inputs(self) -> tuple:
+        """Return the settings the background removal depends on: the model, the mask
+        image file and the crop. A change to any other setting never runs the model
+        again."""
+        return (self.model, self.mask, self.crop)
+
     def adjustments(self) -> Adjustments:
         return Adjustments(
             brightness=self.brightness,

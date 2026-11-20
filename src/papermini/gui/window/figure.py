@@ -13,7 +13,7 @@ class Figure:
     """One figure in the list: its settings and its latest build.
 
     A build is matched to its figure by ``key()``, which holds every setting the build
-    depends on. A build job keeps the key it started with, and the window takes the
+    depends on. A build job keeps the key it started with, and ``BuildQueue`` takes the
     finished build only while that key still equals the figure's ``key()``. A build
     for older settings is dropped, because the build for the new ones follows.
     ``built_key`` is the key of ``mini``, and ``queued`` the key of the job waiting in
@@ -41,10 +41,10 @@ class Figure:
         return f"{self.entry.image}|{sorted(d.items())}|bleed={self.bleed_mm}"
 
     def mask_key(self) -> str:
-        """The settings background removal depends on: a cancelled run stays cancelled
-        until one of these changes (other settings do not start the model again)."""
-        s = self.entry.settings
-        return f"{self.entry.image}|{s.model}|{s.mask}|{s.crop}"
+        """The image and the settings background removal depends on: a cancelled run
+        stays cancelled until one of these changes (other settings do not start the
+        model again)."""
+        return f"{self.entry.image}|{self.entry.settings.mask_inputs()}"
 
     @property
     def up_to_date(self) -> bool:

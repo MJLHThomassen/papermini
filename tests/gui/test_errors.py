@@ -294,7 +294,7 @@ def test_about_shows_where_the_log_is(logs, app, new_window):
 def test_build_errors_are_logged_with_the_figures_settings(
     logs, app, tmp_path, monkeypatch, error, expected, new_window, wait, figure_image
 ):
-    from papermini.gui.window import build_job
+    from papermini.gui.building import build_job
 
     def fail(*a, **k):
         raise error
@@ -316,7 +316,7 @@ def test_build_errors_are_logged_with_the_figures_settings(
 def test_settings_changes_go_to_the_detailed_log_once_they_settle(
     logs, app, tmp_path, monkeypatch, wait, new_window, figure_image
 ):
-    from papermini.gui.window import build_job
+    from papermini.gui.building import build_job
 
     monkeypatch.setattr(
         build_job,

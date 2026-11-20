@@ -8,6 +8,7 @@ from pathlib import Path
 from ...support.cache_folder import CacheFolder
 from . import segment
 from .cancellation import Cancellation
+from .download_hooks import DownloadHooks
 from .downloader import Downloader
 from .model_error import ModelError
 from .onnx_segmenter import OnnxSegmenter
@@ -102,26 +103,29 @@ class SegmenterRegistry:
         """Tell whether ``model`` is loaded (its next run starts at once)."""
         return model in self._segmenters
 
-    def get(self, model: str):
+    def get(self, model: str, downloads: DownloadHooks | None = None):
         """Return the segmenter of ``model``, created (and downloaded) only once,
-        thread-safely."""
+        thread-safely. ``downloads`` asks before a built-in model downloads, and hears
+        its progress."""
         with self._segmenters_lock:
             if model not in self._segmenters:
-                self._segmenters[model] = self._load(model)
+                self._segmenters[model] = self._load(
+                    model, downloads or DownloadHooks()
+                )
             return self._segmenters[model]
 
     def _forget(self, model: str) -> None:
         with self._segmenters_lock:
             self._segmenters.pop(model, None)
 
-    def _load(self, model: str):
+    def _load(self, model: str, downloads: DownloadHooks):
         """Make the segmenter of ``model``: a built-in model, downloaded first if it is
         missing, or a .onnx file."""
         if model in segment.ONNX_MODELS:
             spec = segment.ONNX_MODELS[model]
             path = self.path(model)
             if not path.exists():
-                confirm = segment.CONFIRM_DOWNLOAD
+                confirm = downloads.confirm
                 if confirm is not None and not confirm(model):
                     raise ModelError(
                         f"the {model} model is not downloaded. Download it in "
@@ -136,7 +140,7 @@ class SegmenterRegistry:
                 ):
                     # (the command line)
                     print(f"Note: {self.licence_notice(model)}", file=sys.stderr)
-                self.fetch(model)
+                self.fetch(model, progress=downloads.progress)
             logger.info("Loading the %s model", model)
             return self._make_segmenter(
                 path,

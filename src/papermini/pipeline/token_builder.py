@@ -13,6 +13,7 @@ from .font_checker import FontChecker
 from .mask_options import MaskOptions
 from .mini import Mini
 from .morphology import Morphology
+from .segmentation.download_hooks import DownloadHooks
 from .style import Style
 from .token_framer import PX_PER_MM
 from .token_info import TokenInfo
@@ -61,13 +62,20 @@ class TokenBuilder:
         use_cache: bool = True,
         log=print,
         on_stage=None,
+        downloads: DownloadHooks | None = None,
     ) -> Mini:
         """Build one token: background removal as for a mini, then the figure framed in
-        a circle on its background, inside a ring, with a circular cut line."""
+        a circle on its background, inside a ring, with a circular cut line.
+        ``downloads`` asks before a built-in model downloads, and hears its progress."""
         image_path = Path(image_path)
         style = self._fonts.checked(style, image_path.name, log)
         fm = self._masker.find(
-            image_path, mask_options, use_cache=use_cache, log=log, on_stage=on_stage
+            image_path,
+            mask_options,
+            use_cache=use_cache,
+            log=log,
+            on_stage=on_stage,
+            downloads=downloads,
         )
         label = image_path.stem if label is None else label
         bleed_mm = min(max(0.0, bleed_mm), MAX_BLEED_MM)

@@ -46,19 +46,15 @@ def isolated_log(monkeypatch, tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def isolated_model_cache(monkeypatch, tmp_path_factory):
-    """Every test gets an empty model and mask cache, no download hooks, and fetching a
-    URL fails loudly.
+    """Every test gets an empty model and mask cache, and fetching a URL fails
+    loudly.
 
     Tests that exercise downloads give their pipeline a fake ``downloader``, or replace
     ``urlopen`` with a fake.
     """
-    from papermini.pipeline.segmentation import segment
-
     monkeypatch.setenv(
         "PAPERMINI_CACHE", str(tmp_path_factory.mktemp("papermini-cache"))
     )
-    monkeypatch.setattr(segment, "PROGRESS_HOOK", None)
-    monkeypatch.setattr(segment, "CONFIRM_DOWNLOAD", None)
 
     def no_network(req, *a, **k):
         url = getattr(req, "full_url", req)
@@ -262,7 +258,7 @@ def downloaded_default_model(isolated_model_cache):
 @pytest.fixture
 def no_builds(monkeypatch):
     """Makes every figure in the app fail to build at once, for tests without a model."""
-    from papermini.gui.window import build_job
+    from papermini.gui.building import build_job
 
     def fail(*a, **k):
         raise ValueError("not built in this test")

@@ -1,5 +1,5 @@
 """This module lists the segmentation models that remove an image's background, and
-holds the hooks the desktop app sets for their downloads and builds.
+holds the event that stops their downloads and builds.
 
 Backends ("models"):
 
@@ -14,7 +14,6 @@ Backends ("models"):
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 
 DEFAULT_MODEL = "rmbg-1.4"
 
@@ -75,14 +74,6 @@ for _name, _title, _about, _mb, _file in (
 
 
 Box = tuple[int, int, int, int]
-
-# Optional callback(done_bytes, total_bytes_or_None, message) for model downloads.
-PROGRESS_HOOK = None
-
-# Optional callback(model_name) -> bool, called before a built-in model is downloaded
-# for a build. False refuses the download. The GUI asks the user here and downloads
-# the model itself, with a progress dialog.
-CONFIRM_DOWNLOAD: Callable[[str], bool] | None = None
 
 # Set to abort a running model download or build (the GUI does this when it closes).
 CANCEL = threading.Event()

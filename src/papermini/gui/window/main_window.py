@@ -6,12 +6,11 @@ import logging
 import os
 import re
 import threading
-import time
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import ClassVar
 
-from PySide6.QtCore import QSize, Qt, QThreadPool, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -41,6 +40,7 @@ from PySide6.QtWidgets import (
 from ...pipeline.mini import Mini
 from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation import segment
+from ...pipeline.segmentation.download_hooks import DownloadHooks
 from ...project import sizes
 from ...project.figure_entry import FigureEntry
 from ...project.figure_settings import FigureSettings
@@ -53,6 +53,7 @@ from ...support.image_files import ImageFiles
 from ...support.log_session import LogSession
 from ...support.update_service import UpdateService
 from .. import errors, theme
+from ..building.build_queue import BuildQueue
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
 from ..exporting.export_controller import ExportController
@@ -76,7 +77,6 @@ from ..widgets.overlay import overlay_wrap
 from ..widgets.segmented import Segmented
 from ..widgets.work_card import WorkCard
 from ..widgets.zoom_bar import ZoomBar
-from .build_job import BuildJob
 from .figure import Figure
 from .signals import Signals
 
@@ -114,14 +114,24 @@ class MainWindow(QMainWindow):
         self.figures: list[Figure] = []
         self._uids = itertools.count(1)
         self._modified = False
-        self.pool = QThreadPool(self)
-        self.pool.setMaxThreadCount(1)  # one model run at a time
         self.sig = Signals()
-        self.sig.done.connect(self._on_done)
-        self.sig.failed.connect(self._on_failed)
-        self.sig.cancelled.connect(self._on_cancelled)
-        self.sig.stage.connect(self._on_stage)
-        self._segmenting = None  # (uid, mask_key, model, start time) while a model runs
+        self.builds = BuildQueue(
+            pipeline,
+            DownloadHooks(self._confirm_download, self._download_progress),
+            self._figure,
+            self.current,
+            self,
+        )
+        self.builds.built.connect(self._on_built)
+        self.builds.failed.connect(self._on_failed)
+        self.builds.cancelled.connect(self._on_cancelled)
+        self.builds.outline.connect(self._on_outline)
+        self.builds.run_started.connect(self._on_run_started)
+        self.builds.run_ended.connect(self._on_run_ended)
+        self.builds.building.connect(self._on_building)
+        self.builds.ready.connect(self._show_mini)
+        self.builds.held.connect(self._update_work)
+        self.builds.status.connect(self._status)
         self._work_timer = QTimer(self, interval=500, timeout=self._update_work)
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
@@ -129,7 +139,7 @@ class MainWindow(QMainWindow):
         self.exporter = ExportController(self, prefs, ExportDialogs(prefs), fonts)
         self.exporter.status.connect(self._status)
         self.exporter.warning.connect(self._warn)
-        self.exporter.build.connect(self._queue)
+        self.exporter.build.connect(self.builds.queue)
         self.updater = UpdateController(self, prefs, updates, logs)
         self.updater.status.connect(self._status)
         self._closing = threading.Event()  # stops link downloads when the window closes
@@ -138,13 +148,7 @@ class MainWindow(QMainWindow):
         )  # models the user did not want to download (until they change model)
         self._crop_undo = []  # (figure uid, crop before a change), newest last: Ctrl+Z
         self._undoing = False
-        segment.PROGRESS_HOOK = self._download_progress
-        segment.CONFIRM_DOWNLOAD = self._confirm_download
-        segment.CANCEL.clear()
 
-        self._build_timer = QTimer(
-            self, singleShot=True, interval=250, timeout=self._build_current
-        )
         # settings changes go to the detailed log once they settle, as old -> new
         self._settings_log: dict[
             object, tuple
@@ -1071,21 +1075,16 @@ class MainWindow(QMainWindow):
         if s.model != old.model:
             self._declined.clear()  # a new model choice may ask again
             ui_log.info("%s: model %s → %s", fig.entry.image.name, old.model, s.model)
-        seg = self._segmenting
         old_mask = fig.mask_key()
         self._note_settings(fig.uid, fig.entry.image.name, old)
         fig.entry.settings = s
-        if seg and seg[0] == fig.uid and seg[1] == old_mask != fig.mask_key():
-            # its mask is no longer wanted: start the new one now
-            self._pipeline.cancellation.cancel_runs()
-        if not fig.stopped:
-            fig.cancelled = None  # a new image, crop or model: build it
+        self.builds.settings_changed(fig, old_mask)
         fig.invalidate()
         self._refresh_card(fig)
         self.crop_view.set_crop(s.crop)
         self._sync_legend()
         self._set_modified()
-        self._build_timer.start()
+        self.builds.build_soon()
         self._sheet_timer.start()  # e.g. copies: no rebuild, but the sheet changes
 
     def _note_settings(self, key, name: str, old) -> None:
@@ -1141,7 +1140,7 @@ class MainWindow(QMainWindow):
             ) in self.figures:  # cut by machine (or not): every piece gets its bleed
                 f.bleed_mm = s.figure_bleed
                 f.invalidate()
-            self._build_timer.start()
+            self.builds.build_soon()
         self._set_modified()
         self._sheet_timer.start()
 
@@ -1199,46 +1198,13 @@ class MainWindow(QMainWindow):
     # endregion
 
     # region building
-    def _is_current(self, uid, key) -> bool:
-        """A build is wanted iff it is for the figure's current settings, and the user
-        did not cancel its background removal."""
-        f = self._figure(uid)
-        return f is not None and f.key() == key and not f.stopped
+    def _on_building(self, fig: Figure):
+        """The selected figure was queued to build."""
+        self.info.setText("building…")
+        self.busy_box.setVisible(fig.mini is None or not fig.up_to_date)
+        self._update_work()  # (hides it again behind a work card)
 
-    def _queue(self, fig: Figure):
-        key = fig.key()
-        if fig.queued == key or fig.stopped or self._closing.is_set():
-            return  # already waiting, stopped by the user (see _work_clicked), or closed
-        fig.queued = key
-        # the selected figure jumps ahead of background (sheet) builds
-        priority = 10 if fig is self.current() else 0
-        self.pool.start(
-            BuildJob(self.sig, fig, self._is_current, self._pipeline), priority
-        )
-
-    def _build_current(self):
-        fig = self.current()
-        if fig is None:
-            return
-        if fig.stopped and not fig.up_to_date:
-            self._update_work()  # stopped by the user: wait for Run again
-        elif not fig.up_to_date:
-            self._queue(fig)
-            self.info.setText("building…")
-            self.busy_box.setVisible(fig.mini is None or not fig.up_to_date)
-            self._update_work()  # (hides it again behind a work card)
-        else:
-            self._show_mini(fig)  # settings went back to what is already built
-
-    def _on_done(self, uid, key, mini: Mini):
-        fig = self._figure(uid)
-        if fig is None or fig.key() != key:
-            return  # settings changed meanwhile (a newer build is queued)
-        if fig.queued == key:
-            fig.queued = None
-        fig.mini, fig.built_key, fig.error = mini, key, None
-        fig.cancelled = None  # (finished just before a Cancel could stop it)
-        self._end_segmenting(uid)
+    def _on_built(self, fig: Figure, mini: Mini):
         fig.pixmap = QPixmap.fromImage(pil_to_qimage(mini.art))
         self._refresh_card(fig)
         if fig is self.current():
@@ -1248,38 +1214,15 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
-    def _on_failed(self, uid, key, msg):
-        self._end_segmenting(uid)
-        fig = self._figure(uid)
-        if fig is None or fig.key() != key:
-            return
-        fig.error, fig.queued = msg, None
+    def _on_failed(self, fig: Figure, msg: str):
         self._refresh_card(fig)
         if fig is self.current():
             self._show_mini(fig)
         self.exporter.check()
         self._status(f"{fig.entry.image.name}: {msg.splitlines()[0]}")
 
-    def _on_cancelled(self, uid, key):
-        """A build stopped: by Cancel (``_cancel_run`` already marked the figure), or
-        because a new crop or model made it useless (that one is built next)."""
-        self._end_segmenting(uid)
-        fig = self._figure(uid)
-        if fig is not None and fig.queued == key:
-            fig.queued = None
-
-    def _cancel_run(self):
-        """Cancel: stop the running model. Its figure is marked cancelled at once, even
-        when the build only notices later (a model still loading finishes that first)."""
-        seg = self._segmenting
-        self._pipeline.cancellation.cancel_runs()
-        if seg is None:
-            return
-        self._end_segmenting(seg[0])
-        fig = self._figure(seg[0])
-        if fig is None or fig.mask_key() != seg[1]:
-            return
-        fig.cancelled, fig.queued = seg[1], None  # (a build still waiting is skipped)
+    def _on_cancelled(self, fig: Figure):
+        """The user cancelled the model run of ``fig``."""
         self._refresh_card(fig)
         self.exporter.check()
         self._status(f"{fig.entry.image.name}: background removal cancelled")
@@ -1288,52 +1231,46 @@ class MainWindow(QMainWindow):
             self.info.setText("cancelled")
         self._update_work()
 
-    def _on_stage(self, uid, key, mask_key, name, data):
-        """Progress of a build: a model starts ("segment"), or the figure was found
-        ("outline", before the miniature is laid out)."""
-        if name == "segment":
-            self._segmenting = (uid, mask_key, data, time.monotonic())
-            self._work_timer.start()
-            QTimer.singleShot(300, self._update_work)  # cached masks come back at once
-            return
-        if name == "outline":
-            self._end_segmenting(uid)
-            fig = self.current()
-            if fig is not None and fig.uid == uid and fig.key() == key:
-                contours, close_px = data
-                self.crop_view.set_outline(contours)
-                self.panel.set_auto_fill_gaps(close_px)
+    def _on_outline(self, fig: Figure, data):
+        """A build found the figure in its image, before the miniature is laid out."""
+        if fig is self.current():
+            contours, close_px = data
+            self.crop_view.set_outline(contours)
+            self.panel.set_auto_fill_gaps(close_px)
 
-    def _end_segmenting(self, uid):
-        if self._segmenting and self._segmenting[0] == uid:
-            self._segmenting = None
-            self._work_timer.stop()
-            self._update_work()
+    def _on_run_started(self):
+        self._work_timer.start()
+        QTimer.singleShot(300, self._update_work)  # cached masks come back at once
+
+    def _on_run_ended(self):
+        self._work_timer.stop()
+        self._update_work()
 
     def _update_work(self):
         """The work card and the dimmed Source image for the selected figure: a model
         running for it (with Cancel), a model running for another figure that it waits
         for (Cancel stops that one), or a cancelled one (Run again)."""
         fig = self.current()
-        seg = self._segmenting
+        run = self.builds.run
+        if run is not None and run.seconds() < 0.25:
+            run = None  # (cached masks come back at once)
         mode = None
         if fig is not None and self.tabs.currentIndex() != self.SHEET:
-            running = seg is not None and time.monotonic() - seg[3] >= 0.25
-            if running and seg[0] == fig.uid and seg[1] == fig.mask_key():
+            if run and run.uid == fig.uid and run.mask_key == fig.mask_key():
                 mode = "working"
             elif fig.stopped and not fig.up_to_date:
                 mode = "cancelled"
-            elif running and seg[0] != fig.uid and not fig.up_to_date and not fig.error:
+            elif run and run.uid != fig.uid and not fig.up_to_date and not fig.error:
                 mode = "waiting"
-        if mode in ("working", "waiting"):
-            secs = int(time.monotonic() - seg[3])
-            loaded = self._pipeline.segmenters.is_loaded(seg[2])
-            model = seg[2] if loaded else f"loading {seg[2]}"
+        if run is not None and mode in ("working", "waiting"):
+            secs = int(run.seconds())
+            loaded = self._pipeline.segmenters.is_loaded(run.model)
+            model = run.model if loaded else f"loading {run.model}"
             detail = f"{model} · {secs} s" if secs else model
             if mode == "working":
                 self.work.show_working("Removing the background…", detail)
             else:
-                other = self._figure(seg[0])
+                other = self._figure(run.uid)
                 name = other.entry.display_name if other else "another figure"
                 self.work.show_working(
                     f"Waiting for {name}",
@@ -1359,9 +1296,9 @@ class MainWindow(QMainWindow):
             fig.cancelled = fig.error = fig.queued = None  # Run again
             self._refresh_card(fig)
             self._update_work()
-            self._build_current()
+            self.builds.build_current()
         else:
-            self._cancel_run()  # its own model run, or the one it waits for
+            self.builds.cancel()  # its own model run, or the one it waits for
 
     def _confirm_download(self, model: str) -> bool:
         """Build thread: ask (on the GUI thread) before a model is downloaded. The
@@ -1402,7 +1339,7 @@ class MainWindow(QMainWindow):
             if f.error and not f.up_to_date:
                 f.error = None
                 self._refresh_card(f)
-        self._build_current()
+        self.builds.build_current()
         if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
@@ -1455,7 +1392,7 @@ class MainWindow(QMainWindow):
         self._update_work()
         if not fig.up_to_date:
             QTimer.singleShot(
-                0, self._build_current
+                0, self.builds.build_current
             )  # (start(0) would kill the debounce)
 
     def _show_mini(self, fig: Figure):
@@ -1596,7 +1533,7 @@ class MainWindow(QMainWindow):
         missing = [f for f in self.figures if not f.up_to_date and f.error is None]
         failed = [f for f in self.figures if not f.up_to_date and f.error is not None]
         for f in missing:
-            self._queue(f)
+            self.builds.queue(f)
         # stale pieces stay visible while they rebuild, but not when their settings fail
         ready = [f for f in self.figures if f.mini is not None and f not in failed]
         sh = self.project.sheet
@@ -1974,7 +1911,7 @@ class MainWindow(QMainWindow):
         )
         self._set_modified()
         self._show_current()
-        self._build_timer.start()
+        self.builds.build_soon()
         self._sheet_timer.start()
 
     def _warn(self, text: str) -> None:
@@ -2002,19 +1939,9 @@ class MainWindow(QMainWindow):
         if self._maybe_save():
             self._flush_settings_log()
             self._closing.set()  # link downloads stop and are not added
-            for t in (
-                self._build_timer,
-                self._sheet_timer,
-                self._work_timer,
-                self._picture_timer,
-            ):
+            for t in (self._sheet_timer, self._work_timer, self._picture_timer):
                 t.stop()  # no build may start after closing
-            self.pool.clear()  # drop queued builds
-            segment.CANCEL.set()  # abort a model download in progress
-            self._pipeline.cancellation.cancel_runs()  # and a model run
-            segment.PROGRESS_HOOK = segment.CONFIRM_DOWNLOAD = None
-            self.pool.waitForDone(15000)  # builds stop at the next checkpoint
-            segment.CANCEL.clear()
+            self.builds.close()
             self._save_layout()
             self.updater.install_on_quit()
             e.accept()

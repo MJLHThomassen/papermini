@@ -155,7 +155,16 @@ jobs:
         run: uv sync --locked --all-extras
 
       - name: Test
+        if: matrix.python != '3.10'
         run: uv run --no-sync python -m pytest -q ${{ matrix.coverage && '--cov' || '' }}
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Test under gdb (diagnostic, temporary)
+        if: matrix.python == '3.10'
+        run: |
+          apt-get update -qq && apt-get install -y -qq gdb > /dev/null
+          uv run --no-sync gdb -q -batch -ex "set pagination off" -ex "set disable-randomization off" -ex run -ex "bt 80" -ex "info threads" -ex "thread apply all bt 30" --args python -X faulthandler -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
 

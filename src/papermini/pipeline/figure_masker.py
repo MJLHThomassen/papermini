@@ -13,6 +13,7 @@ from .mask_options import MaskOptions
 from .read_only import ReadOnly
 from .segmentation.background_remover import BackgroundRemover
 from .segmentation.cancellation import Cancellation
+from .segmentation.download_hooks import DownloadHooks
 from .segmentation.segment import DEFAULT_MODEL
 
 
@@ -43,10 +44,12 @@ class FigureMasker:
         debug: bool = False,
         log=print,
         on_stage=None,
+        downloads: DownloadHooks | None = None,
     ) -> FigureMask:
         """Find the figure in an image (steps 1 and 2 of a build). ``on_stage`` hears
         ``("segment", model)`` before a model runs and ``("outline", (contours,
-        close_px))`` once the figure is found."""
+        close_px))`` once the figure is found. ``downloads`` asks before a built-in
+        model downloads, and hears its progress."""
         image_path = Path(image_path)
         stage = on_stage or (lambda *_: None)
         fkey = StageCaches.file_key(image_path)
@@ -62,7 +65,9 @@ class FigureMasker:
         raw_key = (fkey, source, box)
         raw = self._caches.raw_masks.get(raw_key) if use_cache else None
         if raw is None:
-            raw = self._raw_mask(im, data, box, method, mask_options, use_cache, stage)
+            raw = self._raw_mask(
+                im, data, box, method, mask_options, use_cache, stage, downloads
+            )
             raw = self._caches.raw_masks.put(raw_key, ReadOnly.array(raw))
 
         self._cancellation.check()
@@ -118,7 +123,15 @@ class FigureMasker:
         return source, method
 
     def _raw_mask(
-        self, im, data, box, method: str, mask_options: MaskOptions, use_cache, stage
+        self,
+        im,
+        data,
+        box,
+        method: str,
+        mask_options: MaskOptions,
+        use_cache,
+        stage,
+        downloads: DownloadHooks | None,
     ) -> np.ndarray:
         """Make the raw mask: read from the mask file, or from the image's
         transparency or a model."""
@@ -138,5 +151,5 @@ class FigureMasker:
         if method != "alpha":
             stage("segment", method)
         return self._remover.mask(
-            im, method, box, use_cache=use_cache, image_bytes=data
+            im, method, box, use_cache=use_cache, image_bytes=data, downloads=downloads
         )
