@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QWidget
 
+from ...output.cut_file_writer import CutFileWriter
 from ..dialogs.export_dialog import ExportDialog
 from ..preferences import Preferences
 
@@ -18,8 +19,9 @@ class ExportDialogs:
     SVG_FILTER = "SVG, to print or cut (*.svg)"
     PNG_FILTER = "PNG, for a virtual tabletop (*.png)"
 
-    def __init__(self, prefs: Preferences):
+    def __init__(self, prefs: Preferences, cut_files: CutFileWriter):
         self._prefs = prefs
+        self._cut_files = cut_files
 
     def save_figure(self, parent: QWidget, start: Path) -> tuple[Path, str] | None:
         """Ask where to save a figure. Returns the path and the format, "svg" or
@@ -65,7 +67,9 @@ class ExportDialogs:
     ) -> ExportDialog | None:
         """Open the Export dialog of the sheet. Returns the dialog with the user's
         choices, or None when the user cancels."""
-        dlg = ExportDialog(self._prefs, folder, title, pages, machine, parent)
+        dlg = ExportDialog(
+            self._prefs, self._cut_files, folder, title, pages, machine, parent
+        )
         return dlg if dlg.exec() == QDialog.DialogCode.Accepted else None
 
     def print_options(self, parent: QWidget, printer: QPrinter, pages: int) -> bool:

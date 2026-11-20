@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...output.output import Output
 from ...pipeline.mini import Mini
 from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation import segment
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
         size_calculator: SizeCalculator,
         pipeline: Pipeline,
         fonts: FontLibrary,
+        output: Output,
         images_from_web: ImageFetcher,
         updates: UpdateService,
         logs: LogSession,
@@ -106,6 +108,7 @@ class MainWindow(QMainWindow):
         self._size_calculator = size_calculator
         self._pipeline = pipeline
         self._fonts = fonts
+        self._output = output
         self._images_from_web = images_from_web
         self._logs = logs
         self.resize(1440, 900)
@@ -136,7 +139,9 @@ class MainWindow(QMainWindow):
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
-        self.exporter = ExportController(self, prefs, ExportDialogs(prefs), fonts)
+        self.exporter = ExportController(
+            self, prefs, ExportDialogs(prefs, output.cut_files), fonts, output
+        )
         self.exporter.status.connect(self._status)
         self.exporter.warning.connect(self._warn)
         self.exporter.build.connect(self.builds.queue)
@@ -1158,7 +1163,7 @@ class MainWindow(QMainWindow):
         else:
             other = "landscape" if sh.orientation == "portrait" else "portrait"
             turned = replace(sh, orientation=other).layout(
-                [(m, 1) for m in lay.left_out], leave_out=True
+                self._output.packer, [(m, 1) for m in lay.left_out], leave_out=True
             )
             if not turned.left_out:
                 advice = (
@@ -1554,7 +1559,9 @@ class MainWindow(QMainWindow):
             return
         try:
             lay = sh.layout(
-                [(f.mini, f.entry.settings.copies) for f in ready], leave_out=True
+                self._output.packer,
+                [(f.mini, f.entry.settings.copies) for f in ready],
+                leave_out=True,
             )
         except ValueError as e:
             sc.clear()

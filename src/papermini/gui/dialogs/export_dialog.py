@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...output.sheet import cut_file_paths, default_cut_file
+from ...output.cut_file_writer import CutFileWriter
 from ...project.figure_entry import safe_name
 from ..preferences import Preferences
 
@@ -33,6 +33,7 @@ class ExportDialog(QDialog):
     def __init__(
         self,
         prefs: Preferences,
+        cut_files: CutFileWriter,
         folder: Path,
         title: str,
         pages: int,
@@ -41,6 +42,7 @@ class ExportDialog(QDialog):
     ):
         super().__init__(parent)
         self._prefs = prefs
+        self._cut_files = cut_files
         self.setWindowTitle("Export sheet")
         self.setObjectName("ExportDialog")
         self._pages, self._machine = max(1, pages), machine
@@ -117,7 +119,9 @@ class ExportDialog(QDialog):
 
     def cut_paths(self) -> list[Path]:
         pdf = self.pdf_path()
-        return cut_file_paths(default_cut_file(pdf), self._pages) if pdf else []
+        if not pdf:
+            return []
+        return self._cut_files.paths(self._cut_files.default_path(pdf), self._pages)
 
     def chosen(self) -> list[Path]:
         """Every file the export writes, with the boxes as they are ticked."""

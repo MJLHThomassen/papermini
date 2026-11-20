@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from papermini.output.svg import write_svgs
 from papermini.pipeline.token_framer import FIT_FREE
 from papermini.pipeline.token_info import TokenInfo
 from papermini.pipeline.token_renderer import PLATE
@@ -65,7 +64,7 @@ def test_a_printed_cut_line_lies_outside_the_ring(
 
 
 def test_the_token_text_follows_the_ring_and_numbers_each_copy(
-    fonts, tmp_path, build_token, transparent_figure
+    output, fonts, tmp_path, build_token, transparent_figure
 ):
     img = transparent_figure(tmp_path / "goblin.png")
     m = build_token(
@@ -87,7 +86,7 @@ def test_the_token_text_follows_the_ring_and_numbers_each_copy(
         letters[0].rot > 20 and letters[-1].rot < -20
     )  # (along the bottom, both ways)
     # numbered copies: a file each, each with its number
-    paths = write_svgs(m, tmp_path / "goblin.svg", fonts, 3)
+    paths = output.svg.write_copies(m, tmp_path / "goblin.svg", 3)
     assert [p.name for p in paths] == ["goblin-1.svg", "goblin-2.svg", "goblin-3.svg"]
     assert ">3</text>" in paths[2].read_text()
     plate = build_token(img, label="Goblin", token_text="label_number")

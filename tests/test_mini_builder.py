@@ -6,8 +6,6 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from papermini.output.sheet import pack, write_pdf
-from papermini.output.svg import read_svg, write_svg
 from papermini.pipeline.style import Style
 from papermini.pipeline.text_item import NUMBER_PLACEHOLDER
 from papermini.project.figure_settings import FigureSettings
@@ -40,7 +38,7 @@ def test_alpha_png_needs_no_model(tmp_path, pipeline_mini, params):
 
 
 def test_the_back_text_is_upside_down_and_defaults_to_the_label(
-    fonts, hero_figure, tmp_path, pipeline_mini, params, mask_options
+    output, hero_figure, tmp_path, pipeline_mini, params, mask_options
 ):
     img, mask = hero_figure
     prm = params(double_sided=True, back="text")
@@ -64,7 +62,7 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
     # default text is the label; round-trips through the SVG
     m2 = pipeline_mini(img, prm, mask_options(mask_path=mask), label="Hero")
     assert [t.text for t in m2.texts] == ["Hero"]
-    r = read_svg(write_svg(m, tmp_path / "hero.svg", fonts))
+    r = output.svg_reader.read(output.svg.write(m, tmp_path / "hero.svg"))
 
     def rounded(texts):
         return [
@@ -73,7 +71,7 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
         ]
 
     assert rounded(r.texts) == rounded(m.texts)
-    write_pdf(pack([(r, 1)]), tmp_path / "s.pdf", fonts)
+    output.pdf.write(output.packer.pack([(r, 1)]), tmp_path / "s.pdf")
 
 
 def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(pipeline, hero_figure):
