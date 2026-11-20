@@ -584,7 +584,9 @@ figure list` or `fix(sheet): keep the scale bar on the first page`.
 - **Project files.** Project files saved by 1.0 must keep opening in every 1.x
   version. From 1.0, renaming or removing an option, CLI flag or YAML key needs
   a migration, or must wait for 2.0. Before 1.0, no compatibility code is kept
-  (S12).
+  (S12). `ProjectStore` (`project/project_store.py`) loads, checks and saves
+  project files, and `tests/test_project_store.py` checks that saved projects
+  keep opening.
 - **The bug report form.** The app's *Report a problem* fills in fields of
   `.github/ISSUE_TEMPLATE/bug_report.yml` through the URL, by their ids:
   `version`, `os`, `runs-as` and `traceback`. Released versions rely on them.
