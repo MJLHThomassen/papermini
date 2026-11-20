@@ -71,7 +71,8 @@ src/papermini/       the package, one class per file (S15)
   gui/               the PySide6 desktop app, built on the core; the theme,
                      preferences, error handling and start-up
     widgets/         small reusable widgets
-    fields/          the input widgets of the settings panels
+    fields/          the fields of the settings panels, built from the options,
+                     and their input widgets
     panels/          the figure and sheet settings panels
     views/           the zoom, crop and mini views
     dialogs/         the dialogs and their pages
@@ -153,10 +154,8 @@ give it an `Enum`. Names can then be completed by editors and checked by ty.
 Avoid lists of positional tuples and one-letter codes that only a comment
 explains.
 
-*Example:* the field specs in `gui/panels/figure_fields.py` are tuples of
-`(field, label, kind, extra)`, where `kind` is a code such as `"f"` or `"col"`,
-explained in a long comment above `STEPS`. Build callbacks pass
-`(uid, key)` positionally through several methods.
+*Example:* build callbacks pass `(uid, key)` positionally through several
+methods.
 
 ### S5. Add a variant by adding an entry - SOLID (O)
 
@@ -166,9 +165,10 @@ not editing `if` chains in several modules. Code that needs to know about all
 variants reads them from that table.
 
 *Example:* the segmentation models are described in
-`pipeline/segmentation/segment.py`, but `gui/panels/figure_fields.py` lists them
-again in `MODELS` and in a tooltip, and the option's command-line help lists them
-a third time. Adding a model means editing all of them.
+`pipeline/segmentation/segment.py`, but `ModelField` in
+`gui/fields/model_field.py` lists them again in `MODELS`, and the option's
+tooltip and command-line help list them too. Adding a model means editing all
+of them.
 
 ### S6. A subclass keeps the promises of its base class - SOLID (L)
 
@@ -229,12 +229,16 @@ sync:
 
 - its field in `FigureSettings` (`project/figure_settings.py`) or
   `SheetSettings`, with an `Option` (`project/option.py`) that holds its
-  checks, label, help, tooltip and limits. `from_dict` checks each value
-  against its option, the tooltips of the settings panels come from it, and
-  `cli.py` builds its flag from it with `OptionFlags`
-  (`project/option_flags.py`), with the default in the help;
-- the GUI field in `gui/panels/figure_fields.py` (`SECTIONS`, which repeats the
-  option's label and widget range, and the visibility rules);
+  checks, label, help, tooltip and limits, and how its field in the settings
+  panel shows it, such as its step and the names of its choices. `from_dict`
+  checks each value against its option, the settings panels build its field
+  from it with `FieldFactory` (`gui/fields/field_factory.py`), and `cli.py`
+  builds its flag from it with `OptionFlags` (`project/option_flags.py`), with
+  the default in the help;
+- its place in the settings panel: its section in `SECTIONS`
+  (`gui/panels/figure_fields.py`) or `SheetPanel.SECTIONS`, and the rules for
+  when it is shown. A field that is not built from its option alone is listed
+  in `SPECIAL_FIELDS`;
 - the options table in `docs/reference.md`;
 - its entry in the settings guide there, with a comparison picture from
   `scripts/screenshots.py` when its values look different.
