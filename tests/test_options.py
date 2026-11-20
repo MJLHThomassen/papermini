@@ -319,7 +319,7 @@ def test_sheet_output_copies_and_preview_flags_skip_the_settings(sheet, tmp_path
 FIGURE_FLAGS_NOT_IN_THE_GUIDE: set[str] = set()
 
 # FigureSettings fields whose flag the table of papermini make options leaves out.
-FIGURE_FLAGS_NOT_IN_THE_MAKE_TABLE = {"label_color", "label_size_mm", "mask", "model"}
+FIGURE_FLAGS_NOT_IN_THE_MAKE_TABLE: set[str] = set()
 
 # SheetSettings fields that docs/reference.md names neither as a flag nor as a
 # project key.

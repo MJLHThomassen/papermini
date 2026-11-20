@@ -37,7 +37,8 @@ class SheetSettings:
     ).field("a4")
     paper_width_mm: float | None = Option(
         label="Width",
-        help="a custom paper's width (with --paper-height-mm)",
+        help=f"a custom paper's width, {CUSTOM_PAPER_MM[0]:g} to {CUSTOM_PAPER_MM[1]:g} mm, "
+        "with --paper-height-mm",
         tooltip="The width of a custom paper size, as it prints (50 to 1200 mm).",
         low=CUSTOM_PAPER_MM[0],
         high=CUSTOM_PAPER_MM[1],
@@ -46,7 +47,8 @@ class SheetSettings:
     ).field(None)
     paper_height_mm: float | None = Option(
         label="Height",
-        help="a custom paper's height",
+        help=f"a custom paper's height, {CUSTOM_PAPER_MM[0]:g} to {CUSTOM_PAPER_MM[1]:g} mm, "
+        "with --paper-width-mm",
         tooltip="The height of a custom paper size, as it prints (50 to 1200 mm).",
         low=CUSTOM_PAPER_MM[0],
         high=CUSTOM_PAPER_MM[1],
@@ -134,6 +136,7 @@ class SheetSettings:
         label="Mat",
         help="--cut machine: the cutting mat (12x12 or 12x24 inches); a note when "
         "the paper is bigger",
+        none_means="any size, no note",
         tooltip="The cutting mat you put the sheet on. papermini warns when the paper "
         "is\n"
         "bigger than the mat (turned either way). Any size: no warning.",
