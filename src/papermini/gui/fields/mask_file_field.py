@@ -5,7 +5,7 @@ from collections.abc import Callable
 from PySide6.QtWidgets import QFileDialog
 
 from ...project.option import Option
-from ...support import remote
+from ...support.image_files import ImageFiles
 from .edit_with_button import EditWithButton
 from .field import Field
 
@@ -28,7 +28,7 @@ class MaskFileField(Field):
 
     def _browse(self) -> None:
         f, _ = QFileDialog.getOpenFileName(
-            self._box, "Mask image (white = figure)", "", remote.IMAGE_FILTER
+            self._box, "Mask image (white = figure)", "", ImageFiles.FILTER
         )
         if f:
             self._box.edit.setText(f)

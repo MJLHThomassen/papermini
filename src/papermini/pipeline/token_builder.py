@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from ..support import cache
+from ..support.stage_caches import StageCaches
 from .adjustments import Adjustments
 from .bleed_painter import MAX_BLEED_MM
 from .cut_path import CutPath
@@ -40,11 +40,13 @@ class TokenBuilder:
         fonts: FontChecker,
         masker: FigureMasker,
         renderer: TokenRenderer,
+        caches: StageCaches,
     ):
         self._morph = morphology
         self._fonts = fonts
         self._masker = masker
         self._renderer = renderer
+        self._caches = caches
 
     def make(
         self,
@@ -86,7 +88,7 @@ class TokenBuilder:
         make = lambda: self._renderer.render(
             fm, o, adjust, bleed_mm, pad_mm, bool(label)
         )
-        token = cache.layouts.get_or_make(key, make) if use_cache else make()
+        token = self._caches.layouts.get_or_make(key, make) if use_cache else make()
         if o.curved and o.border_mm < token.ring_mm:
             log(
                 f"  {image_path.name}: note: the ring is {token.ring_mm:g} mm wide, the "

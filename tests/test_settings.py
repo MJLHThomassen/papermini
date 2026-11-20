@@ -24,7 +24,7 @@ def test_the_mask_model_needs_a_mask_image(pipeline, hero_figure):
 
 @pytest.mark.parametrize("kind", ["mini", "token"])
 def test_a_build_asks_before_it_downloads_a_model_and_reports_progress(
-    kind, hero_figure, fake_downloader
+    kind, hero_figure, fonts, fake_downloader
 ):
     """The download question and the progress callback reach the model downloads
     through every step of a build."""
@@ -40,7 +40,7 @@ def test_a_build_asks_before_it_downloads_a_model_and_reports_progress(
             np.uint8
         )
 
-    pipeline = Pipeline(fake_downloader, dark)
+    pipeline = Pipeline(fonts, fake_downloader, dark)
     img, _ = hero_figure
     s = FigureSettings(kind=kind, model="birefnet-lite")
     asked, seen = [], []

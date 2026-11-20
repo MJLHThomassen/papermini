@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from ...pipeline.segmentation import segment
-from ...pipeline.segmentation.cache_folder import CacheFolder
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
+from ...support.cache_folder import CacheFolder
 from .model_info import MB, _host, _label, licence_link, ui_log
 
 

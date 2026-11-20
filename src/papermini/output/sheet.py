@@ -12,12 +12,29 @@ from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from ..pipeline.mini import Mini
-from ..support import fonts
+from ..pipeline.style import FOLD_DASH_MM, FOLD_GAP_MM
+from ..pipeline.text_item import TEXT_BASELINE_DROP
+from ..support.font_library import FontLibrary
 from .placement import Placement
-from .sheet_layout import SheetLayout
+from .sheet_layout import (
+    BAR_ABOVE_MM,
+    BAR_END_TICK_MM,
+    BAR_LABEL,
+    BAR_LABEL_DROP_MM,
+    BAR_LABEL_GAP_MM,
+    BAR_MM,
+    BAR_TICK_MM,
+    BAR_TICK_STEP_MM,
+    BAR_TICK_WIDTH_MM,
+    BAR_WIDTH_MM,
+    INSTRUCTIONS_BASELINE_MM,
+    INSTRUCTIONS_LINE_MM,
+    TITLE_BASELINE_MM,
+    SheetLayout,
+)
 
 # paper sizes, portrait (width, height mm), and their names in the app
 PAPER = {
@@ -282,9 +299,12 @@ def pack(
     )
 
 
-def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
-    """The sheet as a PDF. Cut by machine: without cut lines but with alignment marks
-    (``write_cut_files`` writes the matching cut files)."""
+def write_pdf(
+    layout: SheetLayout, out: Path, fonts: FontLibrary, title: str = TITLE
+) -> Path:
+    """The sheet as a PDF, its pieces' text in their fonts from ``fonts``. Cut by
+    machine: without cut lines but with alignment marks (``write_cut_files`` writes the
+    matching cut files)."""
     from reportlab.lib.units import mm
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas
@@ -305,36 +325,46 @@ def write_pdf(layout: SheetLayout, out: Path, title: str = TITLE) -> Path:
             c.rect(X(x), Y(y + h), w * mm, h * mm, stroke=0, fill=1)
         # header
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(X(hx), Y(margin_mm + 4), title)
+        c.drawString(X(hx), Y(margin_mm + TITLE_BASELINE_MM), title)
         c.setFont("Helvetica", 7.5)
         for i, line in enumerate(layout.instructions()):
-            c.drawString(X(hx), Y(margin_mm + 8.5 + 3.4 * i), line)
+            c.drawString(
+                X(hx),
+                Y(margin_mm + INSTRUCTIONS_BASELINE_MM + INSTRUCTIONS_LINE_MM * i),
+                line,
+            )
         if layout.pages > 1:
             c.drawRightString(
                 X(layout.header_right),
-                Y(margin_mm + 4),
+                Y(margin_mm + TITLE_BASELINE_MM),
                 f"page {page + 1}/{layout.pages}",
             )
-        # 50 mm calibration bar
-        cy = margin_mm + layout.header_mm - 4
-        c.setLineWidth(0.4 * mm)
-        c.line(X(hx), Y(cy), X(hx + 50), Y(cy))
-        c.setLineWidth(0.2 * mm)
-        for t in range(0, 51, 10):
-            h = 1.6 if t % 50 == 0 else 1.0
+        # calibration bar
+        cy = margin_mm + layout.header_mm - BAR_ABOVE_MM
+        c.setLineWidth(BAR_WIDTH_MM * mm)
+        c.line(X(hx), Y(cy), X(hx + BAR_MM), Y(cy))
+        c.setLineWidth(BAR_TICK_WIDTH_MM * mm)
+        for t in range(0, BAR_MM + 1, BAR_TICK_STEP_MM):
+            h = BAR_END_TICK_MM if t % BAR_MM == 0 else BAR_TICK_MM
             c.line(X(hx + t), Y(cy - h), X(hx + t), Y(cy + h))
         c.setFont("Helvetica", 7)
-        c.drawString(X(hx + 52), Y(cy + 1), "50 mm")
+        c.drawString(
+            X(hx + (BAR_MM + BAR_LABEL_GAP_MM)), Y(cy + BAR_LABEL_DROP_MM), BAR_LABEL
+        )
 
         for p in layout.placements:
             if p.page == page:
-                _draw_mini(c, p, X, Y, mm, ImageReader, cut_line=not layout.machine)
+                _draw_mini(
+                    c, p, X, Y, mm, ImageReader, fonts, cut_line=not layout.machine
+                )
         c.showPage()
     c.save()
     return out
 
 
-def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) -> None:
+def _draw_mini(
+    c, p: Placement, X, Y, mm, ImageReader, fonts: FontLibrary, cut_line: bool = True
+) -> None:
     from reportlab.lib.colors import HexColor
 
     m, st = p.mini, p.mini.style
@@ -350,18 +380,18 @@ def _draw_mini(c, p: Placement, X, Y, mm, ImageReader, cut_line: bool = True) ->
     c.saveState()
     c.setStrokeColor(HexColor(st.fold_color))
     c.setLineWidth(st.fold_width_mm * mm)
-    c.setDash([1.2 * mm, 0.8 * mm])
+    c.setDash([FOLD_DASH_MM * mm, FOLD_GAP_MM * mm])
     for x0, x1, y in m.folds:
         c.line(X(p.x + x0), Y(p.y + y), X(p.x + x1), Y(p.y + y))
     c.restoreState()
     # labels, numbers and the back text
-    for t in m.text_items():
+    for t in m.text_items(fonts):
         c.saveState()
         c.setFillColor(HexColor(t.color))
         c.setFont(fonts.pdf_name(st.font, t.bold), t.size_mm * mm)
         c.translate(X(p.x + t.cx), Y(p.y + t.cy))
         c.rotate(-t.rot)
-        c.drawCentredString(0, -0.35 * t.size_mm * mm, t.text)
+        c.drawCentredString(0, -TEXT_BASELINE_DROP * t.size_mm * mm, t.text)
         c.restoreState()
     if not cut_line or not st.cut_line:
         return
@@ -471,22 +501,15 @@ def write_cut_files(
     return paths
 
 
-def _font(size_px: int, serif: bool = False, path=None):
-    names = (
-        ["times.ttf", "DejaVuSerif.ttf"] if serif else ["arial.ttf", "DejaVuSans.ttf"]
-    )
-    for name in ([str(path)] if path else []) + names:
-        try:
-            return ImageFont.truetype(name, size_px)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
 def write_previews(
-    layout: SheetLayout, out: Path, dpi: int = 100, title: str = TITLE
+    layout: SheetLayout,
+    out: Path,
+    fonts: FontLibrary,
+    dpi: int = 100,
+    title: str = TITLE,
 ) -> list[Path]:
-    """One PNG per page (``out`` or ``out-2.png`` ...) for a quick look."""
+    """One PNG per page (``out`` or ``out-2.png`` ...) for a quick look, the pieces'
+    text in their fonts from ``fonts``."""
     out = Path(out)
     s = dpi / 25.4
     pw, ph = layout.paper
@@ -497,19 +520,24 @@ def write_previews(
         d = ImageDraw.Draw(im)
         for x, y, w, h in layout.mark_rects():
             d.rectangle([x * s, y * s, (x + w) * s, (y + h) * s], fill="black")
-        d.text((hx * s, (margin_mm) * s), title, fill="black", font=_font(round(4 * s)))
+        d.text(
+            (hx * s, (margin_mm) * s),
+            title,
+            fill="black",
+            font=fonts.image_font(round(4 * s)),
+        )
         for i, line in enumerate(layout.instructions()):
             d.text(
-                (hx * s, (margin_mm + 6 + 3.4 * i) * s),
+                (hx * s, (margin_mm + 6 + INSTRUCTIONS_LINE_MM * i) * s),
                 line,
                 fill="black",
-                font=_font(round(2.6 * s)),
+                font=fonts.image_font(round(2.6 * s)),
             )
-        cy = (margin_mm + layout.header_mm - 4) * s
+        cy = (margin_mm + layout.header_mm - BAR_ABOVE_MM) * s
         d.line(
-            [(hx * s, cy), ((hx + 50) * s, cy)],
+            [(hx * s, cy), ((hx + BAR_MM) * s, cy)],
             fill="black",
-            width=max(1, round(0.4 * s)),
+            width=max(1, round(BAR_WIDTH_MM * s)),
         )
         for p in layout.placements:
             if p.page != page:
@@ -526,17 +554,15 @@ def write_previews(
                     [(ox + x0 * s, oy + y * s), (ox + x1 * s, oy + y * s)],
                     fill=m.style.fold_color,
                 )
-            for t in m.text_items():
+            for t in m.text_items(fonts):
                 if t.rot:  # (a quick look: upright text only)
                     continue
                 d.text(
                     (ox + t.cx * s, oy + t.cy * s),
                     t.text,
                     fill=t.color,
-                    font=_font(
-                        max(6, round(t.size_mm * s)),
-                        serif=True,
-                        path=fonts.file_for(m.style.font, t.bold),
+                    font=fonts.image_font(
+                        max(6, round(t.size_mm * s)), m.style.font, t.bold
                     ),
                     anchor="mm",
                 )

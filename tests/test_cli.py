@@ -250,9 +250,9 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys, transparent_figure):
 
 
 def test_sheet_takes_the_paper_size_and_orientation(
-    tmp_path, capsys, square_mini, media_box_mm
+    fonts, tmp_path, capsys, square_mini, media_box_mm
 ):
-    svg = write_svg(square_mini("goblin", 60, 90), tmp_path / "goblin.svg")
+    svg = write_svg(square_mini("goblin", 60, 90), tmp_path / "goblin.svg", fonts)
     for args, size, name in (
         (["--paper", "a3", "--orientation", "landscape"], (420, 297), "A3 landscape"),
         (

@@ -11,7 +11,7 @@ from ...pipeline.segmentation.cancelled import Cancelled
 from ...pipeline.segmentation.download_hooks import DownloadHooks
 from ...pipeline.segmentation.model_error import ModelError
 from ...project.settings import build_mini
-from ...support import log
+from ...support.log_session import LogSession
 from ..window.figure import Figure
 from .build_result import BuildResult
 from .job_signals import JobSignals
@@ -73,14 +73,14 @@ class BuildJob(QRunnable):
                     "Building %s failed: %s (%s)",
                     self.image.name,
                     e,
-                    log.settings_text(self.settings.to_dict(with_size=False)),
+                    LogSession.settings_text(self.settings.to_dict(with_size=False)),
                 )
             else:
                 msg = f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=3)}"
                 logger.exception(
                     "Building %s failed unexpectedly (%s)",
                     self.image.name,
-                    log.settings_text(self.settings.to_dict(with_size=False)),
+                    LogSession.settings_text(self.settings.to_dict(with_size=False)),
                 )
             self.sig.finished.emit(BuildResult(self.uid, self.key, error=msg))
         else:

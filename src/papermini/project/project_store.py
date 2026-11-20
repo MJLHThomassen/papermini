@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from ..support import remote
+from ..support.image_fetcher import ImageFetcher
+from ..support.image_files import ImageFiles
+from ..support.release import Release
 from .figure_entry import FigureEntry
 from .option import Option
 from .project import Project
@@ -35,8 +36,9 @@ class ProjectStore:
           - image: https://example.com/goblin.webp   # a link: downloaded once, then cached
     """
 
-    def __init__(self, size_calculator: SizeCalculator):
+    def __init__(self, size_calculator: SizeCalculator, images_from_web: ImageFetcher):
         self._size_calculator = size_calculator
+        self._images_from_web = images_from_web
         self._dumper = None  # the YAML dumper, made on the first save
 
     def load(self, path: Path) -> Project:
@@ -61,11 +63,11 @@ class ProjectStore:
             if "image" not in o:
                 raise ValueError(f"{path.name}: every figure needs an 'image'")
             src = o.pop("image")
-            source = str(src).strip() if remote.is_url(src) else None
+            source = str(src).strip() if ImageFetcher.is_url(src) else None
             image = (
-                remote.fetch_image(source)
+                self._images_from_web.fetch_image(source)
                 if source
-                else (base / remote.local_path(src)).resolve()
+                else (base / ImageFiles.local_path(src)).resolve()
             )
             if image.is_dir():
                 raise ValueError(
@@ -170,16 +172,11 @@ class ProjectStore:
             raise ValueError(
                 f"{name} {made_by} (project format {fmt}), and papermini {__version__} opens project format {_PROJECT_FORMAT}. Update papermini to open it."
             )
-        made, this = self._release(saved or ""), self._release(__version__)
+        made = Release.leading_version(str(saved or ""))
+        this = Release.leading_version(__version__)
         if made and this and made > this:
             return f". The project was made by papermini {saved}, which is newer than papermini {__version__}. Update papermini to open it."
         return ""
-
-    def _release(self, version: Any) -> tuple[int, int, int] | None:
-        """The leading MAJOR.MINOR.PATCH of a papermini version (a development version
-        counts as the release it leads up to), or None when it has none."""
-        m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", str(version).strip())
-        return (int(m[1]), int(m[2]), int(m[3])) if m else None
 
     def _make_dumper(self):
         import yaml

@@ -6,14 +6,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 from ...project.option import Option
-from ...support import fonts
+from ...support.font_library import FontLibrary
 from .combo_box import ComboBox
 from .field import Field
 
 
 class FontField(Field):
     """The font of a figure's text: the bundled fonts, each shown in itself, then the
-    fonts installed on this computer once they are known.
+    fonts installed on this computer once they are known, as ``fonts`` finds them.
 
     A font that is not listed is added. Once the installed fonts are known, it is marked
     as not on this computer.
@@ -21,7 +21,10 @@ class FontField(Field):
 
     MISSING = " (not on this computer)"
 
-    def __init__(self, option: Option, changed: Callable[..., None]) -> None:
+    def __init__(
+        self, option: Option, changed: Callable[..., None], fonts: FontLibrary
+    ) -> None:
+        self._fonts = fonts
         self._box = ComboBox()
         self._box.setMaxVisibleItems(16)
         self._installed: set[str] | None = None  # None until they are known
@@ -47,7 +50,7 @@ class FontField(Field):
     def set_installed(self, names: Iterable[str]) -> None:
         """List the fonts installed on this computer after the bundled ones."""
         current = self.value()
-        bundled = [f.name for f in fonts.bundled()]
+        bundled = [f.name for f in self._fonts.bundled()]
         while self._box.count() > len(bundled):
             self._box.removeItem(self._box.count() - 1)
         names = list(names)
@@ -65,5 +68,7 @@ class FontField(Field):
             from ..views.drawing import qt_family
 
             self._box.setItemData(
-                self._box.count() - 1, QFont(qt_family(name)), Qt.ItemDataRole.FontRole
+                self._box.count() - 1,
+                QFont(qt_family(name, self._fonts)),
+                Qt.ItemDataRole.FontRole,
             )

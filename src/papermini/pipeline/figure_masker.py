@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..support import cache
+from ..support.stage_caches import StageCaches
 from .figure_mask import FigureMask
 from .image_loader import ImageLoader
 from .mask_cleaner import MaskCleaner
@@ -27,11 +27,13 @@ class FigureMasker:
         remover: BackgroundRemover,
         cleaner: MaskCleaner,
         cancellation: Cancellation,
+        caches: StageCaches,
     ):
         self._images = images
         self._remover = remover
         self._cleaner = cleaner
         self._cancellation = cancellation
+        self._caches = caches
 
     def find(
         self,
@@ -50,8 +52,8 @@ class FigureMasker:
         model downloads, and hears its progress."""
         image_path = Path(image_path)
         stage = on_stage or (lambda *_: None)
-        fkey = cache.file_key(image_path)
-        im, data, rgb, transparent = cache.images.get_or_make(
+        fkey = StageCaches.file_key(image_path)
+        im, data, rgb, transparent = self._caches.images.get_or_make(
             fkey, lambda: self._images.load_pixels(image_path)
         )
         W, H = im.size
@@ -61,12 +63,12 @@ class FigureMasker:
         # disk)
         source, method = self._source(image_path, mask_options, transparent, log)
         raw_key = (fkey, source, box)
-        raw = cache.raw_masks.get(raw_key) if use_cache else None
+        raw = self._caches.raw_masks.get(raw_key) if use_cache else None
         if raw is None:
             raw = self._raw_mask(
                 im, data, box, method, mask_options, use_cache, stage, downloads
             )
-            raw = cache.raw_masks.put(raw_key, ReadOnly.array(raw))
+            raw = self._caches.raw_masks.put(raw_key, ReadOnly.array(raw))
 
         self._cancellation.check()
 
@@ -83,7 +85,7 @@ class FigureMasker:
             clean = self._cleaner.clean(raw, mask_options, stages)
         else:
             stages = None
-            clean = cache.clean_masks.get_or_make(
+            clean = self._caches.clean_masks.get_or_make(
                 clean_key,
                 lambda: ReadOnly.array(self._cleaner.clean(raw, mask_options)),
             )
@@ -103,7 +105,7 @@ class FigureMasker:
         found: "mask" (a mask file), "alpha" (the image's transparency) or the model
         that runs."""
         if mask_options.mask_path is not None:
-            source: tuple = ("mask",) + cache.file_key(mask_options.mask_path)
+            source: tuple = ("mask",) + StageCaches.file_key(mask_options.mask_path)
             method = "mask"
         else:
             model = mask_options.model
@@ -117,7 +119,7 @@ class FigureMasker:
             source = ("model", model)
             method = model
             if model.lower().endswith(".onnx") and Path(model).exists():
-                source += cache.file_key(model)
+                source += StageCaches.file_key(model)
         return source, method
 
     def _raw_mask(

@@ -11,7 +11,6 @@ from papermini.project.figure_entry import FigureEntry
 from papermini.project.figure_settings import FigureSettings
 from papermini.project.project import Project
 from papermini.project.sheet_settings import SheetSettings
-from papermini.support import remote
 
 
 def test_a_project_reads_back_as_it_was_saved(tmp_path, project_store):
@@ -294,7 +293,7 @@ def test_a_bad_table_names_the_file(tmp_path, project_store):
 
 
 def test_project_keeps_the_link_not_the_cached_file(
-    fake_web, tmp_path, figure_bytes, project_store
+    fake_web, tmp_path, figure_bytes, project_store, images_from_web
 ):
     url = "https://example.com/goblin.png"
     fake_web[url] = figure_bytes()
@@ -305,7 +304,7 @@ def test_project_keeps_the_link_not_the_cached_file(
     f = proj.figures[0]
     assert (
         f.source == url
-        and f.image == remote.cached_image(url)
+        and f.image == images_from_web.cached_image(url)
         and f.settings.strength == 50
     )
     assert f.display_name == "goblin"

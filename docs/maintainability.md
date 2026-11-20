@@ -244,7 +244,8 @@ sync:
 - its place in the settings panel: its section in `SECTIONS`
   (`gui/panels/figure_fields.py`) or `SheetPanel.SECTIONS`, and the rules for
   when it is shown. A field that is not built from its option alone is listed
-  in `SPECIAL_FIELDS`;
+  in `SPECIAL_FIELDS`, or added to it by `FigurePanel` when it needs a service,
+  as the font field needs the `FontLibrary`;
 - the options table in `docs/reference.md`;
 - its entry in the settings guide there, with a comparison picture from
   `scripts/screenshots.py` when its values look different.
@@ -561,7 +562,7 @@ The code in `scripts/` and `packaging/` is not exempt from this guide.
 
 ### R5. Updating stays safe
 
-- Never weaken the release signature check in `support/update.py`.
+- Never weaken the release signature check in `support/update_service.py`.
 - Never commit a private release key.
 - Try a change to updating with `just try-update` (a real build) or
   `just try-update-source`.

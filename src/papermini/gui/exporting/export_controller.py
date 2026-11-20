@@ -12,6 +12,7 @@ from ...output.png import write_pngs
 from ...output.sheet import PAPER, default_cut_file, write_cut_files, write_pdf
 from ...output.sheet_layout import SheetLayout
 from ...output.svg import write_svgs
+from ...support.font_library import FontLibrary
 from ..preferences import Preferences
 from ..views.drawing import print_sheet
 from ..window.figure import Figure
@@ -30,7 +31,7 @@ ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 class ExportController(QObject):
     """Exports the figures and the sheet, and prints the sheet, each once its
-    figures are built."""
+    figures are built. Their text is in its fonts from ``fonts``."""
 
     status = Signal(str)  # a message for the status bar
     warning = Signal(str)  # a problem to show the user
@@ -41,12 +42,14 @@ class ExportController(QObject):
         window: MainWindow,
         prefs: Preferences,
         dialogs: ExportDialogs,
+        fonts: FontLibrary,
         printers: Callable[[], QPrinter] | None = None,
     ):
         super().__init__(window)
         self._window = window
         self._prefs = prefs
         self._dialogs = dialogs
+        self._fonts = fonts
         self._printers = printers or self._high_resolution_printer
         self._pending: PendingExport | None = None
 
@@ -155,9 +158,13 @@ class ExportController(QObject):
         copies = fig.entry.settings.copies
         if fmt == "png":
             return write_pngs(
-                fig.mini, path.with_suffix(".png"), self._png_scale(), copies
+                fig.mini,
+                path.with_suffix(".png"),
+                self._png_scale(),
+                self._fonts,
+                copies,
             )
-        return write_svgs(fig.mini, path.with_suffix(".svg"), copies)
+        return write_svgs(fig.mini, path.with_suffix(".svg"), self._fonts, copies)
 
     def _png_scale(self) -> float:
         """Pixels per mm of an exported PNG, as the preferences set it (pixels per
@@ -195,7 +202,7 @@ class ExportController(QObject):
         )
         try:
             if pdf is not None:
-                write_pdf(lay, pdf, sh.title)
+                write_pdf(lay, pdf, self._fonts, sh.title)
             files = ([pdf] if pdf is not None else []) + (
                 write_cut_files(lay, cut_file, sh.cut_folds, sh.title)
                 if cut_file is not None
@@ -231,7 +238,7 @@ class ExportController(QObject):
             return
         if not self._paper_matches(printer, sh, lay):
             return
-        n = print_sheet(printer, lay, sh.title)
+        n = print_sheet(printer, lay, sh.title, self._fonts)
         name = printer.printerName() or "the printer"
         ui_log.info("Printed %d of %d page(s) on %s", n, lay.pages, name)
         if n:

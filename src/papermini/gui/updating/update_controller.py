@@ -9,8 +9,10 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QWidget
 
 from ... import __version__
-from ...support import update
+from ...support.log_session import LogSession
 from ...support.release import Release
+from ...support.update import RELEASES
+from ...support.update_service import UpdateService
 from ..dialogs.about_dialog import AboutDialog
 from ..preferences import Preferences
 from .available_update import AvailableUpdate
@@ -24,22 +26,30 @@ ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 DAY_S = 24 * 3600  # how long the daily check waits after the last one
 PROGRESS_EVERY_S = 0.1  # the shortest time between two reports of download progress
-RELEASES = f"https://github.com/{update.REPO}/releases"
 
 
 class UpdateController(QObject):
-    """Checks for, downloads and installs updates of papermini, and shows them in the
-    update bar and the About window."""
+    """Checks for, downloads and installs updates of papermini with ``updates``, and
+    shows them in the update bar and the About window, which shows the log of
+    ``logs``."""
 
     status = Signal(str)  # a message for the status bar
     stateChanged = Signal(object, object)  # an UpdateState and its payload
     # an UpdateState, its payload and who asked, from a worker thread
     _reported = Signal(object, object, str)
 
-    def __init__(self, window: QWidget, prefs: Preferences):
+    def __init__(
+        self,
+        window: QWidget,
+        prefs: Preferences,
+        updates: UpdateService,
+        logs: LogSession,
+    ):
         super().__init__(window)
         self._window = window
         self._prefs = prefs
+        self._updates = updates
+        self._logs = logs
         self.bar = UpdateBar()
         self.bar.releasePageRequested.connect(self.open_release_page)
         self.bar.actionRequested.connect(self._bar_action)
@@ -52,10 +62,11 @@ class UpdateController(QObject):
     # region checking and downloading
     def start_up(self) -> None:
         """Offer an update downloaded earlier, or look for one once a day."""
-        if update.install_dir() is None:  # run from source: no updates of its own
+        # run from source: no updates of its own
+        if self._updates.install_dir() is None:
             return
-        update.forget_old()
-        pending = update.pending()
+        self._updates.forget_old()
+        pending = self._updates.pending()
         if pending is not None:
             self._show_ready(ReadyUpdate(pending[0], pending[1], ""))
             return
@@ -89,14 +100,14 @@ class UpdateController(QObject):
 
     def _check_job(self, source: str, download: bool) -> None:  # on a worker thread
         try:
-            rel = update.latest_release()
+            rel = self._updates.latest_release()
         except Exception as e:  # noqa: BLE001 - always report back
             self._reported.emit(UpdateState.ERROR, str(e), source)
             return
-        if not update.is_newer(rel.version, __version__):
+        if not Release.is_newer(rel.version, __version__):
             self._reported.emit(UpdateState.LATEST, rel, source)
             return
-        why = update.unsupported()
+        why = self._updates.unsupported()
         if why is not None or not download:
             self._reported.emit(
                 UpdateState.AVAILABLE, AvailableUpdate(rel, why), source
@@ -117,7 +128,7 @@ class UpdateController(QObject):
 
         try:
             self._reported.emit(UpdateState.DOWNLOADING, rel, source)
-            app = update.download(
+            app = self._updates.download(
                 rel,
                 progress=progress,
                 step=lambda name: self._reported.emit(UpdateState(name), rel, source),
@@ -213,7 +224,7 @@ class UpdateController(QObject):
     def show_about(self) -> None:
         """Open the About window and start an update check for it, unless an update is
         already downloaded or a check is running."""
-        about = AboutDialog(self._window)
+        about = AboutDialog(self._logs, self._window)
         about.updateRequested.connect(self.download)
         about.releasePageRequested.connect(self.open_release_page)
         about.restartRequested.connect(self.restart)
@@ -248,7 +259,7 @@ class UpdateController(QObject):
             ", then restarting" if self._restart else "",
         )
         try:
-            update.install_on_exit(self._ready.app, restart=self._restart)
+            self._updates.install_on_exit(self._ready.app, restart=self._restart)
         except Exception:  # noqa: BLE001 - never block quitting
             update_log.exception("Could not install the update")
 

@@ -30,16 +30,17 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 # region isolation
 @pytest.fixture(autouse=True)
 def isolated_log(monkeypatch, tmp_path_factory):
-    """Every test gets an empty log folder, and leaves no log session, logger level or
-    error hook behind."""
-    from papermini.support import log
+    """Every test gets an empty log folder, and leaves no logger level or error hook
+    behind. The ``logs`` fixture stops its log session."""
+    from papermini.support import log_session
 
-    monkeypatch.setenv(log.LOG_ENV, str(tmp_path_factory.mktemp("papermini-logs")))
+    monkeypatch.setenv(
+        log_session.LOG_ENV, str(tmp_path_factory.mktemp("papermini-logs"))
+    )
     hooks = sys.excepthook, threading.excepthook
     yield
-    log.stop()
-    log.logger.setLevel(logging.NOTSET)
-    log.logger.propagate = True
+    log_session.logger.setLevel(logging.NOTSET)
+    log_session.logger.propagate = True
     sys.excepthook, threading.excepthook = hooks
 
 
@@ -60,17 +61,6 @@ def isolated_model_cache(monkeypatch, tmp_path_factory):
         raise AssertionError(f"tests must not use the network (tried {url})")
 
     monkeypatch.setattr(urllib.request, "urlopen", no_network)
-
-
-@pytest.fixture(autouse=True)
-def no_installed_fonts(monkeypatch):
-    """Tests see no installed fonts (only Times and the bundled ones): the system's font
-    folders are never scanned. Tests of the scan give ``fonts.font_dirs`` folders of their
-    own."""
-    from papermini.support import fonts
-
-    monkeypatch.setattr(fonts, "font_dirs", list)
-    monkeypatch.setattr(fonts, "_installed", None)
 
 
 # endregion
@@ -157,6 +147,42 @@ def wait(app):
 
 
 @pytest.fixture
+def fonts():
+    """Returns the fonts, without installed fonts (only Times and the bundled ones): the
+    system's font folders are never scanned."""
+    from papermini.support.font_library import FontLibrary
+
+    return FontLibrary(folders=[])
+
+
+@pytest.fixture
+def images_from_web():
+    """Returns the service that downloads images from links."""
+    from papermini.support.image_fetcher import ImageFetcher
+
+    return ImageFetcher()
+
+
+@pytest.fixture
+def updates():
+    """Returns the service that checks for and installs updates."""
+    from papermini.support.update_service import UpdateService
+
+    return UpdateService()
+
+
+@pytest.fixture
+def logs(updates):
+    """Returns the desktop app's log session, not yet started. It is stopped after the
+    test."""
+    from papermini.support.log_session import LogSession
+
+    logs = LogSession(updates)
+    yield logs
+    logs.stop()
+
+
+@pytest.fixture
 def size_calculator():
     """Returns the service that calculates size tables and figure sizes."""
     from papermini.project.size_calculator import SizeCalculator
@@ -165,25 +191,45 @@ def size_calculator():
 
 
 @pytest.fixture
-def project_store(size_calculator):
+def project_store(size_calculator, images_from_web):
     """Returns the service that loads and saves project files."""
     from papermini.project.project_store import ProjectStore
 
-    return ProjectStore(size_calculator)
+    return ProjectStore(size_calculator, images_from_web)
 
 
 @pytest.fixture
-def new_window(prefs, project_store, size_calculator, pipeline):
+def new_window(
+    prefs,
+    project_store,
+    size_calculator,
+    pipeline,
+    fonts,
+    images_from_web,
+    updates,
+    logs,
+):
     """Returns ``new_window(pipeline)``, which opens a main window with the ``prefs``
-    preferences and ``pipeline``, by default the ``pipeline`` fixture's. The windows
-    close after the test without asking to save."""
+    preferences, the services of the fixtures and ``pipeline``, by default the
+    ``pipeline`` fixture's. The windows close after the test without asking to save."""
     from papermini.gui.window.main_window import MainWindow
 
     made = []
     shared = pipeline
 
     def new_window(pipeline=shared):
-        made.append(MainWindow(prefs, project_store, size_calculator, pipeline))
+        made.append(
+            MainWindow(
+                prefs,
+                project_store,
+                size_calculator,
+                pipeline,
+                fonts,
+                images_from_web,
+                updates,
+                logs,
+            )
+        )
         return made[-1]
 
     yield new_window
@@ -334,12 +380,13 @@ def make_segmenter(request):
 
 
 @pytest.fixture
-def pipeline(downloader, make_segmenter):
+def pipeline(fonts, downloader, make_segmenter):
     """Returns the pipeline's services, wired as the entry points wire them, with the
-    ``downloader`` and ``make_segmenter`` fixtures' downloads and models."""
+    ``fonts``, ``downloader`` and ``make_segmenter`` fixtures' fonts, downloads and
+    models."""
     from papermini.pipeline.pipeline import Pipeline
 
-    return Pipeline(downloader, make_segmenter)
+    return Pipeline(fonts, downloader, make_segmenter)
 
 
 @pytest.fixture

@@ -5,8 +5,8 @@ import sys
 import threading
 from pathlib import Path
 
+from ...support.cache_folder import CacheFolder
 from . import segment
-from .cache_folder import CacheFolder
 from .cancellation import Cancellation
 from .download_hooks import DownloadHooks
 from .downloader import Downloader

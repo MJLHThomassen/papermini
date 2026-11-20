@@ -78,7 +78,7 @@ def test_build_asks_before_downloading(
 
     from papermini.gui.dialogs import cache_page
     from papermini.pipeline.segmentation import segment
-    from papermini.pipeline.segmentation.cache_folder import CacheFolder
+    from papermini.support.cache_folder import CacheFolder
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "plain.png")
     asked = []
@@ -135,14 +135,13 @@ def test_build_asks_before_downloading(
 
 
 def test_the_cache_page_clears_masks_images_and_everything(
-    app, model_cache, monkeypatch, pipeline
+    images_from_web, app, model_cache, monkeypatch, pipeline
 ):
     """The Models and cache page counts the masks and images from links, clears each,
     keeps the images open figures use, and Clear cache also deletes the models."""
     from papermini.gui.dialogs import cache_page
     from papermini.pipeline.segmentation import segment
-    from papermini.pipeline.segmentation.cache_folder import CacheFolder
-    from papermini.support import remote
+    from papermini.support.cache_folder import CacheFolder
 
     masks = pipeline.masks.folder()
     masks.mkdir(parents=True)
@@ -150,14 +149,17 @@ def test_the_cache_page_clears_masks_images_and_everything(
         (masks / f"m{i}.png").write_bytes(b"x" * 1000)
     images = []
     for key in ("aaa", "bbb"):
-        (remote._cache_dir() / key).mkdir(parents=True)
-        images.append(remote._cache_dir() / key / f"{key}.png")
+        (images_from_web.folder() / key).mkdir(parents=True)
+        images.append(images_from_web.folder() / key / f"{key}.png")
         images[-1].write_bytes(b"x" * 1000)
     model = pipeline.segmenters.path(segment.DEFAULT_MODEL)
     model.write_bytes(b"model")
 
     dlg = cache_page.CachePage(
-        pipeline.segmenters, pipeline.masks, in_use=lambda: [images[0]]
+        pipeline.segmenters,
+        pipeline.masks,
+        images_from_web,
+        in_use=lambda: [images[0]],
     )
     assert str(CacheFolder.path()) in dlg.folder.text()
     assert dlg.masks.state.text().startswith("3 masks")
@@ -205,7 +207,7 @@ def test_the_cache_page_scrolls_when_the_window_is_short(app, model_cache, new_w
     dlg.close()
 
 
-def test_the_model_licences_are_links(app, model_cache, pipeline):
+def test_the_model_licences_are_links(images_from_web, app, model_cache, pipeline):
     from papermini.gui.dialogs.cache_page import CachePage
     from papermini.gui.dialogs.download_dialog import DownloadDialog
     from papermini.pipeline.segmentation import segment
@@ -217,7 +219,7 @@ def test_the_model_licences_are_links(app, model_cache, pipeline):
         label = d.licence_note if segmenters.non_commercial(model) else d.body
         assert f'<a href="{spec["licence_url"]}">' in label.text()
         assert label.openExternalLinks()
-    dlg = CachePage(segmenters, pipeline.masks)
+    dlg = CachePage(segmenters, pipeline.masks, images_from_web)
     card = dlg.cards["birefnet"]
     assert (
         'href="https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE"'
@@ -227,7 +229,7 @@ def test_the_model_licences_are_links(app, model_cache, pipeline):
 
 
 def test_a_non_commercial_model_always_asks_to_accept_its_licence(
-    app, model_cache, pipeline, wait
+    images_from_web, app, model_cache, pipeline, wait
 ):
     """RMBG-1.4 only downloads once the user accepts it is for non-commercial use, also
     from the Models and cache page (which otherwise downloads at once); BiRefNet just
@@ -247,12 +249,12 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(
     assert wait(lambda: d.result() == QDialog.Accepted, 10)
     d = DownloadDialog("birefnet-lite", segmenters)
     assert d.accept_licence is None and d.licence_note is None and d.btn_go.isEnabled()
-    card = CachePage(segmenters, masks).cards["rmbg-1.4"]
+    card = CachePage(segmenters, masks, images_from_web).cards["rmbg-1.4"]
     assert card.licence.objectName() == "LicenceNote"
     assert "responsible for not using it commercially" in card.licence.toolTip()
-    assert CachePage(segmenters, masks).cards["birefnet"].licence.objectName() == (
-        "Muted"
-    )
+    assert CachePage(segmenters, masks, images_from_web).cards[
+        "birefnet"
+    ].licence.objectName() == ("Muted")
 
 
 def test_the_settings_show_the_licence_of_the_model_in_use(

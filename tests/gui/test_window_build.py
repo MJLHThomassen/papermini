@@ -100,7 +100,7 @@ def test_a_bad_model_reports_an_error_and_the_figure_recovers(
 
 
 def test_source_view_shows_the_adjusted_picture_without_running_the_model(
-    app, tmp_path, wait, new_window, monkeypatch
+    fonts, app, tmp_path, wait, new_window, monkeypatch
 ):
     """The Source view follows the color sliders (a preview at the original's size),
     and a color change rebuilds the miniature from the cached mask: the model does not
@@ -122,7 +122,7 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
 
         return run
 
-    w = new_window(Pipeline(make_segmenter=counting_model))
+    w = new_window(Pipeline(fonts, make_segmenter=counting_model))
     w.add_images([tmp_path / "a.png"])
     fig = w.current()
     assert wait(lambda: fig.up_to_date), fig.error
@@ -187,7 +187,7 @@ class FakeRunOptions:
     terminate = False
 
 
-def _run_models_on(monkeypatch, session):
+def _run_models_on(fonts, monkeypatch, session):
     """Returns a pipeline that runs the ONNX models through the real segmenter on
     ``session``, a fake onnxruntime session class."""
     from papermini.pipeline.pipeline import Pipeline
@@ -197,11 +197,18 @@ def _run_models_on(monkeypatch, session):
         RunOptions=FakeRunOptions,
     )
     monkeypatch.setitem(sys.modules, "onnxruntime", onnxruntime)
-    return Pipeline()
+    return Pipeline(fonts)
 
 
 def test_background_removal_shows_progress_and_can_be_cancelled(
-    app, tmp_path, monkeypatch, new_window, wait, crop_view_dimmed, crop_view_marks
+    fonts,
+    app,
+    tmp_path,
+    monkeypatch,
+    new_window,
+    wait,
+    crop_view_dimmed,
+    crop_view_marks,
 ):
     """A running model shows a card with Cancel on the dimmed image; Cancel really stops
     it and nothing restarts on its own; Run again does. A new crop stops the old run."""
@@ -209,7 +216,7 @@ def test_background_removal_shows_progress_and_can_be_cancelled(
 
     from papermini.pipeline.segmentation import segment
 
-    pipeline = _run_models_on(monkeypatch, SlowSegmenter)
+    pipeline = _run_models_on(fonts, monkeypatch, SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
     SlowSegmenter.started = threading.Event()
     im = np.full((400, 300, 3), 255, np.uint8)
@@ -271,7 +278,7 @@ class SlowLoadSegmenter:
 
 
 def test_cancel_works_while_the_model_loads(
-    app, tmp_path, monkeypatch, wait, new_window
+    fonts, app, tmp_path, monkeypatch, wait, new_window
 ):
     """Loading a model can take longer than running it (BiRefNet-lite: ~10 s). Cancel
     then marks the figure cancelled at once and the model never runs; other settings
@@ -289,7 +296,7 @@ def test_cancel_works_while_the_model_loads(
     im = np.full((400, 300, 3), 255, np.uint8)
     cv2.circle(im, (150, 200), 80, (40, 40, 40), -1)
     Image.fromarray(im).save(tmp_path / "a.png")
-    w = new_window(Pipeline(make_segmenter=SlowLoadSegmenter))
+    w = new_window(Pipeline(fonts, make_segmenter=SlowLoadSegmenter))
     try:
         w.add_images([tmp_path / "a.png"])
         fig = w.current()
@@ -321,7 +328,7 @@ def test_cancel_works_while_the_model_loads(
 
 
 def test_a_new_image_waits_for_a_running_model_with_cancel(
-    app, tmp_path, monkeypatch, new_window, wait, crop_view_dimmed
+    fonts, app, tmp_path, monkeypatch, new_window, wait, crop_view_dimmed
 ):
     """An image added while another figure's model runs waits for that run: the card
     says so, and Cancel stops that run so the new image goes next."""
@@ -329,7 +336,7 @@ def test_a_new_image_waits_for_a_running_model_with_cancel(
 
     from papermini.gui.widgets.figure_delegate import SUBTITLE_ROLE
 
-    pipeline = _run_models_on(monkeypatch, SlowSegmenter)
+    pipeline = _run_models_on(fonts, monkeypatch, SlowSegmenter)
     SlowSegmenter.block, SlowSegmenter.calls = True, 0
     SlowSegmenter.started = threading.Event()
     im = np.full((400, 300, 3), 255, np.uint8)

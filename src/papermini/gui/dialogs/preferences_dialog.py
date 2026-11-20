@@ -24,7 +24,8 @@ from ...pipeline.segmentation.mask_store import MaskStore
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from ...project import sizes
 from ...project.size_calculator import SizeCalculator
-from ...support import log
+from ...support.image_fetcher import ImageFetcher
+from ...support.log_session import LogSession
 from .. import errors
 from ..fields.spin_box import SpinBox
 from ..preferences import Preferences
@@ -60,11 +61,14 @@ class PreferencesDialog(QDialog):
         in_use: Callable[[], list[Path]],
         segmenters: SegmenterRegistry,
         masks: MaskStore,
+        images_from_web: ImageFetcher,
+        logs: LogSession,
         page: str = "sizes",
         parent=None,
     ):
         super().__init__(parent)
         self._prefs = prefs
+        self._logs = logs
         self.setWindowTitle("Preferences")
         self.setObjectName("PreferencesDialog")
         self.setSizeGripEnabled(True)
@@ -78,7 +82,7 @@ class PreferencesDialog(QDialog):
         self.nav.setFixedWidth(150)
         self.stack = QStackedWidget()
         self.sizes = SizesPage(prefs, size_calculator, table)
-        self.cache = CachePage(segmenters, masks, in_use=in_use)
+        self.cache = CachePage(segmenters, masks, images_from_web, in_use=in_use)
         self.cache.changed.connect(self.modelsChanged)
         pages = (
             self.sizes,
@@ -238,11 +242,11 @@ class PreferencesDialog(QDialog):
 
     def _logging(self) -> QWidget:
         w, v = self._page("Logging")
-        on = log.session() is not None
+        on = self._logs.session() is not None
         self.detailed_log = QCheckBox("Detailed log")
-        self.detailed_log.setChecked(log.detailed())
+        self.detailed_log.setChecked(self._logs.detailed())
         self.detailed_log.setEnabled(on)
-        self.detailed_log.toggled.connect(log.set_detailed)
+        self.detailed_log.toggled.connect(self._logs.set_detailed)
         v.addWidget(self.detailed_log)
         v.addWidget(
             _hint(
@@ -255,7 +259,7 @@ class PreferencesDialog(QDialog):
         folder = QPushButton("Open log folder")
         folder.setEnabled(on)
         folder.setCursor(Qt.PointingHandCursor)
-        folder.clicked.connect(errors.open_log_folder)
+        folder.clicked.connect(lambda: errors.open_log_folder(self._logs))
         row = QHBoxLayout()
         row.addWidget(folder)
         row.addStretch(1)

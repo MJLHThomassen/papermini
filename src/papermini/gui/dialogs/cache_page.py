@@ -15,10 +15,10 @@ from PySide6.QtWidgets import (
 )
 
 from ...pipeline.segmentation import segment
-from ...pipeline.segmentation.cache_folder import CacheFolder
 from ...pipeline.segmentation.mask_store import MaskStore
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
-from ...support import remote
+from ...support.cache_folder import CacheFolder
+from ...support.image_fetcher import ImageFetcher
 from .cache_card import CacheCard
 from .download_dialog import DownloadDialog
 from .model_card import ModelCard
@@ -46,8 +46,8 @@ class CachePage(QWidget):
     background-removal models are downloaded (with actions on them), and papermini's
     other cached files (masks, images from links), which it can clear. The content
     scrolls when the window is too small for it. ``segmenters`` and ``masks`` keep the
-    models and masks. ``in_use()`` gives the image files of the open figures, which
-    clearing keeps."""
+    models and masks, ``images_from_web`` the images downloaded from links.
+    ``in_use()`` gives the image files of the open figures, which clearing keeps."""
 
     changed = Signal(str)  # a model was downloaded or deleted
 
@@ -55,12 +55,14 @@ class CachePage(QWidget):
         self,
         segmenters: SegmenterRegistry,
         masks: MaskStore,
+        images_from_web: ImageFetcher,
         parent=None,
         in_use=lambda: (),
     ):
         super().__init__(parent)
         self._segmenters = segmenters
         self._masks = masks
+        self._images_from_web = images_from_web
         self.in_use = in_use
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -183,7 +185,7 @@ class CachePage(QWidget):
 
     def _kept(self) -> list:
         """The downloaded images that open figures use."""
-        folder = remote.cached_images()
+        folder = self._images_from_web.cached_images()
         use = {str(p) for p in self.in_use()}
         return [p for p in folder if str(p) in use]
 
@@ -195,7 +197,7 @@ class CachePage(QWidget):
             else "No masks",
             bool(masks),
         )
-        images, kept = remote.cached_images(), self._kept()
+        images, kept = self._images_from_web.cached_images(), self._kept()
         text = (
             f"{_count(len(images), 'image', 'images')} · {_size(images)}"
             if images
@@ -220,7 +222,7 @@ class CachePage(QWidget):
         files = (
             [self._segmenters.path(m) for m in models]
             + self._masks.files()
-            + [p for p in remote.cached_images() if str(p) not in kept]
+            + [p for p in self._images_from_web.cached_images() if str(p) not in kept]
         )
         ok = QMessageBox.question(
             self,
@@ -242,7 +244,7 @@ class CachePage(QWidget):
             except OSError as e:
                 failed.append(f"{self._segmenters.path(m).name}: {e}")
         self._masks.clear()
-        remote.clear_images(keep=self._kept())
+        self._images_from_web.clear_images(keep=self._kept())
         for card in self.cards.values():
             card.refresh()
         self.refresh_cache()
@@ -260,6 +262,7 @@ class CachePage(QWidget):
 
     def clear_images(self):
         ui_log.info(
-            "Cleared %d downloaded image(s)", remote.clear_images(keep=self._kept())
+            "Cleared %d downloaded image(s)",
+            self._images_from_web.clear_images(keep=self._kept()),
         )
         self.refresh_cache()

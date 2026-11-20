@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from .cache_folder import CacheFolder
+from ...support.cache_folder import CacheFolder
 
 
 class MaskStore:

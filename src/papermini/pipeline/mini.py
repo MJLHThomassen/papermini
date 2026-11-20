@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
@@ -11,6 +12,9 @@ from .style import Style
 from .text_fitter import TextFitter
 from .text_item import NUMBER_PLACEHOLDER, TextItem
 from .token_info import TokenInfo
+
+if TYPE_CHECKING:
+    from ..support.font_library import FontLibrary
 
 TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
 
@@ -73,15 +77,15 @@ class Mini:
             return self.token.text in ("number", "label_number")
         return self.number_box is not None or any(s != "label" for s in self.tab_shows)
 
-    def text_items(self) -> list[TextItem]:
+    def text_items(self, fonts: FontLibrary) -> list[TextItem]:
         """Every text on the miniature: the tab labels and numbers, the back text and the
-        back side's number. On a tab showing both, the number goes above the label (on
-        the fold's side), as large as fits."""
+        back side's number, sized in the fonts of ``fonts``. On a tab showing both, the
+        number goes above the label (on the fold's side), as large as fits."""
         st = self.style
         if self.token is not None:
-            return self.token.text_items(self.label, self.number, st.font) + list(
-                self.extra
-            )
+            return self.token.text_items(
+                self.label, self.number, st.font, fonts
+            ) + list(self.extra)
         num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
         room_w, room_h = self.tab_room
         items: list[TextItem] = []
@@ -103,7 +107,7 @@ class Mini:
                         cx,
                         cy,
                         rot,
-                        TextFitter.number_size(num, room_w, room_h, st.font),
+                        TextFitter.number_size(fonts, num, room_w, room_h, st.font),
                         st.label_color,
                         True,
                     )
@@ -111,7 +115,10 @@ class Mini:
             elif number:
                 ls, gap = self.label_size_mm, 0.15 * self.label_size_mm
                 ns = max(
-                    ls, TextFitter.number_size(num, room_w, room_h - ls - gap, st.font)
+                    ls,
+                    TextFitter.number_size(
+                        fonts, num, room_w, room_h - ls - gap, st.font
+                    ),
                 )
                 block = ns + gap + ls
                 up = (
@@ -150,7 +157,7 @@ class Mini:
                     cx,
                     cy,
                     180.0,
-                    TextFitter.number_size(num, w, h, st.font),
+                    TextFitter.number_size(fonts, num, w, h, st.font),
                     st.back_text_color,
                     True,
                 )

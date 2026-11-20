@@ -11,7 +11,7 @@ pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
 def test_images_are_added_from_links_paste_and_browser_drops(
-    app, monkeypatch, tmp_path, new_window, wait, fake_web
+    images_from_web, app, monkeypatch, tmp_path, new_window, wait, fake_web
 ):
     import io
     from pathlib import Path
@@ -20,7 +20,6 @@ def test_images_are_added_from_links_paste_and_browser_drops(
 
     from papermini.gui.window import main_window
     from papermini.gui.window.main_window import MainWindow
-    from papermini.support import remote
 
     buf = io.BytesIO()
     Image.new("RGBA", (200, 300), (200, 40, 30, 255)).save(buf, "WEBP")
@@ -34,7 +33,9 @@ def test_images_are_added_from_links_paste_and_browser_drops(
     w.add_links([url])  # downloads in the background
     assert wait(lambda: len(w.figures) == 1)
     fig = w.figures[0]
-    assert fig.entry.source == url and fig.entry.image == remote.cached_image(url)
+    assert fig.entry.source == url and fig.entry.image == images_from_web.cached_image(
+        url
+    )
     assert w.list.item(0).toolTip() == url and w.list.item(0).text() == "goblin"
 
     w.add_links(["https://example.com/gone.png"])

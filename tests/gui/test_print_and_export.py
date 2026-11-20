@@ -11,12 +11,14 @@ pytest.importorskip("PySide6")
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_the_print_is_true_to_size_and_follows_the_page_range(app, square_mini):
-    """The printed sheet must be exactly to scale: its 50 mm bar is 50 mm on paper."""
+def test_the_print_is_true_to_size_and_follows_the_page_range(fonts, app, square_mini):
+    """The printed sheet must be exactly to scale: its calibration bar is as long on
+    paper as its label says."""
     from PySide6.QtGui import QColor, QImage
 
     from papermini.gui.views.drawing import print_sheet
     from papermini.output.sheet import pack
+    from papermini.output.sheet_layout import BAR_ABOVE_MM, BAR_MM
 
     class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
         def __init__(self, first=0, last=0):
@@ -43,20 +45,20 @@ def test_the_print_is_true_to_size_and_follows_the_page_range(app, square_mini):
     lay = pack([(m, 30)], "a4", 12, 7)
     assert lay.pages > 1
     pr = ImagePrinter()
-    assert print_sheet(pr, lay, "test") == lay.pages == pr.pages
+    assert print_sheet(pr, lay, "test", fonts) == lay.pages == pr.pages
     k = 100 / 25.4
-    y = round((12 + lay.header_mm - 4) * k)  # the scale bar's row
+    y = round((12 + lay.header_mm - BAR_ABOVE_MM) * k)  # the scale bar's row
     dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
     end = next(
         a for a, b in zip(dark, dark[1:] + [None]) if b != a + 1
     )  # the bar alone,
     assert (
-        abs(dark[0] - 12 * k) <= 2 and abs(end - 62 * k) <= 2
+        abs(dark[0] - 12 * k) <= 2 and abs(end - (12 + BAR_MM) * k) <= 2
     )  # not the "50 mm" next to it
     assert QColor(pr.pixel(2, 2)).lightness() > 250  # white paper from the very corner
 
     pr = ImagePrinter(2, 2)  # "pages 2 to 2" in the dialog
-    assert print_sheet(pr, lay, "test") == 1 and pr.pages == 1
+    assert print_sheet(pr, lay, "test", fonts) == 1 and pr.pages == 1
 
 
 def test_the_print_button_prints_the_sheet(
@@ -655,7 +657,7 @@ def test_the_print_uses_the_sheets_named_paper(built_window, modal, wait):
 
 
 def test_the_export_controller_prints_on_a_printer_from_its_factory(
-    built_window, prefs, tmp_path
+    fonts, built_window, prefs, tmp_path
 ):
     """The controller prints with the dialogs and the printer factory it is given."""
     from PySide6.QtPrintSupport import QPrinter
@@ -677,7 +679,7 @@ def test_the_export_controller_prints_on_a_printer_from_its_factory(
 
     sent = []
     exporter = ExportController(
-        built_window, prefs, PrintEverything(prefs), pdf_printer
+        built_window, prefs, PrintEverything(prefs), fonts, pdf_printer
     )
     exporter.status.connect(sent.append)
     exporter.print_sheet()

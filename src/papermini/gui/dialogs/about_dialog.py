@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from ... import __version__
-from ...support import fonts
+from ...support.font_library import FontLibrary
+from ...support.log_session import LogSession
 from .. import theme
 from ..updating.update_state import UpdateState
 
@@ -31,8 +32,9 @@ class AboutDialog(QDialog):
     restartRequested = Signal()
     checkRequested = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, logs: LogSession, parent=None):
         super().__init__(parent)
+        self._logs = logs
         self.setWindowTitle("About papermini")
         self.setObjectName("AboutDialog")
         v = QVBoxLayout(self)
@@ -104,7 +106,7 @@ class AboutDialog(QDialog):
     def _font_note() -> str:
         """Name the fonts that come with papermini and their licence, with a link to
         their folder."""
-        names = [f.name for f in fonts.bundled() if f.regular is not None]
+        names = list(FontLibrary.BUNDLED)
         listed = ", ".join(names[:-1]) + " and " + names[-1]
         return (
             f"The fonts {html.escape(listed)} come with papermini. They are free fonts "
@@ -116,25 +118,23 @@ class AboutDialog(QDialog):
     @staticmethod
     def _open_font_folder(_link: str = "") -> None:
         """Open the folder of the fonts that come with papermini and their licences."""
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(fonts.HERE)))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(FontLibrary.FOLDER)))
 
-    @staticmethod
-    def _log_label() -> QLabel:
+    def _log_label(self) -> QLabel:
         """Where this session's log is, as a link that opens the log folder."""
-        from ...support import log
         from ..errors import open_log_folder
 
-        s = log.session()
+        s = self._logs.session()
         if s is None:
             label = QLabel("papermini could not write a log this time.")
         else:
-            folder = html.escape(log.redact(str(s.log.parent)))
+            folder = html.escape(LogSession.redact(str(s.log.parent)))
             label = QLabel(
                 f"Log: <a href='#'>{folder}</a><br>"
                 f"<span style='font-size:small'>{html.escape(s.log.name)}</span>"
             )
             label.setTextFormat(Qt.RichText)
-            label.linkActivated.connect(lambda _: open_log_folder())
+            label.linkActivated.connect(lambda _: open_log_folder(self._logs))
             label.setToolTip("Open the log folder")
         label.setWordWrap(True)
         label.setFixedWidth(400)
