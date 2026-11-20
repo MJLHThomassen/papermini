@@ -1,8 +1,11 @@
 """Characterisation tests of the options: every command-line flag with its default,
 the setting each flag fills in, and where docs/reference.md describes each setting.
 They record today's behaviour, gaps included, so that a refactor of the options can't
-drop or rename one unnoticed."""
+drop or rename one unnoticed. The reference is also checked against the options: the
+label, default and choices it gives each setting."""
 
+import argparse
+import itertools
 import re
 from dataclasses import fields
 from pathlib import Path
@@ -12,6 +15,7 @@ import pytest
 from papermini import cli
 from papermini.output.svg import write_svg
 from papermini.project.figure_settings import FIGURE_OPTIONS, FigureSettings
+from papermini.project.option_flags import OptionFlags
 from papermini.project.sheet_settings import SheetSettings
 
 REFERENCE = Path(__file__).parents[1] / "docs" / "reference.md"
@@ -365,6 +369,226 @@ def test_each_figure_flag_is_in_the_make_options_table(reference, name):
 def test_each_sheet_setting_is_in_the_reference(reference, name):
     described = _names(reference, _flag(name)) or f"`{name}`" in reference
     assert described == (name not in SHEET_FIELDS_NOT_IN_THE_REFERENCE)
+
+
+# endregion
+
+# region reference against the options
+
+# Settings guide entries, by heading and first flag, about a control of the app that
+# is not an option of its own.
+GUIDE_ENTRIES_WITHOUT_AN_OPTION = {'Print a label: --label ""'}
+
+# Settings guide entries, by heading and first flag, whose heading is not the label of
+# their option. The headings are what the app shows: the token's field for the label,
+# and the figure card's control for the copies, whose option has no label.
+GUIDE_HEADINGS_NOT_THE_LABEL = {"Label: --label", "Amount: papermini sheet --copies"}
+
+# The sections of docs/reference.md that hold each command's table of options, and the
+# settings the command builds its flags from.
+COMMAND_TABLES = {
+    "make": ("### `papermini make", "### `papermini sheet", FigureSettings),
+    "sheet": ("### `papermini sheet", "### `papermini batch", SheetSettings),
+    "batch": ("### `papermini batch", "## Model licence", SheetSettings),
+}
+
+# Flags named after a setting that the command builds without the setting's option.
+COMMAND_FLAGS_WITHOUT_THEIR_OPTION = {("sheet", "output")}
+
+# the type of a settings dataclass
+Settings = type[FigureSettings] | type[SheetSettings]
+
+# How the help of each settings' flags names a default.
+SHOWN: dict[Settings, OptionFlags] = {
+    settings: OptionFlags(argparse.ArgumentParser(), settings)
+    for settings in (FigureSettings, SheetSettings)
+}
+
+_CODE = re.compile(r"`([^`]*)`")
+
+
+def _setting(settings: Settings, code: str) -> str:
+    """Return the setting that ``code``, a flag or project key and what follows it,
+    names. A flag --no-x turns off the setting x when there is no setting no_x."""
+    word = re.sub(r"^papermini \w+ ", "", code).split()[0]
+    name = word.lstrip("-").replace("-", "_")
+    options = settings.options()
+    if name not in options and name.startswith("no_") and name[3:] in options:
+        return name[3:]
+    return name
+
+
+def _settings_of(settings: Settings, codes: list[str]) -> list[str]:
+    """Return the settings that ``codes`` name, each once, in order."""
+    return list(dict.fromkeys(_setting(settings, code) for code in codes))
+
+
+def _gives(text: str, default: str) -> bool:
+    """Whether ``text`` gives ``default``, perhaps with a note in brackets after it."""
+    return text == default or (text.startswith(f"{default} (") and text.endswith(")"))
+
+
+def _guide_entries() -> list[tuple[Settings, str, str]]:
+    """Return the settings, heading and flag line of each settings guide entry."""
+    reference = REFERENCE.read_text(encoding="utf-8")
+    lines = _section(reference, "## Settings guide", "\n## Commands").splitlines()
+    settings: Settings = FigureSettings
+    entries = []
+    for line, after in itertools.pairwise(lines):
+        if line.startswith("### Step 3"):
+            settings = SheetSettings
+        if line.startswith("##### "):
+            entries.append((settings, line.removeprefix("##### "), after))
+    return entries
+
+
+def _guide_id(entry: tuple[Settings, str, str]) -> str:
+    _, heading, line = entry
+    codes = _CODE.findall(line)
+    return f"{heading}: {codes[0] if codes else ''}"
+
+
+def _guide_settings(entry: tuple[Settings, str, str]) -> list[str]:
+    settings, _, line = entry
+    return _settings_of(settings, _CODE.findall(line.split(" [")[0]))
+
+
+GUIDE_ENTRIES = [
+    e for e in _guide_entries() if _guide_id(e) not in GUIDE_ENTRIES_WITHOUT_AN_OPTION
+]
+
+
+@pytest.mark.parametrize("entry", GUIDE_ENTRIES, ids=_guide_id)
+def test_each_guide_heading_is_the_label_of_its_options(entry):
+    settings, heading, _ = entry
+    options = settings.options()
+    labels = [
+        options[name].label if name in options else f"(no setting {name})"
+        for name in _guide_settings(entry)
+    ]
+    assert (" and ".join(labels) == heading) == (
+        _guide_id(entry) not in GUIDE_HEADINGS_NOT_THE_LABEL
+    ), f"{heading!r}; the option's label is {' and '.join(labels)!r}"
+
+
+@pytest.mark.parametrize(
+    "entry", [e for e in GUIDE_ENTRIES if len(_guide_settings(e)) == 1], ids=_guide_id
+)
+def test_each_guide_entry_gives_the_default_of_its_option(entry):
+    settings, _, line = entry
+    [name] = _guide_settings(entry)
+    expected = SHOWN[settings].default_text(name)
+    given = re.search(r" \[(.*)\]\\?$", line)
+    assert given is not None, f"no default; the help gives [{expected}]"
+    assert _gives(given[1], expected), f"[{given[1]}]; the help gives [{expected}]"
+
+
+def _choice_lists() -> list[tuple[Settings, str, str]]:
+    """Return the settings, flag and choices of each choice list, such as a|b, that
+    docs/reference.md gives the flag of a setting."""
+    found = []
+    for code in _CODE.findall(REFERENCE.read_text(encoding="utf-8")):
+        listed = re.fullmatch(r"(?:papermini (\w+) )?(--[\w-]+) (\S+\|\S+)", code)
+        if listed is None:
+            continue
+        command, flag, choices = listed.groups()
+        candidates = [SheetSettings] if command == "sheet" else SHOWN
+        for settings in candidates:
+            if _setting(settings, flag) in settings.options():
+                found.append((settings, flag, choices))
+                break
+    return found
+
+
+@pytest.mark.parametrize(
+    ("settings", "flag", "listed"),
+    _choice_lists(),
+    ids=lambda value: getattr(value, "__name__", value),
+)
+def test_each_choice_list_is_the_choices_of_its_option(settings, flag, listed):
+    option = settings.options()[_setting(settings, flag)]
+    assert listed.split("|") == [str(choice) for choice in option.choices]
+
+
+def _table_rows() -> list[tuple[str, str, str, str]]:
+    """Return the command, flags, defaults and meaning of each row of each command's
+    table of options."""
+    reference = REFERENCE.read_text(encoding="utf-8")
+    rows = []
+    for command, (start, end, _) in COMMAND_TABLES.items():
+        for line in _section(reference, start, end).splitlines():
+            if line.startswith("| `-"):
+                flags, defaults, meaning = line.strip().strip("|").split("|", 2)
+                rows.append((command, flags.strip(), defaults.strip(), meaning.strip()))
+    return rows
+
+
+TABLE_ROWS = _table_rows()
+
+
+def _row_id(row: tuple[str, str, str, str]) -> str:
+    return f"{row[0]} {row[1].replace('`', '')}"
+
+
+def _row_settings(command: str, flags: str) -> tuple[Settings, list[str]]:
+    """Return the settings ``command`` builds its flags from, and those of them that
+    ``flags`` name, each once."""
+    settings = COMMAND_TABLES[command][2]
+    return settings, _settings_of(settings, _CODE.findall(flags))
+
+
+def _built_from_its_option(command: str, settings: Settings, name: str) -> bool:
+    return (
+        name in settings.options()
+        and (command, name) not in COMMAND_FLAGS_WITHOUT_THEIR_OPTION
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "flag"),
+    [
+        (command, flag)
+        for command, flag, name, *_ in FLAGS
+        if command in ("sheet", "batch")
+        and _built_from_its_option(command, COMMAND_TABLES[command][2], name)
+    ],
+)
+def test_each_sheet_and_batch_flag_of_an_option_is_in_its_options_table(command, flag):
+    rows = [r for r in TABLE_ROWS if r[0] == command]
+    assert any(_names(flags, flag) for _, flags, _, _ in rows)
+
+
+@pytest.mark.parametrize("row", TABLE_ROWS, ids=_row_id)
+def test_each_options_table_row_gives_the_defaults_of_its_options(row):
+    command, flags, defaults, _ = row
+    settings, names = _row_settings(command, flags)
+    given = [d.strip() for d in defaults.split("/")]
+    assert len(given) == len(names), f"{defaults!r} is not one default per setting"
+    expected = []
+    for name, text in zip(names, given, strict=True):
+        if not _built_from_its_option(command, settings, name):
+            expected.append(text)
+            continue
+        option = settings.options()[name]
+        shown = SHOWN[settings].shown(
+            getattr(settings(), name), none_means=option.none_means
+        )
+        expected.append(text if _gives(text, shown) else shown)
+    assert given == expected
+
+
+@pytest.mark.parametrize("row", TABLE_ROWS, ids=_row_id)
+def test_each_options_table_row_names_the_choices_of_its_options(row):
+    command, flags, _, meaning = row
+    settings, names = _row_settings(command, flags)
+    choices = {
+        str(choice)
+        for name in names
+        if _built_from_its_option(command, settings, name)
+        for choice in settings.options()[name].choices
+    }
+    if choices:
+        assert {w for w in _CODE.findall(meaning) if re.fullmatch(r"\w+", w)} == choices
 
 
 # endregion

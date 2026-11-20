@@ -239,6 +239,9 @@ sync:
 - its entry in the settings guide there, with a comparison picture from
   `scripts/screenshots.py` when its values look different.
 
+The docs are written by hand. `tests/test_options.py` checks the label,
+default and choices they give each option against the option.
+
 Add a test for every new option.
 
 ### S11. Failures are explicit
