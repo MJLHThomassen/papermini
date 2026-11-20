@@ -1,5 +1,7 @@
 """Tests of printing and exporting from the app."""
 
+import sys
+
 import pytest
 from PIL import Image
 
@@ -425,16 +427,14 @@ def test_cancelling_the_build_progress_drops_the_export(
 def test_export_all_asks_which_files_to_write(built_window, modal, tmp_path):
     w = built_window
     w.export_all()  # Cancel
-    assert modal.format_boxes == [
-        (
-            "Export all",
-            (
-                "Save every figure as an SVG (to print or cut), a PNG (for a virtual "
-                "tabletop) or both?"
-            ),
-            ["Both", "Cancel", "PNG", "SVG"],
-        )
-    ]
+    [(title, text, buttons)] = modal.format_boxes
+    assert text == (
+        "Save every figure as an SVG (to print or cut), a PNG (for a virtual "
+        "tabletop) or both?"
+    )
+    assert buttons == ["Both", "Cancel", "PNG", "SVG"]
+    if sys.platform != "darwin":  # (macOS shows no title on a message box)
+        assert title == "Export all"
     assert modal.file_dialogs == []
     modal.format = "SVG"
     w.export_all()  # the folder dialog cancelled
