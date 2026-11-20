@@ -9,9 +9,9 @@ class Signals(QObject):
     update = Signal(
         str, object, str
     )  # update check: state, data, who asked (see check_updates)
-    done = Signal(int, int, str, object)  # uid, gen, key, Mini
-    failed = Signal(int, int, str, str)  # uid, gen, key, message
-    cancelled = Signal(int, int, str)  # uid, gen, key: the user stopped the model
+    done = Signal(int, str, object)  # uid, key, Mini
+    failed = Signal(int, str, str)  # uid, key, message
+    cancelled = Signal(int, str)  # uid, key: the user stopped the model
     stage = Signal(
         int, str, str, str, object
     )  # uid, key, mask_key, stage name, data (see make_mini)

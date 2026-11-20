@@ -1080,8 +1080,7 @@ class MainWindow(QMainWindow):
             segment.cancel_runs()  # its mask is no longer wanted: start the new one now
         if not fig.stopped:
             fig.cancelled = None  # a new image, crop or model: build it
-        fig.gen += 1
-        fig.error = fig.queued = None
+        fig.invalidate()
         self._refresh_card(fig)
         self.crop_view.set_crop(s.crop)
         self._sync_legend()
@@ -1122,8 +1121,7 @@ class MainWindow(QMainWindow):
             if f is cur:
                 continue
             f.entry.settings = replace(f.entry.settings, **{k: src[k] for k in names})
-            f.gen += 1
-            f.error = f.queued = None
+            f.invalidate()
         self._set_modified()
         ui_log.info(
             "Applied %s of %s to %d other figure(s)",
@@ -1142,8 +1140,7 @@ class MainWindow(QMainWindow):
                 f
             ) in self.figures:  # cut by machine (or not): every piece gets its bleed
                 f.bleed_mm = s.figure_bleed
-                f.gen += 1
-                f.error = f.queued = None
+                f.invalidate()
             self._build_timer.start()
         self._set_modified()
         self._sheet_timer.start()
@@ -1222,7 +1219,7 @@ class MainWindow(QMainWindow):
         else:
             self._show_mini(fig)  # settings went back to what is already built
 
-    def _on_done(self, uid, gen, key, mini: Mini):
+    def _on_done(self, uid, key, mini: Mini):
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
             return  # settings changed meanwhile (a newer build is queued)
@@ -1240,7 +1237,7 @@ class MainWindow(QMainWindow):
         if self.tabs.currentIndex() == self.SHEET:
             self._sheet_timer.start()
 
-    def _on_failed(self, uid, gen, key, msg):
+    def _on_failed(self, uid, key, msg):
         self._end_segmenting(uid)
         fig = self._figure(uid)
         if fig is None or fig.key() != key:
@@ -1252,7 +1249,7 @@ class MainWindow(QMainWindow):
         self.exporter.check()
         self._status(f"{fig.entry.image.name}: {msg.splitlines()[0]}")
 
-    def _on_cancelled(self, uid, gen, key):
+    def _on_cancelled(self, uid, key):
         """A build stopped: by Cancel (``_cancel_run`` already marked the figure), or
         because a new crop or model made it useless (that one is built next)."""
         self._end_segmenting(uid)
@@ -1391,7 +1388,6 @@ class MainWindow(QMainWindow):
         for f in self.figures:
             if f.error and not f.up_to_date:
                 f.error = None
-                f.gen += 1
                 self._refresh_card(f)
         self._build_current()
         if self.tabs.currentIndex() == self.SHEET:
@@ -1942,8 +1938,7 @@ class MainWindow(QMainWindow):
             new = sizes.apply(s, s.size, table)
             if new != s:
                 f.entry.settings = new
-                f.gen += 1
-                f.error = f.queued = None
+                f.invalidate()
                 self._refresh_card(f)
                 changed += 1
         ui_log.info(

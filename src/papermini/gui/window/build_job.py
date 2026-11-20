@@ -22,7 +22,7 @@ class BuildJob(QRunnable):
 
     def __init__(self, sig: Signals, fig: Figure, is_current):
         super().__init__()
-        self.sig, self.uid, self.gen = sig, fig.uid, fig.gen
+        self.sig, self.uid = sig, fig.uid
         self.image, self.settings, self.key = (
             fig.entry.image,
             fig.entry.settings,
@@ -50,7 +50,7 @@ class BuildJob(QRunnable):
                     ),
                 )
         except Cancelled:
-            self.sig.cancelled.emit(self.uid, self.gen, self.key)
+            self.sig.cancelled.emit(self.uid, self.key)
         except (Exception, SystemExit) as e:
             expected = (ValueError, FileNotFoundError, ModelError, SystemExit)
             if isinstance(e, expected):
@@ -68,9 +68,9 @@ class BuildJob(QRunnable):
                     self.image.name,
                     log.settings_text(self.settings.to_dict(with_size=False)),
                 )
-            self.sig.failed.emit(self.uid, self.gen, self.key, msg)
+            self.sig.failed.emit(self.uid, self.key, msg)
         else:
             logger.debug(
                 "Built %s in %.1f s", self.image.name, time.perf_counter() - t0
             )
-            self.sig.done.emit(self.uid, self.gen, self.key, m)
+            self.sig.done.emit(self.uid, self.key, m)
