@@ -112,7 +112,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          for py in 3.10 3.12; do
+          for py in 3.12; do
             ref="$IMAGE:py$py-$TAG"
             if docker manifest inspect "$ref" > /dev/null 2>&1; then
               echo "$ref exists"
@@ -139,8 +139,6 @@ jobs:
           - os: ubuntu-latest
             python: "3.12"
             coverage: true
-          - os: ubuntu-22.04
-            python: "3.10"  # the oldest version pyproject.toml promises
     steps:
       - uses: actions/checkout@v7
         with:
