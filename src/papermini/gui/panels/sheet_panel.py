@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ...output.sheet import paper_size
+from ...output.paper_sizes import PaperSizes
 from ...project.sheet_settings import SheetSettings
 from ..fields.choice_field import ChoiceField
 from ..fields.field import Field
@@ -202,7 +202,7 @@ class SheetPanel(QScrollArea):
     def _show_size(self, s: SheetSettings):
         """The custom size fields: the custom size, or the size of the paper chosen (in
         its orientation), where a switch to Custom starts."""
-        w, h = paper_size(s.page, s.orientation)
+        w, h = PaperSizes.size(s.page, s.orientation)
         self._loading, loading = True, self._loading
         try:
             self._fields["paper_width_mm"].set_value(w)

@@ -8,10 +8,9 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
-from ...output.png import write_pngs
-from ...output.sheet import PAPER, default_cut_file, write_cut_files, write_pdf
+from ...output.output import Output
+from ...output.paper_sizes import PaperSizes
 from ...output.sheet_layout import SheetLayout
-from ...output.svg import write_svgs
 from ...support.font_library import FontLibrary
 from ..preferences import Preferences
 from ..views.drawing import print_sheet
@@ -31,7 +30,8 @@ ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 class ExportController(QObject):
     """Exports the figures and the sheet, and prints the sheet, each once its
-    figures are built. Their text is in its fonts from ``fonts``."""
+    figures are built. ``output`` packs the sheet and writes the files; the printed
+    sheet's text is in its fonts from ``fonts``."""
 
     status = Signal(str)  # a message for the status bar
     warning = Signal(str)  # a problem to show the user
@@ -43,6 +43,7 @@ class ExportController(QObject):
         prefs: Preferences,
         dialogs: ExportDialogs,
         fonts: FontLibrary,
+        output: Output,
         printers: Callable[[], QPrinter] | None = None,
     ):
         super().__init__(window)
@@ -50,6 +51,7 @@ class ExportController(QObject):
         self._prefs = prefs
         self._dialogs = dialogs
         self._fonts = fonts
+        self._output = output
         self._printers = printers or self._high_resolution_printer
         self._pending: PendingExport | None = None
 
@@ -157,14 +159,10 @@ class ExportController(QObject):
         numbered copy."""
         copies = fig.entry.settings.copies
         if fmt == "png":
-            return write_pngs(
-                fig.mini,
-                path.with_suffix(".png"),
-                self._png_scale(),
-                self._fonts,
-                copies,
+            return self._output.png.write_copies(
+                fig.mini, path.with_suffix(".png"), self._png_scale(), copies
             )
-        return write_svgs(fig.mini, path.with_suffix(".svg"), self._fonts, copies)
+        return self._output.svg.write_copies(fig.mini, path.with_suffix(".svg"), copies)
 
     def _png_scale(self) -> float:
         """Pixels per mm of an exported PNG, as the preferences set it (pixels per
@@ -196,15 +194,15 @@ class ExportController(QObject):
         path = dlg.pdf_path()
         pdf = path if dlg.pdf.isChecked() else None
         cut_file = (
-            default_cut_file(path)
+            self._output.cut_files.default_path(path)
             if path is not None and lay.machine and dlg.cut.isChecked()
             else None
         )
         try:
             if pdf is not None:
-                write_pdf(lay, pdf, self._fonts, sh.title)
+                self._output.pdf.write(lay, pdf, sh.title)
             files = ([pdf] if pdf is not None else []) + (
-                write_cut_files(lay, cut_file, sh.cut_folds, sh.title)
+                self._output.cut_files.write(lay, cut_file, sh.cut_folds, sh.title)
                 if cut_file is not None
                 else []
             )
@@ -270,8 +268,8 @@ class ExportController(QObject):
         from PySide6.QtGui import QPageSize
 
         mm = QPageSize.Unit.Millimeter
-        if sh.paper in PAPER:
-            size = QSizeF(*PAPER[sh.paper])
+        if sh.paper in PaperSizes.PAPER:
+            size = QSizeF(*PaperSizes.PAPER[sh.paper])
             return QPageSize(
                 QPageSize.id(size, mm, QPageSize.SizeMatchPolicy.FuzzyMatch)
             )
@@ -318,7 +316,9 @@ class ExportController(QObject):
             if f.mini is not None
         ]
         try:
-            lay = self._window.project.sheet.layout(built, leave_out=True)
+            lay = self._window.project.sheet.layout(
+                self._output.packer, built, leave_out=True
+            )
         except ValueError as e:
             self.warning.emit(str(e))
             return None

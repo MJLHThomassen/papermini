@@ -9,7 +9,8 @@ from functools import partial
 from pathlib import Path
 
 from . import __version__
-from .output.png import PX_PER_SQUARE
+from .output.output import Output
+from .output.png_writer import PX_PER_SQUARE, PngWriter
 from .pipeline.pipeline import Pipeline
 from .pipeline.segmentation.model_error import ModelError
 from .project.figure_entry import safe_name
@@ -124,12 +125,9 @@ def cmd_make(
     a: argparse.Namespace,
     size_calculator: SizeCalculator,
     pipeline: Pipeline,
-    fonts: FontLibrary,
+    output: Output,
     images_from_web: ImageFetcher,
 ) -> int:
-    from .output.png import px_per_mm, write_pngs
-    from .output.svg import write_svgs
-
     images, folders = [], {}  # an image from a folder: the folder it came from
     for src in _expand(a.images):
         if not ImageFetcher.is_url(src) and Path(src).is_dir():
@@ -168,7 +166,7 @@ def cmd_make(
     scale = (
         a.png_dpi / 25.4
         if a.png_dpi
-        else px_per_mm(a.png_px or PX_PER_SQUARE, table.grid_mm)
+        else PngWriter.px_per_mm(a.png_px or PX_PER_SQUARE, table.grid_mm)
     )
     for src in images:
         img = (
@@ -195,19 +193,19 @@ def cmd_make(
         stem = out_file.with_suffix("") if out_file else out_dir / safe_name(m.name)
         outs = []
         if a.format in ("svg", "both"):
-            outs += write_svgs(m, stem.with_suffix(".svg"), fonts, a.copies)
+            outs += output.svg.write_copies(m, stem.with_suffix(".svg"), a.copies)
         if a.format in ("png", "both"):
-            outs += write_pngs(m, stem.with_suffix(".png"), scale, fonts, a.copies)
+            outs += output.png.write_copies(
+                m, stem.with_suffix(".png"), scale, a.copies
+            )
         for out in outs:
             print(f"  -> {out}")
         _warn_width(img.name, s, m, table, size_calculator)
     return 0
 
 
-def cmd_sheet(a: argparse.Namespace, fonts: FontLibrary) -> int:
-    from .output.svg import read_svg
-
-    minis = [(read_svg(Path(p)), a.copies) for p in _expand(a.svgs)]
+def cmd_sheet(a: argparse.Namespace, output: Output) -> int:
+    minis = [(output.svg_reader.read(Path(p)), a.copies) for p in _expand(a.svgs)]
     custom = {
         k: v
         for k, v in (
@@ -238,38 +236,33 @@ def cmd_sheet(a: argparse.Namespace, fonts: FontLibrary) -> int:
         )
     except ValueError as e:
         raise SystemExit(str(e).replace("sheet ", "--").replace("_", "-")) from None
-    return write_sheet(minis, Path(a.output), sh, fonts, a.preview)
+    return write_sheet(minis, Path(a.output), sh, output, a.preview)
 
 
 def write_sheet(
     minis,
-    output: Path,
+    pdf: Path,
     sh: SheetSettings,
-    fonts: FontLibrary,
+    output: Output,
     preview: bool = False,
 ) -> int:
     """The PDF sheet, its PNG previews, and cut by machine its cut files."""
-    from .output.sheet import (
-        default_cut_file,
-        write_cut_files,
-        write_pdf,
-        write_previews,
-    )
-
-    lay = sh.layout(minis)
-    write_pdf(lay, output, fonts, sh.title)
+    lay = sh.layout(output.packer, minis)
+    output.pdf.write(lay, pdf, sh.title)
     n = len(lay.placements)
     print(
-        f"  -> {output} ({n} piece{'s' * (n != 1)}, {lay.pages} page{'s' * (lay.pages != 1)}, "
+        f"  -> {pdf} ({n} piece{'s' * (n != 1)}, {lay.pages} page{'s' * (lay.pages != 1)}, "
         f"{sh.paper_text()})"
     )
     if sh.mat_warning():
         print(f"  ! note: {sh.mat_warning()}")
     if lay.machine:
-        for p in write_cut_files(lay, default_cut_file(output), sh.cut_folds, sh.title):
+        cut_file = output.cut_files.default_path(pdf)
+        for p in output.cut_files.write(lay, cut_file, sh.cut_folds, sh.title):
             print(f"  -> {p} (cut file)")
     if preview:
-        for p in write_previews(lay, output.with_suffix(".png"), fonts, title=sh.title):
+        previews = output.previews.write(lay, pdf.with_suffix(".png"), title=sh.title)
+        for p in previews:
             print(f"  -> {p}")
     return 0
 
@@ -291,13 +284,11 @@ def run_project(
     proj: Project,
     size_calculator: SizeCalculator,
     pipeline: Pipeline,
-    fonts: FontLibrary,
+    output: Output,
     debug: bool = False,
     preview: bool = False,
     use_cache: bool = True,
 ) -> int:
-    from .output.svg import write_svgs
-
     if not proj.figures:
         raise SystemExit(f"{proj.path}: no 'figures' listed")
     out_dir = proj.output_dir
@@ -312,12 +303,13 @@ def run_project(
             use_cache=use_cache,
             debug_dir=out_dir / "debug" if debug or proj.debug else None,
         )
-        for out in write_svgs(m, out_dir / f.svg_name(), fonts, f.settings.copies):
+        svgs = output.svg.write_copies(m, out_dir / f.svg_name(), f.settings.copies)
+        for out in svgs:
             print(f"  -> {out}")
         _warn_width(f.image.name, f.settings, m, proj.sizes, size_calculator)
         minis.append((m, f.settings.copies))
     if sh.enabled:
-        write_sheet(minis, proj.sheet_path, sh, fonts, preview or sh.preview)
+        write_sheet(minis, proj.sheet_path, sh, output, preview or sh.preview)
     return 0
 
 
@@ -326,13 +318,13 @@ def cmd_batch(
     project_store: ProjectStore,
     size_calculator: SizeCalculator,
     pipeline: Pipeline,
-    fonts: FontLibrary,
+    output: Output,
 ) -> int:
     return run_project(
         project_store.load(Path(a.config)),
         size_calculator,
         pipeline,
-        fonts,
+        output,
         a.debug,
         a.preview,
         not a.no_cache,
@@ -371,7 +363,7 @@ def build_parser(
     size_calculator: SizeCalculator,
     project_store: ProjectStore,
     pipeline: Pipeline,
-    fonts: FontLibrary,
+    output: Output,
     images_from_web: ImageFetcher,
 ) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -454,7 +446,7 @@ def build_parser(
             cmd_make,
             size_calculator=size_calculator,
             pipeline=pipeline,
-            fonts=fonts,
+            output=output,
             images_from_web=images_from_web,
         )
     )
@@ -483,7 +475,7 @@ def build_parser(
         "cut_folds",
         "mat",
     )
-    sh.set_defaults(func=partial(cmd_sheet, fonts=fonts))
+    sh.set_defaults(func=partial(cmd_sheet, output=output))
 
     bt = sub.add_parser(
         "batch", help="YAML config: images + per-image options -> SVGs + sheet"
@@ -509,7 +501,7 @@ def build_parser(
             project_store=project_store,
             size_calculator=size_calculator,
             pipeline=pipeline,
-            fonts=fonts,
+            output=output,
         )
     )
 
@@ -546,7 +538,7 @@ def main(argv: list[str] | None = None) -> int:
         size_calculator,
         ProjectStore(size_calculator, images_from_web),
         Pipeline(fonts),
-        fonts,
+        Output(fonts),
         images_from_web,
     )
     a = parser.parse_args(route(sys.argv[1:] if argv is None else argv))

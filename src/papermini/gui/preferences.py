@@ -141,7 +141,7 @@ class Preferences:
     def png_px_per_square(self) -> int:
         """Return the size of exported PNGs in pixels per grid square. It is never
         saved in a project, because it depends on the virtual tabletop."""
-        from ..output.png import PX_PER_SQUARE
+        from ..output.png_writer import PX_PER_SQUARE
 
         return self._int_in(self._PNG_PX, PX_PER_SQUARE, self.PNG_PX_RANGE)
 
@@ -159,7 +159,7 @@ class Preferences:
 
     def png_dpi(self) -> int:
         """Return the resolution of exported PNGs in the "dpi" size mode."""
-        from ..output.png import DPI
+        from ..output.png_writer import DPI
 
         return self._int_in(self._PNG_DPI, DPI, self.PNG_DPI_RANGE)
 
@@ -169,11 +169,11 @@ class Preferences:
     def png_px_per_mm(self, grid_mm: float) -> float:
         """Return the scale of exported PNGs in pixels per mm: from the pixels per
         square of a ``grid_mm`` grid, or from the dpi, as the size mode says."""
-        from ..output.png import px_per_mm
+        from ..output.png_writer import PngWriter
 
         if self.png_size_mode() == "dpi":
             return self.png_dpi() / 25.4
-        return px_per_mm(self.png_px_per_square(), grid_mm)
+        return PngWriter.px_per_mm(self.png_px_per_square(), grid_mm)
 
     def _int_in(self, key: str, default: int, limits: tuple[int, int]) -> int:
         """Read a whole number, or ``default`` when it is unreadable or outside

@@ -73,6 +73,7 @@ def main() -> None:
     from papermini.gui.preferences import Preferences
     from papermini.gui.views.drawing import draw_mini
     from papermini.gui.window.main_window import MainWindow
+    from papermini.output.output import Output
     from papermini.pipeline.pipeline import Pipeline
     from papermini.project.figure_settings import FigureSettings
     from papermini.project.project_store import ProjectStore
@@ -92,6 +93,7 @@ def main() -> None:
     logs = LogSession(updates)
     project_store = ProjectStore(size_calculator, images_from_web)
     pipeline = Pipeline(fonts)
+    output = Output(fonts)
     ratio = float(args.scale)
 
     def settle(cond=lambda: True, timeout=600):
@@ -113,6 +115,7 @@ def main() -> None:
             size_calculator,
             pipeline,
             fonts,
+            output,
             images_from_web,
             updates,
             logs,
@@ -348,7 +351,6 @@ def main() -> None:
         from PySide6.QtSvg import QSvgRenderer
 
         from papermini.gui.views.drawing import draw_sheet
-        from papermini.output.sheet import cut_file_svg
         from papermini.project import sizes
 
         proj = project_store.load(args.project)
@@ -361,6 +363,7 @@ def main() -> None:
             return size_calculator.apply(s, down, proj.sizes)
 
         lay = sh.layout(
+            output.packer,
             [
                 (
                     build_mini(
@@ -373,7 +376,7 @@ def main() -> None:
                     1,
                 )
                 for f in proj.figures
-            ]
+            ],
         )
         assert lay.pages == 1, "the machine sheet picture should fit on one page"
         k = 2.2 * ratio  # device pixels per mm
@@ -396,7 +399,7 @@ def main() -> None:
         sc = QGraphicsScene()
         draw_sheet(sc, lay, sh.title, fonts)
         svg = QSvgRenderer(
-            bytearray(cut_file_svg(lay, 0, folds=True, title=sh.title), "utf-8")
+            bytearray(output.cut_files.svg(lay, 0, folds=True, title=sh.title), "utf-8")
         )
         save(
             panels(
@@ -437,7 +440,7 @@ def main() -> None:
             ("landscape", "the same pieces on 1 page"),
         ):
             on_a4 = replace(sh, paper="a4", cut="hand", orientation=orientation)
-            lay = on_a4.layout(hand)
+            lay = on_a4.layout(output.packer, hand)
             assert lay.pages == int(caption.split(" page")[0][-1]), (
                 orientation,
                 lay.pages,
