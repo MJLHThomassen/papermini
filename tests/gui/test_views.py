@@ -113,6 +113,32 @@ def test_the_source_image_lies_on_shadowed_paper(app):
     assert not v.scene().items()
 
 
+def test_source_view_shows_a_large_high_dpi_scan(app, tmp_path):
+    """A scan too large for Qt's default image reading limit shows in the Source
+    view. The reader refused it, and the view stayed empty."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor
+
+    from papermini.gui.views.crop_view import CropView
+    from papermini.gui.views.images import load_qimage
+
+    side = 8200  # read as 4 bytes per pixel: just over Qt's default 256 MB limit
+    assert side * side * 4 > 256 * 2**20
+    Image.new("RGB", (side, side), (200, 40, 40)).save(
+        tmp_path / "scan.png", dpi=(1200, 1200)
+    )
+    v = CropView()
+    v.setAttribute(Qt.WA_DontShowOnScreen)
+    v.resize(500, 400)
+    v.show()
+    v.set_image(load_qimage(tmp_path / "scan.png"))
+    app.processEvents()
+    v.fit()
+    assert v.picture_size() == (side, side)
+    shot = v.viewport().grab().toImage()
+    assert shot.pixelColor(shot.rect().center()) == QColor(200, 40, 40)
+
+
 def test_source_view_shows_the_detected_outline(
     app, tmp_path, new_window, wait, crop_view_marks
 ):
