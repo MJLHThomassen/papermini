@@ -5,6 +5,7 @@ import shutil
 
 import pytest
 
+from papermini.output.sheet import pack, write_pdf
 from papermini.pipeline.style import Style
 from papermini.support.font_library import FontLibrary
 
@@ -75,7 +76,7 @@ def test_installed_fonts_are_indexed_once(fonts, font_folder):
 
 
 def test_an_installed_font_is_found_and_printed(
-    output, fonts, goblin_figure, font_folder, tmp_path, pipeline_mini, mask_options
+    fonts, goblin_figure, font_folder, tmp_path, pipeline_mini, mask_options
 ):
     _, add, _ = font_folder
     add("fake.ttf", "Fake Serif")
@@ -88,9 +89,7 @@ def test_an_installed_font_is_found_and_printed(
         style=Style(font="Fake Serif"),
     )
     assert m.style.font == "Fake Serif"
-    pdf = output.pdf.write(
-        output.packer.pack([(m, 1)]), tmp_path / "s.pdf"
-    ).read_bytes()
+    pdf = write_pdf(pack([(m, 1)]), tmp_path / "s.pdf", fonts).read_bytes()
     assert b"Almendra" in pdf  # (the file behind the made-up name)
 
 

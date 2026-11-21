@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from papermini import cli
+from papermini.output.svg import write_svg
 from papermini.project.figure_settings import FIGURE_OPTIONS, FigureSettings
 from papermini.project.option_flags import OptionFlags
 from papermini.project.sheet_settings import SheetSettings
@@ -159,11 +160,11 @@ def test_papermini_has_exactly_its_own_flags(help_flags):
 
 @pytest.mark.parametrize("row", FLAGS, ids=_flag_id)
 def test_each_flag_keeps_its_default(
-    row, project_store, size_calculator, pipeline, output, images_from_web
+    row, project_store, size_calculator, pipeline, fonts, images_from_web
 ):
     command, _, dest, default, _, _ = row
     parser = cli.build_parser(
-        size_calculator, project_store, pipeline, output, images_from_web
+        size_calculator, project_store, pipeline, fonts, images_from_web
     )
     got = getattr(parser.parse_args([command, *POSITIONALS[command]]), dest)
     assert (type(got), got) == (type(default), default)
@@ -171,12 +172,12 @@ def test_each_flag_keeps_its_default(
 
 @pytest.mark.parametrize("row", FLAGS, ids=_flag_id)
 def test_each_flag_sets_its_option(
-    row, project_store, size_calculator, pipeline, output, images_from_web
+    row, project_store, size_calculator, pipeline, fonts, images_from_web
 ):
     command, flag, dest, _, given, parsed = row
     argv = [command, flag, *([] if given is None else [given]), *POSITIONALS[command]]
     parser = cli.build_parser(
-        size_calculator, project_store, pipeline, output, images_from_web
+        size_calculator, project_store, pipeline, fonts, images_from_web
     )
     got = getattr(parser.parse_args(argv), dest)
     assert (type(got), got) == (type(parsed), parsed)
@@ -283,17 +284,17 @@ SHEET_FLAG_PARTNERS = {
 
 
 @pytest.fixture
-def sheet(output, monkeypatch, tmp_path, square_mini):
+def sheet(fonts, monkeypatch, tmp_path, square_mini):
     """Run papermini sheet with the flags given on one SVG, and return what it would
     write: the figures with their copies, the PDF, the settings and the preview."""
     written = []
 
-    def write_sheet(minis, pdf, settings, output, preview=False):
-        written.append((minis, pdf, settings, preview))
+    def write_sheet(minis, output, settings, fonts, preview=False):
+        written.append((minis, output, settings, preview))
         return 0
 
     monkeypatch.setattr(cli, "write_sheet", write_sheet)
-    svg = output.svg.write(square_mini("goblin", 30, 40), tmp_path / "goblin.svg")
+    svg = write_svg(square_mini("goblin", 30, 40), tmp_path / "goblin.svg", fonts)
 
     def sheet(*flags: str):
         assert cli.main(["sheet", str(svg), *flags]) == 0

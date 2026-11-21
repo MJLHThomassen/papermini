@@ -4,9 +4,6 @@ from dataclasses import dataclass, field
 
 from ..pipeline.mini import Mini
 from .placement import Placement
-from .registration_marks import RegistrationMarks
-
-TITLE = "Paper miniatures"  # the title of a sheet that is not given one
 
 # the baselines of the text in the sheet header, in mm below the page margin
 TITLE_BASELINE_MM = 4.0
@@ -79,8 +76,10 @@ class SheetLayout:
         return self.cut == "machine"
 
     def mark_rects(self) -> list[tuple[float, float, float, float]]:
+        from .sheet import registration_marks
+
         return (
-            RegistrationMarks.rects(self.paper, self.marks, self.mark_inset)
+            registration_marks(self.paper, self.marks, self.mark_inset)
             if self.marks
             else []
         )

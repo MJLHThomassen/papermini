@@ -43,7 +43,6 @@ def _start(app, files, updates, logs):
         import ctypes
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("papermini")
-    from ..output.output import Output
     from ..pipeline.pipeline import Pipeline
     from ..project.project_store import ProjectStore
     from ..project.size_calculator import SizeCalculator
@@ -64,7 +63,6 @@ def _start(app, files, updates, logs):
         size_calculator,
         Pipeline(fonts),
         fonts,
-        Output(fonts),
         images_from_web,
         updates,
         logs,

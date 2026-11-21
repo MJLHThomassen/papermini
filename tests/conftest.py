@@ -156,15 +156,6 @@ def fonts():
 
 
 @pytest.fixture
-def output(fonts):
-    """Returns the services that pack the sheet and read and write the files, with the
-    ``fonts`` fixture's fonts."""
-    from papermini.output.output import Output
-
-    return Output(fonts)
-
-
-@pytest.fixture
 def images_from_web():
     """Returns the service that downloads images from links."""
     from papermini.support.image_fetcher import ImageFetcher
@@ -214,7 +205,6 @@ def new_window(
     size_calculator,
     pipeline,
     fonts,
-    output,
     images_from_web,
     updates,
     logs,
@@ -235,7 +225,6 @@ def new_window(
                 size_calculator,
                 pipeline,
                 fonts,
-                output,
                 images_from_web,
                 updates,
                 logs,

@@ -67,14 +67,16 @@ def test_the_machine_cut_options_are_checked():
             SheetSettings.from_dict(bad)
 
 
-def test_the_layout_packs_with_the_sheets_settings(output, square_mini):
+def test_the_layout_packs_with_the_sheets_settings(square_mini):
     """The layout uses the sheet's paper, orientation, margin, gap and cut."""
+    from papermini.output.sheet import pack
+
     minis = [(square_mini("a"), 3), (square_mini("b", 60, 80), 1)]
     sheet = SheetSettings(
         paper="a5", orientation="landscape", margin_mm=8, gap_mm=4, cut="machine"
     )
-    lay = sheet.layout(output.packer, minis)
-    same = output.packer.pack(minis, "a5", 8, 4, cut="machine", orientation="landscape")
+    lay = sheet.layout(minis)
+    same = pack(minis, "a5", 8, 4, cut="machine", orientation="landscape")
     assert (lay.paper, lay.margin_mm, lay.cut, lay.marks) == (
         (210.0, 148.0),
         8,
@@ -86,12 +88,10 @@ def test_the_layout_packs_with_the_sheets_settings(output, square_mini):
     ]
 
 
-def test_the_layout_leaves_off_a_piece_too_big_for_the_paper(output, square_mini):
+def test_the_layout_leaves_off_a_piece_too_big_for_the_paper(square_mini):
     big = square_mini("big", 100, 300)
     sheet = SheetSettings(paper="a5")
     with pytest.raises(ValueError):
-        sheet.layout(output.packer, [(big, 1)])
-    lay = sheet.layout(
-        output.packer, [(big, 1), (square_mini("small"), 1)], leave_out=True
-    )
+        sheet.layout([(big, 1)])
+    lay = sheet.layout([(big, 1), (square_mini("small"), 1)], leave_out=True)
     assert [m.name for m in lay.left_out] == ["big"] and len(lay.placements) == 1

@@ -1,4 +1,4 @@
-"""Tests of reading pieces back from their SVG files."""
+"""Tests of writing pieces as SVG files and reading them back."""
 
 import base64
 import io
@@ -8,14 +8,17 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from papermini.output.sheet import pack, write_pdf
+from papermini.output.svg import read_svg, to_svg, write_svg, write_svgs
+
 
 def test_an_svg_reads_back_as_the_mini_it_was_written_from(
-    output, hero_figure, tmp_path, pipeline_mini, mask_options
+    fonts, hero_figure, tmp_path, pipeline_mini, mask_options
 ):
     img, mask = hero_figure
     m = pipeline_mini(img, mask=mask_options(mask_path=mask), label="Hero")
-    p = output.svg.write(m, tmp_path / "hero.svg")
-    r = output.svg_reader.read(p)
+    p = write_svg(m, tmp_path / "hero.svg", fonts)
+    r = read_svg(p)
     assert r.width_mm == pytest.approx(m.width_mm, abs=1e-3)
     assert r.height_mm == pytest.approx(m.height_mm, abs=1e-3)
     assert r.label == "Hero"
@@ -27,16 +30,16 @@ def test_an_svg_reads_back_as_the_mini_it_was_written_from(
 
 
 def test_an_unsmoothed_cut_line_reads_back_as_a_polygon(
-    output, hero_figure, tmp_path, pipeline_mini, mask_options
+    fonts, hero_figure, tmp_path, pipeline_mini, mask_options
 ):
     img, mask = hero_figure
     m = pipeline_mini(img, mask=mask_options(mask_path=mask), smooth_path=False)
-    r = output.svg_reader.read(output.svg.write(m, tmp_path / "hero.svg"))
+    r = read_svg(write_svg(m, tmp_path / "hero.svg", fonts))
     assert r.cut.controls is None
     assert np.allclose(r.cut.points, m.cut.points, atol=1e-3)
 
 
-def test_the_svg_keeps_the_back_text_color(output, pipeline, hero_figure, tmp_path):
+def test_the_svg_keeps_the_back_text_color(fonts, pipeline, hero_figure, tmp_path):
     from papermini.project.figure_settings import FigureSettings
     from papermini.project.settings import build_mini
 
@@ -50,9 +53,9 @@ def test_the_svg_keeps_the_back_text_color(output, pipeline, hero_figure, tmp_pa
         back_text_color="#c0a030",
     )
     m = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
-    svg = output.svg.write(m, tmp_path / "h.svg").read_text(encoding="utf-8")
+    svg = write_svg(m, tmp_path / "h.svg", fonts).read_text(encoding="utf-8")
     assert 'class="backtext"' in svg and 'fill="#c0a030"' in svg
-    assert output.svg_reader.read(tmp_path / "h.svg").style.back_text_color == "#c0a030"
+    assert read_svg(tmp_path / "h.svg").style.back_text_color == "#c0a030"
 
 
 def _svg(
@@ -78,10 +81,8 @@ def _svg(
     return path
 
 
-def test_a_small_papermini_svg_reads(output, tmp_path):
-    m = output.svg_reader.read(
-        _svg(tmp_path)
-    )  # (the form the cases below each break once)
+def test_a_small_papermini_svg_reads(tmp_path):
+    m = read_svg(_svg(tmp_path))  # (the form the cases below each break once)
     assert m.width_mm == m.height_mm == 10 and len(m.cut.points) == 3
 
 
@@ -96,25 +97,44 @@ def test_a_small_papermini_svg_reads(output, tmp_path):
         ("cut", '<path id="cut" d="0 0 L 10 0 Z"/>', "unexpected path data"),
     ],
 )
-def test_svgs_papermini_did_not_write_are_refused(output, tmp_path, part, value, error):
+def test_svgs_papermini_did_not_write_are_refused(tmp_path, part, value, error):
     with pytest.raises(ValueError, match=error):
-        output.svg_reader.read(_svg(tmp_path, **{part: value}))
+        read_svg(_svg(tmp_path, **{part: value}))
 
 
-def test_a_token_svg_reads_back(
-    output, fonts, tmp_path, build_token, transparent_figure
-):
+def test_a_token_svg_reads_back(fonts, tmp_path, build_token, transparent_figure):
     img = transparent_figure(tmp_path / "goblin.png")
     m = build_token(img, label="Goblin", token_text="label_number")
-    svg = output.svg.svg(replace(m, number=2))
+    svg = to_svg(replace(m, number=2), fonts)
     assert (
         'class="tokentext"' in svg and 'stroke="none"' in svg
     )  # (no cut line printed)
     path = tmp_path / "t.svg"
     path.write_text(svg)
-    back = output.svg_reader.read(path)
+    back = read_svg(path)
     assert [t.text for t in back.text_items(fonts)] == ["Goblin", "2"]
     assert not back.style.cut_line
-    lay = output.packer.pack([(back, 2), (m, 1)], "a4")
+    lay = pack([(back, 2), (m, 1)], "a4")
     assert len(lay.placements) == 3
-    output.pdf.write(lay, tmp_path / "sheet.pdf")
+    write_pdf(lay, tmp_path / "sheet.pdf", fonts)
+
+
+def test_one_svg_per_numbered_copy(fonts, goblin_figure, tmp_path, numbered_mini):
+    plain = numbered_mini(goblin_figure)
+    assert write_svgs(plain, tmp_path / "plain.svg", fonts, copies=3) == [
+        tmp_path / "plain.svg"
+    ]
+    m = numbered_mini(goblin_figure, tab_front="number", back="number")
+    out = write_svgs(m, tmp_path / "goblin.svg", fonts, copies=3)
+    assert [p.name for p in out] == ["goblin-1.svg", "goblin-2.svg", "goblin-3.svg"]
+    assert [p.name for p in write_svgs(m, tmp_path / "one.svg", fonts)] == ["one-1.svg"]
+    r = read_svg(tmp_path / "goblin-2.svg")
+    assert [(t.kind, t.text) for t in r.extra] == [("number", "2"), ("number", "2")]
+    assert (
+        not r.numbered
+    )  # the numbers are in the file: a sheet prints them as they are
+    lay = pack([(r, 2)])
+    assert [
+        [t.text for t in p.mini.text_items(fonts) if t.kind == "number"]
+        for p in lay.placements
+    ] == [["2", "2"], ["2", "2"]]

@@ -9,7 +9,7 @@ from PIL import Image
 
 from papermini import cli
 from papermini.cli import main
-from papermini.output.svg_reader import SvgReader
+from papermini.output.svg import read_svg, write_svg
 from papermini.project.figure_settings import FigureSettings
 
 
@@ -43,7 +43,7 @@ def test_make_reports_an_unknown_model(hero_figure, capsys):
     assert "unknown model" in capsys.readouterr().err
 
 
-def test_cli_makes_double_sided_minis_unless_told_not_to(output, hero_figure, tmp_path):
+def test_cli_makes_double_sided_minis_unless_told_not_to(hero_figure, tmp_path):
     """Double-sided is the default; --no-double-sided prints the front only."""
     img, mask = hero_figure
     for name, extra in (("both", []), ("front", ["--no-double-sided"])):
@@ -61,15 +61,12 @@ def test_cli_makes_double_sided_minis_unless_told_not_to(output, hero_figure, tm
             )
             == 0
         )
-    both, front = (
-        output.svg_reader.read(tmp_path / "both.svg"),
-        output.svg_reader.read(tmp_path / "front.svg"),
-    )
+    both, front = read_svg(tmp_path / "both.svg"), read_svg(tmp_path / "front.svg")
     assert both.height_mm > 1.8 * front.height_mm  # front and back, one above the other
 
 
 def test_cli_width_alone_scales_by_width(
-    output, hero_figure, tmp_path, pipeline_mini, params, mask_options
+    hero_figure, tmp_path, pipeline_mini, params, mask_options
 ):
     img, mask = hero_figure
     out = tmp_path / "w.svg"
@@ -89,7 +86,7 @@ def test_cli_width_alone_scales_by_width(
         )
         == 0
     )
-    r = output.svg_reader.read(out)
+    r = read_svg(out)
     by_h = pipeline_mini(img, params(double_sided=False), mask_options(mask_path=mask))
     # 25 mm wide at the image's proportions: the figure is 25 / aspect high, not
     # Medium's 32 mm (margin and tab stay the same, so compare the difference)
@@ -137,7 +134,7 @@ def test_sheet_cut_by_machine_writes_the_cut_file(hero_figure, tmp_path):
 
 
 def test_batch_cut_by_machine_builds_the_bleed(
-    output, hero_figure, tmp_path, pipeline_mini, mask_options
+    hero_figure, tmp_path, pipeline_mini, mask_options
 ):
     img, mask = hero_figure
     (tmp_path / "p.yaml").write_text(
@@ -152,8 +149,10 @@ def test_batch_cut_by_machine_builds_the_bleed(
     assert (tmp_path / "out" / "s.pdf").exists() and (
         tmp_path / "out" / "s-cut.svg"
     ).exists()
+    from papermini.output.svg import read_svg
+
     plain = pipeline_mini(img, mask=mask_options(mask_path=mask))
-    bled = output.svg_reader.read(tmp_path / "out" / "b.svg")
+    bled = read_svg(tmp_path / "out" / "b.svg")
     assert bled.width_mm > plain.width_mm + 2  # built with the sheet's bleed
 
 
@@ -251,9 +250,9 @@ def test_tokens_and_minis_on_one_sheet(tmp_path, capsys, transparent_figure):
 
 
 def test_sheet_takes_the_paper_size_and_orientation(
-    output, tmp_path, capsys, square_mini, media_box_mm
+    fonts, tmp_path, capsys, square_mini, media_box_mm
 ):
-    svg = output.svg.write(square_mini("goblin", 60, 90), tmp_path / "goblin.svg")
+    svg = write_svg(square_mini("goblin", 60, 90), tmp_path / "goblin.svg", fonts)
     for args, size, name in (
         (["--paper", "a3", "--orientation", "landscape"], (420, 297), "A3 landscape"),
         (
@@ -301,7 +300,7 @@ def test_sheet_takes_the_paper_size_and_orientation(
             main(["sheet", str(svg), "-o", str(tmp_path / "x.pdf")] + args)
 
 
-def test_make_takes_the_number_options(output, goblin_figure, tmp_path):
+def test_make_takes_the_number_options(goblin_figure, tmp_path):
     img, mask = goblin_figure
     assert (
         main(
@@ -327,9 +326,7 @@ def test_make_takes_the_number_options(output, goblin_figure, tmp_path):
         "goblin-2.svg",
         "goblin-3.svg",
     ]
-    assert [
-        t.text for t in output.svg_reader.read(tmp_path / "goblin-3.svg").extra
-    ] == ["3", "3"]
+    assert [t.text for t in read_svg(tmp_path / "goblin-3.svg").extra] == ["3", "3"]
 
 
 def test_batch_numbers_the_copies(goblin_figure, tmp_path, project_store):
@@ -393,9 +390,7 @@ def test_make_an_empty_folder(tmp_path, made):
         cli.main(["make", str(tmp_path / "empty")])
 
 
-def test_make_prints_in_the_font_asked_for_or_in_times(
-    output, goblin_figure, tmp_path, capsys
-):
+def test_make_prints_in_the_font_asked_for_or_in_times(goblin_figure, tmp_path, capsys):
     img, mask = goblin_figure
     for name, font in (("kalam", "Kalam"), ("missing", "No Such Font")):
         assert (
@@ -413,8 +408,8 @@ def test_make_prints_in_the_font_asked_for_or_in_times(
             )
             == 0
         )
-    assert output.svg_reader.read(tmp_path / "kalam.svg").style.font == "Kalam"
-    assert output.svg_reader.read(tmp_path / "missing.svg").style.font == "Times"
+    assert read_svg(tmp_path / "kalam.svg").style.font == "Kalam"
+    assert read_svg(tmp_path / "missing.svg").style.font == "Times"
     assert "No Such Font is not on this computer" in capsys.readouterr().out
 
 
@@ -447,8 +442,7 @@ def _make(disc, out, *flags):
         )
         == 0
     )
-    # the figure, its margin and the tab below the fold
-    return SvgReader().read(out).height_mm
+    return read_svg(out).height_mm  # the figure, its margin and the tab below the fold
 
 
 def test_make_sizes_the_figure_by_creature_size_and_grid(disc, tmp_path, capsys):
