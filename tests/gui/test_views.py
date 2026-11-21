@@ -128,7 +128,7 @@ def test_source_view_shows_a_large_high_dpi_scan(app, tmp_path):
         tmp_path / "scan.png", dpi=(1200, 1200)
     )
     v = CropView()
-    v.setAttribute(Qt.WA_DontShowOnScreen)
+    v.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     v.resize(500, 400)
     v.show()
     v.set_image(load_qimage(tmp_path / "scan.png"))

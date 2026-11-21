@@ -14,9 +14,14 @@ from ...pipeline.image_adjuster import ImageAdjuster
 # Qt refuses to read an image whose decoded size is over its allocation limit, 256 MB
 # by default: a large scan then shows nothing. This limit is the decoded size of the
 # largest image PIL opens (it refuses one over twice MAX_IMAGE_PIXELS), with four
-# 16-bit channels per pixel, the widest format Qt reads a PNG into.
+# 16-bit channels per pixel, the widest format Qt reads a PNG into. When PIL has no
+# limit, neither has Qt (0).
 READ_BYTES_PER_PIXEL = 8
-READ_LIMIT_MB = math.ceil(2 * Image.MAX_IMAGE_PIXELS * READ_BYTES_PER_PIXEL / 2**20)
+READ_LIMIT_MB = (
+    0
+    if Image.MAX_IMAGE_PIXELS is None
+    else math.ceil(2 * Image.MAX_IMAGE_PIXELS * READ_BYTES_PER_PIXEL / 2**20)
+)
 
 
 def pil_to_qimage(im) -> QImage:
