@@ -699,20 +699,32 @@ def test_the_export_controller_prints_on_a_printer_from_its_factory(
     assert len(sent) == 1 and sent[0].startswith("Sent 1 page(s) to ")
 
 
-def test_dropped_image_files_are_added(app, window, tmp_path, figure_image):
-    from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
-    from PySide6.QtGui import QDragEnterEvent, QDropEvent
+def _drag_enter(mime):
+    """Return a drag entering at (10, 10) with ``mime``. PySide6 6.12 takes the position
+    as a QPointF and deprecates the QPoint that older versions take."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QDragEnterEvent
 
-    image, _ = figure_image(tmp_path / "hero.png")
-    mime = QMimeData()
-    mime.setUrls([QUrl.fromLocalFile(str(image))])
-    enter = QDragEnterEvent(
-        QPointF(10, 10),
+    args = (
         Qt.DropAction.CopyAction,
         mime,
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
+    try:
+        return QDragEnterEvent(QPointF(10, 10), *args)
+    except TypeError:
+        return QDragEnterEvent(QPoint(10, 10), *args)
+
+
+def test_dropped_image_files_are_added(app, window, tmp_path, figure_image):
+    from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
+    from PySide6.QtGui import QDropEvent
+
+    image, _ = figure_image(tmp_path / "hero.png")
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(image))])
+    enter = _drag_enter(mime)
     app.sendEvent(window, enter)
     assert enter.isAccepted()
     drop = QDropEvent(
@@ -727,18 +739,11 @@ def test_dropped_image_files_are_added(app, window, tmp_path, figure_image):
 
 
 def test_a_drag_without_images_or_links_is_refused(app, window):
-    from PySide6.QtCore import QMimeData, QPointF, Qt
-    from PySide6.QtGui import QDragEnterEvent
+    from PySide6.QtCore import QMimeData
 
     mime = QMimeData()
     mime.setText("just some words")
-    enter = QDragEnterEvent(
-        QPointF(10, 10),
-        Qt.DropAction.CopyAction,
-        mime,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
-    )
+    enter = _drag_enter(mime)
     app.sendEvent(window, enter)
     assert not enter.isAccepted()
 
@@ -749,7 +754,7 @@ def test_a_picture_dropped_from_a_browser_is_downloaded_by_its_own_link(
     """A picture dragged from a web page carries a link to the page around it; the
     picture's own address in the HTML wins."""
     from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
-    from PySide6.QtGui import QDragEnterEvent, QDropEvent
+    from PySide6.QtGui import QDropEvent
 
     picture = "https://example.com/goblin.png"
     fake_web[picture] = figure_bytes()
@@ -759,7 +764,7 @@ def test_a_picture_dropped_from_a_browser_is_downloaded_by_its_own_link(
         f'<a href="https://example.com/goblins.html"><img src="{picture}"></a>'
     )
     args = Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton
-    enter = QDragEnterEvent(QPointF(10, 10), *args, Qt.KeyboardModifier.NoModifier)
+    enter = _drag_enter(mime)
     app.sendEvent(window, enter)
     assert enter.isAccepted()
     app.sendEvent(

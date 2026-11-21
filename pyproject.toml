@@ -23,7 +23,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = ["PySide6-Essentials>=6.8", "cryptography>=42"]  # (cryptography: signed updates)
+gui = [
+    # PySide6 6.12.0 drops a reference to None on every Qt call that returns nothing.
+    # Before Python 3.12 None can run out of references, and Python then crashes.
+    "PySide6-Essentials>=6.8,!=6.12.0; python_version < '3.12'",
+    "PySide6-Essentials>=6.8; python_version >= '3.12'",
+    "cryptography>=42",  # signed updates
+]
 
 # Development only, not published: uv installs the dev group by default; the build
 # group with `--group build` (see the justfile).
@@ -89,4 +95,4 @@ core = "sysmon"  # also measures the threads Qt starts
 show_missing = true
 skip_covered = true
 precision = 1
-fail_under = 95  # the lower of the CI and local totals, rounded down
+fail_under = 96  # the lower of the CI and local totals, rounded down
