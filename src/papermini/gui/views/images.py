@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
+from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QImageReader
 
 from ...pipeline.image_adjuster import ImageAdjuster
+
+# Qt refuses to read an image whose decoded size is over its allocation limit, 256 MB
+# by default: a large scan then shows nothing. This limit is the decoded size of the
+# largest image PIL opens (it refuses one over twice MAX_IMAGE_PIXELS), with four
+# 16-bit channels per pixel, the widest format Qt reads a PNG into. When PIL has no
+# limit, neither has Qt (0).
+READ_BYTES_PER_PIXEL = 8
+READ_LIMIT_MB = (
+    0
+    if Image.MAX_IMAGE_PIXELS is None
+    else math.ceil(2 * Image.MAX_IMAGE_PIXELS * READ_BYTES_PER_PIXEL / 2**20)
+)
 
 
 def pil_to_qimage(im) -> QImage:
@@ -18,7 +33,9 @@ def pil_to_qimage(im) -> QImage:
 
 
 def load_qimage(path) -> QImage:
-    """Load an image with EXIF orientation applied (matches PIL's exif_transpose)."""
+    """Load an image with EXIF orientation applied (matches PIL's exif_transpose).
+    It reads every image that PIL opens."""
+    QImageReader.setAllocationLimit(READ_LIMIT_MB)
     r = QImageReader(str(path))
     r.setAutoTransform(True)
     return r.read()
