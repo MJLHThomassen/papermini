@@ -2,7 +2,7 @@
 # Rebuild the miniatures and the sheet with:
 #   papermini batch examples/dragons/dragons.yaml
 # BiRefNet removes the backgrounds best here (see "Background removal models" in
-# the README); it is downloaded on first use.
+# docs/reference.md); it is downloaded on first use.
 
 output: out
 

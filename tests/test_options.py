@@ -404,7 +404,7 @@ GUIDE_HEADINGS_NOT_THE_LABEL = {"Label: --label", "Amount: papermini sheet --cop
 COMMAND_TABLES = {
     "make": ("### `papermini make", "### `papermini sheet", FigureSettings),
     "sheet": ("### `papermini sheet", "### `papermini batch", SheetSettings),
-    "batch": ("### `papermini batch", "## Model licence", SheetSettings),
+    "batch": ("### `papermini batch", "## Background removal models", SheetSettings),
 }
 
 # Flags named after a setting that the command builds without the setting's option.
