@@ -104,23 +104,22 @@ jobs:
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/papermini-ci" >> "$GITHUB_OUTPUT"
           echo "tag=$(sha256sum .github/ci-image/Dockerfile | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push the images this Dockerfile has not got yet
+      - name: Build and push the image if this Dockerfile has not got one yet
         shell: bash
         env:
           IMAGE: ${{ steps.ref.outputs.image }}
           TAG: ${{ steps.ref.outputs.tag }}
+          PYTHON: "3.12"
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          for py in 3.12; do
-            ref="$IMAGE:py$py-$TAG"
-            if docker manifest inspect "$ref" > /dev/null 2>&1; then
-              echo "$ref exists"
-            else
-              docker build --build-arg "PYTHON=$py" -t "$ref" .github/ci-image
-              docker push "$ref"
-            fi
-          done
+          ref="$IMAGE:py$PYTHON-$TAG"
+          if docker manifest inspect "$ref" > /dev/null 2>&1; then
+            echo "$ref exists"
+          else
+            docker build --build-arg "PYTHON=$PYTHON" -t "$ref" .github/ci-image
+            docker push "$ref"
+          fi
 
   test-linux:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
