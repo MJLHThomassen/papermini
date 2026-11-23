@@ -546,8 +546,16 @@ commands, so that what passes locally passes in CI.
 CI runs the tests, the lint and format checks, the coverage report and the type
 check, on every Python version and platform the project supports.
 Run the same checks locally before a change is finished, such as `just test`,
-`just lint` and `just format`. The type check (`just typecheck`) doesn't block
-a merge until the code passes it; don't add new findings to it.
+`just lint` and `just format`.
+
+The code doesn't pass the type check (`just typecheck`) yet, so CI allows the
+number of findings ty reports on `main`. That number is `TY_FINDINGS` in the
+ty step of `.github/workflows/ci.yml`. The step fails when ty reports more,
+and writes the count to the job summary. Don't add new findings:
+
+- A pull request that fixes findings lowers `TY_FINDINGS` to the new count.
+- A pull request that changes the ty version in `pyproject.toml` sets
+  `TY_FINDINGS` to the count the new version reports.
 
 ### R3. Builds are reproducible
 

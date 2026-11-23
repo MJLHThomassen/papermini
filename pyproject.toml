@@ -84,6 +84,7 @@ ignore = [
 
 [tool.ty.environment]
 extra-paths = ["scripts"]  # tests import the release scripts
+python-platform = "all"  # check the code for every platform, with the same findings on each
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

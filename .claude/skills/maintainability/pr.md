@@ -39,8 +39,9 @@ report" section lists.
 - `just test`
 - `just lint`
 - `just format --check`
-- `just typecheck`. It doesn't block a merge yet, so compare it with the base:
-  the branch must not add new findings in the code it changes.
+- `just typecheck`. CI fails only when the total number of findings goes up
+  (rule R2), so compare it with the base: the branch must not add new findings
+  in the code it changes.
 - If the change can alter output or the window, the other checks of
   "Proving a change is safe" in the guide.
 
