@@ -77,9 +77,22 @@ jobs:
       - name: Install
         run: uv sync --locked --all-extras
 
+      # The code doesn't pass ty yet. TY_FINDINGS is the number of findings ty reports
+      # on main; the step fails when ty reports more. See rule R2 of the guide.
       - name: ty
-        continue-on-error: true  # ty is in beta, and the code doesn't pass it yet
-        run: uv run --no-sync ty check --output-format github
+        shell: bash  # with pipefail, so that a ty crash fails the step
+        env:
+          TY_FINDINGS: 602
+        run: |
+          uv run --no-sync ty check --exit-zero --output-format github | tee "$RUNNER_TEMP/ty.txt"
+          found=$(grep -c '^::' "$RUNNER_TEMP/ty.txt" || true)
+          echo "ty reports $found findings. The limit (TY_FINDINGS) is $TY_FINDINGS." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$found" -gt "$TY_FINDINGS" ]; then
+            echo "::error title=ty::ty reports $found findings, more than the $TY_FINDINGS on main. Fix the new ones."
+            exit 1
+          elif [ "$found" -lt "$TY_FINDINGS" ]; then
+            echo "::notice title=ty::ty reports $found findings, fewer than the $TY_FINDINGS on main. Lower TY_FINDINGS to $found."
+          fi
 
   # The Linux tests run in papermini's CI image (.github/ci-image): Python and Qt's
   # system libraries, ready made, instead of downloading them from the Ubuntu mirror
