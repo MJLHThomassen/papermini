@@ -16,12 +16,12 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsRectItem, QGraphicsView
 
 from .. import theme
+from .crop_handles import CropHandles
 from .crop_style import (
-    _HANDLE_CURSORS,
     CROP_COLOR,
     CROP_HINT,
-    DRAG_PX,
     GRAB_PX,
+    HANDLE_CURSORS,
     HANDLE_PX,
     WASH_ALPHA,
 )
@@ -60,7 +60,7 @@ class CropView(ZoomView):
         self._box: QRectF | None = None  # image pixels
         self._rect_item: QGraphicsRectItem | None = None
         self._shade: QGraphicsPathItem | None = None
-        self._handles: dict = {}
+        self._handles: CropHandles | None = None
         self._drag = None  # (mode, start scene pos, box at start)
         self._pan = None
         self._outline = None  # list of point arrays, image pixels
@@ -68,7 +68,7 @@ class CropView(ZoomView):
         self._busy = False
         self._hover = None  # view position of the mouse over the image, or None
         self._hover_part = None  # what a drag from there would grab (see _hit)
-        self._press = None  # view position of the left press, for DRAG_PX
+        self._press = None  # view position of the left press
         self._moved = False  # the press became a drag
         self.viewport().setCursor(Qt.CrossCursor)
 
@@ -79,7 +79,7 @@ class CropView(ZoomView):
         sc = self.scene()
         sc.clear()
         self._rect_item = self._shade = None
-        self._handles = {}
+        self._handles = None
         self._outline, self._outline_items = (
             None,
             [],
@@ -157,15 +157,7 @@ class CropView(ZoomView):
                 dim.setZValue(0.5)
                 self._outline_items = [dim]
             return
-        figure = QPainterPath()
-        figure.setFillRule(
-            Qt.OddEvenFill
-        )  # holes are separate contours inside the outline
-        for c in self._outline:
-            figure.moveTo(*c[0])
-            for x, y in c[1:]:
-                figure.lineTo(x, y)
-            figure.closeSubpath()
+        figure = CropHandles.outline_path(self._outline)
         wash.setAlpha(WASH_ALPHA)
         shade = sc.addPath(area.subtracted(figure), QPen(Qt.NoPen), QBrush(wash))
         shade.setZValue(0.5)
@@ -199,56 +191,36 @@ class CropView(ZoomView):
         if self._img_size is None:
             return
         if r is None:
-            for it in [self._rect_item, self._shade, *self._handles.values()]:
+            for it in (self._rect_item, self._shade):
                 if it is not None:
                     it.setVisible(False)
+            if self._handles is not None:
+                self._handles.set_visible(False)
             return
         sc = self.scene()
-        if self._shade is None:
-            self._shade = sc.addPath(
+        shade, rect_item, handles = self._shade, self._rect_item, self._handles
+        if shade is None or rect_item is None or handles is None:
+            shade = sc.addPath(
                 QPainterPath(), QPen(Qt.NoPen), QBrush(QColor(0, 0, 0, 120))
             )
-            self._shade.setZValue(1)
+            shade.setZValue(1)
             pen = QPen(QColor(CROP_COLOR), 2)
             pen.setCosmetic(True)
             pen.setStyle(Qt.DashLine)
-            self._rect_item = sc.addRect(QRectF(), pen)
-            self._rect_item.setZValue(2)
-            for name in ("tl", "t", "tr", "r", "br", "b", "bl", "l"):
-                h = sc.addRect(
-                    QRectF(-HANDLE_PX / 2, -HANDLE_PX / 2, HANDLE_PX, HANDLE_PX),
-                    QPen(QColor("#222"), 1),
-                    QBrush(QColor(CROP_COLOR)),
-                )
-                h.setFlag(
-                    QGraphicsRectItem.ItemIgnoresTransformations
-                )  # constant screen size
-                h.setZValue(3)
-                self._handles[name] = h
+            rect_item = sc.addRect(QRectF(), pen)
+            rect_item.setZValue(2)
+            handles = CropHandles(sc, CropHandles.ALL, z=3)
+            self._shade, self._rect_item, self._handles = shade, rect_item, handles
         outer = QPainterPath()
         outer.addRect(QRectF(0, 0, *self._img_size))
         inner = QPainterPath()
         inner.addRect(r)
-        self._shade.setPath(outer.subtracted(inner))
-        self._rect_item.setRect(r)
-        for name, pos in self._handle_points(r).items():
-            self._handles[name].setPos(pos)
-        for it in [self._rect_item, self._shade, *self._handles.values()]:
-            it.setVisible(True)
-
-    @staticmethod
-    def _handle_points(r: QRectF) -> dict:
-        c = r.center()
-        return {
-            "tl": r.topLeft(),
-            "t": QPointF(c.x(), r.top()),
-            "tr": r.topRight(),
-            "r": QPointF(r.right(), c.y()),
-            "br": r.bottomRight(),
-            "b": QPointF(c.x(), r.bottom()),
-            "bl": r.bottomLeft(),
-            "l": QPointF(r.left(), c.y()),
-        }
+        shade.setPath(outer.subtracted(inner))
+        rect_item.setRect(r)
+        handles.place(r)
+        shade.setVisible(True)
+        rect_item.setVisible(True)
+        handles.set_visible(True)
 
     # endregion
 
@@ -258,7 +230,7 @@ class CropView(ZoomView):
         if self._box is None:
             return "new"
         best, best_d = None, GRAB_PX + 1
-        for name, p in self._handle_points(self._box).items():
+        for name, p in CropHandles.points(self._box).items():
             v = self.mapFromScene(p)
             d = max(abs(v.x() - view_pos.x()), abs(v.y() - view_pos.y()))
             if d < best_d:
@@ -339,15 +311,14 @@ class CropView(ZoomView):
             return
         if self._drag is not None:
             if not self._moved:  # not a drag until the mouse really moves
-                d = pos - self._press
-                if max(abs(d.x()), abs(d.y())) < DRAG_PX:
+                if not CropHandles.is_drag(pos - self._press):
                     return
                 self._moved = True
             self._set_box(self._dragged_box(self.mapToScene(pos)))
             return
         if self._img_size:
             part = self._hit(pos)
-            self.viewport().setCursor(_HANDLE_CURSORS.get(part, Qt.CrossCursor))
+            self.viewport().setCursor(HANDLE_CURSORS.get(part, Qt.CrossCursor))
             on_image = self._image_view_rect().contains(QPointF(pos))
             self._hover = pos if on_image or part != "new" else None
             self._hover_part = part if self._hover is not None else None
@@ -441,7 +412,7 @@ class CropView(ZoomView):
                 }
                 if part in edges:
                     painter.drawLine(*edges[part])
-                pt = QPointF(self.mapFromScene(self._handle_points(self._box)[part]))
+                pt = QPointF(self.mapFromScene(CropHandles.points(self._box)[part]))
                 painter.setPen(QPen(QColor("#ffffff"), 2))
                 painter.setBrush(Qt.NoBrush)
                 h = HANDLE_PX / 2 + 4

@@ -11,7 +11,7 @@ CROP_COLOR = "#ffd400"  # the crop box and its handles
 CROP_HINT = "Drag a box around the figure to crop"
 WASH_ALPHA = 200  # how strongly the background outside the outline is faded
 
-_HANDLE_CURSORS = {
+HANDLE_CURSORS = {  # the cursor over each part of a box that a drag grabs
     "tl": Qt.SizeFDiagCursor,
     "br": Qt.SizeFDiagCursor,
     "tr": Qt.SizeBDiagCursor,
