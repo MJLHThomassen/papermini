@@ -152,16 +152,6 @@ class FontLibrary:
             return "Times New Roman, Times, serif"
         return f"'{font.name}', serif"
 
-    @staticmethod
-    def from_svg_family(family: str) -> str:
-        """The font name back from an SVG font-family."""
-        first = family.split(",")[0].strip().strip("'\"")
-        return (
-            FontLibrary.DEFAULT
-            if first in ("", "Times New Roman", "Times", "serif")
-            else first
-        )
-
     def file_for(self, name: str, bold: bool = False) -> Path | None:
         """The font file to draw ``name`` with (None for Times)."""
         font, _ = self.resolve(name)

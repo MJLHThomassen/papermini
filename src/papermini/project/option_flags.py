@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Collection
 from typing import Any, get_args
 
 from . import sizes
@@ -11,26 +10,15 @@ from .option import Option
 class OptionFlags:
     """Adds command-line flags to a parser, building a setting's flag from its option.
 
+    A flag is None unless given, so that the settings decide the values left out.
     Every help text ends in the flag's default, which comes from the settings dataclass.
     """
 
-    def __init__(
-        self,
-        parser: argparse.ArgumentParser,
-        settings: Any,
-        given_only: Collection[str] = (),
-    ) -> None:
-        """Add the flags of ``settings``, a dataclass with ``options()``, to ``parser``.
-
-        The flags in ``given_only``, and those of the settings a creature size fills in,
-        are None unless given, so that the settings decide their values.
-        """
+    def __init__(self, parser: argparse.ArgumentParser, settings: Any) -> None:
+        """Add the flags of ``settings``, a dataclass with ``options()``, to ``parser``."""
         self._parser = parser
         self._options: dict[str, Option] = settings.options()
         self._defaults = settings()
-        self._given_only = set(given_only) | {
-            name for name, option in self._options.items() if option.sized
-        }
         self._groups: dict[str, argparse._ArgumentGroup] = {}
 
     def add(self, *names: str) -> None:
@@ -38,11 +26,14 @@ class OptionFlags:
         for name in names:
             self.add_one(name)
 
-    def add_one(self, name: str, more: str = "") -> None:
-        """Add the flag of the setting ``name``, with ``more`` after its option's help."""
+    def add_one(self, name: str, more: str = "", flag: str = "") -> None:
+        """Add the flag of the setting ``name``, with ``more`` after its option's help.
+        ``flag`` names the flag when it is not the setting's name."""
         option = self._options[name]
+        flag = flag or "--" + name.replace("_", "-")
         self.group_of(name).add_argument(
-            "--" + name.replace("_", "-"),
+            flag,
+            dest=flag.lstrip("-").replace("-", "_"),
             help=f"{option.help}{more} (default: {self.default_text(name)})",
             **self._parsing(option, getattr(self._defaults, name)),
         )
@@ -93,10 +84,8 @@ class OptionFlags:
         if option.type is bool:
             if default:
                 return {"action": argparse.BooleanOptionalAction, "default": None}
-            return {"action": "store_true"}
-        parsing: dict[str, Any] = {
-            "default": None if option.name in self._given_only else default
-        }
+            return {"action": "store_true", "default": None}
+        parsing: dict[str, Any] = {"default": None}
         for number in (int, float):
             if number in (option.type, *get_args(option.type)):
                 parsing["type"] = number

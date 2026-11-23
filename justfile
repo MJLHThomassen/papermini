@@ -77,5 +77,5 @@ screenshots:
 
 # rebuild the sample outputs in examples/dragons/samples
 samples:
-    {{ uv_run }} python -m papermini batch examples/dragons/samples.yaml
-    {{ uv_run }} python -m papermini batch examples/dragons/samples-machine.yaml
+    {{ uv_run }} python -m papermini build examples/dragons/samples.yaml
+    {{ uv_run }} python -m papermini build examples/dragons/samples-machine.yaml

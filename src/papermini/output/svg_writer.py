@@ -16,8 +16,7 @@ XLINK_NS = "http://www.w3.org/1999/xlink"
 
 
 class SvgWriter:
-    """Writes a miniature as an SVG file in mm, its text in its font from ``fonts``.
-    ``SvgReader`` reads the file back."""
+    """Writes a miniature as an SVG file in mm, its text in its font from ``fonts``."""
 
     def __init__(self, fonts: FontLibrary):
         self._fonts = fonts

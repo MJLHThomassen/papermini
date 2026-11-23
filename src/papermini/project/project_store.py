@@ -20,10 +20,9 @@ _PROJECT_FORMAT = 1
 
 
 class ProjectStore:
-    """Loads, checks and saves project files, for the CLI, batch YAML and the GUI.
+    """Loads, checks and saves project files (YAML), for the command line and the GUI.
 
-    A project file *is* a batch config (saved projects also record the papermini that
-    saved them and the project format)::
+    Saved projects also record the papermini that saved them and the project format::
 
         papermini: VERSION   # the papermini that saved it
         format: 1
@@ -95,7 +94,7 @@ class ProjectStore:
         )
 
     def save(self, p: Project, path: Path) -> Path:
-        """Write ``p`` as a batch YAML, with the papermini version that saved it and the
+        """Write ``p`` as a project file, with the papermini version that saved it and the
         project format. Paths are stored relative to the file."""
         import os
 

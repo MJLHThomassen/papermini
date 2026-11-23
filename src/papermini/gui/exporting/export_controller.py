@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
+from ...output.exporter import PIECE_FORMATS
 from ...output.output import Output
 from ...output.paper_sizes import PaperSizes
 from ...output.sheet_layout import SheetLayout
@@ -141,12 +142,10 @@ class ExportController(QObject):
         folder = self._dialogs.folder(self._window, self._window.out_dir())
         if not folder:
             return
-        kinds = ("svg", "png") if fmt == "both" else (fmt,)
         try:
             n = sum(
-                len(self._write(f, Path(folder) / f.entry.svg_name(), k))
+                len(self._write(f, Path(folder) / f.entry.svg_name(), fmt))
                 for f in self._window.figures
-                for k in kinds
             )
         except OSError as e:
             self.warning.emit(str(e))
@@ -155,14 +154,15 @@ class ExportController(QObject):
         self.status.emit(f"Saved {n} file{'s' * (n != 1)} to {folder}")
 
     def _write(self, fig: Figure, path: Path, fmt: str) -> list[Path]:
-        """Write a figure as ``fmt`` ("svg" or "png") at ``path``, one file per
+        """Write a figure as ``fmt`` ("svg", "png" or "both") at ``path``, one file per
         numbered copy."""
-        copies = fig.entry.settings.copies
-        if fmt == "png":
-            return self._output.png.write_copies(
-                fig.mini, path.with_suffix(".png"), self._png_scale(), copies
-            )
-        return self._output.svg.write_copies(fig.mini, path.with_suffix(".svg"), copies)
+        return self._output.exporter.pieces(
+            fig.mini,
+            path,
+            PIECE_FORMATS if fmt == "both" else (fmt,),
+            fig.entry.settings.copies,
+            self._png_scale(),
+        )
 
     def _png_scale(self) -> float:
         """Pixels per mm of an exported PNG, as the preferences set it (pixels per
@@ -192,20 +192,17 @@ class ExportController(QObject):
         if dlg is None:
             return
         path = dlg.pdf_path()
-        pdf = path if dlg.pdf.isChecked() else None
-        cut_file = (
-            self._output.cut_files.default_path(path)
-            if path is not None and lay.machine and dlg.cut.isChecked()
-            else None
-        )
+        if path is None:
+            return
         try:
-            if pdf is not None:
-                self._output.pdf.write(lay, pdf, sh.title)
-            files = ([pdf] if pdf is not None else []) + (
-                self._output.cut_files.write(lay, cut_file, sh.cut_folds, sh.title)
-                if cut_file is not None
-                else []
-            )
+            files = self._output.exporter.sheet(
+                lay,
+                path,
+                sh.title,
+                sh.cut_folds,
+                write_pdf=dlg.pdf.isChecked(),
+                write_cut_files=dlg.cut.isChecked(),
+            ).paths
         except OSError as e:
             self.warning.emit(str(e))
             return

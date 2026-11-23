@@ -38,7 +38,7 @@ def parser(monkeypatch) -> argparse.ArgumentParser:
 
 @pytest.fixture
 def flags(parser) -> OptionFlags:
-    return OptionFlags(parser, _Example, given_only={"shape"})
+    return OptionFlags(parser, _Example)
 
 
 def test_a_flag_reads_its_value_with_the_type_of_its_field(parser, flags):
@@ -47,16 +47,9 @@ def test_a_flag_reads_its_value_with_the_type_of_its_field(parser, flags):
     assert (a.width_mm, a.count, a.angle) == (2.0, 3, -5)
 
 
-def test_a_flag_left_out_has_its_settings_default(parser, flags):
-    flags.add("width_mm", "count", "tidy", "area")
-    a = parser.parse_args([])
-    assert (a.width_mm, a.count, a.tidy, a.area) == (1.5, None, False, None)
-
-
-def test_a_given_only_or_sized_flag_left_out_is_none(parser, flags):
-    flags.add("shape", "height_mm")
-    a = parser.parse_args([])
-    assert (a.shape, a.height_mm) == (None, None)
+def test_a_flag_left_out_is_none(parser, flags):
+    flags.add("width_mm", "count", "shape", "tidy", "framed", "height_mm", "area")
+    assert set(vars(parser.parse_args([])).values()) == {None}
 
 
 def test_a_flag_allows_only_its_options_choices(parser, flags):
@@ -134,3 +127,9 @@ def test_a_value_is_shown_without_a_unit_unless_given_one(flags):
     assert flags.shown(1.5) == "1.5"
     assert flags.shown(1.5, "mm") == "1.5 mm"
     assert flags.shown(90, "°") == "90°"
+
+
+def test_a_flag_can_have_a_name_of_its_own(parser, flags):
+    flags.add_one("width_mm", flag="--piece-width-mm")
+    assert parser.parse_args(["--piece-width-mm", "3"]).piece_width_mm == 3.0
+    assert "--piece-width-mm" in parser.format_help()

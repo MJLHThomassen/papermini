@@ -154,39 +154,43 @@ command line can rebuild too.
 # Usage via CLI
 
 The app is also the command line: started without a command, `papermini`
-(`papermini.exe` on Windows) opens the app; with a command, such as `make`, it
+(`papermini.exe` on Windows) opens the app; with a command, such as `build`, it
 runs that command in your terminal. The Windows installer can add papermini to
 your PATH. On macOS it is `papermini.app/Contents/MacOS/papermini`. When running from source, the
 `papermini` command is in the venv (`Scripts/` on Windows, `bin/` on macOS and
 Linux).
 
-Make one SVG per image:
+The command line works like the app: put images in a project file with their
+settings, then build it. Add images, or every image in a folder and its
+subfolders, to a project file (it is made when it does not exist):
 
 ```bash
-papermini make dragon.png --size large --label "Red dragon"
+papermini add lair.yaml dragon.png --size large --label "Red dragon"
 ```
-
-or for every image in a folder and its subfolders:
 
 ```bash
-papermini make Monsters -o minis
+papermini add lair.yaml Monsters --copies 2
 ```
 
-Lay SVGs out on a printable PDF sheet:
+Build the project, such as one saved by the app: an SVG of each figure and the
+printable PDF sheet, or what you ask for with `--svg`, `--png` and `--sheet`:
 
 ```bash
-papermini sheet "minis/*.svg" --copies 2 -o minis.pdf
+papermini build lair.yaml
 ```
-
-Build a whole project (images, per-figure settings and the sheet) from a YAML
-file, such as one saved by the app:
 
 ```bash
-papermini batch examples/dragons/dragons.yaml
+papermini build examples/dragons/dragons.yaml --sheet --paper letter
 ```
 
-Run `papermini make --help` for all options. The
-[reference](docs/reference.md) explains every option, the batch file format,
+Make one piece from an image, without a project file:
+
+```bash
+papermini build dragon.png --size large --label "Red dragon"
+```
+
+Run `papermini build --help` and `papermini add --help` for all options. The
+[reference](docs/reference.md) explains every option, the project file format,
 stands and bases, double-sided minis and tips for tricky drawings.
 
 # Development
