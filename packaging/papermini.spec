@@ -1,7 +1,7 @@
 # PyInstaller spec: one program that is both the desktop app and the command line.
 #
-#   uv sync --all-extras --group build
-#   uv run pyinstaller packaging/papermini.spec --noconfirm   (or: just build)
+#   just setup
+#   just build
 #
 # Output in dist/:
 #   Windows / Linux: papermini/ with papermini(.exe)

@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+# The steps run the justfile's recipes, as a developer does (rule R1 of the guide).
+env:
+  JUST_VERSION: "1.59.0"  # the just release that runs the recipes
+  UV_LOCKED: "1"  # uv fails when uv.lock is out of date, instead of updating it
+  UV_PROJECT_ENVIRONMENT: .venv  # in the checkout, not the justfile's default
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -36,11 +42,15 @@ jobs:
           python-version: ${{ matrix.python }}
           enable-cache: true
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
       - name: Install
-        run: uv sync --locked --all-extras
+        run: just setup
 
       - name: Test
-        run: uv run --no-sync python -m pytest -q
+        run: just test -q
         env:
           QT_QPA_PLATFORM: offscreen
 
@@ -56,11 +66,15 @@ jobs:
           version-file: pyproject.toml
           enable-cache: true
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
       - name: Ruff check
-        run: uv run --locked --only-group dev ruff check --output-format github
+        run: just lint --output-format github
 
       - name: Ruff format
-        run: uv run --locked --only-group dev ruff format --diff
+        run: just format --diff
 
   types:
     name: Types
@@ -77,8 +91,12 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
       - name: Install
-        run: uv sync --locked --all-extras
+        run: just setup
 
       # The code doesn't pass ty yet. TY_FINDINGS is the number of findings ty reports
       # on main; the step fails when ty reports more. See rule R2 of the guide.
@@ -87,7 +105,7 @@ jobs:
         env:
           TY_FINDINGS: 570
         run: |
-          uv run --no-sync ty check --exit-zero --output-format github | tee "$RUNNER_TEMP/ty.txt"
+          just typecheck --exit-zero --output-format github | tee "$RUNNER_TEMP/ty.txt"
           found=$(grep -c '^::' "$RUNNER_TEMP/ty.txt" || true)
           echo "ty reports $found findings. The limit (TY_FINDINGS) is $TY_FINDINGS." >> "$GITHUB_STEP_SUMMARY"
           if [ "$found" -gt "$TY_FINDINGS" ]; then
@@ -165,14 +183,24 @@ jobs:
           python-version: ${{ matrix.python }}  # the image's Python
           enable-cache: true
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
       - name: Install
-        run: uv sync --locked --all-extras
+        run: just setup
 
       - name: Test
-        run: uv run --no-sync python -m pytest -q ${{ matrix.coverage && '--cov' || '' }}
+        if: ${{ !matrix.coverage }}
+        run: just test -q
         env:
           QT_QPA_PLATFORM: offscreen
 
-      - name: Coverage report
+      # the coverage report goes to the log and, as a table, to the job summary
+      - name: Test with coverage
         if: matrix.coverage
-        run: uv run --no-sync coverage report --format markdown >> "$GITHUB_STEP_SUMMARY"
+        run: >-
+          just coverage -q --cov-report=term
+          "--cov-report=markdown-append:$GITHUB_STEP_SUMMARY"
+        env:
+          QT_QPA_PLATFORM: offscreen
