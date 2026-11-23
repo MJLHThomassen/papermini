@@ -245,7 +245,9 @@ Run the app from a terminal, so its warnings and tracebacks show up there:
 just gui
 ```
 
-Run the tests. They need no model download; the GUI tests run off-screen:
+Run the tests. They use synthetic masks instead of the model, so they need no
+model download or network. The GUI tests run off-screen, and are skipped when
+PySide6 is not installed:
 
 ```bash
 just test

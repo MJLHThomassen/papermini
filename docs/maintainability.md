@@ -479,6 +479,11 @@ These must match what the code does:
 
 A mismatch is a finding, whichever side is wrong.
 
+Don't say how long something takes, such as "about a second" or "a few
+seconds". It depends on the computer and changes with the code. Measured times
+are fine when the docs say what they were measured on, as in the model
+comparison in `docs/reference.md`.
+
 ### D2. Each kind of doc has one home
 
 - User-facing behaviour goes in `docs/reference.md`.

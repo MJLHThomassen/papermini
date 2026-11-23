@@ -47,14 +47,14 @@ class FigureSettings:
     ).field("mini")
     size: str = Option(
         label="Creature size",
-        help="creature size: fills in the height and the tabs from the size "
-        "table; --height-mm or a tab size given as well wins "
-        "and makes it custom",
-        tooltip="The D&D creature size: fills in the figure height and the tabs (round "
+        help="creature size: fills in the height, the tabs and a token's diameter "
+        "from the size table; --height-mm, a tab size or --token-diameter-mm given "
+        "as well wins and makes it custom",
+        tooltip="The D&D creature size: fills in the figure height, the tabs (round "
         "base\n"
-        "and stand tab) from the project's size table (☰ menu > Preferences… >\n"
-        "Creature sizes).\n"
-        "Changing the height or a tab size by hand makes it Custom.",
+        "and stand tab) and a token's diameter from the project's size table\n"
+        "(☰ menu > Preferences… > Creature sizes).\n"
+        "Changing one of them by hand makes it Custom.",
         group=_SIZE,
         choices=sizes.SIZE_CHOICES,
         choice_labels=tuple(sizes.LABELS[s] for s in sizes.SIZE_CHOICES),
