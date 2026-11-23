@@ -73,6 +73,9 @@ cache-keys = [
     { env = "SETUPTOOLS_SCM_PRETEND_VERSION" },
 ]
 
+[tool.ruff]
+extend-include = ["packaging/*.spec"]  # the PyInstaller spec is Python
+
 [tool.ruff.lint]
 # Ruff's default rule set, except:
 ignore = [
