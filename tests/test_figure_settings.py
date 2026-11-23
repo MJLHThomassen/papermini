@@ -9,6 +9,15 @@ from papermini.pipeline.adjustments import Adjustments
 from papermini.project.figure_settings import FigureSettings
 
 
+def test_the_model_option_names_every_built_in_model():
+    from papermini.pipeline.segmentation.segment import ONNX_MODELS
+    from papermini.project.option import Option
+
+    option = Option.of(FigureSettings)["model"]
+    for name in ONNX_MODELS:
+        assert name in option.help
+
+
 def test_token_settings_are_checked():
     d = FigureSettings()
     assert (d.kind, d.token_diameter_mm, d.token_border_mm, d.token_text) == (
@@ -144,6 +153,12 @@ def test_the_adjustments_are_checked_and_round_trip():
     ):
         with pytest.raises(ValueError, match=key):
             FigureSettings.from_dict({key: bad})
+
+
+def test_a_custom_model_needs_its_file():
+    with pytest.raises(ValueError, match="custom model needs its .onnx file"):
+        FigureSettings(model="").mask_options()
+    assert FigureSettings(model="my.onnx").mask_options().model == "my.onnx"
 
 
 def test_mask_inputs_change_only_with_the_settings_background_removal_uses():

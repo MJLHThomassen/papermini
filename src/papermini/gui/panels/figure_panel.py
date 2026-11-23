@@ -508,7 +508,7 @@ class FigurePanel(QScrollArea):
         self.size_warning.setVisible(bool(warning))
 
     def _sync_auto_hint(self):
-        model = self.field("model").currentText().strip()
+        model = self._value("model")
         method = self._auto_method
         self.auto_hint.setVisible(bool(method) and model == "auto")
         used = (
@@ -518,8 +518,8 @@ class FigurePanel(QScrollArea):
             self.licence_hint.setText(
                 f"<b>Non-commercial use only.</b> You are responsible for not using "
                 f"{html.escape(segment.ONNX_MODELS[used]['title'])} commercially, for "
-                f"example to make minis you sell. For commercial use, pick birefnet or "
-                f"birefnet-lite."
+                f"example to make minis you sell. For commercial use, pick "
+                f"{' or '.join(SegmenterRegistry.free_models())}."
             )
             self.licence_hint.setToolTip(SegmenterRegistry.licence_notice(used))
         self.licence_hint.setVisible(

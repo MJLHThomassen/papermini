@@ -8,6 +8,7 @@ from ..pipeline.adjustments import Adjustments
 from ..pipeline.mask_options import MaskOptions
 from ..pipeline.mini import TAB_SHOWS
 from ..pipeline.params import BACK_MODES, MARGIN_FILLS, TAB_SHAPES, Params
+from ..pipeline.segmentation.segment import DEFAULT_MODEL, ONNX_MODELS
 from ..pipeline.style import Style
 from ..pipeline.token_options import (
     TOKEN_FILLS,
@@ -247,18 +248,10 @@ class FigureSettings:
     ).field("#2f5597")
     model: str = Option(
         label="Model",
-        help="rmbg-1.4, birefnet, birefnet-lite, alpha, mask (with --mask) or a .onnx "
-        "file; 'auto' uses the alpha channel of transparent PNGs, or --mask if given",
-        tooltip="How the figure is separated from the background.\n"
-        "auto: the PNG's transparency if it has any, else rmbg-1.4.\n"
-        "rmbg-1.4: BRIA's background removal model, non-commercial use only\n"
-        "(downloads 176 MB once).\n"
-        "birefnet: sharper edges and fine detail, slower, free for any use\n"
-        "(downloads 930 MB once).\n"
-        "birefnet-lite: a smaller, faster BiRefNet (downloads 215 MB once).\n"
-        "alpha: the PNG's own transparency (no file needed).\n"
-        "mask image file: your own black-and-white mask (white = figure).\n"
-        "You can also type the path of your own .onnx model.",
+        help=f"{', '.join(ONNX_MODELS)}, alpha, mask (with --mask) or a .onnx file; "
+        f"'auto' uses --mask if given, else the image's transparency if it has any, "
+        f"else {DEFAULT_MODEL}",
+        tooltip="How the figure is separated from the background.",
         group=_MASK,
     ).field("auto")
     mask: str | None = Option(
@@ -708,6 +701,8 @@ class FigureSettings:
         file, and model "auto" uses it too when one is given."""
         if self.model == "mask" and not self.mask:
             raise ValueError("model 'mask' needs a mask image file - choose one")
+        if not self.model:  # a custom model whose file is not chosen yet
+            raise ValueError("a custom model needs its .onnx file - choose one")
         use_mask = self.mask and self.model in ("mask", "auto")
         return MaskOptions(
             model="auto" if self.model == "mask" else self.model,

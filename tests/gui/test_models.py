@@ -279,6 +279,7 @@ def test_the_settings_show_the_licence_of_the_model_in_use(
     assert (
         p.licence_hint.isVisibleTo(p)
         and "Non-commercial use only" in p.licence_hint.text()
+        and "pick birefnet or birefnet-lite." in p.licence_hint.text()
     )
     pick("birefnet")
     assert not p.licence_hint.isVisibleTo(p)

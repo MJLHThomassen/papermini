@@ -49,12 +49,17 @@ class SegmenterRegistry:
         return not segment.ONNX_MODELS.get(model, {}).get("commercial", True)
 
     @staticmethod
+    def free_models() -> list[str]:
+        """Return the names of the built-in models that may be used commercially."""
+        return [m for m, s in segment.ONNX_MODELS.items() if s.get("commercial")]
+
+    @staticmethod
     def licence_notice(model: str) -> str:
         """Explain in words what a user of a non-commercial built-in ``model`` is
         responsible for."""
         title = segment.ONNX_MODELS[model]["title"]
         free = " or ".join(
-            s["title"] for s in segment.ONNX_MODELS.values() if s.get("commercial")
+            segment.ONNX_MODELS[m]["title"] for m in SegmenterRegistry.free_models()
         )
         return (
             f"{title} is licensed for non-commercial use only. You are responsible for "

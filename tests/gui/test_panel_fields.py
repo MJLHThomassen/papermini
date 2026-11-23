@@ -60,9 +60,12 @@ def _suffix(unit: str) -> str:
 
 
 def _label(w) -> str:
-    """Return the text of the form label beside ``w``, or its own text."""
-    form = w.parentWidget().layout()
-    label = form.labelForField(w) if isinstance(form, QFormLayout) else None
+    """Return the text of the form label beside the row that holds ``w``, or its own
+    text."""
+    row = w
+    while not isinstance(row.parentWidget().layout(), QFormLayout):
+        row = row.parentWidget()
+    label = row.parentWidget().layout().labelForField(row)
     return label.text() if label is not None else w.text()
 
 
