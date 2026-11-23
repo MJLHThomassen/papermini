@@ -144,7 +144,7 @@ class BuildQueue(QObject):
         fig = self._figure(result.uid)
         if fig is None or fig.key() != result.key:
             return
-        fig.error, fig.queued = result.error, None
+        fig.error, fig.error_kind, fig.queued = result.error, result.error_kind, None
         self.failed.emit(fig, result.error)
 
     def _on_cancelled(self, result: BuildResult) -> None:

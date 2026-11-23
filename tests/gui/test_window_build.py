@@ -67,6 +67,19 @@ def test_a_figure_builds_rebuilds_after_an_edit_and_saves(
     assert p.figures[0].settings.crop == [0.1, 0.1, 0.9, 0.9]
 
 
+def test_the_banner_says_what_to_try_when_no_figure_is_found(
+    fake_default_model, app, tmp_path, new_window, wait
+):
+    Image.new("RGB", (300, 400), "white").save(tmp_path / "blank.png")
+    w = new_window()
+    w.add_images([tmp_path / "blank.png"], FigureSettings())
+    fig = w.current()
+    assert wait(lambda: fig.error is not None)
+    text = w.banner.text.text()
+    assert "found no figure" in text and "Lower the strength" in text
+    assert "--" not in text
+
+
 def test_a_bad_model_reports_an_error_and_the_figure_recovers(
     app, tmp_path, new_window, wait
 ):

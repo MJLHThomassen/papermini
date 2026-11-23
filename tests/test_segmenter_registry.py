@@ -8,6 +8,9 @@ from papermini.pipeline.segmentation import segment
 from papermini.pipeline.segmentation.cancellation import Cancellation
 from papermini.pipeline.segmentation.download_hooks import DownloadHooks
 from papermini.pipeline.segmentation.model_error import ModelError
+from papermini.pipeline.segmentation.model_not_downloaded_error import (
+    ModelNotDownloadedError,
+)
 from papermini.pipeline.segmentation.segmenter_registry import SegmenterRegistry
 
 
@@ -53,7 +56,9 @@ def test_refused_download_explains_and_downloads_nothing(
 ):
     asked, seen = [], []
     refuse = DownloadHooks(confirm=lambda m: asked.append(m) or False)
-    with pytest.raises(ModelError, match="not downloaded.*Models and cache"):
+    with pytest.raises(
+        ModelNotDownloadedError, match="rmbg-1.4 model is not downloaded"
+    ):
         registry.get("rmbg-1.4", refuse)
     assert asked == ["rmbg-1.4"] and fake_downloader.got == []
     # an approved download goes ahead with progress; a model that is already there is

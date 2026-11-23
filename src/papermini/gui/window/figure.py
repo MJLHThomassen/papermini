@@ -25,6 +25,7 @@ class Figure:
     mini: Mini | None = None
     built_key: str | None = None
     error: str | None = None
+    error_kind: type[Exception] | None = None  # the exception type behind ``error``
     pixmap: QPixmap | None = None  # art of ``mini`` as a QPixmap (cached for the sheet)
     queued: str | None = None  # key of the job waiting in the pool
     cancelled: str | None = None  # mask_key whose background removal the user cancelled

@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 
 from ..pipeline.mini import Mini
+from .figure_too_large_error import FigureTooLargeError
 from .paper_sizes import Paper, PaperSizes
 from .placement import Placement
 from .registration_marks import RegistrationMarks
@@ -58,7 +59,7 @@ class SheetPacker:
 
         def too_big(m: Mini, why: str) -> None:
             if not leave_out:
-                raise ValueError(why)
+                raise FigureTooLargeError(why)
             if not any(o.art is m.art for o in left_out):  # (one entry for all copies)
                 left_out.append(m)
 
@@ -68,8 +69,7 @@ class SheetPacker:
                 too_big(
                     m,
                     f"{m.name} ({m.width_mm:.0f} x {m.height_mm:.0f} mm) does not fit "
-                    f"on {name} with {margin_mm:g} mm margins; make it smaller "
-                    "(--height-mm)",
+                    f"on {name} with {margin_mm:g} mm margins",
                 )
             else:
                 fitting.append(m)
@@ -86,7 +86,7 @@ class SheetPacker:
                         too_big(
                             m,
                             f"{m.name} does not fit on {name} between the alignment "
-                            "marks; make it smaller (--height-mm)",
+                            "marks",
                         )
                         placed = False
                         break

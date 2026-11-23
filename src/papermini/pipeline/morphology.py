@@ -3,6 +3,9 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from .nothing_found_error import NothingFoundError
+from .too_many_parts_error import TooManyPartsError
+
 MAX_PARTS = 60  # the most separate parts connect_components bridges
 
 
@@ -73,10 +76,7 @@ class Morphology:
         """Return the (x0, y0, x1, y1) inclusive bounding box of the non-zero pixels."""
         ys, xs = np.nonzero(m)
         if len(ys) == 0:
-            raise ValueError(
-                "empty mask: nothing was detected as foreground "
-                "(try a lower --strength, a --crop, or another --model)"
-            )
+            raise NothingFoundError("background removal found no figure in the image")
         return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
     def connect_components(self, m: np.ndarray, width_px: int) -> np.ndarray:
@@ -90,9 +90,9 @@ class Morphology:
         if k <= 1:
             return m
         if k > MAX_PARTS:
-            raise ValueError(
-                f"{k} separate parts is too many to bridge (max {MAX_PARTS}); "
-                "raise the min. part area or the strength, or turn off keep-all"
+            raise TooManyPartsError(
+                f"the figure has {k} separate parts, too many to join into one "
+                f"piece (at most {MAX_PARTS})"
             )
         pts = []
         for c in cs:  # outline points, thinned to bound the pairwise cost

@@ -5,6 +5,8 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
+from .nothing_found_error import NothingFoundError
+
 # a fitted figure leaves this share of the inner diameter free on each side
 FIT_FREE = 0.08
 
@@ -25,10 +27,7 @@ class TokenFramer:
         inner diameter free on each side."""
         pts = [c for c in contours if len(c)]
         if not pts:
-            raise ValueError(
-                "background removal found no figure in this image: try a lower "
-                "strength, a crop or another model"
-            )
+            raise NothingFoundError("background removal found no figure in the image")
         (x, y), r = cv2.minEnclosingCircle(np.vstack(pts).astype(np.float32))
         room = max(0.3 * inner_mm, inner_mm * (1 - 2 * FIT_FREE) - outline_mm)
         return float(x), float(y), room * PX_PER_MM / max(float(r), 1.0)
