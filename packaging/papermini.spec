@@ -32,10 +32,7 @@ a = Analysis(  # noqa: F821
     [str(HERE / "entry.py")],
     pathex=[str(ROOT / "src")],
     datas=collect_data_files("reportlab")  # fonts used for the PDF sheet
-    + [
-        (str(ROOT / "src" / "papermini" / "gui" / "logo.svg"), "papermini/gui"),
-        (str(ROOT / "src" / "papermini" / "fonts"), "papermini/fonts"),
-    ],  # bundled fonts
+    + collect_data_files("papermini"),  # the non-Python files of the package
     hiddenimports=["papermini._version"],
     excludes=["tkinter", "matplotlib", "IPython", "pytest"],
     noarchive=False,
