@@ -199,10 +199,9 @@ jobs:
           ImageDraw.Draw(im).ellipse((20, 20, 180, 280), fill=(200, 60, 40, 255))
           im.save(sys.argv[1])
           " "$smoke/fig.png"
-          "$cli" make "$smoke/fig.png" --model alpha --format both -o "$smoke/out"
+          "$cli" build "$smoke/fig.png" --model alpha --svg --png --sheet -o "$smoke/out"
           ls -l "$smoke/out"
-          "$cli" sheet "$smoke"/out/*.svg -o "$smoke/sheet.pdf"
-          for f in "$smoke"/out/*.png "$smoke/sheet.pdf"; do
+          for f in "$smoke"/out/*.svg "$smoke"/out/*.png "$smoke/out/minis.pdf"; do
             [[ -s "$f" ]] || { echo "::error::the smoke test made no $(basename "$f")"; exit 1; }
           done
           if [[ "$RUNNER_OS" == macOS ]]; then  # a regular app: it shows in the Dock

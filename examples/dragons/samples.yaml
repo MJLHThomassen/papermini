@@ -1,5 +1,5 @@
 # Rebuilds the sample outputs in samples/:
-#   papermini batch examples/dragons/samples.yaml
+#   papermini build examples/dragons/samples.yaml
 # Six ways to print the same dragon (samples-machine.yaml: a sheet for a cutting machine). BiRefNet removes its background best (see
 # "Background removal models" in docs/reference.md); it is downloaded on first use.
 

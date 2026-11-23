@@ -197,9 +197,9 @@ the desktop app in depth, and how the pipeline works.
   papermini version and system filled in, and the log folder to attach the log
   from. See [Logs and reporting a problem](#logs-and-reporting-a-problem).
 
-Projects are saved as **batch YAML** files, the same format as
-`papermini batch`, so anything set up in the app can be rebuilt from the
-command line.
+Projects are saved as [project files](#project-files) (YAML), which
+`papermini build` builds on the command line, so anything set up in the app can
+be rebuilt from there.
 
 ### Adding a folder
 
@@ -228,9 +228,9 @@ later does not add them to the project.
 Every setting in the app, in the order of the settings panel. Each one shows:
 
 - its name, as in the app;
-- its command-line flag (for `papermini make`, unless another command is
-  named), or its project file key when it has no flag, and its default value
-  in brackets, as the command-line help gives it;
+- its command-line flag (for `papermini add` and `papermini build`), or its
+  project file key when it has no flag, and its default value in brackets, as
+  the command-line help gives it;
 - what it does, in one line;
 - more detail or an example.
 
@@ -765,7 +765,7 @@ The settings panel holds the sheet's own settings on this step. How many of a
 figure go on the sheet is set on its card in the figure list:
 
 ##### Amount
-`papermini sheet --copies` [1]\
+`--copies` [1]\
 How many of this figure go on the print sheet.
 
 On each figure's card: click − or +, or click the number and type one. 0
@@ -774,7 +774,7 @@ leaves the figure off the sheet. In a project file it is `copies`.
 #### Paper and layout
 
 ##### Paper
-`papermini sheet --paper a3|a4|a5|letter|legal|tabloid|custom` [a4]\
+`--paper a3|a4|a5|letter|legal|tabloid|custom` [a4]\
 The paper size of the sheet.
 
 The list shows each size: A3 (297 × 420 mm), A4 (210 × 297 mm), A5 (148 × 210
@@ -791,7 +791,7 @@ those figures off the sheet. The command line stops with an error that names
 the figure.
 
 ##### Orientation
-`papermini sheet --orientation portrait|landscape` [portrait]\
+`--orientation portrait|landscape` [portrait]\
 Whether the page is upright or on its side.
 
 Shown for a named paper size. Landscape fits wide figures and longer rows. A
@@ -801,7 +801,7 @@ than tall for a landscape page.
 ![The same dragons on A4 in portrait and in landscape](screenshots/settings/orientation.png)
 
 ##### Width and Height
-`papermini sheet --paper-width-mm`, `--paper-height-mm`\
+`--paper-width-mm`, `--paper-height-mm`\
 The width and height of a custom paper size, as it prints (50 to 1200 mm).
 
 Shown when *Paper* is *Custom*, for example for a print shop or a plotter.
@@ -811,20 +811,20 @@ is then custom. In a project file it is `paper: custom` with `paper_width_mm`
 and `paper_height_mm`.
 
 ##### Title
-`papermini sheet --title` [Paper miniatures]\
+`--title` [Paper miniatures]\
 The title at the top of each page.
 
 It is printed above the instructions for cutting and folding.
 
 ##### Margin
-`papermini sheet --margin-mm` [12 mm]\
+`--sheet-margin-mm` [12 mm]\
 The empty border around each page.
 
 Keep it at least as wide as the edge your printer cannot print on. Cut by
 machine, the alignment marks sit in the corners, this far from the paper edges.
 
 ##### Gap
-`papermini sheet --gap-mm` [7 mm]\
+`--gap-mm` [7 mm]\
 The space between the pieces on the sheet.
 
 A wider gap leaves more room for scissors between the pieces.
@@ -832,7 +832,7 @@ A wider gap leaves more room for scissors between the pieces.
 #### Cutting
 
 ##### Cut by
-`papermini sheet --cut hand|machine` [hand]\
+`--cut hand|machine` [hand]\
 How the pieces are cut: by hand, or with a cutting machine.
 
 *By hand* prints the cut lines on the sheet, for scissors or a knife.
@@ -842,18 +842,17 @@ marks, to load in your cutting machine's software. See
 [Cutting by machine](#cutting-by-machine).
 
 ##### Bleed
-`bleed_mm` [1 mm]\
+`--bleed-mm` [1 mm]\
 Prints the edge colors this far beyond the cut line.
 
 Shown when *Cut by* is *Machine*. The margin, tab or back color goes on past
 the cut line, so a machine cut that is slightly off never shows a white edge.
-In a project file it goes under `sheet`. With `papermini make` it is
-`--bleed-mm` (0 by default), for SVGs that go on a machine sheet.
+In a project file it goes under `sheet`.
 
 ![A wing tip without bleed and with 1 mm bleed; the red line is where the machine cuts](screenshots/settings/bleed.png)
 
 ##### Marks
-`papermini sheet --marks corners|silhouette|none` [corners]\
+`--marks corners|silhouette|none` [corners]\
 The alignment marks on the sheet and in the cut file.
 
 Shown when *Cut by* is *Machine*. *Corners* is an L in each corner and a
@@ -865,7 +864,7 @@ Silhouette Studio. *None* leaves the marks out: the cut file is then lined up
 with the page itself.
 
 ##### Fold lines in cut file
-`papermini sheet --cut-folds` [off]\
+`--cut-folds` [off]\
 Also puts the fold lines in the cut file.
 
 Shown when *Cut by* is *Machine*. The fold lines go in their own group, in
@@ -873,7 +872,7 @@ blue, so the cutting software can score or draw them, or leave them out. They
 are always printed on the sheet.
 
 ##### Mat
-`papermini sheet --mat 12x12|12x24` [any size, no note]\
+`--mat 12x12|12x24` [any size, no note]\
 The cutting mat you put the sheet on, to check that the paper fits it.
 
 Shown when *Cut by* is *Machine*. A 12 × 12 in mat (305 × 305 mm) takes A4,
@@ -885,36 +884,53 @@ and it is kept when *Cut by* goes back to *By hand*.
 
 ## Commands
 
-### `papermini make IMAGE... [options]`
+The command line works like the app. `papermini add` puts images in a project
+file with their settings, and `papermini build` builds the project and writes
+the files you ask for. `papermini build` also takes images directly, for a
+piece without a project file.
 
-Makes one SVG per image, saved next to the image or in `-o DIR` (or
-`-o name.svg` for a single image); `--format png` or `both` writes a PNG of each
-piece too (see [Tokens](#tokens) for the PNG size). An image can also be a link (an `http://` or
-`https://` URL) to a PNG, JPG, WebP, BMP or TIFF on the web; it is downloaded
-once and cached, and its SVG is saved in the current folder.
+### `papermini add PROJECT.yaml [IMAGE...] [options]`
 
-An image can also be a folder: every image in it and in its subfolders is made, in
-natural order (*goblin 2* before *goblin 10*), and papermini says how many it found.
-`--no-subfolders` takes only the folder's own images. With `-o DIR` the subfolders
-are made again inside `DIR` (`goblins/leader.png` → `DIR/goblins/leader.svg`);
-without it each SVG is saved next to its image. Hidden files and folders and files
-that are not images are skipped.
+Adds images to a project file, with the settings the [figure options](#figure-options)
+give, and sets the project's sheet with the [sheet options](#sheet-options). The
+file is made when it does not exist yet. Nothing is built: `papermini build`
+does that.
+
+- **Images** are image files, glob patterns such as `*.png`, links (an `http://`
+  or `https://` URL to a PNG, JPG, WebP, BMP or TIFF; downloaded once and cached,
+  and the project keeps the link) or folders.
+- **A folder** adds every image in it and in its subfolders, in natural order
+  (*goblin 2* before *goblin 10*), and papermini says how many it found.
+  `--no-subfolders` takes only the folder's own images. Hidden files and folders
+  and files that are not images are skipped. Files in different subfolders that
+  share a name get the subfolder in front, as with
+  [Add folder…](#adding-a-folder) in the app. The project keeps each image, not
+  the folder.
+- **The figure options** apply to the images of this `add`. `--grid-mm` sets the
+  grid of the project's size table, so the creature sizes scale with it.
+- **The sheet options** change the project's sheet. `add` without images only
+  changes the sheet.
+
+`add` saves the project the way the app does: comments in a hand-written project
+file are not kept, and its `defaults` are written into each figure.
 
 ```bash
-papermini make dragon.png --size large --label "Red dragon"
+papermini add lair.yaml dragon.png --size large --label "Red dragon"
 ```
 
 ```bash
-papermini make boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --strength 60 --fill-gaps 7
+papermini add lair.yaml Monsters boss.png --strength 60
 ```
 
 ```bash
-papermini make *.png -o minis --debug
+papermini add lair.yaml --paper letter --cut machine
 ```
 
-```bash
-papermini make Monsters -o minis
-```
+#### Figure options
+
+The settings of the figures, for `papermini add` and for images given to
+`papermini build`. Without a flag, a figure gets the default, or for its size
+the value its [creature size](#creature-sizes) fills in.
 
 | option | default | meaning |
 |---|---|---|
@@ -942,7 +958,6 @@ papermini make Monsters -o minis
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
 | `--fill-gaps` | scales with the image, 9 px at 1400 px | fill gaps and notches in the outline up to this many px; 0 = off |
 | `--keep-all` / `--min-area` | off / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
-| `--no-cache` | off | make the mask again instead of reusing the cached one (see [Caching and speed](#caching-and-speed)) |
 | `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
 | `--margin-color` | #ffffff | color of the margin around the drawing |
 | `--greyscale` | off | print in black and white |
@@ -953,17 +968,12 @@ papermini make Monsters -o minis
 | `--label` | the file name | text on the tab; `--label ""` for none |
 | `--tab-front` / `--tab-back` | label / label | what the front and back tab show: `label`, `number` (the copy's number) or `label_number` (the number above the label) |
 | `--font` | Times | font of all the text: Times, a bundled font (Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua, Kalam) or an installed one; a font that is not found prints in Times |
-| `--copies` | 1 | a figure with numbers: one file per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
+| `--copies` | 1 | how many of the figure go on the sheet; a figure with numbers writes one file per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
 | `--dpi` | 300 | resolution of the embedded artwork |
 | `--simplify-mm` | 0.15 | cut line simplification tolerance |
 | `--no-smooth` | off | straight segments only (by default the cut line uses Bézier curves) |
 | `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | cut line style |
 | `--label-color` / `--label-size-mm` | #2f5597 / 3.4 | color and largest size of the tab label; a long label shrinks to fit the tab |
-| `--bleed-mm` | 0 | print the edge colors this far beyond the cut line, for a sheet cut by machine (`papermini sheet --cut machine`) |
-| `--debug` | off | write intermediate masks and a red overlay preview to `debug/` |
-| `--no-subfolders` | off | a folder: only its own images, not those in its subfolders |
-| `--format` | svg | what to write: `svg` (the piece with its cut line), `png` (a picture of the piece, transparent around it) or `both` |
-| `--png-px` / `--png-dpi` | 256 / none | PNG size: pixels per grid square (`--grid-mm`), or a resolution in dpi for the size it prints |
 | `--kind` | mini | `mini` (a standing miniature) or `token` (a flat round token; see [Tokens](#tokens)) |
 | `--token-diameter-mm` | 25 (Medium) | a token's diameter, ring included; filled in from the creature size's base |
 | `--token-area` | the whole figure, fitted | `x0,y0,x1,y1`: the square of the picture that fills the circle, as fractions |
@@ -975,52 +985,101 @@ papermini make Monsters -o minis
 | `--token-text-style` | nameplate | `nameplate` (a band and a badge) or `curved` (along the ring) |
 | `--token-text-mm` / `--token-text-color` | 2.5 / #ffffff | the size and color of the token's text |
 
-### `papermini sheet SVG... [-o minis.pdf]`
+#### Sheet options
 
-Lays papermini SVGs out on pages. Each page has an instruction header and a
-50 mm calibration bar. Pieces are packed in rows, with a gap between them
-(`--gap-mm`) and a margin around each page (`--margin-mm`), and extra pages are
-added as needed.
-
-```bash
-papermini sheet "minis/*.svg" --copies 2 --paper letter -o minis.pdf --preview
-```
-
-The sheet only reads SVGs written by papermini. An SVG that was re-saved in
-another editor may not load. An SVG of a numbered copy keeps its number:
-`--copies 2` of `goblin-3.svg` prints two 3s. Give the sheet every copy's file
-instead (see [Numbered copies](#numbered-copies)).
-
-For a cutting machine, `--cut machine` leaves the cut lines off the PDF, adds
-alignment marks (`--marks corners|silhouette|none`) and writes a cut file per page
-next to it (`minis-cut.svg`, `minis-cut-2.svg` and so on); `--cut-folds` also
-puts the fold lines in it, and `--mat 12x12|12x24` notes when the paper is bigger
-than your cutting mat. Make the SVGs with `papermini make --bleed-mm 1` for
-a bleed. See [Cutting by machine](#cutting-by-machine).
-
-```bash
-papermini sheet "minis/*.svg" --cut machine --marks silhouette -o minis.pdf
-```
+The settings of the sheet. `papermini add` saves them in the project;
+`papermini build` uses them for that build only, and with images it uses them
+for the sheet of `--sheet`.
 
 | option | default | meaning |
 |---|---|---|
-| `--copies` | 1 | copies of each figure |
 | `--paper` | a4 | paper size: `a3`, `a4`, `a5`, `letter`, `legal`, `tabloid` or `custom` (with `--paper-width-mm` and `--paper-height-mm`) |
 | `--paper-width-mm` / `--paper-height-mm` | none / none | a custom paper's width and height, 50 to 1200 mm; giving them is enough, the paper is then custom |
 | `--orientation` | portrait | `portrait` or `landscape`, for a named paper size |
-| `--margin-mm` | 12 | page margin; cut by machine, the alignment marks sit in it |
+| `--sheet-margin-mm` | 12 | page margin; cut by machine, the alignment marks sit in it |
 | `--gap-mm` | 7 | gap between pieces |
 | `--title` | Paper miniatures | the title printed at the top of each page |
-| `--preview` | off | also write a PNG preview of each page |
 | `--cut` | hand | `hand` prints the cut lines on the sheet; `machine` leaves them off, adds alignment marks and writes a cut file per page |
+| `--bleed-mm` | 1 | cut by machine: print the edge colors this far beyond the cut line; every figure is built with it |
 | `--marks` | corners | cut by machine: the alignment marks, `corners`, `silhouette` (Silhouette Studio's Type 1) or `none` |
 | `--cut-folds` | off | cut by machine: also put the fold lines in the cut file |
 | `--mat` | any size, no note | cut by machine: the cutting mat, `12x12` or `12x24` inches; a note when the paper is bigger |
 
-### `papermini batch config.yaml`
+### `papermini build PROJECT.yaml [options]`, `papermini build IMAGE... [options]`
 
-Takes a list of images with per-image options and writes the SVGs plus a sheet.
-See [examples/minis.yaml](../examples/minis.yaml):
+Builds a project file, or images without one, and writes the outputs the flags
+ask for:
+
+- `--svg`: each figure as an SVG, the piece with its cut line;
+- `--png`: each figure as a PNG, a picture of the piece, transparent around it
+  (see [Tokens](#tokens) for the PNG size);
+- `--sheet`: the sheet to print as a PDF, and cut by machine its cut files
+  (`minis-cut.svg`, `minis-cut-2.svg` and so on, next to the PDF);
+- `--preview`: a PNG preview of each page of the sheet, along with the sheet.
+
+Without any of them, a project writes each figure as an SVG and the sheet, when
+the project makes one; images write an SVG each.
+
+Each page of the sheet has an instruction header and a 50 mm calibration bar.
+Pieces are packed in rows, with a gap between them (`--gap-mm`) and a margin
+around each page (`--sheet-margin-mm`), and extra pages are added as needed.
+
+**A project** writes where it says: the figures in its `output` folder, the
+sheet at its sheet's `output` (`minis/sheet.pdf` by default). `-o DIR` writes
+them all in `DIR` instead. The [sheet options](#sheet-options) change the sheet
+for this build only. A project holds its figures' settings, so the figure
+options are refused: change them with `papermini add`, in the file or in the
+app.
+
+```bash
+papermini build lair.yaml
+```
+
+```bash
+papermini build lair.yaml --sheet --paper a3 --preview -o print
+```
+
+**Images** take the same images as `papermini add` (files, glob patterns, links
+and folders) and the [figure options](#figure-options). Each piece is saved next
+to its image, or in `-o DIR`, or at `-o NAME.svg` or `-o NAME.png` for a single
+image; a link's piece is saved in the current folder. With `-o DIR`, a folder's
+subfolders are made again inside `DIR` (`goblins/leader.png` →
+`DIR/goblins/leader.svg`). The sheet is `minis.pdf`, in `-o DIR` or the current
+folder.
+
+```bash
+papermini build dragon.png --size large --label "Red dragon"
+```
+
+```bash
+papermini build boss.png --height-mm 56 --crop 0.08,0,0.92,0.62 --strength 60 --fill-gaps 7
+```
+
+```bash
+papermini build Monsters --png -o tokens
+```
+
+```bash
+papermini build "minis/*.png" --sheet --cut machine --marks silhouette -o print
+```
+
+| option | default | meaning |
+|---|---|---|
+| `--svg` | off | write each figure as an SVG |
+| `--png` | off | write each figure as a PNG |
+| `--sheet` | off | write the sheet (PDF) and, cut by machine, its cut files |
+| `--preview` | off | also write a PNG preview of each sheet page, as the sheet's `preview: true` does |
+| `--png-px` / `--png-dpi` | 256 / none | PNG size: pixels per grid square (the project's grid, or `--grid-mm`), or a resolution in dpi for the size it prints |
+| `--output` | the project's folders; for images, next to each image | the folder to write everything in, or for a single image the piece's file; `-o` for short |
+| `--no-subfolders` | off | a folder: only its own images, not those in its subfolders |
+| `--debug` | off | write intermediate masks and a red overlay preview of each figure to `debug/` in its folder, as `debug: true` in the project does |
+| `--no-cache` | off | make every mask again instead of reusing the cached ones (see [Caching and speed](#caching-and-speed)) |
+
+### Project files
+
+A project file (YAML) lists the images with their settings, and the sheet. The
+app saves projects in this format, and `papermini add` writes it; you can also
+write one by hand. See [examples/minis.yaml](../examples/minis.yaml):
 
 ```yaml
 output: minis                 # folder for the SVGs (and debug output)
@@ -1072,7 +1131,7 @@ does not open, and the error names the papermini that saved it, so you know whic
 version to update to. A project from a newer papermini of the same format opens,
 unless it uses an option this papermini does not know yet.
 
-A figure takes every option of `papermini make` under its own name, with
+A figure takes every [figure option](#figure-options) under its own name, with
 underscores: for example `tab_front: number`, `back: text_number`,
 `font: Almendra` and `kind: token`. A figure that shows numbers writes one SVG per copy
 (`goblin-1.svg` to `goblin-4.svg` for `copies: 4`), each with its number.
@@ -1120,18 +1179,12 @@ cut by machine:
 file [machine-sheet-cut.svg](../examples/dragons/samples/machine-sheet-cut.svg).
 
 ```bash
-papermini batch examples/dragons/samples.yaml
+papermini build examples/dragons/samples.yaml
 ```
 
 ```bash
-papermini batch examples/dragons/samples-machine.yaml
+papermini build examples/dragons/samples-machine.yaml
 ```
-
-| option | default | meaning |
-|---|---|---|
-| `--debug` | off | write intermediate masks and a red overlay preview of each figure to `debug/` in the output folder, as `debug: true` in the project does |
-| `--preview` | off | also write a PNG preview of each sheet page, as the sheet's `preview: true` does |
-| `--no-cache` | off | make every mask again instead of reusing the cached ones |
 
 <a id="model-licence"></a>
 
@@ -1218,9 +1271,10 @@ When the window closes, every figure with a size takes its values from the
 project's table. The project file keeps a copy of the table, so a project
 opens the same on any computer.
 
-**Command line.** `papermini make --size large` uses the built-in table;
-`--grid-mm 30` calculates it for a 30 mm grid instead, heights included
-(Medium 32 × 30/25.4 ≈ 37.8 mm). `papermini batch` uses the project's table.
+**Command line.** `papermini build` and `papermini add` use the project's
+table, and for a new project or images the built-in table; `--grid-mm 30`
+calculates it for a 30 mm grid instead, heights included (Medium 32 × 30/25.4
+≈ 37.8 mm). `papermini add` saves that table in the project.
 
 ## Stands and bases
 
@@ -1239,7 +1293,7 @@ label is printed on it; use `--label ""` for a plain tab, for example grass
 green or stone grey.
 
 ```bash
-papermini make dragon.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --label ""
+papermini build dragon.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --label ""
 ```
 
 The margin around the drawing can be any color (`--margin-color "#f3e6c8"`)
@@ -1261,7 +1315,7 @@ the back is up to you:
   large as fits:
 
   ```bash
-  papermini make dragon.png --back text --back-text "Red Dragon Whelp"
+  papermini build dragon.png --back text --back-text "Red Dragon Whelp"
   ```
 
   Without `--back-text`, it uses the label. On the sheet the back text is upside
@@ -1291,14 +1345,12 @@ in the back text's color. A sheet cut by machine prints them too; the cut lines
 stay the same.
 
 ```bash
-papermini make goblin.png --tab-front label_number --back number --copies 6 -o minis
+papermini build goblin.png --tab-front label_number --back number --copies 6 -o minis
 ```
 
 This writes `goblin-1.svg` to `goblin-6.svg`, one per copy, each with its number.
-The number is written into the SVG file, so `papermini sheet "minis/goblin-*.svg"`
-prints copies 1 to 6. A project numbers its figures' copies itself:
-`papermini batch` and the app's sheet print each figure's `copies` with the
-numbers 1 to `copies`, and saving SVGs writes one file per copy.
+The sheet (`--sheet`, or a project's sheet in `papermini build` and in the app)
+prints each figure's `copies` with the numbers 1 to `copies`.
 
 ## Tokens
 
@@ -1309,7 +1361,7 @@ project). Background removal and the Source step are the same as for a standing
 mini; a figure is either a mini or a token, so add an image twice for both.
 
 ```bash
-papermini make goblin.png --kind token --token-text number --copies 6 -o tokens
+papermini build goblin.png --kind token --token-text number --copies 6 -o tokens
 ```
 
 - **Size:** the creature size gives the diameter, its base: 25 mm for Medium, 50 mm
@@ -1326,7 +1378,7 @@ papermini make goblin.png --kind token --token-text number --copies 6 -o tokens
   cut line (`--token-cut-line`) it lies just outside the ring. Cut by machine, the
   cut file has the circles and the bleed carries the ring's color past the cut.
 - **Virtual tabletop:** export a PNG (**Export…** in the app and pick PNG, or
-  `--format png`): the piece, transparent around it, 256 pixels per grid square by
+  `papermini build --png`): the piece, transparent around it, 256 pixels per grid square by
   default (*PNG size* in **Preferences… → Images**, `--png-px`), so a Medium token
   covers one square and a Large one two. Set it to your tabletop's grid size, or
   use a dpi (`--png-dpi`) for the size it prints. Standing minis export as PNG too.
@@ -1345,8 +1397,8 @@ from there to the handle, a drag that comes close to 0 snaps to it (typed values
 are kept as they are), and a double-click puts a slider back to 0.
 
 ```bash
-papermini make goblin.png --greyscale --contrast 15   # black and white, a bit punchier
-papermini make goblin.png --hue 120 --saturation 20   # a green goblin from a red one
+papermini build goblin.png --greyscale --contrast 15   # black and white, a bit punchier
+papermini build goblin.png --hue 120 --saturation 20   # a green goblin from a red one
 ```
 
 In a project file they are `greyscale`, `brightness`, `contrast`, `saturation`
@@ -1372,7 +1424,7 @@ with the background removal settings.
 ## Cutting by machine
 
 Set *Cut by* to *Machine* in the Print sheet settings (`cut: machine` in a
-project file, `papermini sheet --cut machine` on the command line). Then:
+project file, `--cut machine` on the command line). Then:
 
 - **The PDF** is for printing. It has the pieces with a bleed (the edge colors
   go on 1 mm past the cut line), the fold lines and the labels, but no cut
@@ -1562,7 +1614,7 @@ Small figures from very large images are processed at a bounded resolution
 The tests use synthetic masks, so they need no model or download. They cover hole
 filling, part filtering, mm scaling, margin width, tab placement, a single closed
 cut path that never cuts into the drawing, figures touching the border,
-double-sided symmetry, Bézier deviation, SVG round-trip, sheet packing, PDF output,
-the batch command, project round-trip and the app's log. If PySide6 is installed,
+double-sided symmetry, Bézier deviation, SVG output, sheet packing, PDF output,
+the add and build commands, project round-trip and the app's log. If PySide6 is installed,
 an offscreen smoke test of the GUI also runs, with its error window and problem
 reports.

@@ -9,10 +9,13 @@ import itertools
 import re
 from dataclasses import fields
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from papermini import cli
+from papermini.commands import build_command
+from papermini.commands.sheet_flags import RENAMED
 from papermini.project.figure_settings import FIGURE_OPTIONS, FigureSettings
 from papermini.project.option_flags import OptionFlags
 from papermini.project.sheet_settings import SheetSettings
@@ -22,106 +25,114 @@ SHEET_FIELDS = {f.name for f in fields(SheetSettings)}
 
 # region flags
 
+# The flags of a figure's settings, which papermini add and papermini build share:
+# (flag, option it sets, a value to give it or None for a flag that takes none, the
+# option that value gives). Each is None unless given.
+FIGURE_FLAGS = [
+    ("--copies", "copies", "3", 3),
+    ("--kind", "kind", "token", "token"),
+    ("--size", "size", "large", "large"),
+    ("--height-mm", "height_mm", "40", 40.0),
+    ("--width-mm", "width_mm", "20", 20.0),
+    ("--margin-mm", "margin_mm", "2.5", 2.5),
+    ("--smooth-mm", "smooth_mm", "1.2", 1.2),
+    ("--margin-fill", "margin_fill", "image", "image"),
+    ("--margin-color", "margin_color", "#123456", "#123456"),
+    ("--tab-shape", "tab_shape", "round", "round"),
+    ("--tab-color", "tab_color", "#3b6e2a", "#3b6e2a"),
+    ("--tab-width-mm", "tab_width_mm", "30", 30.0),
+    ("--tab-radius-mm", "tab_radius_mm", "20", 20.0),
+    ("--tab-height-mm", "tab_height_mm", "15", 15.0),
+    ("--tab-overlap-mm", "tab_overlap_mm", "3", 3.0),
+    ("--fold-mm", "fold_mm", "2", 2.0),
+    ("--no-tab", "no_tab", None, True),
+    ("--double-sided", "double_sided", None, True),
+    ("--no-double-sided", "double_sided", None, False),
+    ("--back", "back", "text", "text"),
+    ("--back-text", "back_text", "Stats", "Stats"),
+    ("--back-color", "back_color", "#eeeeee", "#eeeeee"),
+    ("--back-text-color", "back_text_color", "#111111", "#111111"),
+    ("--token-diameter-mm", "token_diameter_mm", "40", 40.0),
+    ("--token-area", "token_area", "0.1,0.2,0.9,1", "0.1,0.2,0.9,1"),
+    ("--token-fill", "token_fill", "image", "image"),
+    ("--token-fill-color", "token_fill_color", "#222222", "#222222"),
+    ("--token-border-mm", "token_border_mm", "3", 3.0),
+    ("--token-border-color", "token_border_color", "#333333", "#333333"),
+    ("--token-cut-line", "token_cut_line", None, True),
+    ("--token-outline", "token_outline", None, True),
+    ("--token-text", "token_text", "label", "label"),
+    ("--token-text-style", "token_text_style", "curved", "curved"),
+    ("--token-text-color", "token_text_color", "#444444", "#444444"),
+    ("--token-text-mm", "token_text_mm", "4", 4.0),
+    ("--greyscale", "greyscale", None, True),
+    ("--brightness", "brightness", "10", 10),
+    ("--contrast", "contrast", "20", 20),
+    ("--saturation", "saturation", "-30", -30),
+    ("--hue", "hue", "90", 90),
+    ("--model", "model", "birefnet", "birefnet"),
+    ("--mask", "mask", "m.png", "m.png"),
+    ("--crop", "crop", "0.1,0,0.9,1", "0.1,0,0.9,1"),
+    ("--strength", "strength", "60", 60),
+    ("--fill-gaps", "fill_gaps", "7", 7),
+    ("--keep-all", "keep_all", None, True),
+    ("--min-area", "min_area", "500", 500),
+    ("--label", "label", "Hero", "Hero"),
+    ("--tab-front", "tab_front", "number", "number"),
+    ("--tab-back", "tab_back", "label_number", "label_number"),
+    ("--dpi", "dpi", "150", 150),
+    ("--simplify-mm", "simplify_mm", "0.3", 0.3),
+    ("--no-smooth", "no_smooth", None, True),
+    ("--cut-color", "cut_color", "#ff0000", "#ff0000"),
+    ("--cut-width-mm", "cut_width_mm", "0.5", 0.5),
+    ("--label-color", "label_color", "#555555", "#555555"),
+    ("--label-size-mm", "label_size_mm", "4", 4.0),
+    ("--font", "font", "Kalam", "Kalam"),
+]
+
+# The flags of the sheet's settings, which papermini add and papermini build share.
+SHEET_FLAGS = [
+    ("--paper", "paper", "a3", "a3"),
+    ("--paper-width-mm", "paper_width_mm", "200", 200.0),
+    ("--paper-height-mm", "paper_height_mm", "300", 300.0),
+    ("--orientation", "orientation", "landscape", "landscape"),
+    ("--sheet-margin-mm", "sheet_margin_mm", "8", 8.0),
+    ("--gap-mm", "gap_mm", "5", 5.0),
+    ("--title", "title", "Goblins", "Goblins"),
+    ("--cut", "cut", "machine", "machine"),
+    ("--bleed-mm", "bleed_mm", "2", 2.0),
+    ("--marks", "marks", "silhouette", "silhouette"),
+    ("--cut-folds", "cut_folds", None, True),
+    ("--mat", "mat", "12x12", "12x12"),
+]
+
 # Every flag of every command: (command, flag, option it sets, its default, a value to
 # give it or None for a flag that takes none, the option that value gives).
 FLAGS = [
-    ("make", "--no-subfolders", "no_subfolders", False, None, True),
-    ("make", "-o", "output", None, "out", "out"),
-    ("make", "--output", "output", None, "out", "out"),
-    ("make", "--format", "format", "svg", "png", "png"),
-    ("make", "--png-px", "png_px", None, "128", 128.0),
-    ("make", "--png-dpi", "png_dpi", None, "150", 150.0),
-    ("make", "--bleed-mm", "bleed_mm", 0.0, "1", 1.0),
-    ("make", "--copies", "copies", 1, "3", 3),
-    ("make", "--kind", "kind", "mini", "token", "token"),
-    ("make", "--size", "size", None, "large", "large"),
-    ("make", "--grid-mm", "grid_mm", None, "30", 30.0),
-    ("make", "--height-mm", "height_mm", None, "40", 40.0),
-    ("make", "--width-mm", "width_mm", None, "20", 20.0),
-    ("make", "--margin-mm", "margin_mm", 1.6, "2.5", 2.5),
-    ("make", "--smooth-mm", "smooth_mm", 0.6, "1.2", 1.2),
-    ("make", "--margin-fill", "margin_fill", "color", "image", "image"),
-    ("make", "--margin-color", "margin_color", "#ffffff", "#123456", "#123456"),
-    ("make", "--tab-shape", "tab_shape", "square", "round", "round"),
-    ("make", "--tab-color", "tab_color", "#ffffff", "#3b6e2a", "#3b6e2a"),
-    ("make", "--tab-width-mm", "tab_width_mm", None, "30", 30.0),
-    ("make", "--tab-radius-mm", "tab_radius_mm", None, "20", 20.0),
-    ("make", "--tab-height-mm", "tab_height_mm", None, "15", 15.0),
-    ("make", "--tab-overlap-mm", "tab_overlap_mm", 0.0, "3", 3.0),
-    ("make", "--fold-mm", "fold_mm", 0.0, "2", 2.0),
-    ("make", "--no-tab", "no_tab", False, None, True),
-    ("make", "--double-sided", "double_sided", None, None, True),
-    ("make", "--no-double-sided", "double_sided", None, None, False),
-    ("make", "--back", "back", "mirror", "text", "text"),
-    ("make", "--back-text", "back_text", None, "Stats", "Stats"),
-    ("make", "--back-color", "back_color", "#ffffff", "#eeeeee", "#eeeeee"),
-    ("make", "--back-text-color", "back_text_color", "#2f5597", "#111111", "#111111"),
-    ("make", "--token-diameter-mm", "token_diameter_mm", None, "40", 40.0),
-    ("make", "--token-area", "token_area", None, "0.1,0.2,0.9,1", "0.1,0.2,0.9,1"),
-    ("make", "--token-fill", "token_fill", "color", "image", "image"),
-    ("make", "--token-fill-color", "token_fill_color", "#ffffff", "#222222", "#222222"),
-    ("make", "--token-border-mm", "token_border_mm", 2.0, "3", 3.0),
-    (
-        "make",
-        "--token-border-color",
-        "token_border_color",
-        "#000000",
-        "#333333",
-        "#333333",
+    *(
+        (command, flag, dest, None, given, parsed)
+        for command in ("add", "build")
+        for flag, dest, given, parsed in [
+            *FIGURE_FLAGS,
+            ("--grid-mm", "grid_mm", "30", 30.0),
+            *SHEET_FLAGS,
+        ]
     ),
-    ("make", "--token-cut-line", "token_cut_line", False, None, True),
-    ("make", "--token-outline", "token_outline", False, None, True),
-    ("make", "--token-text", "token_text", "none", "label", "label"),
-    ("make", "--token-text-style", "token_text_style", "nameplate", "curved", "curved"),
-    ("make", "--token-text-color", "token_text_color", "#ffffff", "#444444", "#444444"),
-    ("make", "--token-text-mm", "token_text_mm", 2.5, "4", 4.0),
-    ("make", "--greyscale", "greyscale", False, None, True),
-    ("make", "--brightness", "brightness", 0, "10", 10),
-    ("make", "--contrast", "contrast", 0, "20", 20),
-    ("make", "--saturation", "saturation", 0, "-30", -30),
-    ("make", "--hue", "hue", 0, "90", 90),
-    ("make", "--model", "model", "auto", "birefnet", "birefnet"),
-    ("make", "--mask", "mask", None, "m.png", "m.png"),
-    ("make", "--crop", "crop", None, "0.1,0,0.9,1", "0.1,0,0.9,1"),
-    ("make", "--strength", "strength", 40, "60", 60),
-    ("make", "--fill-gaps", "fill_gaps", None, "7", 7),
-    ("make", "--keep-all", "keep_all", False, None, True),
-    ("make", "--min-area", "min_area", 1000, "500", 500),
-    ("make", "--no-cache", "no_cache", False, None, True),
-    ("make", "--label", "label", None, "Hero", "Hero"),
-    ("make", "--tab-front", "tab_front", "label", "number", "number"),
-    ("make", "--tab-back", "tab_back", "label", "label_number", "label_number"),
-    ("make", "--dpi", "dpi", 300, "150", 150),
-    ("make", "--simplify-mm", "simplify_mm", 0.15, "0.3", 0.3),
-    ("make", "--no-smooth", "no_smooth", False, None, True),
-    ("make", "--cut-color", "cut_color", "#000000", "#ff0000", "#ff0000"),
-    ("make", "--cut-width-mm", "cut_width_mm", 0.3, "0.5", 0.5),
-    ("make", "--label-color", "label_color", "#2f5597", "#555555", "#555555"),
-    ("make", "--label-size-mm", "label_size_mm", 3.4, "4", 4.0),
-    ("make", "--font", "font", "Times", "Kalam", "Kalam"),
-    ("make", "--debug", "debug", False, None, True),
-    ("sheet", "-o", "output", "minis.pdf", "out.pdf", "out.pdf"),
-    ("sheet", "--output", "output", "minis.pdf", "out.pdf", "out.pdf"),
-    ("sheet", "--copies", "copies", 1, "2", 2),
-    ("sheet", "--paper", "paper", None, "a3", "a3"),
-    ("sheet", "--paper-width-mm", "paper_width_mm", None, "200", 200.0),
-    ("sheet", "--paper-height-mm", "paper_height_mm", None, "300", 300.0),
-    ("sheet", "--orientation", "orientation", "portrait", "landscape", "landscape"),
-    ("sheet", "--margin-mm", "margin_mm", 12.0, "8", 8.0),
-    ("sheet", "--gap-mm", "gap_mm", 7.0, "5", 5.0),
-    ("sheet", "--title", "title", "Paper miniatures", "Goblins", "Goblins"),
-    ("sheet", "--preview", "preview", False, None, True),
-    ("sheet", "--cut", "cut", "hand", "machine", "machine"),
-    ("sheet", "--marks", "marks", "corners", "silhouette", "silhouette"),
-    ("sheet", "--cut-folds", "cut_folds", False, None, True),
-    ("sheet", "--mat", "mat", None, "12x12", "12x12"),
-    ("batch", "--debug", "debug", False, None, True),
-    ("batch", "--preview", "preview", False, None, True),
-    ("batch", "--no-cache", "no_cache", False, None, True),
+    ("add", "--no-subfolders", "no_subfolders", False, None, True),
+    ("build", "--no-subfolders", "no_subfolders", False, None, True),
+    ("build", "-o", "output", None, "out", "out"),
+    ("build", "--output", "output", None, "out", "out"),
+    ("build", "--svg", "svg", False, None, True),
+    ("build", "--png", "png", False, None, True),
+    ("build", "--sheet", "sheet", False, None, True),
+    ("build", "--preview", "preview", False, None, True),
+    ("build", "--png-px", "png_px", None, "128", 128.0),
+    ("build", "--png-dpi", "png_dpi", None, "150", 150.0),
+    ("build", "--debug", "debug", False, None, True),
+    ("build", "--no-cache", "no_cache", False, None, True),
 ]
 
 # what each command needs besides its options
-POSITIONALS = {"make": ["a.png"], "sheet": ["a.svg"], "batch": ["a.yaml"], "gui": []}
+POSITIONALS = {"add": ["a.yaml"], "build": ["a.png"], "gui": []}
 
 # the flags of papermini itself, before a command
 TOP_LEVEL_FLAGS = ["--version"]
@@ -191,12 +202,12 @@ def test_each_flag_sets_its_option(
 FIGURE_SETTING_VALUES = {"token_area": [0.1, 0.2, 0.9, 1.0]}
 # (--crop keeps the text as given; --token-area becomes a list of fractions)
 
-# FigureSettings fields that papermini make has no flag for.
+# FigureSettings fields that have no flag.
 FIGURE_FIELDS_WITHOUT_FLAG: set[str] = set()
 
 
 class _Built(Exception):
-    """Raised by the fake build with what it was given, to stop papermini make there."""
+    """Raised by the fake build with what it was given, to stop papermini build there."""
 
     def __init__(self, settings: FigureSettings, options: dict):
         super().__init__()
@@ -204,76 +215,103 @@ class _Built(Exception):
 
 
 @pytest.fixture
-def make(monkeypatch, tmp_path):
-    """Run papermini make with the flags given on an image, and return the settings and
-    the build options it would build the figure with."""
+def build(monkeypatch, tmp_path):
+    """Run papermini build with the flags given on an image, and return the settings
+    and the build options it would build the figure with."""
 
     def fake_build(img, s, **options):
         raise _Built(s, options)
 
-    monkeypatch.setattr(cli, "build_mini", fake_build)
+    monkeypatch.setattr(build_command, "build_mini", fake_build)
     image = tmp_path / "a.png"
     image.write_bytes(b"")
 
-    def make(*flags: str) -> _Built:
+    def build(*flags: str) -> _Built:
         with pytest.raises(_Built) as built:
-            cli.main(["make", str(image), *flags])
+            cli.main(["build", str(image), *flags])
         return built.value
 
-    return make
+    return build
 
 
-def _non_default_flag(command: str, dest: str, default):
-    """Return the row of FLAGS that gives ``dest`` a value other than ``default``."""
-    return next(
-        r for r in FLAGS if r[0] == command and r[2] == dest and r[5] != default
+@pytest.fixture
+def add(tmp_path, project_store):
+    """Run papermini add with the flags given on an image, and return the project it
+    saved."""
+    image = tmp_path / "a.png"
+    image.write_bytes(b"")
+    path = tmp_path / "p.yaml"
+
+    def add(*flags: str):
+        path.unlink(missing_ok=True)
+        assert cli.main(["add", str(path), str(image), *flags]) == 0
+        return project_store.load(path)
+
+    return add
+
+
+def test_every_figure_setting_has_a_flag():
+    assert FIGURE_OPTIONS - {dest for _, dest, *_ in FIGURE_FLAGS} == (
+        FIGURE_FIELDS_WITHOUT_FLAG
     )
 
 
-def test_every_figure_setting_has_a_make_flag():
-    make_options = {dest for c, _, dest, *_ in FLAGS if c == "make"}
-    assert FIGURE_OPTIONS - make_options == FIGURE_FIELDS_WITHOUT_FLAG
+def _figure_flag(name: str) -> tuple[list[str], Any]:
+    """Return the flag, with its value, that gives the figure setting ``name`` a value
+    other than its default, and the setting that gives."""
+    default = getattr(FigureSettings(), name)
+    flag, _, given, parsed = next(
+        r for r in FIGURE_FLAGS if r[1] == name and r[3] != default
+    )
+    expected = FIGURE_SETTING_VALUES.get(name, parsed)
+    assert expected != default
+    return [flag, *([] if given is None else [given])], expected
 
 
 @pytest.mark.parametrize("name", sorted(FIGURE_OPTIONS - FIGURE_FIELDS_WITHOUT_FLAG))
-def test_each_make_flag_reaches_the_figure_settings(make, name):
-    default = getattr(FigureSettings(), name)
-    _, flag, _, _, given, parsed = _non_default_flag("make", name, default)
-    expected = FIGURE_SETTING_VALUES.get(name, parsed)
-    assert expected != default
-    built = make(flag, *([] if given is None else [given]))
-    assert getattr(built.settings, name) == expected
+def test_each_figure_flag_reaches_the_built_figure(build, name):
+    flags, expected = _figure_flag(name)
+    assert getattr(build(*flags).settings, name) == expected
+
+
+@pytest.mark.parametrize(
+    "name", sorted(FIGURE_OPTIONS - FIGURE_FIELDS_WITHOUT_FLAG - {"mask", "model"})
+)
+def test_each_figure_flag_reaches_the_added_figure(add, name):
+    # (a project keeps a mask or model file relative to itself)
+    flags, expected = _figure_flag(name)
+    assert getattr(add(*flags).figures[0].settings, name) == expected
 
 
 @pytest.mark.parametrize(
     ("flags", "option", "expected"),
     [
-        (["--bleed-mm", "1"], "bleed_mm", 1.0),
+        (["--cut", "machine", "--bleed-mm", "1.5"], "bleed_mm", 1.5),
+        (["--bleed-mm", "1.5"], "bleed_mm", 0.0),  # only cut by machine
         (["--no-cache"], "use_cache", False),
     ],
 )
-def test_make_flags_outside_the_settings_reach_the_build(make, flags, option, expected):
-    assert make(*flags).options[option] == expected
+def test_build_flags_outside_the_figure_settings_reach_the_build(
+    build, flags, option, expected
+):
+    assert build(*flags).options[option] == expected
 
 
-def test_make_debug_writes_next_to_the_image(make, tmp_path):
-    assert make("--debug").options["debug_dir"] == tmp_path / "debug"
+def test_build_debug_writes_next_to_the_image(build, tmp_path):
+    assert build("--debug").options["debug_dir"] == tmp_path / "debug"
 
 
-def test_make_grid_scales_the_creature_size_to_a_tenth_of_a_mm(make):
-    assert make("--grid-mm", "30").settings.height_mm == 37.8  # 32 mm * 30 / 25.4
+def test_build_grid_scales_the_creature_size_to_a_tenth_of_a_mm(build):
+    assert build("--grid-mm", "30").settings.height_mm == 37.8  # 32 mm * 30 / 25.4
 
 
 # endregion
 
 # region sheet settings
 
-# SheetSettings fields that papermini sheet has no flag for (a project file sets them).
-SHEET_FIELDS_WITHOUT_FLAG = {"bleed_mm", "enabled"}
-
-# papermini sheet flags named after a SheetSettings field whose value goes to the
-# sheet directly and leaves that field at its default.
-SHEET_FLAGS_OUTSIDE_THE_SETTINGS = {"output", "copies", "preview"}
+# SheetSettings fields without a flag: a project file sets them, and papermini build
+# has flags of its own for the outputs.
+SHEET_FIELDS_WITHOUT_FLAG = {"copies", "enabled", "output", "preview"}
 
 # what a flag needs alongside it to be accepted
 SHEET_FLAG_PARTNERS = {
@@ -282,53 +320,29 @@ SHEET_FLAG_PARTNERS = {
 }
 
 
-@pytest.fixture
-def sheet(output, monkeypatch, tmp_path, square_mini):
-    """Run papermini sheet with the flags given on one SVG, and return what it would
-    write: the figures with their copies, the PDF, the settings and the preview."""
-    written = []
-
-    def write_sheet(minis, pdf, settings, output, preview=False):
-        written.append((minis, pdf, settings, preview))
-        return 0
-
-    monkeypatch.setattr(cli, "write_sheet", write_sheet)
-    svg = output.svg.write(square_mini("goblin", 30, 40), tmp_path / "goblin.svg")
-
-    def sheet(*flags: str):
-        assert cli.main(["sheet", str(svg), *flags]) == 0
-        return written[-1]
-
-    return sheet
+def _sheet_option(flag: str) -> str:
+    """Return the sheet setting that ``flag`` sets."""
+    renamed = {f: name for name, f in RENAMED.items()}
+    return renamed.get(flag, flag).lstrip("-").replace("-", "_")
 
 
-def test_every_sheet_setting_has_a_sheet_flag_or_is_listed():
-    sheet_options = {dest for c, _, dest, *_ in FLAGS if c == "sheet"}
-    assert SHEET_FIELDS - sheet_options == SHEET_FIELDS_WITHOUT_FLAG
+def test_every_sheet_setting_has_a_flag_or_is_listed():
+    flagged = {_sheet_option(flag) for flag, *_ in SHEET_FLAGS}
+    assert SHEET_FIELDS - flagged == SHEET_FIELDS_WITHOUT_FLAG
 
 
-@pytest.mark.parametrize(
-    "name",
-    sorted(SHEET_FIELDS - SHEET_FIELDS_WITHOUT_FLAG - SHEET_FLAGS_OUTSIDE_THE_SETTINGS),
-)
-def test_each_sheet_flag_reaches_the_sheet_settings(sheet, name):
-    default = getattr(SheetSettings(), name)
-    _, flag, _, _, given, parsed = _non_default_flag("sheet", name, default)
-    assert parsed != default
+@pytest.mark.parametrize("row", SHEET_FLAGS, ids=lambda row: row[0])
+def test_each_sheet_flag_reaches_the_added_sheet(add, row):
+    flag, _, given, parsed = row
+    name = _sheet_option(flag)
+    assert parsed != getattr(SheetSettings(), name)
     flags = [flag, *([] if given is None else [given])]
-    _, _, settings, _ = sheet(*flags, *SHEET_FLAG_PARTNERS.get(name, []))
-    assert getattr(settings, name) == parsed
-
-
-def test_sheet_output_copies_and_preview_flags_skip_the_settings(sheet, tmp_path):
-    minis, output, settings, preview = sheet(
-        "-o", str(tmp_path / "out.pdf"), "--copies", "2", "--preview"
-    )
-    assert (output, minis[0][1], preview) == (tmp_path / "out.pdf", 2, True)
-    assert (settings.output, settings.copies, settings.preview) == (None, 1, False)
+    sheet = add(*flags, *SHEET_FLAG_PARTNERS.get(name, [])).sheet
+    assert getattr(sheet, name) == parsed
 
 
 # endregion
+
 
 # region docs
 
@@ -336,12 +350,12 @@ def test_sheet_output_copies_and_preview_flags_skip_the_settings(sheet, tmp_path
 # FigureSettings fields whose flag the settings guide doesn't name.
 FIGURE_FLAGS_NOT_IN_THE_GUIDE: set[str] = set()
 
-# FigureSettings fields whose flag the table of papermini make options leaves out.
-FIGURE_FLAGS_NOT_IN_THE_MAKE_TABLE: set[str] = set()
+# FigureSettings fields whose flag the table of figure options leaves out.
+FIGURE_FLAGS_NOT_IN_THE_FIGURE_TABLE: set[str] = set()
 
 # SheetSettings fields that docs/reference.md names neither as a flag nor as a
 # project key.
-SHEET_FIELDS_NOT_IN_THE_REFERENCE = {"enabled", "output"}
+SHEET_FIELDS_NOT_IN_THE_REFERENCE = {"enabled"}
 
 
 @pytest.fixture(scope="module")
@@ -369,13 +383,13 @@ def test_each_figure_flag_is_in_the_settings_guide(reference, name):
 
 
 @pytest.mark.parametrize("name", sorted(FIGURE_OPTIONS))
-def test_each_figure_flag_is_in_the_make_options_table(reference, name):
-    commands = _section(reference, "### `papermini make", "### `papermini sheet")
+def test_each_figure_flag_is_in_the_figure_options_table(reference, name):
+    commands = _section(reference, "#### Figure options", "#### Sheet options")
     table = "\n".join(
         line.split("|")[1] for line in commands.splitlines() if line.startswith("| `-")
     )
     assert _names(table, _flag(name)) == (
-        name not in FIGURE_FLAGS_NOT_IN_THE_MAKE_TABLE
+        name not in FIGURE_FLAGS_NOT_IN_THE_FIGURE_TABLE
     )
 
 
@@ -396,18 +410,18 @@ GUIDE_ENTRIES_WITHOUT_AN_OPTION = {'Print a label: --label ""'}
 # Settings guide entries, by heading and first flag, whose heading is not the label of
 # their option. The headings are what the app shows: the token's field for the label,
 # and the figure card's control for the copies, whose option has no label.
-GUIDE_HEADINGS_NOT_THE_LABEL = {"Label: --label", "Amount: papermini sheet --copies"}
+GUIDE_HEADINGS_NOT_THE_LABEL = {"Label: --label", "Amount: --copies"}
 
-# The sections of docs/reference.md that hold each command's table of options, and the
-# settings the command builds its flags from.
+# The sections of docs/reference.md that hold each table of options, and the settings
+# its flags are built from.
 COMMAND_TABLES = {
-    "make": ("### `papermini make", "### `papermini sheet", FigureSettings),
-    "sheet": ("### `papermini sheet", "### `papermini batch", SheetSettings),
-    "batch": ("### `papermini batch", "## Background removal models", SheetSettings),
+    "figure": ("#### Figure options", "#### Sheet options", FigureSettings),
+    "sheet": ("#### Sheet options", "### `papermini build", SheetSettings),
+    "build": ("### `papermini build", "### Project files", SheetSettings),
 }
 
 # Flags named after a setting that the command builds without the setting's option.
-COMMAND_FLAGS_WITHOUT_THEIR_OPTION = {("sheet", "output")}
+COMMAND_FLAGS_WITHOUT_THEIR_OPTION = {("build", "output")}
 
 # the type of a settings dataclass
 Settings = type[FigureSettings] | type[SheetSettings]
@@ -425,6 +439,9 @@ def _setting(settings: Settings, code: str) -> str:
     """Return the setting that ``code``, a flag or project key and what follows it,
     names. A flag --no-x turns off the setting x when there is no setting no_x."""
     word = re.sub(r"^papermini \w+ ", "", code).split()[0]
+    renamed = {flag: name for name, flag in RENAMED.items()}
+    if settings is SheetSettings and word in renamed:
+        return renamed[word]
     name = word.lstrip("-").replace("-", "_")
     options = settings.options()
     if name not in options and name.startswith("no_") and name[3:] in options:
@@ -558,18 +575,30 @@ def _built_from_its_option(command: str, settings: Settings, name: str) -> bool:
     )
 
 
+@pytest.mark.parametrize("flag", [flag for flag, *_ in SHEET_FLAGS])
+def test_each_sheet_flag_is_in_the_sheet_options_table(flag):
+    rows = [r for r in TABLE_ROWS if r[0] == "sheet"]
+    assert any(_names(flags, flag) for _, flags, _, _ in rows)
+
+
+# papermini build flags that its table of options leaves out.
+BUILD_FLAGS_NOT_IN_THE_BUILD_TABLE = {"-o"}  # (named in the --output row)
+
+
 @pytest.mark.parametrize(
-    ("command", "flag"),
+    "flag",
     [
-        (command, flag)
-        for command, flag, name, *_ in FLAGS
-        if command in ("sheet", "batch")
-        and _built_from_its_option(command, COMMAND_TABLES[command][2], name)
+        flag
+        for command, flag, *_ in FLAGS
+        if command == "build"
+        and flag not in {f for f, *_ in [*FIGURE_FLAGS, *SHEET_FLAGS]} | {"--grid-mm"}
     ],
 )
-def test_each_sheet_and_batch_flag_of_an_option_is_in_its_options_table(command, flag):
-    rows = [r for r in TABLE_ROWS if r[0] == command]
-    assert any(_names(flags, flag) for _, flags, _, _ in rows)
+def test_each_build_flag_is_in_the_build_options_table(flag):
+    rows = [r for r in TABLE_ROWS if r[0] == "build"]
+    assert any(_names(flags, flag) for _, flags, _, _ in rows) == (
+        flag not in BUILD_FLAGS_NOT_IN_THE_BUILD_TABLE
+    )
 
 
 @pytest.mark.parametrize("row", TABLE_ROWS, ids=_row_id)

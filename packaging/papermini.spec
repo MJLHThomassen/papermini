@@ -8,7 +8,7 @@
 #   macOS:           papermini.app (the program is papermini.app/Contents/MacOS/papermini)
 #
 # Started without a command (double-clicked, or with files) it opens the desktop app;
-# with a command (make, sheet, batch, --help) it runs the command line. On Windows it is
+# with a command (add, build, --help) it runs the command line. On Windows it is
 # a console program whose console is hidden when papermini owns it (started from
 # Explorer), so a terminal keeps its output, waits for it and gets its exit code.
 #

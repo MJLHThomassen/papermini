@@ -74,8 +74,8 @@ class AboutDialog(QDialog):
             "commercially, for example to make minis you sell. The BiRefNet models are "
             "MIT-licensed, also for commercial use.<br><br>"
             f"{self._font_note()}<br><br>"
-            "Projects are saved as batch YAML files, so you can also run them from the "
-            "command line: <code>papermini batch project.yaml</code>"
+            "Projects are saved as YAML files, so you can also build them from the "
+            "command line: <code>papermini build project.yaml</code>"
         )
         text.setWordWrap(True)
         text.setTextFormat(Qt.RichText)

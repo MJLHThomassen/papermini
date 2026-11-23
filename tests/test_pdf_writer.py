@@ -20,7 +20,6 @@ def test_the_pdf_embeds_the_font_and_the_svg_names_it(
     svg = output.svg.write(m, tmp_path / "hero.svg").read_text(encoding="utf-8")
     assert "font-family=\"'Almendra', serif\"" in svg
     assert 'class="number"' in svg and 'font-weight="bold"' in svg
-    assert output.svg_reader.read(tmp_path / "hero.svg").style.font == "Almendra"
     # Times: the names every program knows
     t = output.svg.write(
         build_mini(
@@ -34,4 +33,3 @@ def test_the_pdf_embeds_the_font_and_the_svg_names_it(
     assert 'font-family="Times New Roman, Times, serif"' in t.read_text(
         encoding="utf-8"
     )
-    assert output.svg_reader.read(t).style.font == "Times"

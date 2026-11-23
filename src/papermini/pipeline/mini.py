@@ -63,8 +63,6 @@ class Mini:
     tab_room: tuple[float, float] = (0.0, 0.0)
     number_box: tuple[float, float, float, float] | None = None
     number: int | None = None
-    # text read from an SVG file, drawn as it is (numbers already written into it)
-    extra: list[TextItem] = field(default_factory=list)
     # "mini" (a standing miniature) or "token" (a flat round token); a token's circle,
     # ring, text and framing
     kind: str = "mini"
@@ -83,9 +81,7 @@ class Mini:
         number goes above the label (on the fold's side), as large as fits."""
         st = self.style
         if self.token is not None:
-            return self.token.text_items(
-                self.label, self.number, st.font, fonts
-            ) + list(self.extra)
+            return self.token.text_items(self.label, self.number, st.font, fonts)
         num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
         room_w, room_h = self.tab_room
         items: list[TextItem] = []
@@ -162,7 +158,7 @@ class Mini:
                     True,
                 )
             )
-        return items + list(self.extra)
+        return items
 
     def png_bytes(self) -> bytes:
         buf = io.BytesIO()

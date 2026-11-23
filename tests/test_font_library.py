@@ -94,18 +94,10 @@ def test_an_installed_font_is_found_and_printed(
     assert b"Almendra" in pdf  # (the file behind the made-up name)
 
 
-def test_a_font_family_reads_back_from_its_svg_name(fonts):
+def test_an_svg_names_the_font_family_with_a_fallback(fonts):
     assert fonts.svg_family("Times") == "Times New Roman, Times, serif"
     assert fonts.svg_family("Kalam") == "'Kalam', serif"
     assert fonts.svg_family("No Such Font") == "Times New Roman, Times, serif"
-    for family, name in (
-        ("'Kalam', serif", "Kalam"),
-        ('"Fira Sans", sans-serif', "Fira Sans"),
-        ("Times New Roman, Times, serif", "Times"),
-        ("serif", "Times"),
-        ("", "Times"),
-    ):
-        assert FontLibrary.from_svg_family(family) == name
 
 
 def test_a_library_with_folders_of_its_own_looks_only_there(tmp_path):

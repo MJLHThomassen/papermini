@@ -67,6 +67,7 @@ src/papermini/       the package, one class per file (S15)
   support/           what the other areas share: the cache, fonts, logging,
                      links and updates
   cli.py             the command line
+  commands/          the commands of the command line, and the flags they share
   fonts/             the bundled font files and their licences
   gui/               the PySide6 desktop app, built on the core; the theme,
                      preferences, error handling and start-up
@@ -89,7 +90,7 @@ scripts/             developer tools: screenshots, release notes, release
                      signing, trying updates locally, building the Windows
                      installer
 packaging/           the PyInstaller build and the Windows installer
-examples/            a batch example, and the images, project and sample
+examples/            an example project file, and the images, project and sample
                      outputs of the README and the sample checks (D3)
 docs/                the user reference, this guide and the README screenshots
 .github/             the CI and release workflows, the Linux CI image and the
@@ -238,9 +239,9 @@ sync:
   checks, label, help, tooltip and limits, and how its field in the settings
   panel shows it, such as its step and the names of its choices. `from_dict`
   checks each value against its option, the settings panels build its field
-  from it with `FieldFactory` (`gui/fields/field_factory.py`), and `cli.py`
-  builds its flag from it with `OptionFlags` (`project/option_flags.py`), with
-  the default in the help;
+  from it with `FieldFactory` (`gui/fields/field_factory.py`), and
+  `FigureFlags` or `SheetFlags` (`commands/`) build its flag from it with
+  `OptionFlags` (`project/option_flags.py`), with the default in the help;
 - its place in the settings panel: its section in `SECTIONS`
   (`gui/panels/figure_fields.py`) or `SheetPanel.SECTIONS`, and the rules for
   when it is shown. A field that is not built from its option alone is listed
@@ -488,9 +489,8 @@ A mismatch is a finding, whichever side is wrong.
 - After a visible change to the app, regenerate the README screenshots with
   `scripts/screenshots.py`.
 - When the output format or a default changes, regenerate the samples in
-  `examples/dragons/samples/` with `papermini batch
-  examples/dragons/samples.yaml` and `papermini batch
-  examples/dragons/samples-machine.yaml`.
+  `examples/dragons/samples/` with `just samples`, which builds
+  `examples/dragons/samples.yaml` and `examples/dragons/samples-machine.yaml`.
 
 ### D4. A newcomer can get started
 
@@ -573,7 +573,7 @@ The code in `scripts/` and `packaging/` is not exempt from this guide.
 
 A new runtime dependency or data file must also work in the PyInstaller build
 (`packaging/papermini.spec`). After such a change, build locally and run the
-frozen `papermini --version` and a `papermini make`.
+frozen `papermini --version` and a `papermini build` of an image.
 
 ### R7. Commits follow Conventional Commits
 

@@ -1,7 +1,7 @@
-# papermini batch config - paths are relative to this file.
-#   papermini batch examples/minis.yaml
+# A papermini project file - paths are relative to this file.
+#   papermini build examples/minis.yaml
 #
-# Every per-figure option of `papermini make` can be used here (with
+# Every figure option of `papermini add` and `papermini build` can be used here (with
 # underscores or dashes): height_mm, margin_mm, strength, fill_gaps, crop,
 # keep_all, min_area, no_tab, double_sided, label, model, mask, ...
 # The sheet can also be cut by machine (cut: machine, bleed_mm, marks, cut_folds).

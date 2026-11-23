@@ -38,7 +38,7 @@ def test_alpha_png_needs_no_model(tmp_path, pipeline_mini, params):
 
 
 def test_the_back_text_is_upside_down_and_defaults_to_the_label(
-    output, hero_figure, tmp_path, pipeline_mini, params, mask_options
+    output, hero_figure, tmp_path, pipeline_mini, params, mask_options, read_svg
 ):
     img, mask = hero_figure
     prm = params(double_sided=True, back="text")
@@ -59,19 +59,13 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
     )  # first line nearest the fold = on top once folded
     for t in m.texts:
         assert 0 < t.cx < m.width_mm and 0 < t.cy < m.height_mm / 2 and t.size_mm > 1
-    # default text is the label; round-trips through the SVG
+    # default text is the label; the SVG holds the lines in the same order
     m2 = pipeline_mini(img, prm, mask_options(mask_path=mask), label="Hero")
     assert [t.text for t in m2.texts] == ["Hero"]
-    r = output.svg_reader.read(output.svg.write(m, tmp_path / "hero.svg"))
-
-    def rounded(texts):
-        return [
-            (t.text, round(t.cx, 2), round(t.cy, 2), t.rot, round(t.size_mm, 2))
-            for t in texts
-        ]
-
-    assert rounded(r.texts) == rounded(m.texts)
-    output.pdf.write(output.packer.pack([(r, 1)]), tmp_path / "s.pdf")
+    svg = read_svg(output.svg.write(m, tmp_path / "hero.svg"))
+    assert [t for kind, t in svg.texts if kind == "backtext"] == [
+        t.text for t in m.texts
+    ]
 
 
 def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(pipeline, hero_figure):

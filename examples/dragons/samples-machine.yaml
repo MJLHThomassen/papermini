@@ -1,5 +1,5 @@
 # A sheet for a cutting machine, written to samples/:
-#   papermini batch examples/dragons/samples-machine.yaml
+#   papermini build examples/dragons/samples-machine.yaml
 # makes machine-sheet.pdf (to print: no cut lines, alignment marks in the corners, a
 # 1 mm bleed) and machine-sheet-cut.svg (to load in the cutting machine's software: the
 # cut lines, the fold lines and the same marks).

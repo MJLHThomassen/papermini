@@ -575,6 +575,26 @@ def numbered_mini(pipeline):
 
 
 @pytest.fixture
+def read_svg():
+    """Returns ``read_svg(path)``, which reads a piece's SVG file: its size in mm
+    (``width_mm``, ``height_mm``), its texts as (class, text) pairs, and the
+    font-family of its texts (``font``, "" without text)."""
+    import xml.etree.ElementTree as ET
+
+    def read_svg(path) -> types.SimpleNamespace:
+        root = ET.parse(path).getroot()
+        texts = list(root.iter("{http://www.w3.org/2000/svg}text"))
+        return types.SimpleNamespace(
+            width_mm=float(root.get("width", "").removesuffix("mm")),
+            height_mm=float(root.get("height", "").removesuffix("mm")),
+            texts=[(t.get("class"), "".join(t.itertext())) for t in texts],
+            font=texts[0].get("font-family") if texts else "",
+        )
+
+    return read_svg
+
+
+@pytest.fixture
 def media_box_mm():
     """Returns ``media_box_mm(pdf)``, which reads the page size of a PDF file in
     whole millimetres."""

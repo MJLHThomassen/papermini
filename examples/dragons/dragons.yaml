@@ -1,6 +1,6 @@
 # The dragons in the README screenshots (scripts/screenshots.py).
 # Rebuild the miniatures and the sheet with:
-#   papermini batch examples/dragons/dragons.yaml
+#   papermini build examples/dragons/dragons.yaml
 # BiRefNet removes the backgrounds best here (see "Background removal models" in
 # docs/reference.md); it is downloaded on first use.
 
