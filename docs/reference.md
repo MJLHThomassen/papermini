@@ -265,13 +265,14 @@ selected figure. While rmbg-1.4 is the model in use (picked, or chosen by
 file* uses a mask you painted yourself (see *Mask image
 file*). The first time a model is needed, the app asks before downloading it;
 after that, papermini works offline. **Preferences… → Models and cache** in the ☰ menu
-shows which models are downloaded, and where.
+shows which models are downloaded, and where. The tooltip of *Model* and that
+page show how large each model's download is.
 
-| Model | Download | Loading | Per image | Licence |
-|---|---|---|---|---|
-| rmbg-1.4 (default) | 176 MB | 1.1 s | 1.5 s | non-commercial use only |
-| birefnet-lite | 214 MB | 10.4 s | 10.6 s | MIT |
-| birefnet | 928 MB | 14.1 s | 21.0 s | MIT |
+| Model | Loading | Per image | Licence |
+|---|---|---|---|
+| rmbg-1.4 (default) | 1.1 s | 1.5 s | non-commercial use only |
+| birefnet-lite | 10.4 s | 10.6 s | MIT |
+| birefnet | 14.1 s | 21.0 s | MIT |
 
 ![The three models on the same dragon](screenshots/models.png)
 
@@ -1211,9 +1212,9 @@ model. Every model downloads once, without an account.
 | `--model`              | what                                                        |
 |------------------------|-------------------------------------------------------------|
 | `auto` (default)       | the image's own transparency if it has any, else `rmbg-1.4` |
-| `rmbg-1.4`             | BRIA RMBG-1.4 (176 MB download), run with onnxruntime       |
-| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a 928 MB download and about 14× slower than RMBG-1.4 on a CPU (about 20 seconds per image) |
-| `birefnet-lite`        | BiRefNet general with a small backbone: 214 MB download, about 7× slower than RMBG-1.4 |
+| `rmbg-1.4`             | BRIA RMBG-1.4, run with onnxruntime                         |
+| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a much larger download and about 14× slower than RMBG-1.4 on a CPU (about 20 seconds per image) |
+| `birefnet-lite`        | BiRefNet general with a small backbone, about 7× slower than RMBG-1.4 |
 | `alpha`                | use the image's own transparency                            |
 | `path/to/model.onnx`   | your own ONNX model with RMBG-1.4-style input (RGB, `x/255-0.5`) |
 
@@ -1586,9 +1587,9 @@ reported. Nothing is sent anywhere: you decide what to attach to a report.
 
 ## Caching and speed
 
-The first run downloads the segmentation model (~176 MB for RMBG-1.4, 214 MB
-or 928 MB for BiRefNet) into
-`~/.cache/papermini/`; the desktop app asks before it downloads. You can change that folder with the `PAPERMINI_CACHE`
+The first run downloads the segmentation model into
+`~/.cache/papermini/`; the desktop app asks before it downloads, and shows the
+download's size. You can change that folder with the `PAPERMINI_CACHE`
 environment variable. After that, everything works offline, and each image takes
 a few seconds on a CPU. AI model masks are cached on disk per image, crop and
 model, so re-running with a different `--strength` or `--height-mm` skips the
