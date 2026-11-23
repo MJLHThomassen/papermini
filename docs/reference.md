@@ -98,9 +98,9 @@ the desktop app in depth, and how the pipeline works.
   The settings side cannot be made narrower than its widest step needs, so
   no field or checkbox is ever cut off; drag it shut to hide it instead.
 
-  The preview updates a quarter of a second after each change, and fast series
-  of changes (holding an arrow key) only build the final value. The model only
-  runs once per image and crop. Changing an *Amount* only updates the sheet.
+  The preview updates after each change, and a fast series of changes (holding
+  an arrow key) only builds the final value. The model only runs once per
+  image and crop. Changing an *Amount* only updates the sheet.
   Number fields step with the arrow keys, or the mouse wheel once you click
   into them, so scrolling the panel never edits values. Decimals use a point
   (`1.6`) whatever your system's language; a typed comma becomes a point.
@@ -133,10 +133,10 @@ the desktop app in depth, and how the pipeline works.
 
   While a model runs, the image is dimmed and a card shows the model and how
   long it has been running, with **Cancel**. Cancel stops the model right
-  away, also while it is still loading (the first run of a model loads it,
-  which can take longer than the run itself). The figure then waits until you
-  press **Run again** or change the image, crop or model; other settings, such
-  as the margin, do not start the model again. A new crop or model also stops
+  away, also while it is still loading (the first run of a model loads it).
+  The figure then waits until you press **Run again** or change the image,
+  crop or model; other settings, such as the margin, do not start the model
+  again. A new crop or model also stops
   a run that is no longer needed, so a misclick on a slow model (BiRefNet)
   costs nothing. The app runs one model at a time: a figure that waits for
   another figure's model (an image you just added, say) shows a card with that
@@ -1219,8 +1219,8 @@ model. Every model downloads once, without an account.
 |------------------------|-------------------------------------------------------------|
 | `auto` (default)       | the image's own transparency if it has any, else `rmbg-1.4` |
 | `rmbg-1.4`             | BRIA RMBG-1.4, run with onnxruntime                         |
-| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a much larger download and about 14× slower than RMBG-1.4 on a CPU (about 20 seconds per image) |
-| `birefnet-lite`        | BiRefNet general with a small backbone, about 7× slower than RMBG-1.4 |
+| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a much larger download and much slower than RMBG-1.4 on a CPU |
+| `birefnet-lite`        | BiRefNet general with a small backbone, slower than RMBG-1.4 |
 | `alpha`                | use the image's own transparency                            |
 | `path/to/model.onnx`   | your own ONNX model with RMBG-1.4-style input (RGB, `x/255-0.5`) |
 
@@ -1395,9 +1395,8 @@ papermini build goblin.png --kind token --token-text number --copies 6 -o tokens
 Greyscale, brightness, contrast, saturation and hue change the colors of what
 is printed: the drawing, a margin filled with the image (`--margin-fill image`)
 and the mirrored back. They never change what background removal sees, so the
-outline stays where it is and moving a slider never runs the model again; even
-with BiRefNet the preview follows at once. In the app they are in *Image
-adjustments* in step 1, and the Source view shows the adjusted picture (a
+outline stays where it is and moving a slider never runs the model again. In
+the app they are in *Image adjustments* in step 1, and the Source view shows the adjusted picture (a
 smaller preview on large photos; the print always uses the full image). Their
 sliders have 0 in the middle, marked with a short line: the colored fill runs
 from there to the handle, a drag that comes close to 0 snaps to it (typed values
@@ -1520,8 +1519,8 @@ to the `.zip`:
 The downloaded app keeps itself up to date:
 
 - **Checking.** With **Update automatically** on (the default; **Preferences… →
-  Updates**), papermini asks GitHub for the latest release a few seconds after it
-  starts, at most once a day. With it off, papermini doesn't check by itself.
+  Updates**), papermini asks GitHub for the latest release after it starts, at
+  most once a day. With it off, papermini doesn't check by itself.
   Either way, **Check for updates…** (or **About papermini**) in the ☰ menu
   checks right away and shows the result in the About window. A check sends
   nothing about you or your files: only a request for the latest release, named
@@ -1597,9 +1596,8 @@ reported. Nothing is sent anywhere: you decide what to attach to a report.
 The first run downloads the segmentation model into
 `~/.cache/papermini/`; the desktop app asks before it downloads, and shows the
 download's size. You can change that folder with the `PAPERMINI_CACHE`
-environment variable. After that, everything works offline, and each image takes
-a few seconds on a CPU. AI model masks are cached on disk per image, crop and
-model, so re-running with a different `--strength` or `--height-mm` skips the
+environment variable. After that, everything works offline. AI model masks
+are cached on disk per image, crop and model, so re-running with a different `--strength` or `--height-mm` skips the
 model entirely (`--no-cache` turns this off). Images from links are kept in
 `images/` in the same folder, so each link is downloaded only once. In the
 desktop app, **Preferences… → Models and cache** shows how much space the models,
@@ -1610,8 +1608,8 @@ the decoded image, the raw mask (from the AI model, the alpha channel or a mask
 file), the cleaned mask, and the outline and cut line. A change only redoes the
 stages it affects:
 
-- **Cosmetic** (label, colors, line width, resolution): a fraction of a second.
-- **Shape** (height, margin, smoothing, tab): about a second.
+- **Cosmetic** (label, colors, line width, resolution): redraws the piece.
+- **Shape** (height, margin, smoothing, tab): redoes the outline and cut line.
 - **Mask clean-up** (strength, gap filling, keep-all): reruns the clean-up.
 - **Model or crop**: reruns the AI model.
 
