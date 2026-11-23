@@ -32,6 +32,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.3
         with:
+          version-file: pyproject.toml  # its required-version
           python-version: ${{ matrix.python }}
           enable-cache: true
 
@@ -52,6 +53,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.3
         with:
+          version-file: pyproject.toml  # its required-version
           enable-cache: true
 
       - name: Ruff check
@@ -71,6 +73,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.3
         with:
+          version-file: pyproject.toml  # its required-version
           python-version: "3.12"
           enable-cache: true
 
@@ -158,6 +161,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.3
         with:
+          version-file: pyproject.toml  # its required-version
           python-version: ${{ matrix.python }}  # the image's Python
           enable-cache: true
 

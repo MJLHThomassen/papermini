@@ -197,9 +197,11 @@ stands and bases, double-sided minis and tips for tricky drawings.
 
 ## Run from source
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/). It
-installs the Python version in `.python-version` by itself when your system
-doesn't have it. Clone the repository:
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/), in the
+version that `required-version` in `pyproject.toml` names. Another version
+stops with an error that says which version to install. uv installs the Python
+version in `.python-version` by itself when your system doesn't have it. Clone
+the repository:
 
 ```bash
 git clone https://github.com/MJLHThomassen/papermini.git

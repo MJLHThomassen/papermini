@@ -565,6 +565,19 @@ Dependencies are locked, and the versions of the development tools are pinned.
 A fresh clone on another machine gets the same environment. Python packages are
 never installed globally; everything runs in the project's environment.
 
+- **uv.** `required-version` under `[tool.uv]` in `pyproject.toml` is the only
+  place that names the uv version. Every uv command fails under another
+  version, and the `astral-sh/setup-uv` steps in the workflows install this
+  one (`version-file: pyproject.toml`). To update uv, change
+  `required-version`, run `uv self update` with the new version, then
+  `uv lock` and `just test`, and commit `pyproject.toml` with `uv.lock` if it
+  changed.
+- **The build backend.** `build-constraint-dependencies` under `[tool.uv]`
+  pins setuptools, setuptools-scm and the packages setuptools-scm works the
+  version out with. `uv lock` records the pins in `uv.lock`. Update them
+  together, and check that a build-only run of the release workflow still
+  works out the version.
+
 ### R4. Scripts follow the same rules as the app
 
 The code in `scripts/` and `packaging/` is not exempt from this guide.
