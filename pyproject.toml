@@ -61,6 +61,16 @@ version_file = "src/papermini/_version.py"
 fallback_version = "0.0.0"
 
 [tool.uv]
+# Every uv command fails under another uv version.
+required-version = "==0.13.8"
+# The exact build backend, with the packages setuptools-scm works the version out
+# with, so that a new release of one of them can't change the version of a build.
+build-constraint-dependencies = [
+    "setuptools==84.2.1",
+    "setuptools-scm==10.3.4",
+    "vcs-versioning==2.6.0",
+    "packaging==26.3",
+]
 # uv rebuilds papermini when any of these change, so that its version from
 # setuptools-scm stays current:
 # - pyproject.toml

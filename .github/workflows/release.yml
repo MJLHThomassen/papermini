@@ -136,6 +136,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.3
         with:
+          version-file: pyproject.toml
           python-version: "3.12"
           enable-cache: true
 
@@ -259,6 +260,8 @@ jobs:
           fetch-depth: 0  # the notes list every commit since the previous version tag
 
       - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version-file: pyproject.toml
 
       - name: Release notes
         env:
