@@ -13,6 +13,7 @@ from PIL import Image
 
 pytest.importorskip("PySide6")
 
+from papermini.gui.step import Step
 from papermini.project.figure_settings import FigureSettings
 
 pytestmark = pytest.mark.usefixtures("fake_default_model")
@@ -54,7 +55,7 @@ def test_a_figure_builds_rebuilds_after_an_edit_and_saves(
     assert fig.entry.settings.crop == [0.1, 0.1, 0.9, 0.9]
 
     # sheet tab builds a layout
-    w.tabs.setCurrentIndex(w.SHEET)
+    w.tabs.setCurrentIndex(Step.SHEET)
     assert wait(lambda: "piece" in w.sheet_panel.info.text())
 
     from pathlib import Path

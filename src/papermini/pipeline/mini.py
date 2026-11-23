@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 from PIL import Image
@@ -22,6 +22,11 @@ TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
 @dataclass
 class Mini:
     """A finished miniature in millimetres (origin top-left, y down)."""
+
+    # a tab joint is narrow, and may tear when folded, when it is narrower than this
+    # width and than this share of the tab's width
+    NARROW_JOINT_MM: ClassVar[float] = 10.0
+    NARROW_JOINT_SHARE: ClassVar[float] = 0.6
 
     name: str
     width_mm: float
@@ -67,6 +72,14 @@ class Mini:
     # ring, text and framing
     kind: str = "mini"
     token: TokenInfo | None = None
+
+    @property
+    def joint_is_narrow(self) -> bool:
+        """Whether the paper joining the tab to the figure is narrow enough to tear when
+        folded. A miniature without a tab has no joint."""
+        return bool(self.tab_width_mm) and self.tab_joint_mm < min(
+            self.NARROW_JOINT_MM, self.NARROW_JOINT_SHARE * self.tab_width_mm
+        )
 
     @property
     def numbered(self) -> bool:

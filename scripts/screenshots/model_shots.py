@@ -8,6 +8,7 @@ from PIL import Image
 from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QColor, QPainter, QPen
 
+from papermini.gui.step import Step
 from papermini.gui.window.main_window import MainWindow
 
 from .panel import Panel
@@ -48,7 +49,7 @@ class ModelShots:
         masks = {m: remover.mask(im, m, image_bytes=data) for m in MODELS}
         w = self._windows.open("light", WINDOW_SIZE)
         w.crop_view.set_hint_enabled(False)  # no hint in a comparison
-        self._windows.show(w, RED, MainWindow.SOURCE)
+        self._windows.show(w, RED, Step.SOURCE)
         items = []
         for model, caption in MODELS.items():
             self._windows.change(w, model=model)

@@ -1,5 +1,5 @@
-"""The layout of the figure panel: its steps, the sections of each step and the fields in
-each section, the fields not built from their option alone, and which fields are shown
+"""The layout of the figure panel: the sections of each step and the fields in each
+section, the fields not built from their option alone, and which fields are shown
 when."""
 
 from __future__ import annotations
@@ -19,48 +19,31 @@ from ..fields.model_field import ModelField
 from ..fields.switch_field import SwitchField
 from ..fields.switched_field import SwitchedField
 from ..fields.text_field import TextField
+from ..step import Step
 
 _SETTINGS = FigureSettings.options()
-
-# The steps of the workflow, one view each: the settings panel shows the active step's
-# sections.
-STEPS = ["Source", "Miniature", "Print sheet"]
-SOURCE, MINIATURE, PRINT = range(3)
-
-STEP_HINTS = [
-    "Crop the picture first: background removal only looks inside the box.",
-    (
-        "How big the figure prints, and the paper piece around it: back side, margin, cut "
-        "line and stand tab."
-    ),
-    "The paper, the layout and how the pieces are cut.",
-]
-
-TOKEN_STEP_HINT = (
-    "How big the token prints, how the figure sits in it, and its ring and text."
-)
 
 # The sections of each step, in order: (step, title, fields). A field has the name of
 # the setting it edits, or another name in OPTIONS; a name in RESETS is a button.
 SECTIONS = [
-    (SOURCE, "Crop", ("crop",)),
+    (Step.SOURCE, "Crop", ("crop",)),
     (
-        SOURCE,
+        Step.SOURCE,
         "Background removal",
         ("model", "mask", "strength", "fill_gaps", "keep_all", "min_area"),
     ),
     (
-        SOURCE,
+        Step.SOURCE,
         "Image adjustments",  # what is printed; the model never sees them
         ("greyscale", "brightness", "contrast", "saturation", "hue", "_reset_adjust"),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Size",  # first (after the Kind): how big the figure prints
         ("size", "dimensions", "token_diameter_mm", "dpi"),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Token",  # a token: the figure in a circle, inside a ring
         (
             "token_area",
@@ -71,7 +54,7 @@ SECTIONS = [
         ),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Token text",
         (
             "token_text",
@@ -82,22 +65,22 @@ SECTIONS = [
         ),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Back side",  # it decides what the rest of the piece is
         ("double_sided", "back", "back_color", "back_text", "back_text_color"),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Image outline",  # around the drawing: a mini's margin, a token's outline
         ("token_outline", "margin_mm", "margin_fill", "margin_color", "smooth_mm"),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Cut line",
         ("token_cut_line", "no_smooth", "simplify_mm", "cut_color", "cut_width_mm"),
     ),
     (
-        MINIATURE,
+        Step.MINIATURE,
         "Tab",
         (
             "no_tab",
@@ -110,9 +93,13 @@ SECTIONS = [
             "tab_color",
         ),
     ),
-    (MINIATURE, "Label", ("label", "label_size_mm", "label_color")),  # on the tab
-    (MINIATURE, "Text", ("font",)),  # one font for all of the piece's text
-    (MINIATURE, "Number", ("tab_front", "tab_back")),  # the copy numbers on the tabs
+    (Step.MINIATURE, "Label", ("label", "label_size_mm", "label_color")),  # on the tab
+    (Step.MINIATURE, "Text", ("font",)),  # one font for all of the piece's text
+    (
+        Step.MINIATURE,
+        "Number",
+        ("tab_front", "tab_back"),
+    ),  # the copy numbers on the tabs
 ]
 
 # sections shown inside another section (indented, at its end): sub-section -> section
@@ -147,7 +134,7 @@ KIND_SECTIONS = {
 PER_IMAGE = {"label", "crop", "mask", "copies", "token_area"}
 
 
-def step_settings(step: int) -> set:
+def step_settings(step: Step) -> set:
     """The FigureSettings fields edited in ``step`` (the Kind is at the top of Miniature)."""
     return {
         k
@@ -156,7 +143,7 @@ def step_settings(step: int) -> set:
         for name in names
         if name not in RESETS
         for k in FIELD_SETTINGS.get(name, (name,))
-    } | ({"kind"} if step == MINIATURE else set())
+    } | ({"kind"} if step == Step.MINIATURE else set())
 
 
 # the option of each field: a setting's own, or the label and tooltip of a field that is

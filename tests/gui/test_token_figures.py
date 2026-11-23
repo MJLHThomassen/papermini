@@ -11,19 +11,19 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog, QToolButton
 
 from papermini.gui.exporting.export_dialogs import ExportDialogs
+from papermini.gui.step import Step
 from papermini.pipeline.token_options import TokenOptions
 from papermini.project.figure_settings import FigureSettings
 
 
 def test_the_kind_switches_the_settings_groups(fonts, app, prefs, size_calculator):
-    from papermini.gui.panels.figure_fields import MINIATURE
     from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel(prefs, size_calculator, fonts)
     got = []
     p.changed.connect(got.append)
     p.set_settings(FigureSettings(label="Boss"), "x", "x")
-    p.set_step(MINIATURE)
+    p.set_step(Step.MINIATURE)
     shown = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]
     assert "Back side" in shown() and "Token" not in shown()
     assert p.kind_row.isVisibleTo(p) and p.is_shown("dimensions")
@@ -76,7 +76,7 @@ def window(window, wait, tmp_path, transparent_figure, size_calculator):
         size_calculator.settings_with_size({"kind": "token", "model": "alpha"}),
     )
     w.list.setCurrentRow(0)
-    w.tabs.setCurrentIndex(w.MINI)
+    w.tabs.setCurrentIndex(Step.MINIATURE)
     assert wait(lambda: w.figures[0].mini is not None and w.figures[0].up_to_date)
     return w
 
