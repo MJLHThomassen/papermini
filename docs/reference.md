@@ -952,7 +952,7 @@ the value its [creature size](#creature-sizes) fills in.
 | `--back-text` | the label | text for `--back text` or `text_number`; auto-sized and wrapped to fit the figure |
 | `--back-color` | #ffffff | color of a back that is not `mirror` |
 | `--back-text-color` | #2f5597 | color of the text and the number on the back |
-| `--model` | auto | how the figure is separated from the background: `auto` (the PNG's transparency if it has any, else `rmbg-1.4`), `rmbg-1.4`, `birefnet`, `birefnet-lite`, `alpha` (the PNG's own transparency), `mask` (with `--mask`) or the path of an `.onnx` model; see [Model](#model) |
+| `--model` | auto | how the figure is separated from the background: `auto` (the image's transparency if it has any, else `rmbg-1.4`), `rmbg-1.4`, `birefnet`, `birefnet-lite`, `alpha` (the image's own transparency), `mask` (with `--mask`) or the path of an `.onnx` model; see [Model](#model) |
 | `--mask` | none | your own mask image (white = figure, black = background) instead of a model |
 | `--crop x0,y0,x1,y1` | the whole image | region the model looks at, as fractions (0–1) or pixels |
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
@@ -1210,11 +1210,11 @@ model. Every model downloads once, without an account.
 
 | `--model`              | what                                                        |
 |------------------------|-------------------------------------------------------------|
-| `auto` (default)       | the image's alpha channel if it has transparency, else `rmbg-1.4` |
+| `auto` (default)       | the image's own transparency if it has any, else `rmbg-1.4` |
 | `rmbg-1.4`             | BRIA RMBG-1.4 (176 MB download), run with onnxruntime       |
-| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a 930 MB download and about 20× slower than RMBG-1.4 on a CPU (half a minute per image) |
-| `birefnet-lite`        | BiRefNet general with a small backbone: 215 MB download, about 7× slower than RMBG-1.4 |
-| `alpha`                | use the PNG's own transparency                              |
+| `birefnet`             | BiRefNet general: sharper edges and fine detail, but a 928 MB download and about 14× slower than RMBG-1.4 on a CPU (about 20 seconds per image) |
+| `birefnet-lite`        | BiRefNet general with a small backbone: 214 MB download, about 7× slower than RMBG-1.4 |
+| `alpha`                | use the image's own transparency                            |
 | `path/to/model.onnx`   | your own ONNX model with RMBG-1.4-style input (RGB, `x/255-0.5`) |
 
 You can also skip segmentation and pass a mask you painted yourself:
@@ -1586,8 +1586,8 @@ reported. Nothing is sent anywhere: you decide what to attach to a report.
 
 ## Caching and speed
 
-The first run downloads the segmentation model (~176 MB for RMBG-1.4, 215 MB
-or 930 MB for BiRefNet) into
+The first run downloads the segmentation model (~176 MB for RMBG-1.4, 214 MB
+or 928 MB for BiRefNet) into
 `~/.cache/papermini/`; the desktop app asks before it downloads. You can change that folder with the `PAPERMINI_CACHE`
 environment variable. After that, everything works offline, and each image takes
 a few seconds on a CPU. AI model masks are cached on disk per image, crop and
