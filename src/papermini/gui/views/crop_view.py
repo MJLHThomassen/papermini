@@ -70,6 +70,7 @@ class CropView(ZoomView):
         self._hover_part = None  # what a drag from there would grab (see _hit)
         self._press = None  # view position of the left press
         self._moved = False  # the press became a drag
+        self._hint_enabled = True
         self.viewport().setCursor(Qt.CrossCursor)
 
     # region image / box
@@ -117,6 +118,11 @@ class CropView(ZoomView):
         """Size of the picture shown (smaller than the image for an adjusted preview)."""
         pm = self._pix_item.pixmap() if self._img_size is not None else None
         return None if pm is None or pm.isNull() else (pm.width(), pm.height())
+
+    def image_rect(self) -> QRectF:
+        """The image in scene coordinates, which are the original's pixels; an empty
+        rectangle when there is no image."""
+        return QRectF(0, 0, *self._img_size) if self._img_size else QRectF()
 
     # endregion
 
@@ -376,8 +382,19 @@ class CropView(ZoomView):
         return QRectF(self.mapFromScene(QRectF(0, 0, *self._img_size)).boundingRect())
 
     def show_hint(self) -> bool:
-        """The "drag a box" hint is shown: an image without a crop box, not dragging."""
-        return self._img_size is not None and self._box is None and self._drag is None
+        """Whether the hint to drag a box is shown: for an image without a crop box,
+        while not dragging, unless the hint is turned off."""
+        return (
+            self._hint_enabled
+            and self._img_size is not None
+            and self._box is None
+            and self._drag is None
+        )
+
+    def set_hint_enabled(self, enabled: bool) -> None:
+        """Turn the hint to drag a box on or off."""
+        self._hint_enabled = enabled
+        self.viewport().update()
 
     def drawForeground(self, painter: QPainter, rect: QRectF):
         if self._img_size is None:

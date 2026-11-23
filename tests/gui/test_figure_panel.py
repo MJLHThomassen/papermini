@@ -334,3 +334,10 @@ def test_editing_a_field_keeps_the_exact_loaded_values_of_the_others(built_windo
     built_window.panel.field("margin_mm").setValue(2.0)
     s = built_window.current().entry.settings
     assert s.margin_mm == 2.0 and s.height_mm == 42.25 and s.dpi == 3000
+
+
+def test_settings_applied_by_the_window_show_in_the_panel(built_window, unsaved):
+    w = built_window
+    w.apply_settings(replace(w.current().entry.settings, margin_mm=3.0))
+    assert w.current().entry.settings.margin_mm == 3.0
+    assert w.panel.field("margin_mm").value() == 3.0 and unsaved(w)

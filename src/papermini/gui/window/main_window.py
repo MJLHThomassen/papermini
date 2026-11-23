@@ -495,7 +495,7 @@ class MainWindow(QMainWindow):
         self.zoombar = ZoomBar()
         self.zoombar.zoomIn.connect(lambda: self._active_view().zoom_by(1.25))
         self.zoombar.zoomOut.connect(lambda: self._active_view().zoom_by(0.8))
-        self.zoombar.fit.connect(self._fit)
+        self.zoombar.fit.connect(self.fit_view)
         self.zoombar.actual.connect(self._actual)
         # side panel toggles in the bottom corners, next to the panel they control
         # (always shown, so a collapsed panel can be brought back)
@@ -617,7 +617,7 @@ class MainWindow(QMainWindow):
         self.a_remove.setShortcutContext(Qt.WidgetShortcut)
         self.list.addAction(self.a_remove)
         self.a_quit = act("Quit", self.close, QKeySequence.Quit)
-        self.a_fit = act("Fit to window", self._fit, "Ctrl+0")
+        self.a_fit = act("Fit to window", self.fit_view, "Ctrl+0")
         self.a_actual = act(
             "Actual size",
             self._actual,
@@ -1095,6 +1095,14 @@ class MainWindow(QMainWindow):
         self._set_modified()
         self.builds.build_soon()
         self._sheet_timer.start()  # e.g. copies: no rebuild, but the sheet changes
+
+    def apply_settings(self, s: FigureSettings) -> None:
+        """Give the selected figure the settings ``s``, as if they were set in its
+        settings panel."""
+        fig = self.current()
+        if fig is not None:
+            self.panel.set_settings(s, fig.entry.display_name, fig.entry.image.stem)
+            self._settings_changed(self.panel.settings())
 
     def _note_settings(self, key, name: str, old) -> None:
         """Remember a figure's (or the sheet's) settings before a change, for the line
@@ -1598,7 +1606,8 @@ class MainWindow(QMainWindow):
             f"page{'s' * (lay.pages != 1)}{pending}"
         )
 
-    def _fit(self):
+    def fit_view(self):
+        """Zoom the open tab's view to fit its contents."""
         self._active_view().fit()
 
     def _tab_zoom(self):
@@ -1849,6 +1858,12 @@ class MainWindow(QMainWindow):
         if r == QMessageBox.Save:
             return self.save()
         return r == QMessageBox.Discard
+
+    def discard_changes(self) -> None:
+        """Forget the unsaved changes, so that closing the window doesn't ask to save
+        them."""
+        self._modified = False
+        self._update_title()
 
     def _set_modified(self):
         if not self._modified:

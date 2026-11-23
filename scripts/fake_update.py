@@ -39,6 +39,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from fake_release import FakeRelease
 
 
 def pretend_app(where: Path, version: str, note: str) -> Path:
@@ -83,11 +86,10 @@ def make_release(
     version: str = "99.0.0",
     out: Path | None = None,
     setup: Path | None = None,
-) -> tuple[dict[str, str], Path | None, Path]:
+) -> FakeRelease:
     """Make the fake release (of the build ``app``, or of a pretend app with a pretend
     installed copy; with ``setup``, of that Windows installer, for an installed
-    papermini). Returns (environment variables to set, the pretend installed copy or
-    None, the release folder)."""
+    papermini)."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -153,7 +155,7 @@ def make_release(
     env = {update.FEED_ENV: str(feed.resolve()), update.KEY_ENV: public}
     if installed is not None:
         env[update.INSTALL_ENV] = str(installed.resolve())
-    return env, installed, rel
+    return FakeRelease(env, installed, rel)
 
 
 def main() -> None:
@@ -169,18 +171,18 @@ def main() -> None:
         "--out", type=Path, help="where to write it (a folder in the temp folder)"
     )
     args = ap.parse_args()
-    env, installed, rel = make_release(args.app, args.version, args.out)
-    print(f"fake release {args.version} in {rel}")
+    release = make_release(args.app, args.version, args.out)
+    print(f"fake release {args.version} in {release.folder}")
     print("\nPowerShell:")
-    for k, v in env.items():
+    for k, v in release.env.items():
         print(f'  $env:{k} = "{v}"')
     print("\nbash / zsh:")
-    for k, v in env.items():
+    for k, v in release.env.items():
         print(f"  export {k}='{v}'")
-    if installed is not None:
+    if release.installed is not None:
         print(
             f"\nThen start papermini from source in that shell. On closing it, "
-            f"{installed} is replaced by the update (see its VERSION.txt)."
+            f"{release.installed} is replaced by the update (see its VERSION.txt)."
         )
     else:
         exe = (
