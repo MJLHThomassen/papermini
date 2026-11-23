@@ -220,7 +220,7 @@ jobs:
         run: |
           # the name installed copies look for when they update
           archive=$(uv run --no-sync python -c \
-            "import sys; from papermini import update; print(update.asset_name(*sys.argv[1:]))" \
+            "import sys; from papermini.support.update_service import UpdateService as U; print(U.asset_name(*sys.argv[1:]))" \
             "$NAME" "$TARGET")
           mkdir -p out
           case "$RUNNER_OS" in
