@@ -122,8 +122,8 @@ def try_installer(build: Path) -> None:
         check=True,
     )
     print(f"Apps & features: papermini {installed_version()}")
-    env, _, _ = make_release(version="99.0.0", setup=newer)
-    run([str(target / "papermini.exe")], env)
+    release = make_release(version="99.0.0", setup=newer)
+    run([str(target / "papermini.exe")], release.env)
     # the helper runs the new installer once papermini has quit (and restarts it, if asked)
     ok = wait_for(lambda: installed_version() == "99.0.0", 90)
     print(
@@ -160,10 +160,14 @@ def main() -> None:
         sys.exit("--installer is for Windows only")
 
     if args.source:
-        env, installed, _ = make_release()
-        version = installed / "VERSION.txt"
-        print(f"pretend installed copy: {installed} ({version.read_text().strip()})")
-        run([sys.executable, "-m", "papermini", "gui"], env)
+        release = make_release()
+        assert release.installed is not None  # a release of a pretend app has one
+        version = release.installed / "VERSION.txt"
+        print(
+            f"pretend installed copy: {release.installed} "
+            f"({version.read_text().strip()})"
+        )
+        run([sys.executable, "-m", "papermini", "gui"], release.env)
         ok = wait_for(
             lambda: version.exists() and version.read_text().startswith("99."), 20
         )
@@ -203,8 +207,8 @@ def main() -> None:
     (copy / MARKER).write_text(
         "this copy is from before the update\n", encoding="utf-8"
     )
-    env, _, _ = make_release(build)
-    run([str(copy / GUI)], env)
+    release = make_release(build)
+    run([str(copy / GUI)], release.env)
     # the helper replaces the copy once papermini has quit (and restarts it, if asked)
     ok = wait_for(lambda: (copy / GUI).exists() and not (copy / MARKER).exists(), 30)
     print(
