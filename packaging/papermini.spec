@@ -23,16 +23,16 @@ from PyInstaller.utils.hooks import collect_data_files
 HERE = Path(SPECPATH)  # noqa: F821 - provided by PyInstaller
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "src"))
-from papermini import __version__  # noqa: E402  (written by setuptools-scm on install)
+from papermini import __version__  # written by setuptools-scm on install
 
-ICON = str(HERE / "icon.png")  # from make_icon.py; PyInstaller converts it to .ico / .icns (needs Pillow)
+# from make_icon.py; PyInstaller converts it to .ico / .icns (needs Pillow)
+ICON = str(HERE / "icon.png")
 
 a = Analysis(  # noqa: F821
     [str(HERE / "entry.py")],
     pathex=[str(ROOT / "src")],
     datas=collect_data_files("reportlab")  # fonts used for the PDF sheet
-    + [(str(ROOT / "src" / "papermini" / "gui" / "logo.svg"), "papermini/gui"),
-       (str(ROOT / "src" / "papermini" / "fonts"), "papermini/fonts")],  # bundled fonts
+    + collect_data_files("papermini"),  # the non-Python files of the package
     hiddenimports=["papermini._version"],
     excludes=["tkinter", "matplotlib", "IPython", "pytest"],
     noarchive=False,
