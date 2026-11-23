@@ -14,7 +14,6 @@ from typing import Any
 import pytest
 
 from papermini import cli
-from papermini.commands import build_command
 from papermini.commands.sheet_flags import RENAMED
 from papermini.project.figure_settings import FIGURE_OPTIONS, FigureSettings
 from papermini.project.option_flags import OptionFlags
@@ -169,26 +168,18 @@ def test_papermini_has_exactly_its_own_flags(help_flags):
 
 
 @pytest.mark.parametrize("row", FLAGS, ids=_flag_id)
-def test_each_flag_keeps_its_default(
-    row, project_store, size_calculator, pipeline, output, images_from_web
-):
+def test_each_flag_keeps_its_default(row, command_line):
     command, _, dest, default, _, _ = row
-    parser = cli.build_parser(
-        size_calculator, project_store, pipeline, output, images_from_web
-    )
+    parser = command_line.parser
     got = getattr(parser.parse_args([command, *POSITIONALS[command]]), dest)
     assert (type(got), got) == (type(default), default)
 
 
 @pytest.mark.parametrize("row", FLAGS, ids=_flag_id)
-def test_each_flag_sets_its_option(
-    row, project_store, size_calculator, pipeline, output, images_from_web
-):
+def test_each_flag_sets_its_option(row, command_line):
     command, flag, dest, _, given, parsed = row
     argv = [command, flag, *([] if given is None else [given]), *POSITIONALS[command]]
-    parser = cli.build_parser(
-        size_calculator, project_store, pipeline, output, images_from_web
-    )
+    parser = command_line.parser
     got = getattr(parser.parse_args(argv), dest)
     assert (type(got), got) == (type(parsed), parsed)
 
@@ -215,20 +206,20 @@ class _Built(Exception):
 
 
 @pytest.fixture
-def build(monkeypatch, tmp_path):
+def build(command_line, figure_builder, tmp_path):
     """Run papermini build with the flags given on an image, and return the settings
     and the build options it would build the figure with."""
 
     def fake_build(img, s, **options):
         raise _Built(s, options)
 
-    monkeypatch.setattr(build_command, "build_mini", fake_build)
+    figure_builder.make = fake_build
     image = tmp_path / "a.png"
     image.write_bytes(b"")
 
     def build(*flags: str) -> _Built:
         with pytest.raises(_Built) as built:
-            cli.main(["build", str(image), *flags])
+            command_line.run(["build", str(image), *flags])
         return built.value
 
     return build

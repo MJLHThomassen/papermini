@@ -406,20 +406,16 @@ def test_a_figure_that_fails_to_build_stops_the_export(
 
 
 def test_cancelling_the_build_progress_drops_the_export(
-    app, built_window, modal, monkeypatch, wait
+    app, built_window, figure_builder, modal, wait
 ):
     import threading
     from dataclasses import replace
 
     from PySide6.QtWidgets import QProgressDialog, QPushButton
 
-    from papermini.gui.building import build_job
-
     release = threading.Event()
-    real = build_job.build_mini
-    monkeypatch.setattr(
-        build_job, "build_mini", lambda *a, **k: release.wait(60) and real(*a, **k)
-    )
+    real = figure_builder.make
+    figure_builder.make = lambda *a, **k: release.wait(60) and real(*a, **k)
     w = built_window
     fig = w.current()
     w.panel.changed.emit(replace(fig.entry.settings, height_mm=30))

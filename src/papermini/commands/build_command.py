@@ -8,11 +8,10 @@ from pathlib import Path
 from ..output.output import Output
 from ..output.png_writer import PX_PER_SQUARE, PngWriter
 from ..pipeline.mini import Mini
-from ..pipeline.pipeline import Pipeline
+from ..project.figure_builder import FigureBuilder
 from ..project.figure_entry import FigureEntry
 from ..project.project import Project
 from ..project.project_store import ProjectStore
-from ..project.settings import build_mini
 from ..project.sheet_settings import SheetSettings
 from ..project.size_calculator import SizeCalculator
 from .add_command import PROJECT_SUFFIXES
@@ -29,11 +28,13 @@ class BuildCommand:
     """``papermini build``: builds a project file, or images without one, and writes
     the outputs asked for: the pieces as SVG or PNG files, and the sheet."""
 
+    NAME = "build"
+
     def __init__(
         self,
         project_store: ProjectStore,
         size_calculator: SizeCalculator,
-        pipeline: Pipeline,
+        figure_builder: FigureBuilder,
         output: Output,
         images: ImageArguments,
         figure_flags: FigureFlags,
@@ -41,7 +42,7 @@ class BuildCommand:
     ):
         self._project_store = project_store
         self._size_calculator = size_calculator
-        self._pipeline = pipeline
+        self._figure_builder = figure_builder
         self._output = output
         self._images = images
         self._figure_flags = figure_flags
@@ -50,7 +51,7 @@ class BuildCommand:
     def add_to(self, commands: argparse._SubParsersAction) -> None:
         """Add the command and its flags to ``commands``."""
         p = commands.add_parser(
-            "build",
+            self.NAME,
             help="build a project file, or images, into pieces and a sheet",
             description="Build a project file (YAML), or images without one, and "
             "write the outputs the flags ask for. Without any, a project writes each "
@@ -155,10 +156,9 @@ class BuildCommand:
         )
         minis: list[tuple[Mini, int]] = []
         for entry, folder in zip(project.figures, piece_dirs):
-            m = build_mini(
+            m = self._figure_builder.build(
                 entry.image,
                 entry.settings,
-                pipeline=self._pipeline,
                 bleed_mm=sheet.figure_bleed,
                 use_cache=not args.no_cache,
                 debug_dir=folder / "debug" if args.debug or project.debug else None,

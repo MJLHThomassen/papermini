@@ -3,11 +3,10 @@
 import pytest
 
 from papermini.output.png_writer import PngWriter
-from papermini.project.settings import build_mini
 
 
 def test_a_piece_becomes_a_png_of_its_size(
-    output, pipeline, tmp_path, build_token, transparent_figure, size_calculator
+    output, figure_builder, tmp_path, build_token, transparent_figure, size_calculator
 ):
     img = transparent_figure(tmp_path / "goblin.png")
     m = build_token(img, token_text="number")
@@ -18,10 +17,9 @@ def test_a_piece_becomes_a_png_of_its_size(
     assert im.getpixel((im.width // 2, im.height // 2))[3] == 255
     paths = output.png.write_copies(m, tmp_path / "goblin.png", scale, 2)
     assert [p.name for p in paths] == ["goblin-1.png", "goblin-2.png"]
-    mini = build_mini(
+    mini = figure_builder.build(
         img,
         size_calculator.settings_with_size({"model": "alpha"}),
-        pipeline=pipeline,
         log=lambda *a: None,
     )
     assert output.png.image(mini, scale).height == pytest.approx(

@@ -75,9 +75,9 @@ def main() -> None:
     from papermini.gui.window.main_window import MainWindow
     from papermini.output.output import Output
     from papermini.pipeline.pipeline import Pipeline
+    from papermini.project.figure_builder import FigureBuilder
     from papermini.project.figure_settings import FigureSettings
     from papermini.project.project_store import ProjectStore
-    from papermini.project.settings import build_mini
     from papermini.project.size_calculator import SizeCalculator
     from papermini.support.font_library import FontLibrary
     from papermini.support.image_fetcher import ImageFetcher
@@ -93,6 +93,7 @@ def main() -> None:
     logs = LogSession(updates)
     project_store = ProjectStore(size_calculator, images_from_web)
     pipeline = Pipeline(fonts)
+    figure_builder = FigureBuilder(pipeline)
     output = Output(fonts)
     ratio = float(args.scale)
 
@@ -114,6 +115,7 @@ def main() -> None:
             project_store,
             size_calculator,
             pipeline,
+            figure_builder,
             fonts,
             output,
             images_from_web,
@@ -253,10 +255,9 @@ def main() -> None:
     def mini(image: str, bleed_mm: float = 0.0, **kw):
         """A miniature of one of the dragons, with BiRefNet unless ``kw`` says otherwise."""
         kw.setdefault("model", "birefnet")
-        return build_mini(
+        return figure_builder.build(
             DRAGONS / image,
             FigureSettings(**kw),
-            pipeline=pipeline,
             bleed_mm=bleed_mm,
             log=lambda *_: None,
         )
@@ -366,10 +367,9 @@ def main() -> None:
             output.packer,
             [
                 (
-                    build_mini(
+                    figure_builder.build(
                         f.image,
                         smaller(f.settings),
-                        pipeline=pipeline,
                         bleed_mm=sh.figure_bleed,
                         log=lambda *_: None,
                     ),
@@ -424,10 +424,9 @@ def main() -> None:
         # two red dragons, so landscape fits on one page what portrait needs two for
         hand = [
             (
-                build_mini(
+                figure_builder.build(
                     f.image,
                     smaller(f.settings),
-                    pipeline=pipeline,
                     log=lambda *_: None,
                 ),
                 n,

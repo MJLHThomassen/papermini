@@ -9,7 +9,6 @@ from PIL import Image
 
 from papermini import cli
 from papermini.cli import main
-from papermini.commands import build_command
 from papermini.project.figure_settings import FigureSettings
 
 # region papermini add
@@ -187,15 +186,16 @@ figures:
 
 
 @pytest.fixture
-def built(monkeypatch, square_mini):
-    """papermini build without a model: each image becomes a plain square figure."""
+def built(figure_builder, square_mini):
+    """The ``command_line`` fixture's papermini build builds without a model: each
+    image becomes a plain square figure. Returns the images it built."""
     images = []
 
     def fake_build(img, s, **k):
         images.append(Path(img))
         return square_mini(Path(img).stem, 20.0, 30.0, px_per_mm=4)
 
-    monkeypatch.setattr(build_command, "build_mini", fake_build)
+    figure_builder.make = fake_build
     return images
 
 
@@ -220,25 +220,36 @@ def square_project(tmp_path, transparent_figure):
         ),
     ],
 )
-def test_build_writes_the_outputs_asked_for(built, square_project, flags, written):
-    assert main(["build", str(square_project), *flags]) == 0
+def test_build_writes_the_outputs_asked_for(
+    built, command_line, square_project, flags, written
+):
+    assert command_line.run(["build", str(square_project), *flags]) == 0
     base = square_project.parent
     found = sorted(p.relative_to(base).as_posix() for p in (base / "minis").iterdir())
     assert found == written
 
 
-def test_build_without_a_sheet_writes_the_pieces_only(built, square_project):
+def test_build_without_a_sheet_writes_the_pieces_only(
+    built, command_line, square_project
+):
     square_project.write_text(
         "sheet: {enabled: false}\nfigures:\n  - image: goblin.png\n", encoding="utf-8"
     )
-    assert main(["build", str(square_project)]) == 0
+    assert command_line.run(["build", str(square_project)]) == 0
     assert [p.name for p in (square_project.parent / "minis").iterdir()] == [
         "goblin.svg"
     ]
 
 
-def test_build_writes_a_project_in_another_folder(built, square_project, tmp_path):
-    assert main(["build", str(square_project), "-o", str(tmp_path / "elsewhere")]) == 0
+def test_build_writes_a_project_in_another_folder(
+    built, command_line, square_project, tmp_path
+):
+    assert (
+        command_line.run(
+            ["build", str(square_project), "-o", str(tmp_path / "elsewhere")]
+        )
+        == 0
+    )
     assert sorted(p.name for p in (tmp_path / "elsewhere").iterdir()) == [
         "goblin.svg",
         "sheet.pdf",
@@ -246,16 +257,19 @@ def test_build_writes_a_project_in_another_folder(built, square_project, tmp_pat
 
 
 def test_build_sheet_flags_change_the_sheet_for_this_build_only(
-    built, square_project, project_store, media_box_mm
+    built, command_line, square_project, project_store, media_box_mm
 ):
-    assert main(["build", str(square_project), "--sheet", "--paper", "a3"]) == 0
+    assert (
+        command_line.run(["build", str(square_project), "--sheet", "--paper", "a3"])
+        == 0
+    )
     assert media_box_mm(square_project.parent / "minis" / "sheet.pdf") == (297, 420)
     assert project_store.load(square_project).sheet.paper == "a4"
 
 
-def test_build_refuses_figure_flags_for_a_project(built, square_project):
+def test_build_refuses_figure_flags_for_a_project(built, command_line, square_project):
     with pytest.raises(SystemExit, match="the figure flags are for images"):
-        main(["build", str(square_project), "--label", "Goblin"])
+        command_line.run(["build", str(square_project), "--label", "Goblin"])
 
 
 def test_build_refuses_a_project_without_figures(tmp_path):
@@ -342,7 +356,7 @@ def test_build_images_cut_by_machine_writes_the_cut_file(hero_figure, tmp_path):
     assert not (tmp_path / "out" / "hero.svg").exists()  # only the sheet was asked for
 
 
-def test_no_command_opens_the_app(monkeypatch):
+def test_no_command_opens_the_app(monkeypatch, command_line):
     """One program for both: without a command (double-clicked, or with files dropped on
     it) papermini opens the desktop app; with a command it runs the command line."""
     import papermini.gui.app
@@ -356,10 +370,12 @@ def test_no_command_opens_the_app(monkeypatch):
         "hero.png",
         "lair.yaml",
     ]
-    assert cli.route(["build", "hero.png"]) == ["build", "hero.png"]
-    assert cli.route(["add", "p.yaml"]) == ["add", "p.yaml"]
-    assert cli.route(["--version"]) == ["--version"]
-    assert cli.route(["-psn_0_42"]) == ["gui"]  # (older macOS adds a process id)
+    assert command_line.route(["build", "hero.png"]) == ["build", "hero.png"]
+    assert command_line.route(["add", "p.yaml"]) == ["add", "p.yaml"]
+    assert command_line.route(["--version"]) == ["--version"]
+    assert command_line.route(["-psn_0_42"]) == [
+        "gui"
+    ]  # (older macOS adds a process id)
 
 
 def test_build_tokens_on_the_command_line(tmp_path, transparent_figure):
@@ -423,7 +439,7 @@ def test_build_tokens_on_the_command_line(tmp_path, transparent_figure):
 
 
 def test_build_takes_the_paper_size_and_orientation(
-    built, tmp_path, capsys, transparent_figure, media_box_mm
+    built, command_line, tmp_path, capsys, transparent_figure, media_box_mm
 ):
     img = transparent_figure(tmp_path / "goblin.png")
     for args, size, name in (
@@ -437,12 +453,14 @@ def test_build_takes_the_paper_size_and_orientation(
         ([], (210, 297), "A4"),
     ):
         out = tmp_path / "s"
-        assert main(["build", str(img), "--sheet", "-o", str(out)] + args) == 0
+        assert (
+            command_line.run(["build", str(img), "--sheet", "-o", str(out)] + args) == 0
+        )
         assert media_box_mm(out / "minis.pdf") == size
         assert f"1 page, {name})" in capsys.readouterr().out
     # a mat smaller than the paper: a note, and the sheet is still made
     assert (
-        main(
+        command_line.run(
             [
                 "build",
                 str(img),
@@ -471,7 +489,9 @@ def test_build_takes_the_paper_size_and_orientation(
         ),
     ):
         with pytest.raises(SystemExit, match=match):
-            main(["build", str(img), "--sheet", "-o", str(tmp_path / "x")] + args)
+            command_line.run(
+                ["build", str(img), "--sheet", "-o", str(tmp_path / "x")] + args
+            )
 
 
 def test_build_takes_the_number_options(goblin_figure, tmp_path, read_svg):
@@ -504,9 +524,11 @@ def test_build_takes_the_number_options(goblin_figure, tmp_path, read_svg):
     assert [t for kind, t in texts if kind == "number"] == ["3", "3"]
 
 
-def test_build_a_folder_into_an_output_folder(monsters, tmp_path, built, capsys):
+def test_build_a_folder_into_an_output_folder(
+    monsters, tmp_path, built, command_line, capsys
+):
     out = tmp_path / "out"
-    assert cli.main(["build", str(monsters), "-o", str(out)]) == 0
+    assert command_line.run(["build", str(monsters), "-o", str(out)]) == 0
     assert "Monsters: 5 images (2 other files skipped)" in capsys.readouterr().out
     assert len(built) == 5
     svgs = sorted(p.relative_to(out).as_posix() for p in out.rglob("*.svg"))
@@ -519,21 +541,21 @@ def test_build_a_folder_into_an_output_folder(monsters, tmp_path, built, capsys)
     ]  # the subfolders, inside -o DIR
 
 
-def test_build_a_folder_next_to_its_images(monsters, built):
-    assert cli.main(["build", str(monsters), "--no-subfolders"]) == 0
+def test_build_a_folder_next_to_its_images(monsters, built, command_line):
+    assert command_line.run(["build", str(monsters), "--no-subfolders"]) == 0
     assert built == [monsters / "leader.png"]
     assert (monsters / "leader.svg").is_file()
 
 
-def test_build_an_empty_folder(tmp_path, built):
+def test_build_an_empty_folder(tmp_path, built, command_line):
     (tmp_path / "empty").mkdir()
     with pytest.raises(SystemExit, match="no images to build"):
-        cli.main(["build", str(tmp_path / "empty")])
+        command_line.run(["build", str(tmp_path / "empty")])
 
 
-def test_build_one_file_only_for_one_image(monsters, tmp_path, built):
+def test_build_one_file_only_for_one_image(monsters, tmp_path, built, command_line):
     with pytest.raises(SystemExit, match="only works with a single image"):
-        cli.main(["build", str(monsters), "-o", str(tmp_path / "a.svg")])
+        command_line.run(["build", str(monsters), "-o", str(tmp_path / "a.svg")])
 
 
 def test_build_prints_in_the_font_asked_for_or_in_times(
@@ -640,11 +662,9 @@ def test_build_makes_a_mini_from_a_link_into_the_current_folder(
     )  # a clear error, no traceback
 
 
-def test_webp_file_works_like_any_other(pipeline, tmp_path, figure_bytes):
-    from papermini.project.settings import build_mini
-
+def test_webp_file_works_like_any_other(figure_builder, tmp_path, figure_bytes):
     (tmp_path / "ogre.webp").write_bytes(figure_bytes("WEBP"))
-    m = build_mini(tmp_path / "ogre.webp", FigureSettings(), pipeline=pipeline)
+    m = figure_builder.build(tmp_path / "ogre.webp", FigureSettings())
     assert m.name == "ogre" and abs(m.figure_height_mm - 32) < 0.5
     assert (
         main(["build", (tmp_path / "ogre.webp").as_uri()]) == 0

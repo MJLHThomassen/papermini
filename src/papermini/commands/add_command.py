@@ -18,6 +18,8 @@ class AddCommand:
     """``papermini add``: adds images to a project file, with their settings, and
     sets the project's sheet. Makes the file when it does not exist yet."""
 
+    NAME = "add"
+
     def __init__(
         self,
         project_store: ProjectStore,
@@ -33,7 +35,7 @@ class AddCommand:
     def add_to(self, commands: argparse._SubParsersAction) -> None:
         """Add the command and its flags to ``commands``."""
         p = commands.add_parser(
-            "add",
+            self.NAME,
             help="add images to a project file (YAML), without building them",
             description="Add images to a project file, with the settings the flags "
             "give, and set its sheet. The file is made when it does not exist. "
