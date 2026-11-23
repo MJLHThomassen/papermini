@@ -8,6 +8,7 @@ from ..pipeline.adjustments import Adjustments
 from ..pipeline.mask_options import MaskOptions
 from ..pipeline.mini import TAB_SHOWS
 from ..pipeline.params import BACK_MODES, MARGIN_FILLS, TAB_SHAPES, Params
+from ..pipeline.segmentation.segment import DEFAULT_MODEL, ONNX_MODELS
 from ..pipeline.style import Style
 from ..pipeline.token_options import (
     TOKEN_FILLS,
@@ -27,6 +28,14 @@ _TOKEN = "token (--kind token)"
 _PICTURE = "picture (colors of what is printed; the mask is unaffected)"
 _MASK = "mask"
 _OUTPUT = "output"
+
+# the built-in models, two lines each: what it is good at, then its licence and size
+_MODEL_LINES = "".join(
+    f"{name}: {spec['about']}\n"
+    f"{'Free for any use' if spec['commercial'] else 'Non-commercial use only'}. "
+    f"Downloads {spec['mb']} MB once.\n"
+    for name, spec in ONNX_MODELS.items()
+)
 
 
 @dataclass
@@ -247,17 +256,14 @@ class FigureSettings:
     ).field("#2f5597")
     model: str = Option(
         label="Model",
-        help="rmbg-1.4, birefnet, birefnet-lite, alpha, mask (with --mask) or a .onnx "
-        "file; 'auto' uses the alpha channel of transparent PNGs, or --mask if given",
+        help=f"{', '.join(ONNX_MODELS)}, alpha, mask (with --mask) or a .onnx file; "
+        f"'auto' uses --mask if given, else the image's transparency if it has any, "
+        f"else {DEFAULT_MODEL}",
         tooltip="How the figure is separated from the background.\n"
-        "auto: the PNG's transparency if it has any, else rmbg-1.4.\n"
-        "rmbg-1.4: BRIA's background removal model, non-commercial use only\n"
-        "(downloads 176 MB once).\n"
-        "birefnet: sharper edges and fine detail, slower, free for any use\n"
-        "(downloads 930 MB once).\n"
-        "birefnet-lite: a smaller, faster BiRefNet (downloads 215 MB once).\n"
-        "alpha: the PNG's own transparency (no file needed).\n"
-        "mask image file: your own black-and-white mask (white = figure).\n"
+        f"auto: The image's transparency if it has any, else {DEFAULT_MODEL}.\n"
+        f"{_MODEL_LINES}"
+        "alpha: The image's own transparency (no download).\n"
+        "mask image file: Your own black-and-white mask (white = figure).\n"
         "You can also type the path of your own .onnx model.",
         group=_MASK,
     ).field("auto")

@@ -9,6 +9,17 @@ from papermini.pipeline.adjustments import Adjustments
 from papermini.project.figure_settings import FigureSettings
 
 
+def test_the_model_option_describes_every_built_in_model():
+    from papermini.pipeline.segmentation.segment import ONNX_MODELS
+    from papermini.project.option import Option
+
+    option = Option.of(FigureSettings)["model"]
+    for name, spec in ONNX_MODELS.items():
+        assert name in option.help
+        assert f"{name}: {spec['about']}" in option.tooltip
+        assert f"Downloads {spec['mb']} MB once." in option.tooltip
+
+
 def test_token_settings_are_checked():
     d = FigureSettings()
     assert (d.kind, d.token_diameter_mm, d.token_border_mm, d.token_text) == (

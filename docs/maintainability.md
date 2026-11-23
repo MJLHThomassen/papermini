@@ -169,11 +169,13 @@ segmentation model or a tab shape, should mean adding one entry to one table,
 not editing `if` chains in several modules. Code that needs to know about all
 variants reads them from that table.
 
-*Example:* the segmentation models are described in
-`pipeline/segmentation/segment.py`, but `ModelField` in
-`gui/fields/model_field.py` lists them again in `MODELS`, and the option's
-tooltip and command-line help list them too. Adding a model means editing all
-of them.
+*Example:* the segmentation models are described once, in `ONNX_MODELS`
+(`pipeline/segmentation/segment.py`), and the model field, the option's help
+and its tooltip are built from that table. The back modes are not: `BACK_MODES`
+(`pipeline/params.py`) names them, but `BackMirror`, `MiniBuilder` and
+`FigurePanel` each decide with their own `in (...)` checks which modes print
+text or a number on the back. Adding a back mode means finding all of those
+checks.
 
 ### S6. A subclass keeps the promises of its base class - SOLID (L)
 

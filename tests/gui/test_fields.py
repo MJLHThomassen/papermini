@@ -202,6 +202,27 @@ def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(
     assert p.font_warning.isHidden()
 
 
+def test_the_model_field_lists_every_built_in_model(app, monkeypatch):
+    from PySide6.QtWidgets import QComboBox
+
+    from papermini.gui.fields.model_field import ModelField
+    from papermini.pipeline.segmentation import segment
+    from papermini.project.option import Option
+
+    monkeypatch.setitem(segment.ONNX_MODELS, "test-model", {})
+    field = ModelField(Option.of(FigureSettings)["model"], lambda: None)
+    box = field.widget
+    assert isinstance(box, QComboBox)
+    names = [box.itemText(i) for i in range(box.count())]
+    assert names == [
+        "auto",
+        *segment.ONNX_MODELS,
+        "alpha",
+        "mask image file",
+    ]
+    assert "test-model" in names
+
+
 def test_the_wheel_over_an_unfocused_field_changes_nothing(app, built_window):
     from PySide6.QtCore import QPoint, QPointF, Qt
     from PySide6.QtGui import QWheelEvent

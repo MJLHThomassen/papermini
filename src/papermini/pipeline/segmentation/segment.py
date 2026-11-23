@@ -1,14 +1,9 @@
-"""This module lists the segmentation models that remove an image's background, and
-holds the event that stops their downloads and builds.
+"""This module lists the built-in segmentation models that remove an image's
+background, in ``ONNX_MODELS``, and holds the event that stops their downloads and
+builds.
 
-Backends ("models"):
-
-* ``rmbg-1.4``      BRIA RMBG-1.4 ONNX export, run with onnxruntime (default).
-                    Licensed for non-commercial use only.
-* ``birefnet``      BiRefNet general (MIT): sharper edges and fine detail, slower.
-* ``birefnet-lite`` BiRefNet general with the small Swin-T backbone (MIT).
-* ``alpha``         use the image's own alpha channel (already cut-out PNGs).
-* ``<file>.onnx``   a custom ONNX model that takes RMBG-1.4-style input.
+Besides these, a model can be ``alpha``, which uses the image's own transparency, or
+the path of a custom ONNX model that takes RMBG-1.4-style input.
 """
 
 from __future__ import annotations

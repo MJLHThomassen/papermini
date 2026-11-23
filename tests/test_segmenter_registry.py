@@ -106,3 +106,4 @@ def test_only_rmbg_is_non_commercial():
     non_commercial = SegmenterRegistry.non_commercial
     assert [m for m in segment.ONNX_MODELS if non_commercial(m)] == ["rmbg-1.4"]
     assert not non_commercial("alpha") and not non_commercial("x.onnx")
+    assert SegmenterRegistry.free_models() == ["birefnet", "birefnet-lite"]

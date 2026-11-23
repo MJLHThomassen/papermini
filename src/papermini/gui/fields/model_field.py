@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import ClassVar
 
+from ...pipeline.segmentation import segment
 from ...project.option import Option
 from .combo_box import ComboBox
 from .field import Field
@@ -12,14 +13,6 @@ class ModelField(Field):
     """The background removal model: one of the models in a list, or the path of a
     model typed in. Empty is auto."""
 
-    MODELS: ClassVar = (
-        "auto",
-        "rmbg-1.4",
-        "birefnet",
-        "birefnet-lite",
-        "alpha",
-        "mask",
-    )
     # a model's name in the list, where it is not the model itself
     NAMES: ClassVar = {"mask": "mask image file"}
     VALUES: ClassVar = {name: model for model, name in NAMES.items()}
@@ -27,7 +20,8 @@ class ModelField(Field):
     def __init__(self, option: Option, changed: Callable[..., None]) -> None:
         self._box = ComboBox()
         self._box.setEditable(True)
-        self._box.addItems([self.NAMES.get(m, m) for m in self.MODELS])
+        models = ("auto", *segment.ONNX_MODELS, "alpha", "mask")
+        self._box.addItems([self.NAMES.get(m, m) for m in models])
         super().__init__(option, self._box)
         self._box.activated.connect(changed)
         line = self._box.lineEdit()
