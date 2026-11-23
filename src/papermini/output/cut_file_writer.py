@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from xml.sax.saxutils import escape
+
+import svg as svgpy
 
 from .sheet_layout import TITLE, SheetLayout
 from .svg_format import SvgFormat
-from .svg_writer import SVG_NS
 
 CUT_FILE_STYLE = {
     "cut": ("#ff0000", 0.1),
@@ -42,44 +42,61 @@ class CutFileWriter:
         f = SvgFormat.number
         pw, ph = layout.paper
         W, H = f(pw), f(ph)
-        out = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            f'<svg xmlns="{SVG_NS}" width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}">',
-            f"<title>{escape(title)}: cut file, page {page + 1} of {layout.pages}</title>",
-            '<g id="registration" fill="#000000" stroke="none">',
-        ]
-        out += [
-            f'<rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{f(h)}"/>'
-            for x, y, w, h in layout.mark_rects()
-        ]
-        color, width = CUT_FILE_STYLE["cut"]
-        out += [
-            "</g>",
-            (
-                f'<g id="cut" fill="none" stroke="{color}" stroke-width="{f(width)}" '
-                'stroke-linejoin="round">'
+        here = [p for p in layout.placements if p.page == page]
+        cut_color, cut_width = CUT_FILE_STYLE["cut"]
+        groups: list[svgpy.Element] = [
+            svgpy.Title(
+                text=svgpy.escape(
+                    f"{title}: cut file, page {page + 1} of {layout.pages}"
+                )
+            ),
+            svgpy.G(
+                id="registration",
+                fill="#000000",
+                stroke="none",
+                elements=[
+                    svgpy.Rect(x=f(x), y=f(y), width=f(w), height=f(h))
+                    for x, y, w, h in layout.mark_rects()
+                ],
+            ),
+            svgpy.G(
+                id="cut",
+                fill="none",
+                stroke=cut_color,
+                stroke_width=f(cut_width),
+                extra={"stroke-linejoin": "round"},
+                elements=[
+                    svgpy.Path(
+                        d=SvgFormat.path_d(p.mini.cut.transformed(1.0, -p.x, -p.y))
+                    )
+                    for p in here
+                ],
             ),
         ]
-        here = [p for p in layout.placements if p.page == page]
-        out += [
-            f'<path d="{SvgFormat.path_d(p.mini.cut.transformed(1.0, -p.x, -p.y))}"/>'
-            for p in here
-        ]
-        out.append("</g>")
         if folds:
-            color, width = CUT_FILE_STYLE["fold"]
-            out.append(
-                f'<g id="fold" fill="none" stroke="{color}" stroke-width="{f(width)}">'
+            fold_color, fold_width = CUT_FILE_STYLE["fold"]
+            groups.append(
+                svgpy.G(
+                    id="fold",
+                    fill="none",
+                    stroke=fold_color,
+                    stroke_width=f(fold_width),
+                    elements=[
+                        svgpy.Line(
+                            x1=f(p.x + x0), y1=f(p.y + y), x2=f(p.x + x1), y2=f(p.y + y)
+                        )
+                        for p in here
+                        for x0, x1, y in p.mini.folds
+                    ],
+                )
             )
-            out += [
-                f'<line x1="{f(p.x + x0)}" y1="{f(p.y + y)}" x2="{f(p.x + x1)}" '
-                f'y2="{f(p.y + y)}"/>'
-                for p in here
-                for x0, x1, y in p.mini.folds
-            ]
-            out.append("</g>")
-        out.append("</svg>")
-        return "\n".join(out) + "\n"
+        root = svgpy.SVG(
+            width=svgpy.mm(W),
+            height=svgpy.mm(H),
+            viewBox=svgpy.ViewBoxSpec(0, 0, W, H),
+            elements=groups,
+        )
+        return SvgFormat.document(root)
 
     def write(
         self, layout: SheetLayout, svg: Path, folds: bool = False, title: str = TITLE
