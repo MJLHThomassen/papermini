@@ -89,7 +89,7 @@ release-key *args:
 
 # regenerate the README screenshots (needs the three models; e.g. `just screenshots --only settings`)
 screenshots *args:
-    {{ uv_run }} python scripts/screenshots.py {{ args }}
+    {{ uv_run }} python scripts/screenshots {{ args }}
 
 # rebuild the sample outputs in examples/dragons/samples
 samples:

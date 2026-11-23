@@ -190,3 +190,13 @@ def test_a_project_with_missing_images_opens_without_them(
     warned = _warnings(monkeypatch)
     w.load(w.project.path)
     assert warned == ["Missing images:\nb.png"] and _names(w) == ["a", "c"]
+
+
+def test_discarded_changes_close_without_asking(three_figures, monkeypatch, unsaved):
+    from PySide6.QtWidgets import QMessageBox
+
+    w = three_figures
+    asked = _answer(monkeypatch, QMessageBox.StandardButton.Cancel)
+    w.discard_changes()
+    assert not unsaved(w)
+    assert w.close() and asked == []

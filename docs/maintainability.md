@@ -252,7 +252,8 @@ sync:
   as the font field needs the `FontLibrary`;
 - the options table in `docs/reference.md`;
 - its entry in the settings guide there, with a comparison picture from
-  `scripts/screenshots.py` when its values look different.
+  `SettingShots` (`scripts/screenshots/setting_shots.py`) when its values look
+  different.
 
 The docs are written by hand. `tests/test_options.py` checks the label,
 default and choices they give each option against the option.
@@ -569,7 +570,9 @@ never installed globally; everything runs in the project's environment.
 
 The code in `scripts/` and `packaging/` is not exempt from this guide.
 
-*Example:* `main()` in `scripts/screenshots.py` is over 400 lines long.
+*Example:* `scripts/screenshots/` is a small package with one class per group
+of pictures, such as `AppShots` and `SettingShots`. They share a `ShotContext`
+and use the main window's public methods.
 
 ### R5. Updating stays safe
 

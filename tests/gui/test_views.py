@@ -223,6 +223,29 @@ def _mouse(v, kind, scene_pt, button=None):
     }[kind](ev)
 
 
+def test_crop_view_hint_can_be_turned_off(app):
+    v = _crop_view(app)
+    v.set_hint_enabled(False)
+    assert not v.show_hint()
+    v.set_hint_enabled(True)
+    assert v.show_hint()
+
+
+def test_crop_view_gives_the_image_in_the_original_pixels(app):
+    """The image's rectangle is in the original's pixels, also for a smaller preview,
+    and empty without an image."""
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QImage
+
+    from papermini.gui.views.crop_view import CropView
+
+    assert CropView().image_rect().isEmpty()
+    v = _crop_view(app)
+    assert v.image_rect() == QRectF(0, 0, 400, 300)
+    v.set_image(QImage(200, 150, QImage.Format_RGB32), size=(800, 600))
+    assert v.image_rect() == QRectF(0, 0, 800, 600)
+
+
 def test_crop_view_guides_the_user(app):
     """Without a crop box a hint says to drag one; over the image, guide lines show
     where a new box would start; over the box, the part a drag grabs is shown."""
