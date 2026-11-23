@@ -18,7 +18,6 @@ the desktop app in depth, and how the pipeline works.
 - [Tips](#tips)
 - [How it works](#how-it-works)
 - [Caching and speed](#caching-and-speed)
-- [Tests](#tests)
 
 ## Desktop app
 
@@ -73,38 +72,41 @@ the desktop app in depth, and how the pipeline works.
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
     [Color adjustments](#color-adjustments)).
   - **Miniature:** at the top, the **Kind**: *Standing mini* or *Token* (see
-    [Tokens](#tokens)). A standing mini has *Size* (figure height and width, image
-    resolution), then *Back side*, *Image outline*, *Cut line* and *Tab*, with
-    *Label* as an indented sub-group at the end of *Tab* (the label is
-    printed on the tab). *Back side*, *Tab* and *Label* each have a checkbox
-    at the right of their header that turns the whole group on or off
+    [Tokens](#tokens)). A standing mini has *Size* (creature size, figure height
+    and width, image resolution), then *Back side*, *Image outline*, *Cut line*,
+    *Tab* and *Text* (the font of all the piece's text). *Tab* ends with two
+    indented sub-groups: *Label* (the label printed on the tab) and *Number*
+    (the copy numbers on the tabs). *Back side*, *Tab* and *Label* each have a
+    checkbox at the right of their header that turns the whole group on or off
     (*Print a back side*, *Print a tab*, *Print a label*); all three are on
     by default. A group that is off shows only its header and cannot be
-    opened; turning the tab off also hides *Label*. A token has *Size* (its
-    diameter), *Token*, *Token text*, *Image outline* and *Cut line*; its *Token
-    text*, *Image outline* and *Cut line* have a checkbox in their header too, all
-    off by default. **Export…** at the bottom saves this figure as an SVG (the piece
-    with its cut line, to print or cut) or a PNG (a picture of the piece, for a
-    virtual tabletop): pick the file type in the save dialog. A figure that shows
+    opened; turning the tab off also hides *Label* and *Number*. A token has
+    *Size* (creature size, diameter, image resolution), *Token*, *Token text*,
+    *Image outline*, *Cut line* and *Text*; its *Token text*, *Image outline* and
+    *Cut line* have a checkbox in their header too, all off by default.
+    **Export…** at the bottom saves this figure as an SVG (the piece with its
+    cut line, to print or cut) or a PNG (a picture of the piece, for a virtual
+    tabletop): pick the file type in the save dialog. A figure that shows
     numbers gets one file per copy, each with its number. **Export all…** (☰ menu)
     asks for SVG, PNG or both, and saves every figure.
   - **Print sheet:** instead of a figure's settings, the sheet's own: *Paper
     and layout* (paper, title, margin, gap) and *Cutting* (by hand, or by
-    [cutting machine](#cutting-by-machine), with its bleed, marks and fold
-    lines), then how many pieces and pages there are, **Print…** and
+    [cutting machine](#cutting-by-machine), with its bleed, marks, fold
+    lines and mat), then how many pieces and pages there are, **Print…** and
     **Export…**.
 
   The settings side cannot be made narrower than its widest step needs, so
   no field or checkbox is ever cut off; drag it shut to hide it instead.
 
-  The preview updates about a second after each change, and fast series of
-  changes (holding an arrow key) only build the final value. The model only
+  The preview updates a quarter of a second after each change, and fast series
+  of changes (holding an arrow key) only build the final value. The model only
   runs once per image and crop. Changing an *Amount* only updates the sheet.
   Number fields step with the arrow keys, or the mouse wheel once you click
   into them, so scrolling the panel never edits values. Decimals use a point
   (`1.6`) whatever your system's language; a typed comma becomes a point.
   The *Apply … to all figures* button copies the settings of the step you are
-  on to every other figure, except the crop, mask file, label and amount.
+  on to every other figure, except the crop, mask file, label, a token's *Area*
+  and amount.
 - **1 Source.** The original image with the outline that background removal
   found, before any margin or tab (those belong to the miniature). Everything
   outside the outline is faded, so you can spot a clipped sword tip or a
@@ -147,8 +149,8 @@ the desktop app in depth, and how the pipeline works.
   sheet's settings beside it. **Print…** (or
   Ctrl+Shift+P) prints the sheet straight away, without saving a PDF first.
   It always prints at real size, from the corner of the paper, on the sheet's
-  paper (A4 or Letter); the app warns if the printer is set to another paper
-  size. With several pages you can pick which to print.
+  paper; the app warns if the printer is set to another paper size. With
+  several pages you can pick which to print.
 - **Exporting.** **Export…** (Ctrl+P) opens a small dialog: the folder, the
   name (the sheet's title to start with) and what to save, each with the exact
   file names: the sheet to print (PDF) and, cut by machine, the cut file (one
@@ -384,7 +386,8 @@ no back side or tab; see [Tokens](#tokens).
 
 ##### Creature size
 `--size tiny|small|medium|large|huge|gargantuan|custom` [medium]\
-The D&D size of the creature: it fills in the figure height and the tab.
+The D&D size of the creature: it fills in the figure height, the tab and a
+token's diameter.
 
 Picking a size fills in *Figure height*, the tab's *Width*, *Height* and
 *Radius* (and a token's *Diameter*) from the project's size table, for example 48 mm
@@ -937,7 +940,7 @@ the value its [creature size](#creature-sizes) fills in.
 
 | option | default | meaning |
 |---|---|---|
-| `--size` | medium | D&D creature size (`tiny`, `small`, `medium`, `large`, `huge`, `gargantuan` or `custom`): fills in `--height-mm` and the tab sizes from the built-in size table. An explicit height or tab flag wins and makes the figure `custom`. Prints a warning when the figure is wider than its squares |
+| `--size` | medium | D&D creature size (`tiny`, `small`, `medium`, `large`, `huge`, `gargantuan` or `custom`): fills in `--height-mm`, the tab sizes and a token's `--token-diameter-mm` from the built-in size table. An explicit height, tab or diameter flag wins and makes the figure `custom`. Prints a warning when the figure is wider than its squares |
 | `--grid-mm` | 25.4 | grid square for `--size`: the size table is calculated for this grid, bases and heights alike (Medium 32 × grid / 25.4 mm) |
 | `--height-mm` | 32 (Medium) | height of the drawn figure, without margin and tab |
 | `--width-mm` | set by the height | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
@@ -1152,13 +1155,14 @@ proportions; both stretch it to that height and width. A figure that gives only
 `defaults`, write `height_mm: null` in a figure to size it by width only.
 
 A figure's `size` (`tiny` … `gargantuan`, or `custom`) fills in `height_mm`,
-`tab_radius_mm`, `tab_width_mm` and `tab_height_mm` from the project's size
-table, for the values the figure does not give itself; a figure whose values
-differ from its size's is `custom`. Saved projects always write a figure's
-`size` and those four values, and the project's table under `sizes`: the preset
-it came from, the grid, Medium's height, and each size's height, round base and
-stand tab. A project without `sizes` uses the built-in table; a figure without
-`size` is Medium. See [Creature sizes](#creature-sizes).
+`tab_radius_mm`, `tab_width_mm`, `tab_height_mm` and `token_diameter_mm` from
+the project's size table, for the values the figure does not give itself; a
+figure whose values differ from its size's is `custom`. Saved projects always
+write a figure's `size` and the values it fills in (a token's diameter only for
+a token), and the project's table under `sizes`: the preset it came from, the
+grid, Medium's height, and each size's height, round base and stand tab. A
+project without `sizes` uses the built-in table; a figure without `size` is
+Medium. See [Creature sizes](#creature-sizes).
 
 ```yaml
 sizes:
@@ -1480,8 +1484,8 @@ papermini warns when the paper is bigger than the mat.
    outline. The canvas is padded first, so a figure that touches the image edge
    still gets a rounded margin.
 5. **Tab.** Centred under the middle of the figure's bottom 6 mm, with the fold
-   1 mm above the lowest point. Inner corners are rounded, which only ever adds
-   paper.
+   at the lowest point, or `--fold-mm` above it. Inner corners are rounded,
+   which only ever adds paper.
 6. **Cut line.** The outer contour, simplified, then smoothed into cubic Béziers.
    Sharp corners such as the tab stay sharp. The artwork's transparency comes from
    the same path, so the picture and the line match exactly.
@@ -1515,16 +1519,16 @@ to the `.zip`:
 
 The downloaded app keeps itself up to date:
 
-- **Checking.** A few seconds after it starts, at most once a day, papermini asks
-  GitHub for the latest release. It sends nothing about you or your files: only
-  a request for the latest release, named papermini and its version. Offline,
-  the check fails quietly. **Check for updates…** (or **About papermini**) in the
-  ☰ menu checks right away and shows the result in the About window.
-- **Downloading.** With **Update automatically** on (the default; **Preferences… →
-  Updates**), a new version
-  is downloaded in the background. Otherwise the bar under the header says a new
-  version is available, and **Update** in the About window downloads it, with
-  its progress.
+- **Checking.** With **Update automatically** on (the default; **Preferences… →
+  Updates**), papermini asks GitHub for the latest release a few seconds after it
+  starts, at most once a day. With it off, papermini doesn't check by itself.
+  Either way, **Check for updates…** (or **About papermini**) in the ☰ menu
+  checks right away and shows the result in the About window. A check sends
+  nothing about you or your files: only a request for the latest release, named
+  papermini and its version. Offline, the automatic check fails quietly.
+- **Downloading.** The automatic check downloads a new version in the
+  background. After a check from the menu, **Update** in the About window
+  downloads it, with its progress.
 - **Checking the download.** Every release has a list of the SHA-256 checksums
   of its downloads, signed with papermini's release key. papermini only installs
   a download whose list carries that signature and whose checksum matches; an
@@ -1542,8 +1546,9 @@ The downloaded app keeps itself up to date:
 
 papermini can only replace itself when it may write to its folder (your own
 folders, the installer's folder, or the usual Applications folder; `Program
-Files` on Windows needs administrator rights). Otherwise, and when it runs from source, it shows the
-new version with a link to its release page instead.
+Files` on Windows needs administrator rights). Otherwise the About window shows
+the new version with a link to its release page instead. Run from source,
+papermini never checks by itself, and the About window shows the link too.
 
 ## Logs and reporting a problem
 
@@ -1612,13 +1617,3 @@ stages it affects:
 
 Small figures from very large images are processed at a bounded resolution
 (about 600 dpi, twice the output's 300 dpi), so they stay fast.
-
-## Tests
-
-The tests use synthetic masks, so they need no model or download. They cover hole
-filling, part filtering, mm scaling, margin width, tab placement, a single closed
-cut path that never cuts into the drawing, figures touching the border,
-double-sided symmetry, Bézier deviation, SVG output, sheet packing, PDF output,
-the add and build commands, project round-trip and the app's log. If PySide6 is installed,
-an offscreen smoke test of the GUI also runs, with its error window and problem
-reports.

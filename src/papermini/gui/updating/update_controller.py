@@ -76,10 +76,9 @@ class UpdateController(QObject):
 
     def check(self, source: str) -> None:
         """Look for a newer papermini in the background. ``source`` says who asked:
-        "auto" is the daily check. When this copy can install the new version, the
-        check downloads it with automatic updating on, and announces it in the update
-        bar with automatic updating off. "about" is the About window, which reports the
-        result itself and leaves downloading to the user."""
+        "auto" is the daily check, which runs only with automatic updating on and
+        downloads the new version when this copy can install it. "about" is the About
+        window, which reports the result itself and leaves downloading to the user."""
         if self._busy:
             return
         self._busy = True
