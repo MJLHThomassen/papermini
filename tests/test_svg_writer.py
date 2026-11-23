@@ -51,8 +51,8 @@ def test_the_svg_holds_the_piece(
     assert _attr(root, ".", "viewBox") == f"0 0 {f(m.width_mm)} {f(m.height_mm)}"
     assert root.findtext(f"{SVG}title") == "Hero"
     d = _attr(root, f"{SVG}path[@id='cut']", "d")
-    assert d == SvgFormat.path_d(m.cut)
-    assert re.fullmatch(r"M[\d.,]+( C[\d., ]+)+ Z", d)
+    assert d == " ".join(str(command) for command in SvgFormat.path_d(m.cut))
+    assert re.fullmatch(r"M [\d. ]+( C [\d. ]+)+ Z ?", d)
     folds = root.findall(f"{SVG}line[@class='fold']")
     assert [
         (float(_attr(ln, ".", "x1")), float(_attr(ln, ".", "y1"))) for ln in folds
@@ -69,7 +69,8 @@ def test_an_unsmoothed_cut_line_is_written_with_straight_lines(
     m = pipeline_mini(img, mask=mask_options(mask_path=mask), smooth_path=False)
     root = ET.parse(output.svg.write(m, tmp_path / "hero.svg")).getroot()
     d = _attr(root, f"{SVG}path[@id='cut']", "d")
-    assert "C" not in d and d.count("L") == len(m.cut.points) - 1 and d.endswith("Z")
+    assert "C" not in d and d.count("L") == len(m.cut.points) - 1
+    assert d.rstrip().endswith("Z")
 
 
 def test_the_svg_keeps_the_back_text_color(output, pipeline, hero_figure, tmp_path):
@@ -100,3 +101,14 @@ def test_a_token_svg_holds_its_text_and_no_cut_line(
     assert read_svg(path).texts == [("tokentext", "Goblin"), ("tokentext", "2")]
     root = ET.parse(path).getroot()
     assert _attr(root, f"{SVG}path[@id='cut']", "stroke") == "none"  # (no cut line)
+
+
+def test_text_with_markup_characters_stays_valid_svg(
+    output, hero_figure, tmp_path, pipeline_mini, mask_options, read_svg
+):
+    img, mask = hero_figure
+    label = 'Fire & <Ice> "1"'
+    m = pipeline_mini(img, mask=mask_options(mask_path=mask), label=label)
+    path = output.svg.write(m, tmp_path / "hero.svg")
+    assert ET.parse(path).getroot().findtext(f"{SVG}title") == label
+    assert ("label", label) in read_svg(path).texts

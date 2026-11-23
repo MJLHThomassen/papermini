@@ -1482,9 +1482,10 @@ papermini warns when the paper is bigger than the mat.
 6. **Cut line.** The outer contour, simplified, then smoothed into cubic Béziers.
    Sharp corners such as the tab stay sharp. The artwork's transparency comes from
    the same path, so the picture and the line match exactly.
-7. **Output.** The SVG has `width`/`height` in mm, a `viewBox` in mm, an `image#art`
-   element, `line.fold` dashed lines, `text.label` and `path#cut`. The PDF is drawn
-   with ReportLab in exact millimetres.
+7. **Output.** The SVG, written with [svg.py](https://github.com/orsinium-labs/svg.py),
+   has `width`/`height` in mm, a `viewBox` in mm, an `image#art` element,
+   `line.fold` dashed lines, `text.label` and `path#cut`. The PDF is drawn with
+   ReportLab in exact millimetres.
 
 ## Installing on Windows
 
