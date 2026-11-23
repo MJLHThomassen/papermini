@@ -73,6 +73,21 @@ def test_a_figure_without_an_image_is_refused(tmp_path, project_store):
         project_store.load(path)
 
 
+def test_a_file_that_is_not_a_project_is_refused(tmp_path, project_store):
+    path = tmp_path / "list.yaml"
+    path.write_text("- a.png\n- b.png\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="^list.yaml is not a papermini project$"):
+        project_store.load(path)
+
+
+def test_settings_that_are_not_names_with_values_are_refused(tmp_path, project_store):
+    path = tmp_path / "proj.yaml"
+    for text in ("defaults: [42]\n", "figures:\n  - 42\n", "sheet: a4\n"):
+        path.write_text(text, encoding="utf-8")
+        with pytest.raises(ValueError, match="settings are option names with values"):
+            project_store.load(path)
+
+
 def test_a_project_saved_by_1_0_still_opens(project_store):
     path = Path(__file__).parent / "fixtures" / "project-v1.0.yaml"
     p = project_store.load(path)

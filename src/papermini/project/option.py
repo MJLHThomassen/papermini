@@ -58,7 +58,12 @@ class Option:
 
     @staticmethod
     def norm_keys(d: dict[str, Any] | None) -> dict[str, Any]:
-        """Return ``d`` with its keys as option names: dashes become underscores."""
+        """Return ``d`` with its keys as option names: dashes become underscores.
+
+        Raise a ValueError when ``d`` is not a mapping.
+        """
+        if not isinstance(d or {}, dict):
+            raise ValueError(f"settings are option names with values, not {d!r}")
         return {str(k).replace("-", "_"): v for k, v in (d or {}).items()}
 
     def check(self, value: Any, where: str = "") -> Any:

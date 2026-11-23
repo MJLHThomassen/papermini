@@ -10,6 +10,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import ClassVar
 
+import yaml
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
@@ -1689,14 +1690,16 @@ class MainWindow(QMainWindow):
     def load(self, path: Path):
         if not self._maybe_save():
             return
-        QApplication.setOverrideCursor(Qt.WaitCursor)  # images from links may download
         try:
-            proj = self._project_store.load(path)
-        except Exception as e:  # noqa: BLE001
-            QApplication.restoreOverrideCursor()
+            # images from links may download
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                proj = self._project_store.load(path)
+            finally:
+                QApplication.restoreOverrideCursor()
+        except (OSError, ValueError, yaml.YAMLError) as e:
             self._warn(f"Could not open {path}:\n{e}")
             return
-        QApplication.restoreOverrideCursor()
         ui_log.info("Opened project %s (%d figure(s))", path, len(proj.figures))
         self._remember(path)
         self._reset(proj)
