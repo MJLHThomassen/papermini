@@ -1,6 +1,6 @@
 """Sign a release's checksum file for the app's automatic updates.
 
-    RELEASE_SIGNING_KEY=... python scripts/sign_release.py out/SHA256SUMS.txt
+    RELEASE_SIGNING_KEY=... uv run --only-group release python scripts/sign_release.py out/SHA256SUMS.txt
 
 Writes FILE.sig: the base64 Ed25519 signature of FILE, made with the private key in
 the environment variable RELEASE_SIGNING_KEY (see scripts/release_key.py). The app

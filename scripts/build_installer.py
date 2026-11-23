@@ -1,12 +1,12 @@
 """Build the Windows installer of papermini with Inno Setup (packaging/papermini.iss).
 
-    python scripts/build_installer.py                      # dist/papermini -> dist/
-    python scripts/build_installer.py --version 1.2.3 --dist dist/papermini --out out
+    just installer         # dist/papermini -> dist/
+    just installer --version 1.2.3 --dist dist/papermini --out out
 
-Build the app first (pyinstaller packaging/papermini.spec --noconfirm). The installer
-is named like the release downloads: papermini-<version>-windows-x64-setup.exe. The
-version defaults to this papermini's. Needs Inno Setup 6: ISCC on PATH, or installed
-in Program Files or (installed for one user) in %LocalAppData%\\Programs.
+Build the app first (just build). The installer is named like the release downloads:
+papermini-<version>-windows-x64-setup.exe. The version defaults to this papermini's.
+Needs Inno Setup 6: ISCC on PATH, or installed in Program Files or (installed for one
+user) in %LocalAppData%\\Programs.
 """
 
 from __future__ import annotations
@@ -49,10 +49,7 @@ def build(version: str, dist: Path, out: Path) -> Path:
             "or: winget install JRSoftware.InnoSetup)"
         )
     if not (dist / "papermini.exe").is_file():
-        sys.exit(
-            f"{dist} has no papermini.exe: build it first with "
-            "pyinstaller packaging/papermini.spec --noconfirm"
-        )
+        sys.exit(f"{dist} has no papermini.exe: build it first with just build")
     out.mkdir(parents=True, exist_ok=True)
     name = UpdateService.asset_name(version, "windows-x64", setup=True)
     done = subprocess.run(

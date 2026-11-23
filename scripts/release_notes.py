@@ -1,6 +1,6 @@
 """Release notes for a version tag: every commit since the previous version tag.
 
-    python scripts/release_notes.py v1.2.0 [--repo owner/name] [-o notes.md]
+    just release-notes v1.2.0 [--repo owner/name] [-o notes.md]
 
 Commits are grouped by their Conventional Commit type (features, fixes, ...), with
 breaking changes also listed first. Each line names the pull request the commit came in
