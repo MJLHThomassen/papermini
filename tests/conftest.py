@@ -213,6 +213,7 @@ def new_window(
     project_store,
     size_calculator,
     pipeline,
+    figure_builder,
     fonts,
     output,
     images_from_web,
@@ -221,19 +222,24 @@ def new_window(
 ):
     """Returns ``new_window(pipeline)``, which opens a main window with the ``prefs``
     preferences, the services of the fixtures and ``pipeline``, by default the
-    ``pipeline`` fixture's. The windows close after the test without asking to save."""
+    ``pipeline`` fixture's. With that pipeline, its figures build with the
+    ``figure_builder`` fixture's builder. The windows close after the test without
+    asking to save."""
     from papermini.gui.window.main_window import MainWindow
+    from papermini.project.figure_builder import FigureBuilder
 
     made = []
     shared = pipeline
 
     def new_window(pipeline=shared):
+        builder = figure_builder if pipeline is shared else FigureBuilder(pipeline)
         made.append(
             MainWindow(
                 prefs,
                 project_store,
                 size_calculator,
                 pipeline,
+                builder,
                 fonts,
                 output,
                 images_from_web,
@@ -267,14 +273,45 @@ def downloaded_default_model(isolated_model_cache):
 
 
 @pytest.fixture
-def no_builds(monkeypatch):
-    """Makes every figure in the app fail to build at once, for tests without a model."""
-    from papermini.gui.building import build_job
+def figure_builder(pipeline):
+    """Returns the service that builds a figure's miniature, with the ``pipeline``
+    fixture's pipeline. Its ``make`` builds each figure, with the arguments of
+    ``FigureBuilder.build``; a test replaces it to build figures its own way."""
+    from papermini.project.figure_builder import FigureBuilder
+
+    class FakeBuilder(FigureBuilder):
+        """A figure builder that builds each figure with ``make``."""
+
+        def __init__(self, make):
+            self.make = make
+
+        def build(self, image, s, **options):
+            return self.make(image, s, **options)
+
+    return FakeBuilder(FigureBuilder(pipeline).build)
+
+
+@pytest.fixture
+def no_builds(figure_builder):
+    """Makes every figure that the ``figure_builder`` fixture's builder builds from now
+    on fail at once, for tests without a model."""
 
     def fail(*a, **k):
         raise ValueError("not built in this test")
 
-    monkeypatch.setattr(build_job, "build_mini", fail)
+    figure_builder.make = fail
+
+
+@pytest.fixture
+def command_line(
+    project_store, size_calculator, figure_builder, output, images_from_web
+):
+    """Returns the command line, with the services of the fixtures."""
+    from papermini.commands.command_line import CommandLine
+
+    return CommandLine(
+        project_store, size_calculator, figure_builder, output, images_from_web
+    )
 
 
 @pytest.fixture
@@ -543,31 +580,28 @@ def transparent_figure():
 
 
 @pytest.fixture
-def build_token(size_calculator, pipeline):
+def build_token(size_calculator, figure_builder):
     """Returns ``build_token(path, **settings)``, which builds a token of the
     picture at ``path``, cut out by the picture's transparency."""
-    from papermini.project.settings import build_mini
 
     def build_token(path, **kw):
         s = size_calculator.settings_with_size(dict(kind="token", model="alpha", **kw))
-        return build_mini(path, s, pipeline=pipeline, log=lambda *a: None)
+        return figure_builder.build(path, s, log=lambda *a: None)
 
     return build_token
 
 
 @pytest.fixture
-def numbered_mini(pipeline):
+def numbered_mini(figure_builder):
     """Returns ``numbered_mini(figure, **settings)``, which builds the mini of
     ``figure``, an image and its mask, labelled Goblin."""
     from papermini.project.figure_settings import FigureSettings
-    from papermini.project.settings import build_mini
 
     def numbered_mini(figure, **settings):
         img, mask = figure
-        return build_mini(
+        return figure_builder.build(
             img,
             FigureSettings(mask=str(mask), label="Goblin", **settings),
-            pipeline=pipeline,
             log=lambda *_: None,
         )
 

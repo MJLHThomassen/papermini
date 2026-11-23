@@ -8,7 +8,6 @@ from PIL import Image, ImageDraw
 from papermini.pipeline.token_framer import FIT_FREE
 from papermini.pipeline.token_info import TokenInfo
 from papermini.pipeline.token_renderer import PLATE
-from papermini.project.settings import build_mini
 
 
 def test_a_fitted_figure_stays_inside_the_circle(
@@ -44,7 +43,7 @@ def test_a_fitted_figure_stays_above_the_nameplate(
 
 
 def test_a_printed_cut_line_lies_outside_the_ring(
-    pipeline,
+    figure_builder,
     tmp_path,
     build_token,
     transparent_figure,
@@ -59,7 +58,7 @@ def test_a_printed_cut_line_lies_outside_the_ring(
     s = size_calculator.settings_with_size(
         {"kind": "token", "model": "alpha", "token_cut_line": True}
     )
-    m = build_mini(img, s, pipeline=pipeline, bleed_mm=1.0, log=lambda *a: None)
+    m = figure_builder.build(img, s, bleed_mm=1.0, log=lambda *a: None)
     assert np.hypot(*(m.cut.points - (m.token.cx, m.token.cy)).T) == pytest.approx(12.5)
 
 
@@ -114,7 +113,7 @@ def test_a_token_figure_with_an_outline(tmp_path, build_token, transparent_figur
     assert _count(outlined.art, 1) > 0  # the outline, in the margin color
 
 
-def test_a_token_filled_with_the_picture(pipeline, tmp_path, size_calculator):
+def test_a_token_filled_with_the_picture(figure_builder, tmp_path, size_calculator):
     im = Image.new("RGB", (300, 400), (0, 0, 255))  # a blue background
     ImageDraw.Draw(im).ellipse([60, 40, 240, 360], fill=(200, 40, 30))
     im.save(tmp_path / "goblin.png")
@@ -131,9 +130,7 @@ def test_a_token_filled_with_the_picture(pipeline, tmp_path, size_calculator):
         """Builds the token and keeps only its art inside the ring and over 1 mm from
         the figure's box."""
         s = size_calculator.settings_with_size({**common, **kw})
-        m = build_mini(
-            tmp_path / "goblin.png", s, pipeline=pipeline, log=lambda *a: None
-        )
+        m = figure_builder.build(tmp_path / "goblin.png", s, log=lambda *a: None)
         t, a = m.token, np.asarray(m.art.convert("RGB")).copy()
         assert isinstance(t, TokenInfo) and t.figure_box is not None
         px = a.shape[1] / m.width_mm

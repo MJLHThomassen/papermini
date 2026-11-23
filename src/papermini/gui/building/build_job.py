@@ -10,7 +10,7 @@ from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation.cancelled import Cancelled
 from ...pipeline.segmentation.download_hooks import DownloadHooks
 from ...pipeline.segmentation.model_error import ModelError
-from ...project.settings import build_mini
+from ...project.figure_builder import FigureBuilder
 from ...support.log_session import LogSession
 from ..window.figure import Figure
 from .build_result import BuildResult
@@ -28,10 +28,12 @@ class BuildJob(QRunnable):
         fig: Figure,
         is_current,
         pipeline: Pipeline,
+        figure_builder: FigureBuilder,
         downloads: DownloadHooks,
     ):
         super().__init__()
         self.pipeline = pipeline
+        self.figure_builder = figure_builder
         self.downloads = downloads
         self.sig, self.uid = sig, fig.uid
         self.image, self.settings, self.key = (
@@ -52,10 +54,9 @@ class BuildJob(QRunnable):
         try:
             # Cancel also stops it while the model loads
             with self.pipeline.cancellation.cancellable():
-                m = build_mini(
+                m = self.figure_builder.build(
                     self.image,
                     self.settings,
-                    pipeline=self.pipeline,
                     bleed_mm=self.bleed_mm,
                     log=lambda *_: None,
                     on_stage=lambda name, data: self.sig.stage.emit(

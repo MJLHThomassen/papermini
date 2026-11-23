@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, QThreadPool, QTimer, Signal
 from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.download_hooks import DownloadHooks
+from ...project.figure_builder import FigureBuilder
 from ..window.figure import Figure
 from .build_job import BuildJob
 from .build_result import BuildResult
@@ -19,8 +20,9 @@ CLOSE_WAIT_MS = 15000  # how long closing waits for a build to stop
 
 
 class BuildQueue(QObject):
-    """Builds the figures' miniatures on one worker thread, and takes each finished
-    build only while it matches its figure's settings (see ``Figure``).
+    """Builds the figures' miniatures with ``figure_builder`` on one worker thread,
+    and takes each finished build only while it matches its figure's settings (see
+    ``Figure``).
 
     ``run`` is the model run in progress. ``cancel`` stops it and marks its figure
     cancelled for the mask it ran for, so that no build of that figure starts until its
@@ -44,6 +46,7 @@ class BuildQueue(QObject):
     def __init__(
         self,
         pipeline: Pipeline,
+        figure_builder: FigureBuilder,
         downloads: DownloadHooks,
         figure: Callable[[int], Figure | None],
         current: Callable[[], Figure | None],
@@ -51,6 +54,7 @@ class BuildQueue(QObject):
     ):
         super().__init__(parent)
         self._pipeline = pipeline
+        self._figure_builder = figure_builder
         self.downloads = downloads
         self._figure = figure
         self._current = current
@@ -95,7 +99,14 @@ class BuildQueue(QObject):
         # the selected figure jumps ahead of background (sheet) builds
         priority = 10 if fig is self._current() else 0
         self.pool.start(
-            BuildJob(self._sig, fig, self._is_current, self._pipeline, self.downloads),
+            BuildJob(
+                self._sig,
+                fig,
+                self._is_current,
+                self._pipeline,
+                self._figure_builder,
+                self.downloads,
+            ),
             priority,
         )
 

@@ -1,17 +1,16 @@
 """Tests of writing a sheet as a PDF."""
 
 from papermini.project.figure_settings import FigureSettings
-from papermini.project.settings import build_mini
 
 
 def test_the_pdf_embeds_the_font_and_the_svg_names_it(
-    output, pipeline, goblin_figure, tmp_path
+    output, figure_builder, goblin_figure, tmp_path
 ):
     img, mask = goblin_figure
     s = FigureSettings(
         mask=str(mask), label="Hero", font="Almendra", back="text_number"
     )
-    m = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
+    m = figure_builder.build(img, s, log=lambda *_: None)
     assert m.style.font == "Almendra"
     pdf = output.pdf.write(
         output.packer.pack([(m, 2)]), tmp_path / "s.pdf"
@@ -22,10 +21,9 @@ def test_the_pdf_embeds_the_font_and_the_svg_names_it(
     assert 'class="number"' in svg and 'font-weight="bold"' in svg
     # Times: the names every program knows
     t = output.svg.write(
-        build_mini(
+        figure_builder.build(
             img,
             FigureSettings(mask=str(mask), label="Hero"),
-            pipeline=pipeline,
             log=lambda *_: None,
         ),
         tmp_path / "t.svg",

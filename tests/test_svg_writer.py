@@ -73,9 +73,10 @@ def test_an_unsmoothed_cut_line_is_written_with_straight_lines(
     assert d.rstrip().endswith("Z")
 
 
-def test_the_svg_keeps_the_back_text_color(output, pipeline, hero_figure, tmp_path):
+def test_the_svg_keeps_the_back_text_color(
+    output, figure_builder, hero_figure, tmp_path
+):
     from papermini.project.figure_settings import FigureSettings
-    from papermini.project.settings import build_mini
 
     img, mask = hero_figure
     s = FigureSettings(
@@ -86,7 +87,7 @@ def test_the_svg_keeps_the_back_text_color(output, pipeline, hero_figure, tmp_pa
         label_color="#111111",
         back_text_color="#c0a030",
     )
-    m = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
+    m = figure_builder.build(img, s, log=lambda *_: None)
     svg = output.svg.write(m, tmp_path / "h.svg").read_text(encoding="utf-8")
     assert 'class="backtext"' in svg and 'fill="#c0a030"' in svg
 

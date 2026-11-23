@@ -43,6 +43,7 @@ from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.download_hooks import DownloadHooks
 from ...project import sizes
+from ...project.figure_builder import FigureBuilder
 from ...project.figure_entry import FigureEntry
 from ...project.figure_settings import FigureSettings
 from ...project.project import Project
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
         project_store: ProjectStore,
         size_calculator: SizeCalculator,
         pipeline: Pipeline,
+        figure_builder: FigureBuilder,
         fonts: FontLibrary,
         output: Output,
         images_from_web: ImageFetcher,
@@ -120,6 +122,7 @@ class MainWindow(QMainWindow):
         self.sig = Signals()
         self.builds = BuildQueue(
             pipeline,
+            figure_builder,
             DownloadHooks(self._confirm_download, self._download_progress),
             self._figure,
             self.current,

@@ -9,7 +9,6 @@ from PIL import Image
 from papermini.pipeline.style import Style
 from papermini.pipeline.text_item import NUMBER_PLACEHOLDER
 from papermini.project.figure_settings import FigureSettings
-from papermini.project.settings import build_mini
 from papermini.support.font_library import FontLibrary
 
 
@@ -68,17 +67,18 @@ def test_the_back_text_is_upside_down_and_defaults_to_the_label(
     ]
 
 
-def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(pipeline, hero_figure):
+def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(
+    figure_builder, hero_figure
+):
     """A bleed (for a sheet cut by machine) prints the edge colors beyond the cut line."""
     from papermini.project.figure_settings import FigureSettings
-    from papermini.project.settings import build_mini
 
     img, mask = hero_figure
     s = FigureSettings(
         mask=str(mask), margin_color="#204080", tab_color="#3b6e2a", double_sided=False
     )  # (the points below assume one side)
-    plain = build_mini(img, s, pipeline=pipeline, log=lambda *_: None)
-    bled = build_mini(img, s, pipeline=pipeline, bleed_mm=1.5, log=lambda *_: None)
+    plain = figure_builder.build(img, s, log=lambda *_: None)
+    bled = figure_builder.build(img, s, bleed_mm=1.5, log=lambda *_: None)
     # the canvas grows from half the 0.3 mm cut line + 0.3 to the bleed + 0.2, on each side
     assert bled.width_mm == pytest.approx(
         plain.width_mm + 2 * (1.5 + 0.2 - 0.45), abs=0.1
@@ -104,12 +104,11 @@ def test_a_bleed_prints_the_edge_colors_beyond_the_cut_line(pipeline, hero_figur
 )  # the big one is downscaled
 @pytest.mark.parametrize("double_sided", [False, True])
 def test_the_source_cut_line_is_in_source_pixels(
-    pipeline, tmp_path, size, double_sided
+    figure_builder, tmp_path, size, double_sided
 ):
     """The cut line drawn on the Source view: in source-image pixels, around the drawing
     by the margin, with the tab below it (and a double-sided back above the image)."""
     from papermini.project.figure_settings import FigureSettings
-    from papermini.project.settings import build_mini
 
     W, H = size
     im = np.full((H, W, 3), 255, np.uint8)
@@ -119,7 +118,7 @@ def test_the_source_cut_line_is_in_source_pixels(
     Image.fromarray(np.where(im[..., 0] < 128, 255, 0).astype(np.uint8)).save(
         tmp_path / "m.png"
     )
-    m = build_mini(
+    m = figure_builder.build(
         tmp_path / "a.png",
         FigureSettings(
             model="mask",
@@ -127,7 +126,6 @@ def test_the_source_cut_line_is_in_source_pixels(
             double_sided=double_sided,
             tab_width_mm=10,
         ),  # (narrower than the drawing)
-        pipeline=pipeline,
         log=lambda *_: None,
     )
     p = m.source_cut.points
@@ -298,17 +296,18 @@ def test_a_missing_font_prints_in_times(
     assert any("No Such Font is not on this computer" in n for n in notes)
 
 
-def test_adjustments_change_the_print_not_the_outline(pipeline, red_disc):
+def test_adjustments_change_the_print_not_the_outline(
+    pipeline, figure_builder, red_disc
+):
     """The picture is adjusted; the mask, outline and size are exactly as before, and
     the cached mask is reused (the model would not run again)."""
     img, mask = red_disc
     base = FigureSettings(mask=str(mask), double_sided=False, label="")
-    plain = build_mini(img, base, pipeline=pipeline, log=lambda *_: None)
+    plain = figure_builder.build(img, base, log=lambda *_: None)
     misses = pipeline.caches.raw_masks.misses
-    grey = build_mini(
+    grey = figure_builder.build(
         img,
         FigureSettings(**{**base.__dict__, "greyscale": True, "brightness": 10}),
-        pipeline=pipeline,
         log=lambda *_: None,
     )
     assert pipeline.caches.raw_masks.misses == misses  # no new mask

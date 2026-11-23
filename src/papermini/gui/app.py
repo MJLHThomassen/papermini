@@ -45,6 +45,7 @@ def _start(app, files, updates, logs):
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("papermini")
     from ..output.output import Output
     from ..pipeline.pipeline import Pipeline
+    from ..project.figure_builder import FigureBuilder
     from ..project.project_store import ProjectStore
     from ..project.size_calculator import SizeCalculator
     from ..support.font_library import FontLibrary
@@ -56,13 +57,15 @@ def _start(app, files, updates, logs):
     size_calculator = SizeCalculator()
     fonts = FontLibrary()
     images_from_web = ImageFetcher()
+    pipeline = Pipeline(fonts)
     theme.apply(app, prefs.theme())
     app.setWindowIcon(theme.app_icon())
     w = MainWindow(
         prefs,
         ProjectStore(size_calculator, images_from_web),
         size_calculator,
-        Pipeline(fonts),
+        pipeline,
+        FigureBuilder(pipeline),
         fonts,
         Output(fonts),
         images_from_web,
