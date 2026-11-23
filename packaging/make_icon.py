@@ -1,6 +1,6 @@
 """Render the app icon (packaging/icon.png) from the logo (src/papermini/gui/logo.svg).
 
-    python packaging/make_icon.py
+    just icon
 
 PyInstaller converts the PNG to .ico (Windows) and .icns (macOS) at build time. The
 script also writes packaging/icon.ico for the Windows installer (papermini.iss).

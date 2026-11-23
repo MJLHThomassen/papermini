@@ -1,8 +1,8 @@
 """Make a fake, signed papermini release on this computer, to try the app's updates.
 
-    python scripts/fake_update.py                          # a pretend app: test from source
-    python scripts/fake_update.py --app dist/papermini     # a real build (Windows, Linux)
-    python scripts/fake_update.py --app dist/papermini.app # a real build (macOS)
+    just fake-update                          # a pretend app: test from source
+    just fake-update --app dist/papermini     # a real build (Windows, Linux)
+    just fake-update --app dist/papermini.app # a real build (macOS)
 
 Writes to papermini-fake-update in the temp folder (outside the project, so a cloud
 sync such as OneDrive cannot lock it):
@@ -115,10 +115,7 @@ def make_release(
         if app.name != Path(want).name:
             sys.exit(f"--app must be the build for this computer: {want} (not {app})")
         if not app.exists():
-            sys.exit(
-                f"{app} does not exist: build it first with "
-                "pyinstaller packaging/papermini.spec --noconfirm"
-            )
+            sys.exit(f"{app} does not exist: build it first with just build")
     else:
         app = pretend_app(out / "new", version, "the update")
         installed = pretend_app(

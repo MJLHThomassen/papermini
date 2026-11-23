@@ -1,6 +1,6 @@
 """Regenerate the README screenshots of the desktop app from the dragons project.
 
-    python scripts/screenshots.py            # writes docs/screenshots/*.png
+    just screenshots            # writes docs/screenshots/*.png
 
 Renders off-screen at 1.5x scale with an English locale and default preferences
 (a temporary settings folder), so the result does not depend on your own setup.
@@ -14,7 +14,7 @@ settings guide in docs/reference.md, ``settings/*.png``: the same piece side by 
 with different values of a setting, and ``settings/machine.png``: a sheet cut by
 machine next to its cut file.
 
-    python scripts/screenshots.py --only settings   # just those
+    just screenshots --only settings   # just those
 """
 
 from __future__ import annotations

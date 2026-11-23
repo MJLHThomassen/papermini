@@ -289,6 +289,9 @@ birefnet models:
 just screenshots
 ```
 
+`just screenshots --only settings` makes only the pictures of the settings
+guide in [docs/reference.md](docs/reference.md).
+
 The other tasks are `just build`, `just installer` and `just samples`; `just`
 lists them all.
 
@@ -326,8 +329,8 @@ Pushing a tag yourself (`git tag v1.2.0`, then `git push origin v1.2.0`)
 releases that commit the same way, after checking that the commit is on `main`
 and the version is newer than the latest release. The release notes list every
 commit since the previous version tag, grouped by Conventional Commit type, with
-the pull request each came in with (`python scripts/release_notes.py v1.2.0`
-shows them before you release). A version with a suffix, such as `1.2.0-rc.1`,
+the pull request each came in with (`just release-notes v1.2.0` shows them
+before you release). A version with a suffix, such as `1.2.0-rc.1`,
 makes a pre-release. To try the builds without releasing, run the workflow
 without a version; the downloads appear as workflow artifacts. On `main`, such a
 run also writes the release notes, the checksums and their signature, so it
@@ -336,8 +339,8 @@ tests every step but tagging and publishing.
 The workflow signs each release's checksum list with the release key, which the
 app's [updates](docs/reference.md#updates) check. The private key is the
 repository secret `RELEASE_SIGNING_KEY`; its public key is in
-`src/papermini/support/update.py`. `python scripts/release_key.py` makes a new pair (and
-says how to store the secret). The workflow stops when the secret does not
+`src/papermini/support/update.py`. `just release-key` makes a new pair (and says
+how to store the secret). The workflow stops when the secret does not
 belong to the public key in the code. A new key pair means that versions with
 the old public key no longer update themselves.
 

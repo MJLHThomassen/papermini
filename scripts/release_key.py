@@ -1,6 +1,6 @@
 r"""Create the key pair that signs releases, for the app's automatic updates.
 
-    python scripts/release_key.py [PRIVATE_KEY_FILE]
+    just release-key [PRIVATE_KEY_FILE]
 
 Writes the private key (base64) to PRIVATE_KEY_FILE, by default
 ~/.papermini-release-key, and puts the public key in src/papermini/support/update.py

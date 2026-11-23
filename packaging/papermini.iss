@@ -1,6 +1,6 @@
 ; Inno Setup script: the Windows installer of papermini (https://jrsoftware.org/isinfo.php).
 ;
-;   python scripts/build_installer.py      (finds ISCC and passes the defines below)
+;   just installer      (runs scripts/build_installer.py: finds ISCC and passes the defines below)
 ;
 ; Installs the PyInstaller build (dist\papermini) for the current user, in
 ; %LocalAppData%\Programs\papermini, without asking for administrator rights, so the

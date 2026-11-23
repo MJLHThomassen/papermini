@@ -1,11 +1,11 @@
 """Try the app's automatic update on this computer, in one go.
 
-    python scripts/try_update.py              # build papermini, then update a copy of it
-    python scripts/try_update.py --no-build   # the same with the last build of this script
-    python scripts/try_update.py --source     # no build: papermini run from source updates
-                                              # a pretend installed copy (quick)
-    python scripts/try_update.py --installer  # Windows: install the build with its installer,
-                                              # then update it with a newer installer
+    just try-update            # build papermini, then update a copy of it
+    just try-update-nobuild    # the same with the last build of this script
+    just try-update-source     # no build: papermini run from source updates
+                               # a pretend installed copy (quick)
+    just try-update-installer  # Windows: install the build with its installer,
+                               # then update it with a newer installer
 
 It builds in the temp folder (papermini-update-build), not in the project's dist/, so a
 cloud sync of the project (such as OneDrive) cannot lock the build. It copies the build
@@ -14,13 +14,13 @@ the installed app, and puts OLD-COPY.txt in it. It makes a
 fake, signed release 99.0.0 of the build (scripts/fake_update.py) and starts the copy,
 pointed at that release. Update it in papermini (the menu's Check for updates, then
 Update and Restart now, or close papermini), and the script then says whether the copy
-was replaced. ``just try-update`` and ``just try-update-source`` run it.
+was replaced.
 
 With --installer (Windows, needs Inno Setup 6) it builds the installer of the build and
 installs it silently into a test folder in the temp folder (this is a real install of
 papermini for your user: it shows in Apps & features). The fake release 99.0.0 then holds
 an installer, and the script checks that Apps & features shows 99.0.0 after the update.
-Uninstall it afterwards in Apps & features. ``just try-update-installer`` runs it.
+Uninstall it afterwards in Apps & features.
 """
 
 from __future__ import annotations

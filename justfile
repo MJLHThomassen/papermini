@@ -51,9 +51,13 @@ gui *args:
 build:
     {{ uv_run }} --group build python -m PyInstaller packaging/papermini.spec --noconfirm
 
-# build the Windows installer of the build in dist/ (needs Inno Setup 6)
-installer:
-    {{ uv_run }} python scripts/build_installer.py
+# build the Windows installer of the build in dist/ (needs Inno Setup 6; extra arguments go to the script)
+installer *args:
+    {{ uv_run }} python scripts/build_installer.py {{ args }}
+
+# render the app icon in packaging/ from the logo
+icon:
+    {{ uv_run }} python packaging/make_icon.py
 
 # build, then update a copy of the build to a fake signed release (see scripts/try_update.py)
 try-update:
@@ -71,9 +75,21 @@ try-update-installer:
 try-update-source:
     {{ uv_run }} python scripts/try_update.py --source
 
-# regenerate the README screenshots (needs the three models)
-screenshots:
-    {{ uv_run }} python scripts/screenshots.py
+# make only the fake signed release of try-update (e.g. `just fake-update --app dist/papermini`)
+fake-update *args:
+    {{ uv_run }} python scripts/fake_update.py {{ args }}
+
+# show the release notes of a version tag (e.g. `just release-notes v1.2.0`)
+release-notes *args:
+    {{ uv_run }} python scripts/release_notes.py {{ args }}
+
+# make a new key pair that signs releases (see scripts/release_key.py first)
+release-key *args:
+    {{ uv_run }} --group release python scripts/release_key.py {{ args }}
+
+# regenerate the README screenshots (needs the three models; e.g. `just screenshots --only settings`)
+screenshots *args:
+    {{ uv_run }} python scripts/screenshots.py {{ args }}
 
 # rebuild the sample outputs in examples/dragons/samples
 samples:
