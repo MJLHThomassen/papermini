@@ -2,6 +2,8 @@
 
 import pytest
 
+from papermini.output.figure_too_large_error import FigureTooLargeError
+
 
 def test_pack_uses_the_page_size(output, square_mini):
     m = square_mini(w=100, h=150)
@@ -14,9 +16,9 @@ def test_pack_uses_the_page_size(output, square_mini):
     )
     lay = output.packer.pack([(m, 3)], (400, 200))  # custom: three in a row
     assert lay.paper == (400, 200) and lay.pages == 1
-    with pytest.raises(ValueError, match="does not fit on A5 landscape"):
+    with pytest.raises(FigureTooLargeError, match="does not fit on A5 landscape"):
         output.packer.pack([(m, 1)], "a5", orientation="landscape")
-    with pytest.raises(ValueError, match="does not fit on 150 x 160 mm"):
+    with pytest.raises(FigureTooLargeError, match="does not fit on 150 x 160 mm"):
         output.packer.pack([(m, 1)], (150, 160))
 
 
@@ -69,7 +71,7 @@ def test_pack_refuses_a_figure_too_big_for_the_paper(
 ):
     img, mask = hero_figure
     m = pipeline_mini(img, params(height_mm=300), mask_options(mask_path=mask))
-    with pytest.raises(ValueError, match="does not fit"):
+    with pytest.raises(FigureTooLargeError, match="does not fit"):
         output.packer.pack([(m, 1)], "a4")
 
 

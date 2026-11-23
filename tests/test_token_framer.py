@@ -2,6 +2,8 @@
 
 import pytest
 
+from papermini.pipeline.nothing_found_error import NothingFoundError
+
 
 def test_an_area_and_its_framing_match(pipeline):
     area = (-0.1, 0.05, 0.9, 0.8)
@@ -9,3 +11,8 @@ def test_an_area_and_its_framing_match(pipeline):
     assert pipeline.framer.to_area(fx, fy, f, (300, 400), 10.5) == pytest.approx(
         area, abs=1e-3
     )
+
+
+def test_fitting_without_a_figure_says_none_was_found(pipeline):
+    with pytest.raises(NothingFoundError, match="found no figure"):
+        pipeline.framer.fit([], 10.5)

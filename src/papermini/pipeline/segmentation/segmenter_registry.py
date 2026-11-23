@@ -11,6 +11,7 @@ from .cancellation import Cancellation
 from .download_hooks import DownloadHooks
 from .downloader import Downloader
 from .model_error import ModelError
+from .model_not_downloaded_error import ModelNotDownloadedError
 from .onnx_segmenter import OnnxSegmenter
 
 logger = logging.getLogger("papermini.segment")
@@ -132,10 +133,8 @@ class SegmenterRegistry:
             if not path.exists():
                 confirm = downloads.confirm
                 if confirm is not None and not confirm(model):
-                    raise ModelError(
-                        f"the {model} model is not downloaded. Download it in "
-                        "Preferences… > Models and cache in the menu, or pick "
-                        "another model."
+                    raise ModelNotDownloadedError(
+                        f"the {model} model is not downloaded"
                     )
                 stderr = sys.stderr
                 if (

@@ -267,7 +267,12 @@ exceptions you expect, and let the rest reach the error dialog or the command
 line's error output.
 
 An error message says what went wrong in the user's terms and what they can do
-about it.
+about it. In the core, a message says only what went wrong, because the core
+doesn't know whether the user has flags or settings. The core raises an error
+type of its own when a front end has advice for it, such as `NothingFoundError`
+(`pipeline/nothing_found_error.py`). The command line and the desktop app each
+add the advice in their own terms, and choose it by the error's type, never by
+its text.
 
 ### S12. No dead code
 

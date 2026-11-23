@@ -289,6 +289,25 @@ def test_build_reports_an_unknown_model(hero_figure, capsys):
     assert "unknown model" in capsys.readouterr().err
 
 
+def test_build_names_the_flags_to_try_when_no_figure_is_found(tmp_path, capsys):
+    Image.new("RGB", (300, 400), "white").save(tmp_path / "blank.png")
+    Image.new("L", (300, 400), 0).save(tmp_path / "empty.png")
+    argv = ["build", str(tmp_path / "blank.png"), "--model", "mask"]
+    assert main([*argv, "--mask", str(tmp_path / "empty.png"), "--no-cache"]) == 2
+    err = capsys.readouterr().err
+    assert "found no figure" in err and "--strength" in err
+
+
+def test_build_names_the_height_flag_for_a_figure_too_large_for_the_sheet(
+    hero_figure, tmp_path, capsys
+):
+    img, mask = hero_figure
+    argv = ["build", str(img), "--mask", str(mask), "--height-mm", "400", "--sheet"]
+    assert main([*argv, "-o", str(tmp_path / "out")]) == 2
+    err = capsys.readouterr().err
+    assert "does not fit on A4" in err and "--height-mm" in err
+
+
 def test_build_makes_double_sided_minis_unless_told_not_to(
     hero_figure, tmp_path, read_svg
 ):

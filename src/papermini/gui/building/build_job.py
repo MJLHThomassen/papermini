@@ -83,7 +83,9 @@ class BuildJob(QRunnable):
                     self.image.name,
                     LogSession.settings_text(self.settings.to_dict(with_size=False)),
                 )
-            self.sig.finished.emit(BuildResult(self.uid, self.key, error=msg))
+            self.sig.finished.emit(
+                BuildResult(self.uid, self.key, error=msg, error_kind=type(e))
+            )
         else:
             logger.debug(
                 "Built %s in %.1f s", self.image.name, time.perf_counter() - t0

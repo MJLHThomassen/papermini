@@ -98,7 +98,7 @@ def test_build_asks_before_downloading(
     assert asked == ["birefnet-lite"] and "not downloaded" in fig.error
     assert (
         "Models and cache" in w.banner.text.text()
-        and "lower strength" not in w.banner.text.text()
+        and "Lower the strength" not in w.banner.text.text()
     )
     assert model_cache == []
     confirm = w.builds.downloads.confirm  # (what a build calls before a download)

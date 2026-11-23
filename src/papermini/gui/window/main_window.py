@@ -40,9 +40,14 @@ from PySide6.QtWidgets import (
 
 from ...output.output import Output
 from ...pipeline.mini import Mini
+from ...pipeline.nothing_found_error import NothingFoundError
 from ...pipeline.pipeline import Pipeline
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.download_hooks import DownloadHooks
+from ...pipeline.segmentation.model_not_downloaded_error import (
+    ModelNotDownloadedError,
+)
+from ...pipeline.too_many_parts_error import TooManyPartsError
 from ...project import sizes
 from ...project.figure_builder import FigureBuilder
 from ...project.figure_entry import FigureEntry
@@ -86,6 +91,15 @@ from .signals import Signals
 IMAGE_FILTER = ImageFiles.FILTER
 IMG_SRC = re.compile(r"""<img\b[^>]*?\ssrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 PROJECT_FILTER = "papermini project (*.yaml *.yml)"
+# what the user can do about a build error of each type, in terms of the settings
+BUILD_ADVICE: dict[type[Exception], str] = {
+    NothingFoundError: "Lower the strength, drag a box around the figure on the "
+    "image, or pick another model.",
+    TooManyPartsError: "Raise the min. part area or the strength, or turn off "
+    "keep detached parts.",
+    ModelNotDownloadedError: "Download it in Preferences… > Models and cache in the "
+    "menu, or pick another model.",
+}
 ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 
@@ -1412,6 +1426,14 @@ class MainWindow(QMainWindow):
                 0, self.builds.build_current
             )  # (start(0) would kill the debounce)
 
+    def _build_advice(self, kind: type[Exception] | None) -> str:
+        """Return what the user can do about a build error of type ``kind``, or an
+        empty string when ``BUILD_ADVICE`` has nothing for it."""
+        for error, advice in BUILD_ADVICE.items():
+            if kind is not None and issubclass(kind, error):
+                return advice
+        return ""
+
     def _show_mini(self, fig: Figure):
         sc = self.mini_view.scene()
         self.panel.set_overlap_hint(None)
@@ -1427,11 +1449,8 @@ class MainWindow(QMainWindow):
             self.crop_view.set_outline(None)
             self.busy_box.hide()
             msg = html.escape(fig.error).replace("\n", "<br>")
-            hint = (
-                ""
-                if "not downloaded" in fig.error
-                else "<br><br>Try a lower strength, a crop, or another model."
-            )
+            advice = self._build_advice(fig.error_kind)
+            hint = f"<br><br>{html.escape(advice)}" if advice else ""
             self.banner.show_message("This miniature could not be built", msg + hint)
             self.banner_box.show()
             self.info.setText("error")
