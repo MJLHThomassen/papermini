@@ -63,6 +63,30 @@ def test_images_are_added_from_links_paste_and_browser_drops(
     )  # second time from the cache
 
 
+def test_an_image_that_cannot_be_cached_ends_its_download_with_a_warning(
+    images_from_web, app, monkeypatch, new_window, wait, fake_web
+):
+    import io
+
+    from papermini.gui.window import main_window
+
+    buf = io.BytesIO()
+    Image.new("RGB", (20, 30)).save(buf, "PNG")
+    url = "https://example.com/goblin.png"
+    fake_web[url] = buf.getvalue()
+    # a file where the folder of downloaded images should be
+    images_from_web.folder().write_text("", encoding="utf-8")
+    warned = []
+    monkeypatch.setattr(
+        main_window.QMessageBox, "warning", lambda *a: warned.append(a[2])
+    )
+    w = new_window()
+    w.add_links([url])
+    assert wait(lambda: warned, 30)
+    assert warned[0].startswith("Could not add the image.") and not w.figures
+    assert w.statusBar().currentMessage() == "Could not add the image"
+
+
 def test_a_link_pasted_in_the_link_bar_is_added(app, monkeypatch, new_window):
     """Paste a link in the bar above the figures and press Enter (or Add) to add it.
     The add-images button sits in the figure list, not in the header."""

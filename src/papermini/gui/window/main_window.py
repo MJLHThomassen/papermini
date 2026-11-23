@@ -895,7 +895,7 @@ class MainWindow(QMainWindow):
     def _fetch_link(self, url: str, base):  # on a worker thread
         try:
             path, err = self._images_from_web.fetch_image(url, cancel=self._closing), ""
-        except ValueError as e:
+        except (ValueError, OSError) as e:
             path, err = None, str(e)
         if not self._closing.is_set():
             self.sig.link_done.emit(url, path, err, base)

@@ -97,7 +97,8 @@ class ImageFetcher:
         """Download the image at ``url`` (once; later calls use the cache) and return its
         path.
 
-        Raises ValueError with a readable message when the link fails or is not an image.
+        Raises ValueError with a readable message when the link fails or is not an image,
+        and OSError when the image cannot be written to the cache.
         """
         url = url.strip()
         hit = self.cached_image(url)
