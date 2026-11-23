@@ -15,6 +15,10 @@ class ZoomView(QGraphicsView):
 
     zoomChanged = Signal(float)  # 1.0 = actual size
 
+    # how far the view zooms, in screen pixels per scene unit
+    MIN_SCALE = 0.05
+    MAX_SCALE = 400
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setScene(QGraphicsScene(self))
@@ -58,9 +62,11 @@ class ZoomView(QGraphicsView):
     def _changed(self):
         self.zoomChanged.emit(self.zoom())
 
+    def _can_scale_by(self, f: float) -> bool:
+        return self.MIN_SCALE < self.transform().m11() * f < self.MAX_SCALE
+
     def zoom_by(self, f: float):
-        s = self.transform().m11() * f
-        if 0.05 < s < 400:
+        if self._can_scale_by(f):
             anchor = self.transformationAnchor()
             self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
             self.scale(f, f)
@@ -70,8 +76,7 @@ class ZoomView(QGraphicsView):
 
     def wheelEvent(self, e):
         f = 1.2 ** (e.angleDelta().y() / 120)
-        s = self.transform().m11() * f
-        if 0.05 < s < 400:
+        if self._can_scale_by(f):
             self.scale(f, f)
         self._fit_pending = False
         self._changed()

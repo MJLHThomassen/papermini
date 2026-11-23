@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen, QPixmap, QTransform
+from PySide6.QtGui import QColor, QPainterPath, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPathItem,
@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
 )
 
-from .crop_style import _HANDLE_CURSORS, CROP_COLOR, DRAG_PX, GRAB_PX, HANDLE_PX
+from .crop_handles import CropHandles
+from .crop_style import CROP_COLOR, GRAB_PX, HANDLE_CURSORS
 from .zoom_view import ZoomView
 
 
@@ -24,8 +25,6 @@ class MiniView(ZoomView):
 
     areaChanged = Signal(object)  # the token area [x0, y0, x1, y1] (fractions)
 
-    CORNERS = ("tl", "tr", "br", "bl")
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
@@ -33,7 +32,7 @@ class MiniView(ZoomView):
         self._token = None  # the shown token's TokenInfo (None: not a token)
         self._box: QRectF | None = None  # the figure's box, mm
         self._box_item = None
-        self._handles: dict = {}
+        self._handles: CropHandles | None = None
         self._drag = None  # (part, press scene pos, box at the press)
         self._press = None
         self._moved = False
@@ -49,7 +48,7 @@ class MiniView(ZoomView):
         self._token = info
         self._drag = None
         self._box_item = None
-        self._handles = {}
+        self._handles = None
         self._preview = None
         self._picture = None
         if picture is not None and not picture.isNull():
@@ -71,39 +70,20 @@ class MiniView(ZoomView):
         pen.setStyle(Qt.DashLine)
         self._box_item = sc.addRect(self._box, pen)
         self._box_item.setZValue(5)
-        for name in self.CORNERS:
-            h = sc.addRect(
-                QRectF(-HANDLE_PX / 2, -HANDLE_PX / 2, HANDLE_PX, HANDLE_PX),
-                QPen(QColor("#222"), 1),
-                QBrush(QColor(CROP_COLOR)),
-            )
-            h.setFlag(
-                QGraphicsRectItem.ItemIgnoresTransformations
-            )  # constant screen size
-            h.setZValue(6)
-            self._handles[name] = h
+        self._handles = CropHandles(sc, CropHandles.CORNERS, z=6)
         self._show_box(self._box)
 
-    def _corners(self, r: QRectF) -> dict:
-        return {
-            "tl": r.topLeft(),
-            "tr": r.topRight(),
-            "br": r.bottomRight(),
-            "bl": r.bottomLeft(),
-        }
-
     def _show_box(self, r: QRectF) -> None:
-        if self._box_item is None:
+        if self._box_item is None or self._handles is None:
             return
         self._box_item.setRect(r)
-        for name, pos in self._corners(r).items():
-            self._handles[name].setPos(pos)
+        self._handles.place(r)
 
     def _hit(self, view_pos) -> str | None:
         """The handle a drag from ``view_pos`` grabs: a corner, "move", or None (pan)."""
         if self._box is None:
             return None
-        for name, p in self._corners(self._box).items():
+        for name, p in CropHandles.points(self._box, CropHandles.CORNERS).items():
             v = self.mapFromScene(p)
             if max(abs(v.x() - view_pos.x()), abs(v.y() - view_pos.y())) <= GRAB_PX:
                 return name
@@ -118,7 +98,7 @@ class MiniView(ZoomView):
         if part == "move":
             return box0.translated(scene_pos - start)
         c = box0.center()
-        d0 = max(1e-6, (self._corners(box0)[part] - c).manhattanLength())
+        d0 = max(1e-6, (CropHandles.points(box0)[part] - c).manhattanLength())
         k = max(0.05, (scene_pos - c).manhattanLength() / d0)
         w, h = box0.width() * k, box0.height() * k
         return QRectF(c.x() - w / 2, c.y() - h / 2, w, h)
@@ -139,13 +119,7 @@ class MiniView(ZoomView):
             clip.setFlag(QGraphicsItem.ItemClipsChildrenToShape)
             clip.setZValue(4)
             if fill == "color" and outline:
-                figure = QPainterPath()
-                figure.setFillRule(Qt.OddEvenFill)
-                for c in outline:
-                    figure.moveTo(*c[0])
-                    for x, y in c[1:]:
-                        figure.lineTo(x, y)
-                    figure.closeSubpath()
+                figure = CropHandles.outline_path(outline)
                 holder = QGraphicsPathItem(figure, clip)
             else:  # (the picture is the background too)
                 holder = QGraphicsRectItem(QRectF(0, 0, W, H), clip)
@@ -213,8 +187,7 @@ class MiniView(ZoomView):
         pos = e.position().toPoint()
         if self._drag is not None:
             if not self._moved:  # not a drag until the mouse really moves
-                d = pos - self._press
-                if max(abs(d.x()), abs(d.y())) < DRAG_PX:
+                if not CropHandles.is_drag(pos - self._press):
                     return
                 self._moved = True
             box = self._dragged(self.mapToScene(pos))
@@ -225,7 +198,7 @@ class MiniView(ZoomView):
         if part is None:
             self.viewport().unsetCursor()
         else:
-            self.viewport().setCursor(_HANDLE_CURSORS.get(part, Qt.SizeAllCursor))
+            self.viewport().setCursor(HANDLE_CURSORS.get(part, Qt.SizeAllCursor))
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
