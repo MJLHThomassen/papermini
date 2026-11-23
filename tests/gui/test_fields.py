@@ -205,11 +205,13 @@ def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(
 def test_the_model_field_lists_every_built_in_model(app, monkeypatch):
     from PySide6.QtWidgets import QComboBox
 
+    from papermini.gui.fields.detail_item_delegate import DETAIL_ROLE
     from papermini.gui.fields.model_field import ModelField
     from papermini.pipeline.segmentation import segment
     from papermini.project.option import Option
 
-    monkeypatch.setitem(segment.ONNX_MODELS, "test-model", {})
+    spec = {"about": "A model for the test.", "commercial": True, "mb": 12}
+    monkeypatch.setitem(segment.ONNX_MODELS, "test-model", spec)
     field = ModelField(Option.of(FigureSettings)["model"], lambda: None)
     box = field.widget
     assert isinstance(box, QComboBox)
@@ -219,8 +221,44 @@ def test_the_model_field_lists_every_built_in_model(app, monkeypatch):
         *segment.ONNX_MODELS,
         "alpha",
         "mask image file",
+        "custom model file",
     ]
-    assert "test-model" in names
+    detail = box.itemData(names.index("test-model"), DETAIL_ROLE)
+    assert detail == "A model for the test.\nFree for any use · 12 MB download"
+    assert "<b>test-model</b></td><td>A model for the test.<br>" in box.toolTip()
+    assert all(box.itemData(i, DETAIL_ROLE) for i in range(box.count()))
+
+
+def test_a_custom_model_file_is_typed_in_under_the_model_list(app):
+    from PySide6.QtWidgets import QComboBox
+
+    from papermini.gui.fields.edit_with_button import EditWithButton
+    from papermini.gui.fields.model_field import ModelField
+    from papermini.project.option import Option
+
+    changes = []
+    field = ModelField(Option.of(FigureSettings)["model"], lambda: changes.append(1))
+    assert field.row is not None
+    box, file = field.widget, field.row.findChild(EditWithButton)
+    assert isinstance(box, QComboBox) and file is not None
+
+    def pick(name):
+        box.setCurrentIndex(box.findText(name))
+        box.activated.emit(box.currentIndex())
+
+    assert not box.isEditable() and file.isHidden()
+    pick("custom model file")
+    assert not file.isHidden() and field.value() == "" and changes
+    file.edit.setText("my/model.onnx")
+    file.edit.editingFinished.emit()
+    assert field.value() == "my/model.onnx"
+    pick("alpha")
+    assert file.isHidden() and field.value() == "alpha"
+    field.set_value("other/model.onnx")
+    assert box.currentText() == "custom model file" and not file.isHidden()
+    assert field.value() == "other/model.onnx"
+    field.set_value("birefnet")
+    assert box.currentText() == "birefnet" and file.isHidden()
 
 
 def test_the_wheel_over_an_unfocused_field_changes_nothing(app, built_window):

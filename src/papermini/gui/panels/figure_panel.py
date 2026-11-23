@@ -508,7 +508,7 @@ class FigurePanel(QScrollArea):
         self.size_warning.setVisible(bool(warning))
 
     def _sync_auto_hint(self):
-        model = self.field("model").currentText().strip()
+        model = self._value("model")
         method = self._auto_method
         self.auto_hint.setVisible(bool(method) and model == "auto")
         used = (

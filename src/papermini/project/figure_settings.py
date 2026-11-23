@@ -29,14 +29,6 @@ _PICTURE = "picture (colors of what is printed; the mask is unaffected)"
 _MASK = "mask"
 _OUTPUT = "output"
 
-# the built-in models, two lines each: what it is good at, then its licence and size
-_MODEL_LINES = "".join(
-    f"{name}: {spec['about']}\n"
-    f"{'Free for any use' if spec['commercial'] else 'Non-commercial use only'}. "
-    f"Downloads {spec['mb']} MB once.\n"
-    for name, spec in ONNX_MODELS.items()
-)
-
 
 @dataclass
 class FigureSettings:
@@ -259,12 +251,7 @@ class FigureSettings:
         help=f"{', '.join(ONNX_MODELS)}, alpha, mask (with --mask) or a .onnx file; "
         f"'auto' uses --mask if given, else the image's transparency if it has any, "
         f"else {DEFAULT_MODEL}",
-        tooltip="How the figure is separated from the background.\n"
-        f"auto: The image's transparency if it has any, else {DEFAULT_MODEL}.\n"
-        f"{_MODEL_LINES}"
-        "alpha: The image's own transparency (no download).\n"
-        "mask image file: Your own black-and-white mask (white = figure).\n"
-        "You can also type the path of your own .onnx model.",
+        tooltip="How the figure is separated from the background.",
         group=_MASK,
     ).field("auto")
     mask: str | None = Option(
@@ -714,6 +701,8 @@ class FigureSettings:
         file, and model "auto" uses it too when one is given."""
         if self.model == "mask" and not self.mask:
             raise ValueError("model 'mask' needs a mask image file - choose one")
+        if not self.model:  # a custom model whose file is not chosen yet
+            raise ValueError("a custom model needs its .onnx file - choose one")
         use_mask = self.mask and self.model in ("mask", "auto")
         return MaskOptions(
             model="auto" if self.model == "mask" else self.model,

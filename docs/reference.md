@@ -263,10 +263,12 @@ otherwise; a box under it says *Chosen method:* and which one it used for the
 selected figure. While rmbg-1.4 is the model in use (picked, or chosen by
 *Auto*), a red box under it says it is for non-commercial use only. *Mask image
 file* uses a mask you painted yourself (see *Mask image
-file*). The first time a model is needed, the app asks before downloading it;
+file*). *Custom model file* shows a box under the list for the path of your own
+`.onnx` model; until you choose one, the figure is not built. The list shows
+what each model is good at, its licence and its download size.
+The first time a model is needed, the app asks before downloading it;
 after that, papermini works offline. **Preferences… → Models and cache** in the ☰ menu
-shows which models are downloaded, and where. The tooltip of *Model* and that
-page show how large each model's download is.
+shows which models are downloaded, and where.
 
 | Model | Loading | Per image | Licence |
 |---|---|---|---|
