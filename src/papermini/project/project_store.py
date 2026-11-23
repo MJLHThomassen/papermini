@@ -41,11 +41,18 @@ class ProjectStore:
         self._dumper = None  # the YAML dumper, made on the first save
 
     def load(self, path: Path) -> Project:
-        """Read the project file at ``path``, after checking its format."""
+        """Read the project file at ``path``, after checking its format.
+
+        Raise a ValueError when the project is not valid, a yaml.YAMLError when it is
+        not YAML, and an OSError when it or an image from a link cannot be read or
+        cached.
+        """
         import yaml
 
         path = Path(path).resolve()
         cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(cfg, dict):
+            raise ValueError(f"{path.name} is not a papermini project")
         newer = self._check_format(cfg, path.name)
         base = path.parent
         try:

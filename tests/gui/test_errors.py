@@ -111,6 +111,32 @@ def test_errors_from_threads_reach_the_dialog(logs, app, handler, wait):
     assert "Unexpected error in thread worker" in _log_text(logs)
 
 
+def test_an_unexpected_error_while_opening_a_project_reaches_the_dialog(
+    logs, app, handler, new_window, project_store, monkeypatch, tmp_path
+):
+    from papermini.gui.window import main_window
+
+    logs.start()
+    handler.started(None)
+    warned = []
+    monkeypatch.setattr(
+        main_window.QMessageBox, "warning", lambda *a: warned.append(a[2])
+    )
+
+    def broken(path):
+        raise RuntimeError("a bug in the project store")
+
+    monkeypatch.setattr(project_store, "load", broken)
+    w = new_window()
+    QTimer.singleShot(0, lambda: w.load(tmp_path / "p.yaml"))
+    app.processEvents()
+    app.processEvents()
+    assert len(handler.shown_dialogs) == 1
+    details = handler.shown_dialogs[0].details.toPlainText()
+    assert "RuntimeError: a bug in the project store" in details
+    assert warned == [] and QApplication.overrideCursor() is None
+
+
 def test_the_error_dialog_unfolds_its_details_in_a_resizable_window(app):
     from papermini.gui.dialogs.error_dialog import ErrorDialog
 
