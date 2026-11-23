@@ -92,7 +92,8 @@ scripts/             developer tools: screenshots, release notes, release
 packaging/           the PyInstaller build and the Windows installer
 examples/            an example project file, and the images, project and sample
                      outputs of the README and the sample checks (D3)
-docs/                the user reference, this guide and the README screenshots
+docs/                the user reference, this guide, and the screenshots of the
+                     README and the reference
 .github/             the CI and release workflows, the Linux CI image and the
                      issue forms
 .claude/             the maintainability command and its reviewer agent, for
@@ -436,8 +437,8 @@ editing them. If it doesn't, the tests are checking implementation.
 ### T4. Tests run in isolation
 
 - Tests never need the network or the segmentation model. `tests/conftest.py`
-  gives every test an empty model cache and blocks `urlopen`, and the GUI tests
-  get a fake default model.
+  gives every test an empty model cache and blocks `urlopen`. A test that builds
+  figures uses its `fake_default_model` fixture instead of the real model.
 - No sleeping, and no dependence on timing.
 - Files go in temporary folders, never in the repository or the user's home
   folder.
@@ -486,8 +487,8 @@ A mismatch is a finding, whichever side is wrong.
 
 ### D3. Pictures and samples follow the code
 
-- After a visible change to the app, regenerate the README screenshots with
-  `scripts/screenshots.py`.
+- After a visible change to the app, regenerate the screenshots in
+  `docs/screenshots/` with `just screenshots`.
 - When the output format or a default changes, regenerate the samples in
   `examples/dragons/samples/` with `just samples`, which builds
   `examples/dragons/samples.yaml` and `examples/dragons/samples-machine.yaml`.
@@ -558,7 +559,7 @@ never installed globally; everything runs in the project's environment.
 
 The code in `scripts/` and `packaging/` is not exempt from this guide.
 
-*Example:* `main()` in `scripts/screenshots.py` is about 300 lines long.
+*Example:* `main()` in `scripts/screenshots.py` is over 400 lines long.
 
 ### R5. Updating stays safe
 
