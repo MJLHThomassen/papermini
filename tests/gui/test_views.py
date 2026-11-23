@@ -279,6 +279,222 @@ def test_a_click_on_the_crop_view_changes_nothing(app):
     assert moved.size() == box.size() and moved.top() == box.top()
 
 
+# Each handle of the crop box [100, 75, 300, 225] (image pixels of a 400 x 300 image):
+# where it is, the cursor over it, and the box after dragging it by (+20, +15).
+HANDLES = {
+    "tl": ((100, 75), "SizeFDiagCursor", (120, 90, 300, 225)),
+    "t": ((200, 75), "SizeVerCursor", (100, 90, 300, 225)),
+    "tr": ((300, 75), "SizeBDiagCursor", (100, 90, 320, 225)),
+    "r": ((300, 150), "SizeHorCursor", (100, 75, 320, 225)),
+    "br": ((300, 225), "SizeFDiagCursor", (100, 75, 320, 240)),
+    "b": ((200, 225), "SizeVerCursor", (100, 75, 300, 240)),
+    "bl": ((100, 225), "SizeBDiagCursor", (120, 75, 300, 240)),
+    "l": ((100, 150), "SizeHorCursor", (120, 75, 300, 225)),
+}
+
+
+@pytest.mark.parametrize("handle", list(HANDLES))
+def test_each_crop_handle_shows_its_cursor_and_resizes_its_sides(app, handle):
+    """A handle moves only its own sides of the crop box; the others stay put."""
+    from PySide6.QtCore import Qt
+
+    (x, y), cursor, (left, top, right, bottom) = HANDLES[handle]
+    v = _crop_view(app)
+    got = []
+    v.cropChanged.connect(got.append)
+    v.set_crop([0.25, 0.25, 0.75, 0.75])
+    _mouse(v, "move", (x, y))
+    assert v.viewport().cursor().shape() == getattr(Qt.CursorShape, cursor)
+    _mouse(v, "press", (x, y))
+    _mouse(v, "move", (x + 20, y + 15), button=True)
+    _mouse(v, "release", (x + 20, y + 15))
+    tol = 2 / v.transform().m11()  # two screen pixels, in image pixels
+    want = [left / 400, top / 300, right / 400, bottom / 300]
+    assert got == [pytest.approx(want, abs=tol / 300)]
+    box = v.crop_box()
+    assert [box.left(), box.top(), box.right(), box.bottom()] == pytest.approx(
+        [left, top, right, bottom], abs=tol
+    )
+
+
+def test_dragging_a_crop_handle_past_the_opposite_side_flips_the_box(app):
+    """The left handle dragged past the right side makes that side the left one."""
+    v = _crop_view(app)
+    got = []
+    v.cropChanged.connect(got.append)
+    v.set_crop([0.25, 0.25, 0.75, 0.75])
+    _mouse(v, "press", (100, 150))
+    _mouse(v, "move", (350, 150), button=True)
+    _mouse(v, "release", (350, 150))
+    tol = 2 / v.transform().m11() / 300
+    assert got == [pytest.approx([0.75, 0.25, 0.875, 0.75], abs=tol)]
+
+
+def _middle(v, kind, view_pt):
+    """Send a middle button press/move/release at a viewport point to a view."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    vp = v.viewport()
+    if kind == "press":
+        QTest.mousePress(
+            vp, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, view_pt
+        )
+    elif kind == "move":
+        QTest.mouseMove(vp, view_pt)
+    else:
+        QTest.mouseRelease(
+            vp, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, view_pt
+        )
+
+
+def test_the_middle_button_pans_the_crop_view(app):
+    """Dragging with the middle button scrolls the image with the mouse and leaves
+    the crop box alone; the hand cursor shows while it pans."""
+    from PySide6.QtCore import QPoint, Qt
+
+    v = _crop_view(app)
+    v.set_crop([0.25, 0.25, 0.75, 0.75])
+    box = v.crop_box()
+    got = []
+    v.cropChanged.connect(got.append)
+    v.zoom_by(4)
+    app.processEvents()  # the scroll bars settle after a zoom
+    h, w = v.horizontalScrollBar(), v.verticalScrollBar()
+    x0, y0 = h.value(), w.value()
+    start = QPoint(250, 200)
+    _middle(v, "press", start)
+    assert v.viewport().cursor().shape() == Qt.CursorShape.ClosedHandCursor
+    _middle(v, "move", start + QPoint(-15, -10))
+    _middle(v, "move", start + QPoint(-30, -20))
+    assert (h.value() - x0, w.value() - y0) == (30, 20)
+    _middle(v, "release", start + QPoint(-30, -20))
+    assert v.viewport().cursor().shape() == Qt.CursorShape.CrossCursor
+    _middle(v, "move", start)  # no longer panning
+    assert (h.value() - x0, w.value() - y0) == (30, 20)
+    assert got == [] and v.crop_box() == box
+
+
+def _wheel(v, steps):
+    """Turn the mouse wheel over the middle of a view by ``steps`` notches."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+
+    pos = QPointF(v.viewport().rect().center())
+    ev = QWheelEvent(
+        pos,
+        QPointF(v.viewport().mapToGlobal(pos)),
+        QPoint(),
+        QPoint(0, 120 * steps),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    v.wheelEvent(ev)
+
+
+def test_zoom_buttons_zoom_around_the_middle_of_the_view(app):
+    """Zooming in or out scales the view by the factor given, keeps the point in the
+    middle of the view in place, and reports the zoom."""
+    v = _crop_view(app)
+    zooms = []
+    v.zoomChanged.connect(zooms.append)
+    v.zoom_by(3)
+    centre = v.viewport().rect().center()
+    under = v.mapToScene(centre)
+    z = v.zoom()
+    v.zoom_by(1.25)
+    assert v.zoom() == pytest.approx(z * 1.25, rel=1e-6)
+    assert zooms[-1] == pytest.approx(v.zoom(), rel=1e-9)
+    moved = v.mapFromScene(under) - centre
+    assert abs(moved.x()) <= 1 and abs(moved.y()) <= 1
+    v.zoom_by(0.8)
+    assert v.zoom() == pytest.approx(z, rel=1e-6)
+
+
+def test_the_mouse_wheel_zooms_by_a_fifth_per_notch(app):
+    """Each notch of the wheel zooms in or out by a factor of 1.2."""
+    v = _crop_view(app)
+    zooms = []
+    v.zoomChanged.connect(zooms.append)
+    z = v.zoom()
+    _wheel(v, 1)
+    assert v.zoom() == pytest.approx(z * 1.2, rel=1e-6)
+    _wheel(v, 2)
+    assert v.zoom() == pytest.approx(z * 1.2**3, rel=1e-6)
+    _wheel(v, -3)
+    assert v.zoom() == pytest.approx(z, rel=1e-6)
+    assert len(zooms) == 3 and zooms[-1] == pytest.approx(z, rel=1e-6)
+
+
+@pytest.mark.parametrize("by_wheel", [False, True], ids=["buttons", "wheel"])
+def test_zooming_stops_at_its_limits(app, by_wheel):
+    """Zooming never goes past 400 screen pixels per scene unit, nor below 0.05,
+    but still reports the zoom."""
+    v = _crop_view(app)
+    zooms = []
+    v.zoomChanged.connect(zooms.append)
+    zoom_in = (lambda: _wheel(v, 4)) if by_wheel else (lambda: v.zoom_by(2))
+    zoom_out = (lambda: _wheel(v, -4)) if by_wheel else (lambda: v.zoom_by(0.5))
+    for _ in range(30):
+        zoom_in()
+    scale = v.transform().m11()
+    assert 400 / 2.1 < scale < 400
+    for _ in range(60):
+        zoom_out()
+    scale = v.transform().m11()
+    assert 0.05 < scale < 0.05 * 2.1
+    assert len(zooms) == 90
+
+
+def test_fit_shows_the_whole_image_in_the_middle_of_the_view(app):
+    """Fit zooms back to where the whole image shows, centred, with room around it;
+    actual size shows one scene unit as one millimetre of the screen."""
+    from PySide6.QtCore import QRectF
+
+    v = _crop_view(app)
+    fitted = v.zoom()
+    zooms = []
+    v.zoomChanged.connect(zooms.append)
+    v.zoom_by(5)
+    v.fit()
+    assert v.zoom() == pytest.approx(fitted, rel=1e-6)
+    assert zooms[-1] == pytest.approx(fitted, rel=1e-9)
+    img = QRectF(v.mapFromScene(QRectF(0, 0, 400, 300)).boundingRect())
+    vp = QRectF(v.viewport().rect())
+    assert vp.contains(img)
+    assert abs(img.center().x() - vp.center().x()) <= 1
+    assert abs(img.center().y() - vp.center().y()) <= 1
+    # the image fills the view but for a margin of about 6% of its size on each side
+    assert 0.8 < img.width() / vp.width() < 0.9
+
+    v.actual_size()
+    assert v.transform().m11() == pytest.approx(v.physicalDpiX() / 25.4, rel=1e-9)
+    assert v.zoom() == pytest.approx(1.0) and zooms[-1] == pytest.approx(1.0)
+
+
+def test_the_view_refits_on_resize_until_it_is_zoomed(app):
+    """A resized view fits the image again, until the user zooms;
+    ``refit_on_next_show`` makes it fit on resize again."""
+    v = _crop_view(app)
+    v.resize(700, 600)
+    app.processEvents()
+    big = v.zoom()
+    v.resize(500, 400)
+    app.processEvents()
+    assert v.zoom() < big  # refitted
+    v.zoom_by(2)
+    z = v.zoom()
+    v.resize(700, 600)
+    app.processEvents()
+    assert v.zoom() == pytest.approx(z, rel=1e-9)  # kept
+    v.refit_on_next_show()
+    v.resize(500, 400)
+    app.processEvents()
+    assert v.zoom() < z
+
+
 def test_crop_changes_can_be_undone_and_cleared(app, tmp_path, new_window):
     """Ctrl+Z puts the crop back as it was (also for another figure); the Clear crop
     button on the canvas removes it, and shows only on the Source view with a crop."""
