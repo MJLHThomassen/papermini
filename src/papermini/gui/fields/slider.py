@@ -17,7 +17,7 @@ class Slider(_WheelGuard, QSlider):
     double-click."""
 
     def __init__(self, themes: ThemeService, parent=None, centre=None):
-        super().__init__(Qt.Horizontal, parent)
+        super().__init__(Qt.Orientation.Horizontal, parent)
         self._themes = themes
         self._init_guard()
         self.centre = centre
@@ -28,7 +28,9 @@ class Slider(_WheelGuard, QSlider):
             self.actionTriggered.connect(self._snap)
 
     def _snap(self, action: int) -> None:
-        if action != QSlider.SliderMove.value or not self.isSliderDown():  # (an int)
+        if (
+            action != QSlider.SliderAction.SliderMove.value or not self.isSliderDown()
+        ):  # (an int)
             return  # keys, clicks on the track and typed values are taken as they are
         span = max(1, self.width() - self.handle_rect(self.minimum()).width())
         reach = SNAP_PX * (self.maximum() - self.minimum()) / span
@@ -36,7 +38,7 @@ class Slider(_WheelGuard, QSlider):
             self.setSliderPosition(self.centre)
 
     def mouseDoubleClickEvent(self, e):
-        if self.centre is not None and e.button() == Qt.LeftButton:
+        if self.centre is not None and e.button() == Qt.MouseButton.LeftButton:
             self.setValue(self.centre)
             e.accept()
         else:
@@ -52,7 +54,10 @@ class Slider(_WheelGuard, QSlider):
     def handle_rect(self, position):
         """Return the rectangle of the handle with the slider at ``position``."""
         return self.style().subControlRect(
-            QStyle.CC_Slider, self._option(position), QStyle.SC_SliderHandle, self
+            QStyle.ComplexControl.CC_Slider,
+            self._option(position),
+            QStyle.SubControl.SC_SliderHandle,
+            self,
         )
 
     def centre_x(self) -> float:
@@ -62,10 +67,10 @@ class Slider(_WheelGuard, QSlider):
         if self.centre is None:
             return super().paintEvent(e)
         st, p = self.style(), QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         opt = self._option()
-        opt.subControls = QStyle.SC_SliderGroove
-        st.drawComplexControl(QStyle.CC_Slider, opt, p, self)
+        opt.subControls = QStyle.SubControl.SC_SliderGroove
+        st.drawComplexControl(QStyle.ComplexControl.CC_Slider, opt, p, self)
         t = self._themes.current
         cy = self.rect().center().y() + 0.5
         cx = self.centre_x()
@@ -74,6 +79,6 @@ class Slider(_WheelGuard, QSlider):
         p.fillRect(QRectF(min(cx, vx), cy - 2, abs(vx - cx), 4), fill)
         p.setPen(QPen(QColor(t.muted), 1.5))
         p.drawLine(QPointF(cx, cy - 6), QPointF(cx, cy + 6))  # the centre mark
-        opt.subControls = QStyle.SC_SliderHandle
-        st.drawComplexControl(QStyle.CC_Slider, opt, p, self)
+        opt.subControls = QStyle.SubControl.SC_SliderHandle
+        st.drawComplexControl(QStyle.ComplexControl.CC_Slider, opt, p, self)
         p.end()

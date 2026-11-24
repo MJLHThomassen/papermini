@@ -98,7 +98,7 @@ class PreferencesDialog(QDialog):
         )
         for (key, text), w in zip(self.PAGES, pages):
             item = QListWidgetItem(text)
-            item.setData(Qt.UserRole, key)
+            item.setData(Qt.ItemDataRole.UserRole, key)
             item.setSizeHint(QSize(0, 32))
             self.nav.addItem(item)
             self.stack.addWidget(w)
@@ -111,7 +111,7 @@ class PreferencesDialog(QDialog):
         close = QPushButton("Close")
         close.setProperty("primary", True)
         close.setDefault(True)
-        close.setCursor(Qt.PointingHandCursor)
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
         close.clicked.connect(self.accept)
         bottom.addWidget(close)
         v.addLayout(bottom)
@@ -177,7 +177,7 @@ class PreferencesDialog(QDialog):
             )
         ):
             b = QRadioButton(text)
-            b.setCursor(Qt.PointingHandCursor)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
             self.png_mode.addButton(b)
             self.png_buttons[mode] = b
             box.setKeyboardTracking(False)
@@ -262,7 +262,7 @@ class PreferencesDialog(QDialog):
         )
         folder = QPushButton("Open log folder")
         folder.setEnabled(on)
-        folder.setCursor(Qt.PointingHandCursor)
+        folder.setCursor(Qt.CursorShape.PointingHandCursor)
         folder.clicked.connect(lambda: self._problems.open_log_folder())
         row = QHBoxLayout()
         row.addWidget(folder)

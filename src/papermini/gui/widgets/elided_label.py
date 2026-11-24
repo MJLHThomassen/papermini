@@ -16,5 +16,9 @@ class ElidedLabel(QLabel):
         p = QPainter(self)
         p.setPen(self.palette().color(self.foregroundRole()))
         r = self.contentsRect()
-        text = self.fontMetrics().elidedText(self.text(), Qt.ElideRight, r.width())
-        p.drawText(r, int(Qt.AlignLeft | Qt.AlignVCenter), text)
+        text = self.fontMetrics().elidedText(
+            self.text(), Qt.TextElideMode.ElideRight, r.width()
+        )
+        p.drawText(
+            r, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), text
+        )

@@ -24,16 +24,16 @@ class ZoomView(QGraphicsView):
         self._themes = themes
         self.setScene(QGraphicsScene(self))
         self.setRenderHints(
-            QPainter.Antialiasing
-            | QPainter.SmoothPixmapTransform
-            | QPainter.TextAntialiasing
+            QPainter.RenderHint.Antialiasing
+            | QPainter.RenderHint.SmoothPixmapTransform
+            | QPainter.RenderHint.TextAntialiasing
         )
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setResizeAnchor(QGraphicsView.AnchorViewCenter)
-        self.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setFrameShape(QGraphicsView.NoFrame)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setFrameShape(QGraphicsView.Shape.NoFrame)
         self.setViewportUpdateMode(
-            QGraphicsView.FullViewportUpdate
+            QGraphicsView.ViewportUpdateMode.FullViewportUpdate
         )  # the dot grid is screen-fixed
         self._fit_pending = True
 
@@ -44,7 +44,7 @@ class ZoomView(QGraphicsView):
         vp = self.viewport().rect()
         painter.fillRect(vp, QColor(t.canvas))
         pen = QPen(QColor(t.dots), 1.6)
-        pen.setCapStyle(Qt.RoundCap)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         step = 18
         ox = -self.horizontalScrollBar().value() % step
@@ -69,7 +69,7 @@ class ZoomView(QGraphicsView):
     def zoom_by(self, f: float):
         if self._can_scale_by(f):
             anchor = self.transformationAnchor()
-            self.setTransformationAnchor(QGraphicsView.AnchorViewCenter)
+            self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
             self.scale(f, f)
             self.setTransformationAnchor(anchor)
         self._fit_pending = False
@@ -86,7 +86,7 @@ class ZoomView(QGraphicsView):
         r = self.scene().itemsBoundingRect()
         if not r.isEmpty():
             m = max(r.width(), r.height()) * 0.06
-            self.fitInView(r.adjusted(-m, -m, m, m), Qt.KeepAspectRatio)
+            self.fitInView(r.adjusted(-m, -m, m, m), Qt.AspectRatioMode.KeepAspectRatio)
             self._changed()
 
     def actual_size(self):

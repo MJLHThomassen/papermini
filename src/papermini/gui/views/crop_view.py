@@ -51,10 +51,10 @@ class CropView(ZoomView):
 
     def __init__(self, themes: ThemeService, parent=None):
         super().__init__(themes, parent)
-        self.setDragMode(QGraphicsView.NoDrag)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._img_size = None
         self._pix_item = None  # the picture (its pixmap may be smaller)
         self._box: QRectF | None = None  # image pixels
@@ -71,7 +71,7 @@ class CropView(ZoomView):
         self._press = None  # view position of the left press
         self._moved = False  # the press became a drag
         self._hint_enabled = True
-        self.viewport().setCursor(Qt.CrossCursor)
+        self.viewport().setCursor(Qt.CursorShape.CrossCursor)
 
     # region image / box
     def set_image(self, img: QImage | None, size=None):
@@ -101,7 +101,7 @@ class CropView(ZoomView):
             )
         )
         self._pix_item = sc.addPixmap(QPixmap())
-        self._pix_item.setTransformationMode(Qt.SmoothTransformation)
+        self._pix_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
         self.replace_picture(img)
         sc.setSceneRect(QRectF(0, 0, *self._img_size))
         self.refit_on_next_show()
@@ -163,17 +163,19 @@ class CropView(ZoomView):
         if self._busy or not self._outline:
             if self._busy:
                 wash.setAlpha(110)
-                dim = sc.addPath(area, QPen(Qt.NoPen), QBrush(wash))
+                dim = sc.addPath(area, QPen(Qt.PenStyle.NoPen), QBrush(wash))
                 dim.setZValue(0.5)
                 self._outline_items = [dim]
             return
         figure = CropHandles.outline_path(self._outline)
         wash.setAlpha(WASH_ALPHA)
-        shade = sc.addPath(area.subtracted(figure), QPen(Qt.NoPen), QBrush(wash))
+        shade = sc.addPath(
+            area.subtracted(figure), QPen(Qt.PenStyle.NoPen), QBrush(wash)
+        )
         shade.setZValue(0.5)
         pen = QPen(QColor(t.accent), 2)
         pen.setCosmetic(True)
-        pen.setJoinStyle(Qt.RoundJoin)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         line = sc.addPath(figure, pen)
         line.setZValue(0.6)
         self._outline_items = [shade, line]
@@ -211,12 +213,12 @@ class CropView(ZoomView):
         shade, rect_item, handles = self._shade, self._rect_item, self._handles
         if shade is None or rect_item is None or handles is None:
             shade = sc.addPath(
-                QPainterPath(), QPen(Qt.NoPen), QBrush(QColor(0, 0, 0, 120))
+                QPainterPath(), QPen(Qt.PenStyle.NoPen), QBrush(QColor(0, 0, 0, 120))
             )
             shade.setZValue(1)
             pen = QPen(QColor(CROP_COLOR), 2)
             pen.setCosmetic(True)
-            pen.setStyle(Qt.DashLine)
+            pen.setStyle(Qt.PenStyle.DashLine)
             rect_item = sc.addRect(QRectF(), pen)
             rect_item.setZValue(2)
             handles = CropHandles(sc, CropHandles.ALL, z=3)
@@ -296,11 +298,11 @@ class CropView(ZoomView):
     # region mouse / keys
     def mousePressEvent(self, e):
         pos = e.position().toPoint()
-        if e.button() == Qt.MiddleButton:
+        if e.button() == Qt.MouseButton.MiddleButton:
             self._pan = pos
-            self.viewport().setCursor(Qt.ClosedHandCursor)
+            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
             return
-        if e.button() == Qt.LeftButton and self._img_size:
+        if e.button() == Qt.MouseButton.LeftButton and self._img_size:
             box0 = QRectF(self._box) if self._box is not None else None
             self._drag = (self._hit(pos), self.mapToScene(pos), box0)
             self._press, self._moved = pos, False
@@ -328,7 +330,9 @@ class CropView(ZoomView):
             return
         if self._img_size:
             part = self._hit(pos)
-            self.viewport().setCursor(HANDLE_CURSORS.get(part, Qt.CrossCursor))
+            self.viewport().setCursor(
+                HANDLE_CURSORS.get(part, Qt.CursorShape.CrossCursor)
+            )
             on_image = self._image_view_rect().contains(QPointF(pos))
             self._hover = pos if on_image or part != "new" else None
             self._hover_part = part if self._hover is not None else None
@@ -341,11 +345,11 @@ class CropView(ZoomView):
         super().leaveEvent(e)
 
     def mouseReleaseEvent(self, e):
-        if e.button() == Qt.MiddleButton and self._pan is not None:
+        if e.button() == Qt.MouseButton.MiddleButton and self._pan is not None:
             self._pan = None
-            self.viewport().setCursor(Qt.CrossCursor)
+            self.viewport().setCursor(Qt.CursorShape.CrossCursor)
             return
-        if e.button() == Qt.LeftButton and self._drag is not None:
+        if e.button() == Qt.MouseButton.LeftButton and self._drag is not None:
             r = self._dragged_box(self.mapToScene(e.position().toPoint()))
             old = self._drag[2]
             self._drag = None
@@ -363,12 +367,15 @@ class CropView(ZoomView):
         super().mouseReleaseEvent(e)
 
     def keyPressEvent(self, e):
-        if e.key() in (Qt.Key_Delete, Qt.Key_Backspace) and self._box is not None:
+        if (
+            e.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
+            and self._box is not None
+        ):
             self._drag = None
             self._set_box(None)
             self.cropChanged.emit(None)
             return
-        if e.key() == Qt.Key_Escape and self._drag is not None:
+        if e.key() == Qt.Key.Key_Escape and self._drag is not None:
             old = self._drag[2]
             self._drag = None
             self._set_box(old)
@@ -405,14 +412,14 @@ class CropView(ZoomView):
             return
         painter.save()
         painter.resetTransform()  # screen pixels: lines and text keep their size at any zoom
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         img = self._image_view_rect().intersected(QRectF(self.viewport().rect()))
         part = self._hover_part if self._drag is None else None
         if part == "new" and self._hover is not None:
             # where a new box would start: guide lines across the image
             c = QColor(CROP_COLOR)
             c.setAlpha(200)
-            painter.setPen(QPen(c, 1, Qt.DashLine))
+            painter.setPen(QPen(c, 1, Qt.PenStyle.DashLine))
             x, y = self._hover.x() + 0.5, self._hover.y() + 0.5
             painter.drawLine(QPointF(img.left(), y), QPointF(img.right(), y))
             painter.drawLine(QPointF(x, img.top()), QPointF(x, img.bottom()))
@@ -435,7 +442,7 @@ class CropView(ZoomView):
                     painter.drawLine(*edges[part])
                 pt = QPointF(self.mapFromScene(CropHandles.points(self._box)[part]))
                 painter.setPen(QPen(QColor("#ffffff"), 2))
-                painter.setBrush(Qt.NoBrush)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
                 h = HANDLE_PX / 2 + 4
                 painter.drawRect(QRectF(pt.x() - h, pt.y() - h, 2 * h, 2 * h))
         if self.show_hint() and not img.isEmpty():
@@ -446,7 +453,7 @@ class CropView(ZoomView):
             painter.setBrush(QColor(t.surface))
             painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2)
             painter.setPen(QColor(t.text))
-            painter.drawText(pill, int(Qt.AlignCenter), CROP_HINT)
+            painter.drawText(pill, int(Qt.AlignmentFlag.AlignCenter), CROP_HINT)
         painter.restore()
 
     def _hint_font(self) -> QFont:

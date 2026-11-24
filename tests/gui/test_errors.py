@@ -142,7 +142,7 @@ def test_the_error_dialog_unfolds_its_details_in_a_resizable_window(app):
 
     details = "Traceback (most recent call last):\n" + '  File "x.py", line 1\n' * 40
     dlg = ErrorDialog(None, "RuntimeError: boom", details)
-    dlg.setAttribute(Qt.WA_DontShowOnScreen)
+    dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     dlg.show()
     app.processEvents()
     folded = dlg.size()

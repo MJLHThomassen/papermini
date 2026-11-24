@@ -140,7 +140,7 @@ class FigureMasker:
             raw = np.asarray(
                 Image.open(mask_options.mask_path)
                 .convert("L")
-                .resize((W, H), Image.BILINEAR)
+                .resize((W, H), Image.Resampling.BILINEAR)
             )
             if box:
                 x0, y0, x1, y1 = box

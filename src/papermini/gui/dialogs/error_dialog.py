@@ -31,14 +31,16 @@ class ErrorDialog(QDialog):
         top.setSpacing(14)
         icon = QLabel()
         icon.setPixmap(
-            self.style().standardIcon(QStyle.SP_MessageBoxCritical).pixmap(40, 40)
+            self.style()
+            .standardIcon(QStyle.StandardPixmap.SP_MessageBoxCritical)
+            .pixmap(40, 40)
         )
-        icon.setAlignment(Qt.AlignTop)
+        icon.setAlignment(Qt.AlignmentFlag.AlignTop)
         top.addWidget(icon)
         col = QVBoxLayout()
         col.setSpacing(8)
         title = QLabel("<b>Something went wrong</b>")
-        title.setTextFormat(Qt.RichText)
+        title.setTextFormat(Qt.TextFormat.RichText)
         col.addWidget(title)
         if quit_:
             what = (
@@ -53,7 +55,7 @@ class ErrorDialog(QDialog):
         for text in (what, summary):
             label = QLabel(text)
             label.setWordWrap(True)
-            label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             label.setMinimumWidth(380)
             col.addWidget(label)
         col.addStretch(1)
@@ -63,8 +65,10 @@ class ErrorDialog(QDialog):
         self.details = QPlainTextEdit(details)
         self.details.setObjectName("ErrorDetails")
         self.details.setReadOnly(True)
-        self.details.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self.details.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        self.details.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.details.setFont(
+            QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        )
         self.details.setMinimumSize(320, 160)
         self.details.hide()
         v.addWidget(self.details, 1)
@@ -87,7 +91,7 @@ class ErrorDialog(QDialog):
         for b in (report, go_on):
             buttons.addWidget(b)
         for b in (self.toggle, self.copy, report, go_on):
-            b.setCursor(Qt.PointingHandCursor)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
         v.addLayout(buttons)
         self.setSizeGripEnabled(True)
 

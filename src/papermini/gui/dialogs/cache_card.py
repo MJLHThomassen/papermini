@@ -28,7 +28,7 @@ class CacheCard(QFrame):
         self.btn_clear = QPushButton("Clear")
         self.btn_clear.setAccessibleName(f"Clear {title.lower()}")
         self.btn_clear.clicked.connect(clear)
-        h.addWidget(self.btn_clear, 0, Qt.AlignVCenter)
+        h.addWidget(self.btn_clear, 0, Qt.AlignmentFlag.AlignVCenter)
 
     def show_state(self, text: str, can_clear: bool):
         self.state.setText(text)

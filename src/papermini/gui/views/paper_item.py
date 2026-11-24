@@ -24,8 +24,8 @@ class PaperItem(QGraphicsRectItem):
         super().__init__(r)
         self._themes = themes
         self._reach = reach
-        self.setPen(QPen(Qt.NoPen))
-        self.setBrush(QBrush(Qt.white))
+        self.setPen(QPen(Qt.PenStyle.NoPen))
+        self.setBrush(QBrush(Qt.GlobalColor.white))
         self.setZValue(-1)
 
     def boundingRect(self) -> QRectF:
@@ -41,11 +41,11 @@ class PaperItem(QGraphicsRectItem):
         a = 1.0 - (1.0 - total) ** (1.0 / self.STEPS)  # layers add up to ``total``
         c = QColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
         c.setAlphaF(a)
-        p.setPen(Qt.NoPen)
+        p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(c)
         r = self.rect().translated(0, off)
         for k in range(self.STEPS, 0, -1):
             e = blur * k / self.STEPS
             p.drawRoundedRect(r.adjusted(-e, -e, e, e), e, e)
-        p.setBrush(Qt.white)
+        p.setBrush(Qt.GlobalColor.white)
         p.drawRect(self.rect())

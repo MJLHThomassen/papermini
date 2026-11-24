@@ -277,7 +277,7 @@ class MiniBuilder:
         art = np.dstack([rgb_c, alpha_c])
         w_mm, h_mm = (x1 - x0) / pxmm, (y1 - y0) / pxmm
         size = (max(1, round(w_mm / 25.4 * dpi)), max(1, round(h_mm / 25.4 * dpi)))
-        art_im = Image.fromarray(art, "RGBA").resize(size, Image.LANCZOS)
+        art_im = Image.fromarray(art, "RGBA").resize(size, Image.Resampling.LANCZOS)
         return _Piece(art_im, x0, y0, w_mm, h_mm)
 
     def _add_back(

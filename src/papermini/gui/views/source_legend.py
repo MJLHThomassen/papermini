@@ -40,16 +40,16 @@ class SourceLegend(QFrame):
         for i, sw in enumerate(self.swatches):
             pm = QPixmap(int(self.SW * dpr), int(14 * dpr))
             pm.setDevicePixelRatio(dpr)
-            pm.fill(Qt.transparent)
+            pm.fill(Qt.GlobalColor.transparent)
             p = QPainter(pm)
-            p.setRenderHint(QPainter.Antialiasing)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
             r = QRectF(2, 2, self.SW - 4, 10)
             if i == 0:  # the outline, in the accent color
                 pen = QPen(QColor(t.accent), 2)
                 p.setPen(pen)
                 p.drawRoundedRect(r, 4, 4)
             elif i == 1:  # an image, faded the way the background is
-                p.setPen(Qt.NoPen)
+                p.setPen(Qt.PenStyle.NoPen)
                 for k, c in enumerate(("#7a9e5a", "#c9a46a", "#6b8fbf")):
                     p.setBrush(QColor(c))
                     p.drawRect(
@@ -65,7 +65,7 @@ class SourceLegend(QFrame):
                 p.setBrush(wash)
                 p.drawRect(r)
             else:  # the dashed crop box with a handle
-                pen = QPen(QColor(CROP_COLOR), 1.5, Qt.DashLine)
+                pen = QPen(QColor(CROP_COLOR), 1.5, Qt.PenStyle.DashLine)
                 p.setPen(pen)
                 p.drawRect(r)
                 p.setPen(QPen(QColor("#222"), 1))

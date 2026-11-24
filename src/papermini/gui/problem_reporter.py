@@ -29,7 +29,9 @@ class ProblemReporter:
         papermini runs filled in (and ``details``, a traceback, when given), open the log
         folder, and say which file to attach: ``files``, or the newest log."""
         logs = self._logs
-        QDesktopServices.openUrl(QUrl(logs.issue_url(details), QUrl.StrictMode))
+        QDesktopServices.openUrl(
+            QUrl(logs.issue_url(details), QUrl.ParsingMode.StrictMode)
+        )
         s = logs.session()
         if files is None:
             files = [s.log] if s else []
@@ -57,7 +59,7 @@ class ProblemReporter:
             return
         crash, crash_log = found[0]
         box = QMessageBox(
-            QMessageBox.Warning,
+            QMessageBox.Icon.Warning,
             "papermini",
             "papermini closed unexpectedly",
             parent=parent,
@@ -66,8 +68,8 @@ class ProblemReporter:
             "The last time, papermini stopped because of a problem. "
             "Reporting it helps to get it fixed."
         )
-        report = box.addButton("Report a problem…", QMessageBox.AcceptRole)
-        box.addButton("Not now", QMessageBox.RejectRole)
+        report = box.addButton("Report a problem…", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Not now", QMessageBox.ButtonRole.RejectRole)
         box.exec()
         for c, _ in found:
             logs.mark_offered(c)

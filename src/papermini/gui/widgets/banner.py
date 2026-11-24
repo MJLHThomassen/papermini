@@ -18,10 +18,10 @@ class Banner(QFrame):
         h.setContentsMargins(14, 12, 16, 12)
         h.setSpacing(12)
         self.icon = QLabel()
-        self.icon.setAlignment(Qt.AlignTop)
+        self.icon.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.text = QLabel()
         self.text.setWordWrap(True)
-        self.text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         h.addWidget(self.icon)
         h.addWidget(self.text, 1)
 

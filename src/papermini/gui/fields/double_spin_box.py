@@ -31,5 +31,8 @@ class DoubleSpinBox(_WheelGuard, QDoubleSpinBox):
         separators, whatever the system locale: the same as the command line, project
         files and crop field."""
         loc = QLocale.c()
-        loc.setNumberOptions(QLocale.OmitGroupSeparator | QLocale.RejectGroupSeparator)
+        loc.setNumberOptions(
+            QLocale.NumberOption.OmitGroupSeparator
+            | QLocale.NumberOption.RejectGroupSeparator
+        )
         return loc

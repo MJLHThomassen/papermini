@@ -26,8 +26,8 @@ MARGIN = 0.03  # the logo's white sticker border already gives it room
 
 def main() -> None:
     app = QGuiApplication([])  # noqa: F841 - needed for painting
-    img = QImage(SIZE, SIZE, QImage.Format_ARGB32_Premultiplied)
-    img.fill(Qt.transparent)
+    img = QImage(SIZE, SIZE, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(Qt.GlobalColor.transparent)
     r = QSvgRenderer(str(ThemeService.LOGO))
     vb = r.viewBoxF()
     k = SIZE * (1 - 2 * MARGIN) / max(vb.width(), vb.height())

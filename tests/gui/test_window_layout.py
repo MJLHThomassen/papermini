@@ -32,7 +32,7 @@ def test_side_panels_can_be_resized_freely(app, new_window):
     from PySide6.QtCore import Qt
 
     w = new_window()
-    w.setAttribute(Qt.WA_DontShowOnScreen)
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     w.resize(1900, 900)  # (room for the settings side's minimum)
     w.show()
     app.processEvents()
@@ -52,7 +52,7 @@ def test_the_side_panels_collapse_and_reopen(app, new_window):
     from PySide6.QtCore import Qt
 
     w = new_window()
-    w.setAttribute(Qt.WA_DontShowOnScreen)
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     w.resize(1440, 900)
     w.show()
     app.processEvents()
@@ -84,7 +84,7 @@ def test_a_panel_dragged_shut_reopens_at_its_dragged_width(app, new_window):
     from PySide6.QtCore import Qt
 
     w = new_window()
-    w.setAttribute(Qt.WA_DontShowOnScreen)
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     w.resize(1900, 900)  # (room for the settings side's minimum)
     w.show()
     app.processEvents()
@@ -103,11 +103,13 @@ def test_the_panel_layout_is_remembered(app, new_window, settings_store):
     """Collapsed panels and their widths come back after a restart."""
     from PySide6.QtCore import QSettings, Qt
 
-    assert settings_store.format() == QSettings.IniFormat  # not the real settings
+    assert (
+        settings_store.format() == QSettings.Format.IniFormat
+    )  # not the real settings
 
     def window():
         w = new_window()
-        w.setAttribute(Qt.WA_DontShowOnScreen)
+        w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
         w.resize(1900, 900)  # (room for the settings side's minimum)
         w.show()
         app.processEvents()
@@ -128,7 +130,7 @@ def test_the_panel_layout_is_remembered(app, new_window, settings_store):
         w.set_side_visible(2, True)
         assert abs(w.splitter.sizes()[2] - right) <= 2
         assert w.btn_left.accessibleName() == "Hide the figure list"
-        assert w.btn_left.focusPolicy() == Qt.TabFocus
+        assert w.btn_left.focusPolicy() == Qt.FocusPolicy.TabFocus
     finally:
         w.close()
 
@@ -198,7 +200,7 @@ def test_the_header_steps_stay_centred(app, tmp_path, new_window):
     from PySide6.QtCore import Qt
 
     w = new_window()
-    w.setAttribute(Qt.WA_DontShowOnScreen)
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     w.resize(1360, 820)
     w.show()
 

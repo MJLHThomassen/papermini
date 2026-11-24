@@ -118,7 +118,7 @@ def test_settings_side_never_cuts_off_controls(app, tmp_path, new_window):
 
     Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / "a.png")
     w = new_window()
-    w.setAttribute(Qt.WA_DontShowOnScreen)
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     w.resize(1300, 900)
     w.show()
     w.add_images([tmp_path / "a.png"])

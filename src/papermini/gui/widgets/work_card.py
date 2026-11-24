@@ -34,12 +34,12 @@ class WorkCard(QFrame):
         text.addWidget(self.title)
         text.addWidget(self.detail)
         self.button = QPushButton()
-        self.button.setCursor(Qt.PointingHandCursor)
+        self.button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.button.clicked.connect(self.clicked)
-        h.addWidget(self.spinner, 0, Qt.AlignVCenter)
-        h.addWidget(self.icon, 0, Qt.AlignVCenter)
+        h.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignVCenter)
+        h.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignVCenter)
         h.addLayout(text, 1)
-        h.addWidget(self.button, 0, Qt.AlignVCenter)
+        h.addWidget(self.button, 0, Qt.AlignmentFlag.AlignVCenter)
 
     def show_working(self, title: str, detail: str, button: str = "Cancel"):
         self.spinner.show()

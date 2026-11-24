@@ -53,7 +53,10 @@ class OnnxSegmenter:
 
     def __call__(self, im: Image.Image) -> np.ndarray:
         x = (
-            np.asarray(im.convert("RGB").resize(self.size, Image.BILINEAR), np.float32)
+            np.asarray(
+                im.convert("RGB").resize(self.size, Image.Resampling.BILINEAR),
+                np.float32,
+            )
             / 255.0
         )
         x = (x - self.mean) / self.std
@@ -68,7 +71,7 @@ class OnnxSegmenter:
         else:
             out = (out - out.min()) / (out.max() - out.min() + 1e-8)
         m = Image.fromarray((np.clip(out, 0.0, 1.0) * 255).round().astype(np.uint8))
-        return np.asarray(m.resize(im.size, Image.BILINEAR))
+        return np.asarray(m.resize(im.size, Image.Resampling.BILINEAR))
 
     def _run(self, x: np.ndarray) -> np.ndarray:
         """Run the model once, so that ``Cancellation.cancel_runs`` (or closing the

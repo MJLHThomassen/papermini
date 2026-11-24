@@ -31,12 +31,12 @@ class Spinner(QWidget):
 
     def paintEvent(self, _):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(2.5, 2.5, -2.5, -2.5)
         track = QColor(self._themes.current.border)
         p.setPen(QPen(track, 3))
         p.drawEllipse(r)
         pen = QPen(QColor(self._themes.current.accent), 3)
-        pen.setCapStyle(Qt.RoundCap)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         p.drawArc(r, -self._angle * 16, 100 * 16)

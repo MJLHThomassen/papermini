@@ -8,7 +8,7 @@ class _WheelGuard:
     panel never changes a value by accident (and the panel scrolls instead)."""
 
     def _init_guard(self):
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def wheelEvent(self, e):
         if self.hasFocus():

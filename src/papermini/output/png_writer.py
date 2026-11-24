@@ -38,7 +38,7 @@ class PngWriter:
         ``px_per_mm`` pixels per millimetre."""
         s = px_per_mm * SUPERSAMPLE
         W, H = max(1, round(m.width_mm * s)), max(1, round(m.height_mm * s))
-        im = m.art.convert("RGBA").resize((W, H), Image.LANCZOS)
+        im = m.art.convert("RGBA").resize((W, H), Image.Resampling.LANCZOS)
         d = ImageDraw.Draw(im)
         st = m.style
         fold_w = max(1, round(st.fold_width_mm * s))
@@ -66,7 +66,9 @@ class PngWriter:
                 anchor="ms",
             )
             if t.rot:
-                layer = layer.rotate(-t.rot, resample=Image.BICUBIC, center=(r, r))
+                layer = layer.rotate(
+                    -t.rot, resample=Image.Resampling.BICUBIC, center=(r, r)
+                )
             im.alpha_composite(layer, (round(t.cx * s) - r, round(t.cy * s) - r))
         if st.cut_line:
             pts = [(x * s, y * s) for x, y in m.cut.flatten(16)]
@@ -78,7 +80,7 @@ class PngWriter:
             )
         return im.resize(
             (max(1, round(W / SUPERSAMPLE)), max(1, round(H / SUPERSAMPLE))),
-            Image.LANCZOS,
+            Image.Resampling.LANCZOS,
         )
 
     def write(self, m: Mini, path: Path, px_per_mm: float) -> Path:

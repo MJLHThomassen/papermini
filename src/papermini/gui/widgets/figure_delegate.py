@@ -6,8 +6,10 @@ from PySide6.QtWidgets import QSpinBox, QStyle, QStyledItemDelegate, QToolTip
 
 from ..theme_service import ThemeService
 
-SUBTITLE_ROLE = Qt.UserRole + 1
-COPIES_ROLE = Qt.UserRole + 2  # copies on the sheet (None: no copies control)
+SUBTITLE_ROLE = Qt.ItemDataRole.UserRole + 1
+COPIES_ROLE = (
+    Qt.ItemDataRole.UserRole + 2
+)  # copies on the sheet (None: no copies control)
 MAX_COPIES = 999
 
 
@@ -23,7 +25,7 @@ class FigureDelegate(QStyledItemDelegate):
         "How many of this figure go on the print sheet.\n"
         "Click − or +, or click the number to type one."
     )
-    copiesChanged = Signal(object, int)  # figure uid (Qt.UserRole), copies
+    copiesChanged = Signal(object, int)  # figure uid (Qt.ItemDataRole.UserRole), copies
 
     def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
@@ -45,14 +47,14 @@ class FigureDelegate(QStyledItemDelegate):
     def _set_copies(self, index, n: int):
         n = max(0, min(MAX_COPIES, n))
         if n != index.data(COPIES_ROLE):
-            self.copiesChanged.emit(index.data(Qt.UserRole), n)
+            self.copiesChanged.emit(index.data(Qt.ItemDataRole.UserRole), n)
 
     def editorEvent(self, event, model, option, index):
         n = index.data(COPIES_ROLE)
         if (
             n is not None
-            and event.type() == QEvent.MouseButtonRelease
-            and event.button() == Qt.LeftButton
+            and event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.LeftButton
         ):
             minus, num, plus = self.copies_rects(option.rect)
             pos = event.position()
@@ -72,7 +74,7 @@ class FigureDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         box = QSpinBox(parent)
         box.setRange(0, MAX_COPIES)  # (no arrows: the theme hides spin box buttons)
-        box.setAlignment(Qt.AlignCenter)
+        box.setAlignment(Qt.AlignmentFlag.AlignCenter)
         box.setObjectName("CopiesEditor")
         return box
 
@@ -91,10 +93,10 @@ class FigureDelegate(QStyledItemDelegate):
     def paint(self, p: QPainter, option, index):
         t = self._themes.current
         p.save()
-        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(option.rect).adjusted(6, 3, -6, -3)
-        selected = bool(option.state & QStyle.State_Selected)
-        hover = bool(option.state & QStyle.State_MouseOver)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        hover = bool(option.state & QStyle.StateFlag.State_MouseOver)
         if selected or hover:
             path = QPainterPath()
             path.addRoundedRect(r, 9, 9)
@@ -109,7 +111,7 @@ class FigureDelegate(QStyledItemDelegate):
         tp = QPainterPath()
         tp.addRoundedRect(tile, 7, 7)
         p.fillPath(tp, QColor(t.canvas))
-        icon = index.data(Qt.DecorationRole)
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
         if icon is not None:
             pm = icon.pixmap(QSize(int(tile.width()) - 8, int(tile.height()) - 8))
             if not pm.isNull():
@@ -124,22 +126,30 @@ class FigureDelegate(QStyledItemDelegate):
         w = r.right() - x - 8
         copies = index.data(COPIES_ROLE)
         f = QFont(option.font)
-        f.setWeight(QFont.DemiBold)
+        f.setWeight(QFont.Weight.DemiBold)
         p.setFont(f)
         p.setPen(QColor(t.text))
         name = p.fontMetrics().elidedText(
-            index.data(Qt.DisplayRole) or "", Qt.ElideRight, int(w)
+            index.data(Qt.ItemDataRole.DisplayRole) or "",
+            Qt.TextElideMode.ElideRight,
+            int(w),
         )
-        p.drawText(QRectF(x, r.top() + 13, w, 20), Qt.AlignLeft | Qt.AlignVCenter, name)
+        p.drawText(
+            QRectF(x, r.top() + 13, w, 20),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            name,
+        )
         p.setFont(option.font)
         p.setPen(QColor(t.muted))
         sub_w = w
         if copies is not None:  # when narrow, the height gives way, then COPIES_TEXT
             sub_w = max(0.0, w - self._copies_width(p, self._show_word(p, w)) - 8)
         sub = index.data(SUBTITLE_ROLE) or ""
-        sub = p.fontMetrics().elidedText(sub, Qt.ElideRight, int(sub_w))
+        sub = p.fontMetrics().elidedText(sub, Qt.TextElideMode.ElideRight, int(sub_w))
         p.drawText(
-            QRectF(x, r.top() + 33, sub_w, 18), Qt.AlignLeft | Qt.AlignVCenter, sub
+            QRectF(x, r.top() + 33, sub_w, 18),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            sub,
         )
         if copies is not None:
             self._paint_copies(p, option, copies, t, selected, self._show_word(p, w))
@@ -174,7 +184,7 @@ class FigureDelegate(QStyledItemDelegate):
         if word:
             p.drawText(
                 QRectF(minus.left() - 66, minus.top(), 60, minus.height()),
-                Qt.AlignRight | Qt.AlignVCenter,
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                 self.COPIES_TEXT,
             )
         box = minus.united(plus)
@@ -184,11 +194,11 @@ class FigureDelegate(QStyledItemDelegate):
         p.setPen(QPen(QColor(t.border), 1))
         p.drawPath(path)
         p.setPen(QColor(t.muted if n == 0 else t.text))
-        p.drawText(minus, Qt.AlignCenter, "\u2212")
+        p.drawText(minus, Qt.AlignmentFlag.AlignCenter, "\u2212")
         p.setPen(QColor(t.text))
-        p.drawText(plus, Qt.AlignCenter, "+")
+        p.drawText(plus, Qt.AlignmentFlag.AlignCenter, "+")
         f = QFont(option.font)
-        f.setWeight(QFont.DemiBold)
+        f.setWeight(QFont.Weight.DemiBold)
         p.setFont(f)
-        p.drawText(num, Qt.AlignCenter, str(n))
+        p.drawText(num, Qt.AlignmentFlag.AlignCenter, str(n))
         p.setFont(option.font)

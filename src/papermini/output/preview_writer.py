@@ -63,7 +63,7 @@ class PreviewWriter:
                 ox, oy = p.x * s, p.y * s
                 art = m.art.resize(
                     (max(1, round(m.width_mm * s)), max(1, round(m.height_mm * s))),
-                    Image.LANCZOS,
+                    Image.Resampling.LANCZOS,
                 )
                 im.paste(art, (round(ox), round(oy)), art)
                 for x0, x1, y in m.folds:

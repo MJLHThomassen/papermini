@@ -34,7 +34,7 @@ def test_decimal_fields_take_a_point_in_any_locale(
     from papermini.gui.panels.figure_panel import FigurePanel
 
     old = QLocale()
-    QLocale.setDefault(QLocale(QLocale.Dutch, QLocale.Netherlands))
+    QLocale.setDefault(QLocale(QLocale.Language.Dutch, QLocale.Country.Netherlands))
     try:
         p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
         p.set_settings(FigureSettings(height_mm=42), "x", "x")
@@ -43,7 +43,7 @@ def test_decimal_fields_take_a_point_in_any_locale(
         for typed in ("12.5", "12,5"):
             box.lineEdit().selectAll()
             QTest.keyClicks(box.lineEdit(), typed)
-            QTest.keyClick(box.lineEdit(), Qt.Key_Return)
+            QTest.keyClick(box.lineEdit(), Qt.Key.Key_Return)
             assert box.value() == 12.5 and box.text() == "12.50 mm", typed
         assert p.settings().height_mm == 12.5
     finally:
@@ -63,7 +63,7 @@ def test_color_sliders_snap_to_their_centre(app, themes):
     themes.apply(app, "light")  # (as the window does)
     assert SliderField(themes, 0, 254, 254).slider.centre is None
     f = SliderField(themes, -100, 100, 100)
-    f.setAttribute(Qt.WA_DontShowOnScreen)
+    f.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     f.resize(300, 40)
     f.show()
     app.processEvents()
@@ -75,15 +75,15 @@ def test_color_sliders_snap_to_their_centre(app, themes):
     def x_of(v):
         return sl.handle_rect(v).center().x()
 
-    def send(kind, x, held=Qt.LeftButton):
+    def send(kind, x, held=Qt.MouseButton.LeftButton):
         t = {
-            "press": QEvent.MouseButtonPress,
-            "move": QEvent.MouseMove,
-            "release": QEvent.MouseButtonRelease,
-            "double": QEvent.MouseButtonDblClick,
+            "press": QEvent.Type.MouseButtonPress,
+            "move": QEvent.Type.MouseMove,
+            "release": QEvent.Type.MouseButtonRelease,
+            "double": QEvent.Type.MouseButtonDblClick,
         }[kind]
         pos = QPointF(x, sl.height() / 2)
-        b = Qt.NoButton if kind == "move" else Qt.LeftButton
+        b = Qt.MouseButton.NoButton if kind == "move" else Qt.MouseButton.LeftButton
         app.sendEvent(
             sl,
             QMouseEvent(
@@ -91,8 +91,8 @@ def test_color_sliders_snap_to_their_centre(app, themes):
                 pos,
                 sl.mapToGlobal(pos),
                 b,
-                Qt.NoButton if kind == "release" else held,
-                Qt.NoModifier,
+                Qt.MouseButton.NoButton if kind == "release" else held,
+                Qt.KeyboardModifier.NoModifier,
             ),
         )
 
@@ -276,9 +276,9 @@ def test_the_wheel_over_an_unfocused_field_changes_nothing(app, built_window):
             QPointF(5, 5),
             QPoint(0, 0),
             QPoint(0, 120),
-            Qt.NoButton,
-            Qt.NoModifier,
-            Qt.NoScrollPhase,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
             False,
         )
         app.sendEvent(part, ev)

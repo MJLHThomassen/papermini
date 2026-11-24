@@ -25,8 +25,8 @@ def test_a_crop_box_is_drawn_resized_moved_and_cleared(app, themes):
 
     v = CropView(themes)
     v.resize(600, 600)
-    img = QImage(1000, 1000, QImage.Format_RGB888)
-    img.fill(Qt.white)
+    img = QImage(1000, 1000, QImage.Format.Format_RGB888)
+    img.fill(Qt.GlobalColor.white)
     v.set_image(img)
     v.show()
     app.processEvents()
@@ -39,10 +39,14 @@ def test_a_crop_box_is_drawn_resized_moved_and_cleared(app, themes):
         return v.mapFromScene(x, y)
 
     def drag(a, b):
-        QTest.mousePress(vp, Qt.LeftButton, Qt.NoModifier, a)
+        QTest.mousePress(
+            vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, a
+        )
         QTest.mouseMove(vp, (a + b) / 2)
         QTest.mouseMove(vp, b)
-        QTest.mouseRelease(vp, Qt.LeftButton, Qt.NoModifier, b)
+        QTest.mouseRelease(
+            vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, b
+        )
         app.processEvents()
 
     def cursor_at(x, y):  # the cursor shown over image px (x, y)
@@ -67,11 +71,11 @@ def test_a_crop_box_is_drawn_resized_moved_and_cleared(app, themes):
 
     n = len(got)
     QTest.mouseClick(
-        vp, Qt.LeftButton, Qt.NoModifier, at(50, 50)
+        vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(50, 50)
     )  # a click keeps the box
     assert len(got) == n and v.crop_box() is not None
 
-    QTest.keyClick(v, Qt.Key_Delete)  # Delete clears it
+    QTest.keyClick(v, Qt.Key.Key_Delete)  # Delete clears it
     assert got[-1] is None and v.crop_box() is None
     v.close()
 
@@ -101,7 +105,7 @@ def test_the_source_image_lies_on_shadowed_paper(app, themes):
     from papermini.gui.views.paper_item import PaperItem
 
     v = CropView(themes)
-    img = QImage(400, 300, QImage.Format_RGB32)
+    img = QImage(400, 300, QImage.Format.Format_RGB32)
     img.fill(0x808080)
     v.set_image(img)
     paper = [it for it in v.scene().items() if isinstance(it, PaperItem)]
@@ -186,10 +190,10 @@ def _crop_view(app, themes, size=(400, 300)):
     from papermini.gui.views.crop_view import CropView
 
     v = CropView(themes)
-    v.setAttribute(Qt.WA_DontShowOnScreen)
+    v.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     v.resize(500, 400)
     v.show()
-    img = QImage(*size, QImage.Format_RGB32)
+    img = QImage(*size, QImage.Format.Format_RGB32)
     img.fill(0x808080)
     v.set_image(img)
     app.processEvents()
@@ -205,15 +209,21 @@ def _mouse(v, kind, scene_pt, button=None):
 
     pos = QPointF(v.mapFromScene(QPointF(*scene_pt)))
     t = {
-        "press": QEvent.MouseButtonPress,
-        "move": QEvent.MouseMove,
-        "release": QEvent.MouseButtonRelease,
+        "press": QEvent.Type.MouseButtonPress,
+        "move": QEvent.Type.MouseMove,
+        "release": QEvent.Type.MouseButtonRelease,
     }[kind]
-    b = Qt.LeftButton if kind != "move" else Qt.NoButton
-    held = Qt.LeftButton if (kind == "move" and button) else Qt.NoButton
+    b = Qt.MouseButton.LeftButton if kind != "move" else Qt.MouseButton.NoButton
+    held = (
+        Qt.MouseButton.LeftButton
+        if (kind == "move" and button)
+        else Qt.MouseButton.NoButton
+    )
     if kind == "press":
-        held = Qt.LeftButton
-    ev = QMouseEvent(t, pos, v.viewport().mapToGlobal(pos), b, held, Qt.NoModifier)
+        held = Qt.MouseButton.LeftButton
+    ev = QMouseEvent(
+        t, pos, v.viewport().mapToGlobal(pos), b, held, Qt.KeyboardModifier.NoModifier
+    )
     {
         "press": v.mousePressEvent,
         "move": v.mouseMoveEvent,
@@ -240,7 +250,7 @@ def test_crop_view_gives_the_image_in_the_original_pixels(app, themes):
     assert CropView(themes).image_rect().isEmpty()
     v = _crop_view(app, themes)
     assert v.image_rect() == QRectF(0, 0, 400, 300)
-    v.set_image(QImage(200, 150, QImage.Format_RGB32), size=(800, 600))
+    v.set_image(QImage(200, 150, QImage.Format.Format_RGB32), size=(800, 600))
     assert v.image_rect() == QRectF(0, 0, 800, 600)
 
 
@@ -567,8 +577,8 @@ def test_the_source_view_explains_its_marks_in_a_legend(app, tmp_path, new_windo
     texts = ["Detected outline", "Removed background", "Crop area"]
     assert [t.text() for t in legend.texts] == texts
     assert all(not sw.pixmap().isNull() for sw in legend.swatches)
-    assert legend.testAttribute(Qt.WA_TransparentForMouseEvents)
-    assert w.legend_box.testAttribute(Qt.WA_TransparentForMouseEvents)
+    assert legend.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    assert w.legend_box.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
     w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])  # a crop box drawn
     assert [t.text() for t in legend.texts] == texts  # the same words
     w.tabs.setCurrentIndex(Step.MINIATURE)  # only on the Source view

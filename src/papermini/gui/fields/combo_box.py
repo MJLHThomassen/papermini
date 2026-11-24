@@ -12,5 +12,7 @@ class ComboBox(_WheelGuard, QComboBox):
         super().__init__(parent)
         self._init_guard()
         # long item names must not widen the settings panel (the list still shows them)
-        self.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
         self.setMinimumContentsLength(8)

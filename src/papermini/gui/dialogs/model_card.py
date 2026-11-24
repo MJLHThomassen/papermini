@@ -39,12 +39,14 @@ class ModelCard(QFrame):
         self.licence = ModelInfo.label(
             ModelInfo.licence_link(model), "LicenceNote" if restricted else "Muted"
         )
-        self.licence.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.licence.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction
+        )
         if restricted:
             self.licence.setToolTip(SegmenterRegistry.licence_notice(model))
         v.addWidget(self.licence)
         self.state = ModelInfo.label("", "Hint")
-        self.state.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.state.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         v.addWidget(self.state)
         h.addLayout(v, 1)
         self.btn_get = QPushButton()
@@ -52,7 +54,7 @@ class ModelCard(QFrame):
         self.btn_del = QPushButton("Delete")
         self.btn_del.clicked.connect(lambda: dialog.delete(model))
         for b in (self.btn_get, self.btn_del):
-            h.addWidget(b, 0, Qt.AlignVCenter)
+            h.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
         self.refresh()
 
     def refresh(self):

@@ -30,7 +30,7 @@ class UpdateBar(QFrame):
         close.setToolTip("Hide")
         close.clicked.connect(self.hide)
         for w in (notes, self._action, close):
-            w.setCursor(Qt.PointingHandCursor)
+            w.setCursor(Qt.CursorShape.PointingHandCursor)
             h.addWidget(w)
         self.hide()
 

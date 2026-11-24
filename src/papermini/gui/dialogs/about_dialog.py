@@ -48,17 +48,19 @@ class AboutDialog(QDialog):
         self.setObjectName("AboutDialog")
         v = QVBoxLayout(self)
         v.setSpacing(12)
-        v.setSizeConstraint(QLayout.SetMinimumSize)  # grows when the notice does
+        v.setSizeConstraint(
+            QLayout.SizeConstraint.SetMinimumSize
+        )  # grows when the notice does
         top = QHBoxLayout()
         top.setSpacing(14)
         logo = QLabel()
         logo.setPixmap(self._themes.logo_pixmap(56))
-        logo.setAlignment(Qt.AlignTop)
+        logo.setAlignment(Qt.AlignmentFlag.AlignTop)
         top.addWidget(logo)
         col = QVBoxLayout()
         col.setSpacing(8)
         title = QLabel(f"<b>papermini {html.escape(__version__)}</b>")
-        title.setTextFormat(Qt.RichText)
+        title.setTextFormat(Qt.TextFormat.RichText)
         col.addWidget(title)
         # the update notice, right under the version it is about
         self.status = QLabel()
@@ -66,7 +68,7 @@ class AboutDialog(QDialog):
             "MethodBox"
         )  # (the same framed note as Chosen method)
         self.status.setWordWrap(True)
-        self.status.setTextFormat(Qt.RichText)
+        self.status.setTextFormat(Qt.TextFormat.RichText)
         self.status.setFixedWidth(
             400
         )  # (a wrapping label needs a fixed width for its height)
@@ -87,7 +89,7 @@ class AboutDialog(QDialog):
             "command line: <code>papermini build project.yaml</code>"
         )
         text.setWordWrap(True)
-        text.setTextFormat(Qt.RichText)
+        text.setTextFormat(Qt.TextFormat.RichText)
         text.setFixedWidth(400)
         text.linkActivated.connect(self._open_font_folder)
         col.addSpacing(4)
@@ -100,11 +102,11 @@ class AboutDialog(QDialog):
         buttons.addStretch(1)
         self.action = QPushButton()
         self.action.setProperty("primary", True)
-        self.action.setCursor(Qt.PointingHandCursor)
+        self.action.setCursor(Qt.CursorShape.PointingHandCursor)
         self.action.clicked.connect(self._act)
         self.action.hide()
         close = QPushButton("Close")
-        close.setCursor(Qt.PointingHandCursor)
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
         close.clicked.connect(self.reject)
         buttons.addWidget(self.action)
         buttons.addWidget(close)
@@ -140,7 +142,7 @@ class AboutDialog(QDialog):
                 f"Log: <a href='#'>{folder}</a><br>"
                 f"<span style='font-size:small'>{html.escape(s.log.name)}</span>"
             )
-            label.setTextFormat(Qt.RichText)
+            label.setTextFormat(Qt.TextFormat.RichText)
             label.linkActivated.connect(lambda _: self._problems.open_log_folder())
             label.setToolTip("Open the log folder")
         label.setWordWrap(True)

@@ -32,7 +32,7 @@ class ModelInfo:
         if name:
             lab.setObjectName(name)
         lab.setWordWrap(wrap)
-        lab.setTextFormat(Qt.RichText)
+        lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setOpenExternalLinks(True)
         return lab
 
