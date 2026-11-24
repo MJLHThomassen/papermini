@@ -278,7 +278,8 @@ def test_old_downloads_are_forgotten(updates, monkeypatch):
 
 def test_helper_installs_once_papermini_has_quit(updates, tmp_path):
     """The helper waits for papermini to quit, swaps in the new version (dropping files
-    of the old one) and removes the download."""
+    of the old one, and replacing files of the same size and time) and removes the
+    download."""
     old = tmp_path / "install" / "papermini"
     old.mkdir(parents=True)
     (old / "app.txt").write_text("old")
@@ -286,6 +287,8 @@ def test_helper_installs_once_papermini_has_quit(updates, tmp_path):
     new = tmp_path / "updates" / "9.9.9" / "new" / "papermini"
     new.mkdir(parents=True)
     (new / "app.txt").write_text("new")
+    times = (old / "app.txt").stat()
+    os.utime(new / "app.txt", ns=(times.st_atime_ns, times.st_mtime_ns))
     stand_in = subprocess.Popen(  # (runs until its input closes)
         [sys.executable, "-c", "import sys; sys.stdin.read()"], stdin=subprocess.PIPE
     )
