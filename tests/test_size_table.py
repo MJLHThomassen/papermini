@@ -1,6 +1,7 @@
 """Tests of the creature size tables."""
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
@@ -60,7 +61,7 @@ def test_a_table_round_trips_and_is_checked(size_calculator):
     assert part.row("medium") == SizeRow.calculated("medium", 30, 32)
     assert part.row("large").height_mm == 50
     assert part.row("large").base_mm == SizeRow.calculated("large", 30, 32).base_mm
-    for bad, match in (
+    broken: list[tuple[Any, str]] = [  # (not all of them are mappings)
         ({"grid_mm": 0}, "grid_mm"),
         ({"colossal": {}}, "unknown"),
         ({"large": {"depth_mm": 3}}, "unknown"),
@@ -68,6 +69,7 @@ def test_a_table_round_trips_and_is_checked(size_calculator):
         ({"preset": 3}, "preset"),
         ({"tiny": {"height_mm": "tall"}}, "height_mm"),
         ([1], "sizes must"),
-    ):
+    ]
+    for bad, match in broken:
         with pytest.raises(ValueError, match=match):
             SizeTable.from_dict(bad)

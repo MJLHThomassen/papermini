@@ -1,6 +1,8 @@
 """Tests of building a mini from a picture. The pictures come with a mask or
 their own transparency, so no model is needed."""
 
+from dataclasses import replace
+
 import cv2
 import numpy as np
 import pytest
@@ -307,7 +309,7 @@ def test_adjustments_change_the_print_not_the_outline(
     misses = pipeline.caches.raw_masks.misses
     grey = figure_builder.build(
         img,
-        FigureSettings(**{**base.__dict__, "greyscale": True, "brightness": 10}),
+        replace(base, greyscale=True, brightness=10),
         log=lambda *_: None,
     )
     assert pipeline.caches.raw_masks.misses == misses  # no new mask
