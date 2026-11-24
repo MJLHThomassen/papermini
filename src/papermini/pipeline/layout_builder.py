@@ -70,13 +70,16 @@ class LayoutBuilder:
         """Build the margin, smoothing and tab around a clean figure mask.
 
         ``clean`` is the 0/255 figure mask and ``rgb`` the image of the same size.
+        ``prm.height_mm`` must be set.
         """
+        height_mm = prm.height_mm
+        assert height_mm is not None, "the figure's height is set before its layout"
         in_h, in_w = clean.shape
         clean, rgb = self._scaler.limit_resolution(
-            clean, rgb, prm.height_mm, prm.max_px_per_mm
+            clean, rgb, height_mm, prm.max_px_per_mm
         )
         x0, y0, x1, y1 = self._morph.bbox(clean)
-        pxmm = (y1 - y0 + 1) / prm.height_mm
+        pxmm = (y1 - y0 + 1) / height_mm
 
         # Work on a canvas around the figure only, padded so neither the margin nor the
         # tab is clipped by the image border.

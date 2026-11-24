@@ -38,11 +38,12 @@ class ImageAdjuster:
             part = out[y : y + _ROWS]
             c = part[..., :3].astype(np.float32) / 255.0
             a = part[..., 3:4].astype(np.float32) / 255.0 if rgba else None
-            if rgba and premultiplied:  # adjust the colors, not color times coverage
+            # adjust the colors, not color times coverage
+            if a is not None and premultiplied:
                 c = np.where(a > 0, c / np.maximum(a, 1e-6), 0.0)
             c = self._tone(c @ m, adj)
             c = np.clip(c, 0.0, 1.0)
-            if rgba and premultiplied:
+            if a is not None and premultiplied:
                 c = c * a
             part[..., :3] = (c * 255.0 + 0.5).astype(np.uint8)
         return out

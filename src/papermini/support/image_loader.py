@@ -43,4 +43,4 @@ class ImageLoader:
             im.mode == "P" and "transparency" in im.info
         ):
             return False
-        return im.convert("RGBA").getchannel("A").getextrema()[0] < 255
+        return bool(np.asarray(im.convert("RGBA").getchannel("A")).min() < 255)

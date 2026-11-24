@@ -178,12 +178,13 @@ class FontLibrary:
 
     @staticmethod
     def _read_name(path: Path) -> tuple[str, str] | None:
-        """(family, style) of a TrueType font file, or None when it cannot be used."""
+        """(family, style) of a TrueType font file, or None when it cannot be used. The
+        style is empty when the file names none."""
         try:
             family, style = ImageFont.truetype(str(path), 10).getname()
         except Exception:  # noqa: BLE001 - a broken or unsupported file: leave it out
             return None
-        return (family, style) if family else None
+        return (family, style or "") if family else None
 
     def _scan(self) -> dict[str, Font]:
         try:

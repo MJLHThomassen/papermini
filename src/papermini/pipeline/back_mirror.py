@@ -116,7 +116,7 @@ class BackMirror:
                 centres.append((body[0] + body[-1] + 1) / 2)
         if centres:
             cx = float(np.median(centres))
-        widths = []
+        widths: list[int] = []
         for r in rows:
             xs = np.flatnonzero(r)
             if len(xs):
@@ -124,6 +124,6 @@ class BackMirror:
                 c = int(np.clip(round(cx), xs[0], xs[-1]))
                 left = c - np.argmin(r[c::-1]) + 1 if not r[c::-1].all() else 0
                 right = c + np.argmin(r[c:]) if not r[c:].all() else len(r)
-                widths.append(max(0, right - left))
+                widths.append(max(0, int(right - left)))
         w = float(np.percentile(widths, 20)) if widths else float(x1 - x0 + 1)
         return cx, cy, w * 0.82, (y1 - y0 + 1) * 0.6
