@@ -201,9 +201,9 @@ def test_the_cache_page_scrolls_when_the_window_is_short(app, model_cache, new_w
     app.processEvents()
     dlg.resize(dlg.width(), 300)  # (as short as the other pages allow)
     app.processEvents()
-    assert dlg.height() < 450 and dlg.cache.scroll.verticalScrollBar().isVisible()
+    assert dlg.height() < 450 and dlg.cache.scroll_area.verticalScrollBar().isVisible()
     close = next(b for b in dlg.findChildren(QPushButton) if b.text() == "Close")
-    assert not dlg.cache.scroll.isAncestorOf(close)
+    assert not dlg.cache.scroll_area.isAncestorOf(close)
     dlg.close()
 
 
