@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
 from ...pipeline.segmentation import segment
 from ...project.option import Option
+from ..theme_service import ThemeService
 from .combo_box import ComboBox
 from .detail_item_delegate import DETAIL_ROLE, DetailItemDelegate
 from .edit_with_button import EditWithButton
@@ -35,10 +36,12 @@ class ModelField(Field):
     _LIST_FRAME_PX = 6  # the open list's padding and border on each side
     _GAP_PX = 4  # between the list and the model file box
 
-    def __init__(self, option: Option, changed: Callable[..., None]) -> None:
+    def __init__(
+        self, option: Option, changed: Callable[..., None], themes: ThemeService
+    ) -> None:
         self._changed = changed
         self._box = ComboBox()
-        self._box.setItemDelegate(DetailItemDelegate(self._box))
+        self._box.setItemDelegate(DetailItemDelegate(themes, self._box))
         self._choices: tuple[str, ...] = (
             "auto",
             *segment.ONNX_MODELS,

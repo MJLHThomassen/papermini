@@ -22,7 +22,9 @@ def test_color_dialog_does_not_inherit_button_color(app):
     assert child.palette().window().color().name() != "#3b6e2a"
 
 
-def test_decimal_fields_take_a_point_in_any_locale(fonts, app, prefs, size_calculator):
+def test_decimal_fields_take_a_point_in_any_locale(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
     """Regression: on a system with a decimal comma (e.g. Dutch) the fields showed
     "42,00 mm" and a typed "12.5" was not read as 12.5."""
     from PySide6.QtCore import QLocale, Qt
@@ -34,7 +36,7 @@ def test_decimal_fields_take_a_point_in_any_locale(fonts, app, prefs, size_calcu
     old = QLocale()
     QLocale.setDefault(QLocale(QLocale.Dutch, QLocale.Netherlands))
     try:
-        p = FigurePanel(prefs, size_calculator, fonts)
+        p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
         p.set_settings(FigureSettings(height_mm=42), "x", "x")
         box = p.size_field.h
         assert isinstance(box, DoubleSpinBox) and box.text() == "42.00 mm"
@@ -48,20 +50,19 @@ def test_decimal_fields_take_a_point_in_any_locale(fonts, app, prefs, size_calcu
         QLocale.setDefault(old)
 
 
-def test_color_sliders_snap_to_their_centre(app):
+def test_color_sliders_snap_to_their_centre(app, themes):
     """A slider around 0 (the color adjustments) fills from the middle, marks 0 with a
     short line, snaps to 0 when dragged close by (typed values are kept), and goes back to
     0 on a double-click. Sliders that start at 0 (strength) stay as they were."""
     from PySide6.QtCore import QEvent, QPointF, Qt
     from PySide6.QtGui import QColor, QMouseEvent
 
-    from papermini.gui import theme
     from papermini.gui.fields.slider import SNAP_PX
     from papermini.gui.fields.slider_field import SliderField
 
-    theme.apply(app, "light")  # (as the window does)
-    assert SliderField(0, 254, 254).slider.centre is None
-    f = SliderField(-100, 100, 100)
+    themes.apply(app, "light")  # (as the window does)
+    assert SliderField(themes, 0, 254, 254).slider.centre is None
+    f = SliderField(themes, -100, 100, 100)
     f.setAttribute(Qt.WA_DontShowOnScreen)
     f.resize(300, 40)
     f.show()
@@ -114,7 +115,7 @@ def test_color_sliders_snap_to_their_centre(app):
     send("release", x_of(2))
     assert f.value() == 0 and got[-1] == 0  # double-click: back to 0
 
-    t = theme.current
+    t = themes.current
     f.setValue(60)
     img = f.grab().toImage()
     cy = sl.mapTo(f, sl.rect().center()).y()
@@ -142,13 +143,13 @@ def test_color_sliders_snap_to_their_centre(app):
 
 
 def test_size_fields_keep_proportions_until_unlinked(
-    fonts, app, prefs, size_calculator
+    fonts, app, prefs, size_calculator, qt_fonts, themes
 ):
     """Linked, the field typed in sets the size and the other follows the figure's
     proportions; unlinked, both are set (the figure is stretched)."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(height_mm=40), "x", "x")
     f = p.size_field
     assert f.linked() and f.w.text() == "—"  # proportions not known yet
@@ -170,13 +171,13 @@ def test_size_fields_keep_proportions_until_unlinked(
 
 
 def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(
-    fonts, app, prefs, size_calculator
+    fonts, app, prefs, size_calculator, qt_fonts, themes
 ):
     """The bundled fonts first, the installed ones once found; a font this computer does
     not have is kept, marked and warned about."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     w = p.field("font")
     names = lambda: [w.itemData(i) for i in range(w.count()) if w.itemData(i)]
     assert names() == [f.name for f in fonts.bundled()]
@@ -202,7 +203,7 @@ def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(
     assert p.font_warning.isHidden()
 
 
-def test_the_model_field_lists_every_built_in_model(app, monkeypatch):
+def test_the_model_field_lists_every_built_in_model(app, monkeypatch, themes):
     from PySide6.QtWidgets import QComboBox
 
     from papermini.gui.fields.detail_item_delegate import DETAIL_ROLE
@@ -212,7 +213,7 @@ def test_the_model_field_lists_every_built_in_model(app, monkeypatch):
 
     spec = {"about": "A model for the test.", "commercial": True, "mb": 12}
     monkeypatch.setitem(segment.ONNX_MODELS, "test-model", spec)
-    field = ModelField(Option.of(FigureSettings)["model"], lambda: None)
+    field = ModelField(Option.of(FigureSettings)["model"], lambda: None, themes)
     box = field.widget
     assert isinstance(box, QComboBox)
     names = [box.itemText(i) for i in range(box.count())]
@@ -229,7 +230,7 @@ def test_the_model_field_lists_every_built_in_model(app, monkeypatch):
     assert all(box.itemData(i, DETAIL_ROLE) for i in range(box.count()))
 
 
-def test_a_custom_model_file_is_typed_in_under_the_model_list(app):
+def test_a_custom_model_file_is_typed_in_under_the_model_list(app, themes):
     from PySide6.QtWidgets import QComboBox
 
     from papermini.gui.fields.edit_with_button import EditWithButton
@@ -237,7 +238,9 @@ def test_a_custom_model_file_is_typed_in_under_the_model_list(app):
     from papermini.project.option import Option
 
     changes = []
-    field = ModelField(Option.of(FigureSettings)["model"], lambda: changes.append(1))
+    field = ModelField(
+        Option.of(FigureSettings)["model"], lambda: changes.append(1), themes
+    )
     assert field.row is not None
     box, file = field.widget, field.row.findChild(EditWithButton)
     assert isinstance(box, QComboBox) and file is not None

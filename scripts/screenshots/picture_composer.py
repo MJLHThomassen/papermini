@@ -6,7 +6,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QGraphicsView
 
-from papermini.gui import theme
+from papermini.gui.theme import LIGHT
 
 from .panel import Panel
 
@@ -24,7 +24,7 @@ class PictureComposer:
     def panels(self, items: Sequence[Panel]) -> QImage:
         """Put ``items`` side by side in the light theme, each with its title and
         caption above it and centred in a row as high as the highest."""
-        t = theme.resolve("light")
+        t = LIGHT
         sizes = [item.pixmap.deviceIndependentSize() for item in items]
         height = max(size.height() for size in sizes)
         total = PAD + sum(max(size.width(), MIN_WIDTH) + PAD for size in sizes)

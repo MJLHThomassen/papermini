@@ -31,11 +31,11 @@ SHEET_WIDGETS = {
 
 
 @pytest.fixture
-def figure_widgets(fonts, app, prefs, size_calculator):
+def figure_widgets(fonts, app, prefs, size_calculator, qt_fonts, themes):
     """Returns each setting's widget in a figure panel, by setting."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(), "x", "x")
     widgets = {}
     for name in FigureSettings.options():
@@ -47,11 +47,11 @@ def figure_widgets(fonts, app, prefs, size_calculator):
 
 
 @pytest.fixture
-def sheet_widgets(app, prefs):
+def sheet_widgets(app, prefs, themes):
     """Returns each setting's widget in a sheet panel, by setting."""
     from papermini.gui.panels.sheet_panel import SheetPanel
 
-    p = SheetPanel(prefs)
+    p = SheetPanel(prefs, themes)
     yield {name: getattr(p, attr) for name, attr in SHEET_WIDGETS.items()}
 
 
@@ -133,10 +133,12 @@ def test_each_field_has_its_options_label(settings, figure_widgets, sheet_widget
     assert wrong == {}
 
 
-def test_a_crop_that_cannot_be_read_keeps_the_crop(fonts, app, prefs, size_calculator):
+def test_a_crop_that_cannot_be_read_keeps_the_crop(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(crop=[0.1, 0.0, 0.9, 1.0]), "x", "x")
     edit = p.field("crop").edit
     for text in ("not a crop", "1, 2, 3"):

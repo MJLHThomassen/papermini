@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import theme
+from ..theme_service import ThemeService
 from .recent_project import RecentProject
 
 
@@ -26,8 +26,9 @@ class EmptyState(QFrame):
     folderClicked = Signal()
     recentClicked = Signal(str)  # the project's path
 
-    def __init__(self, parent=None):
+    def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.setObjectName("EmptyCard")
         v = QVBoxLayout(self)
         v.setContentsMargins(28, 32, 28, 32)
@@ -100,7 +101,7 @@ class EmptyState(QFrame):
             w = self.recent_list.takeAt(0).widget()
             w.deleteLater()
         for p in self._recent:
-            row = RecentProject(p)
+            row = RecentProject(self._themes, p)
             row.clicked.connect(self.recentClicked)
             self.recent_list.addWidget(row)
         self.recent_box.setVisible(self.recent_list.count() > 0)
@@ -119,5 +120,5 @@ class EmptyState(QFrame):
         )
 
     def refresh_icons(self):
-        self.icon.setPixmap(theme.logo_pixmap(104))
+        self.icon.setPixmap(self._themes.logo_pixmap(104))
         self.set_recent(getattr(self, "_recent", []))  # (in the new theme's colors)

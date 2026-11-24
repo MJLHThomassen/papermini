@@ -21,6 +21,7 @@ from ..fields.choice_field import ChoiceField
 from ..fields.field import Field
 from ..fields.field_factory import FieldFactory, FieldMaker
 from ..preferences import Preferences
+from ..theme_service import ThemeService
 from .section import Section
 
 
@@ -54,13 +55,14 @@ class SheetPanel(QScrollArea):
         "mat": partial(ChoiceField, none="Any size"),
     }
 
-    def __init__(self, prefs: Preferences, parent=None):
+    def __init__(self, prefs: Preferences, themes: ThemeService, parent=None):
         super().__init__(parent)
         self._prefs = prefs
+        self._themes = themes
         self.setObjectName("SheetPanel")
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._factory = FieldFactory(self.SPECIAL_FIELDS)
+        self._factory = FieldFactory(self.SPECIAL_FIELDS, themes)
         self._fields: dict[str, Field] = {}
         self._rows: dict[QWidget, QFormLayout] = {}  # widget -> its form, to hide rows
         self._s = SheetSettings()
@@ -112,7 +114,7 @@ class SheetPanel(QScrollArea):
         options = SheetSettings.options()
         labels = []
         for heading, names in self.SECTIONS:
-            box = Section(self._prefs, heading)
+            box = Section(self._prefs, self._themes, heading)
             for name in names:
                 field = self._factory.build(name, options[name], self._emit)
                 self._fields[name] = field

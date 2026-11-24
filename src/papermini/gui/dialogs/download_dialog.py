@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from ...support.cache_folder import CacheFolder
-from .model_info import MB, _host, _label, licence_link, ui_log
+from .model_info import MB, ModelInfo, ui_log
 
 
 class _Signals(QObject):
@@ -61,17 +61,17 @@ class DownloadDialog(QDialog):
         v.setSizeConstraint(QLayout.SetFixedSize)  # as tall as the content, no gaps
         v.setContentsMargins(22, 20, 22, 18)
         v.setSpacing(10)
-        self.title = _label(name="DialogTitle", wrap=False)
+        self.title = ModelInfo.label(name="DialogTitle", wrap=False)
         v.addWidget(self.title)
         folder = html.escape(str(CacheFolder.path()))
         restricted = SegmenterRegistry.non_commercial(
             model
         )  # (its licence gets a box of its own)
-        self.body = _label(
+        self.body = ModelInfo.label(
             f"papermini uses <b>{html.escape(spec['title'])}</b> to separate the figure from "
             f"the background. It is downloaded once (about {spec['mb']} MB) from "
-            f"{html.escape(_host(model))} and kept in<br><code>{folder}</code>"
-            + ("" if restricted else f"<br><br>{licence_link(model)}"),
+            f"{html.escape(ModelInfo.host(model))} and kept in<br><code>{folder}</code>"
+            + ("" if restricted else f"<br><br>{ModelInfo.licence_link(model)}"),
             "Muted",
         )
         self.body.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -81,7 +81,7 @@ class DownloadDialog(QDialog):
         if restricted:
             ask = True  # (also from Models and cache: the licence must be accepted)
             rest = SegmenterRegistry.licence_notice(model).split(". ", 1)[1]
-            note = _label(
+            note = ModelInfo.label(
                 f'<b>Licence: <a href="{html.escape(spec["licence_url"])}">'
                 f"non-commercial use only</a>.</b> {html.escape(rest)}",
                 "LicenceBox",
@@ -98,7 +98,7 @@ class DownloadDialog(QDialog):
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(8)
-        self.status = _label("", "Hint")
+        self.status = ModelInfo.label("", "Hint")
         v.addSpacing(4)
         v.addWidget(self.bar)
         v.addWidget(self.status)

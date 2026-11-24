@@ -192,6 +192,58 @@ def logs(updates):
 
 
 @pytest.fixture
+def themes(app):
+    """Returns the service that applies the light and dark themes and draws the
+    icons."""
+    from papermini.gui.theme_service import ThemeService
+
+    return ThemeService()
+
+
+@pytest.fixture
+def qt_fonts(fonts):
+    """Returns the service that finds the Qt font family of each of the ``fonts``
+    fixture's fonts."""
+    from papermini.gui.views.qt_fonts import QtFonts
+
+    return QtFonts(fonts)
+
+
+@pytest.fixture
+def qt_images(app):
+    """Returns the service that loads and converts images for Qt."""
+    from papermini.gui.views.qt_images import QtImages
+
+    return QtImages()
+
+
+@pytest.fixture
+def minis(fonts, qt_fonts, themes, qt_images):
+    """Returns the service that draws miniatures in a scene, with the services of the
+    fixtures."""
+    from papermini.gui.views.mini_renderer import MiniRenderer
+
+    return MiniRenderer(fonts, qt_fonts, themes, qt_images)
+
+
+@pytest.fixture
+def sheets(minis):
+    """Returns the service that draws and prints the sheet, with the ``minis``
+    fixture's renderer."""
+    from papermini.gui.views.sheet_renderer import SheetRenderer
+
+    return SheetRenderer(minis)
+
+
+@pytest.fixture
+def problems(logs):
+    """Returns the service that reports problems from the ``logs`` fixture's log."""
+    from papermini.gui.problem_reporter import ProblemReporter
+
+    return ProblemReporter(logs)
+
+
+@pytest.fixture
 def size_calculator():
     """Returns the service that calculates size tables and figure sizes."""
     from papermini.project.size_calculator import SizeCalculator
@@ -219,6 +271,12 @@ def new_window(
     images_from_web,
     updates,
     logs,
+    themes,
+    qt_fonts,
+    qt_images,
+    minis,
+    sheets,
+    problems,
 ):
     """Returns ``new_window(pipeline)``, which opens a main window with the ``prefs``
     preferences, the services of the fixtures and ``pipeline``, by default the
@@ -245,6 +303,12 @@ def new_window(
                 images_from_web,
                 updates,
                 logs,
+                themes,
+                qt_fonts,
+                qt_images,
+                minis,
+                sheets,
+                problems,
             )
         )
         return made[-1]

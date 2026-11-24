@@ -5,7 +5,7 @@ import html
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel
 
-from .. import theme
+from ..theme_service import ThemeService
 
 
 class RecentProject(QLabel):
@@ -15,8 +15,9 @@ class RecentProject(QLabel):
 
     clicked = Signal(str)  # the project's path
 
-    def __init__(self, path, parent=None):
+    def __init__(self, themes: ThemeService, path, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.path = path
         self._hover = False
         self.setTextFormat(Qt.RichText)
@@ -27,7 +28,7 @@ class RecentProject(QLabel):
 
     def _show(self, hover: bool) -> None:
         self._hover = hover
-        t = theme.current
+        t = self._themes.current
         fm = self.fontMetrics()
         room = self.width() - fm.horizontalAdvance(self.path.name + "\u00a0\u00a0") - 8
         folder = fm.elidedText(str(self.path.parent), Qt.ElideMiddle, max(40, room))

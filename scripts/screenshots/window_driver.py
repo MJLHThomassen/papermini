@@ -4,7 +4,6 @@ from dataclasses import replace
 
 from PySide6.QtCore import Qt
 
-from papermini.gui import theme
 from papermini.gui.preferences import Preferences
 from papermini.gui.step import Step
 from papermini.gui.window.main_window import MainWindow
@@ -25,7 +24,7 @@ class WindowDriver:
         """Open the project in a window with the theme ``mode``, once every figure is
         built."""
         ctx = self._ctx
-        theme.apply(ctx.app, mode)
+        ctx.themes.apply(ctx.app, mode)
         w = MainWindow(
             Preferences(),
             ctx.project_store,
@@ -37,6 +36,12 @@ class WindowDriver:
             ctx.images_from_web,
             ctx.updates,
             ctx.logs,
+            ctx.themes,
+            ctx.qt_fonts,
+            ctx.images,
+            ctx.minis,
+            ctx.sheets,
+            ctx.problems,
         )
         w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
         w.resize(*size)

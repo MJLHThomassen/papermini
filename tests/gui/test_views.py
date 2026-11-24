@@ -15,7 +15,7 @@ from papermini.project.figure_settings import FigureSettings
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_a_crop_box_is_drawn_resized_moved_and_cleared(app):
+def test_a_crop_box_is_drawn_resized_moved_and_cleared(app, themes):
     """Draw a crop box, then resize it by a corner handle, move it, and clear it."""
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QImage
@@ -23,7 +23,7 @@ def test_a_crop_box_is_drawn_resized_moved_and_cleared(app):
 
     from papermini.gui.views.crop_view import CropView
 
-    v = CropView()
+    v = CropView(themes)
     v.resize(600, 600)
     img = QImage(1000, 1000, QImage.Format_RGB888)
     img.fill(Qt.white)
@@ -76,23 +76,22 @@ def test_a_crop_box_is_drawn_resized_moved_and_cleared(app):
     v.close()
 
 
-def test_the_paper_has_no_graphics_effect(app):
+def test_the_paper_has_no_graphics_effect(app, minis):
     """Regression: QGraphicsDropShadowEffect re-rendered the whole paper at the current
     zoom on every repaint, so the canvas took seconds per frame when zoomed in far."""
     from PySide6.QtCore import QRectF
     from PySide6.QtWidgets import QGraphicsScene
 
-    from papermini.gui.views.drawing import _paper
     from papermini.gui.views.paper_item import PaperItem
 
     sc = QGraphicsScene()
-    item = _paper(sc, QRectF(0, 0, 50, 70))
+    item = minis.add_paper(sc, QRectF(0, 0, 50, 70))
     assert isinstance(item, PaperItem)
     assert all(it.graphicsEffect() is None for it in sc.items())
     assert item.boundingRect().contains(QRectF(-1, -1, 52, 72))  # room for the shadow
 
 
-def test_the_source_image_lies_on_shadowed_paper(app):
+def test_the_source_image_lies_on_shadowed_paper(app, themes):
     """The Source view shows the image on the same shadowed paper as the Miniature
     and Print sheet views (painted by the item, not a graphics effect)."""
     from PySide6.QtCore import QRectF
@@ -101,7 +100,7 @@ def test_the_source_image_lies_on_shadowed_paper(app):
     from papermini.gui.views.crop_view import CropView
     from papermini.gui.views.paper_item import PaperItem
 
-    v = CropView()
+    v = CropView(themes)
     img = QImage(400, 300, QImage.Format_RGB32)
     img.fill(0x808080)
     v.set_image(img)
@@ -114,25 +113,24 @@ def test_the_source_image_lies_on_shadowed_paper(app):
     assert not v.scene().items()
 
 
-def test_source_view_shows_a_large_high_dpi_scan(app, tmp_path):
+def test_source_view_shows_a_large_high_dpi_scan(app, tmp_path, themes, qt_images):
     """A scan too large for Qt's default image reading limit shows in the Source
     view. The reader refused it, and the view stayed empty."""
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QColor
 
     from papermini.gui.views.crop_view import CropView
-    from papermini.gui.views.images import load_qimage
 
     side = 8200  # read as 4 bytes per pixel: just over Qt's default 256 MB limit
     assert side * side * 4 > 256 * 2**20
     Image.new("RGB", (side, side), (200, 40, 40)).save(
         tmp_path / "scan.png", dpi=(1200, 1200)
     )
-    v = CropView()
+    v = CropView(themes)
     v.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     v.resize(500, 400)
     v.show()
-    v.set_image(load_qimage(tmp_path / "scan.png"))
+    v.set_image(qt_images.load(tmp_path / "scan.png"))
     app.processEvents()
     v.fit()
     assert v.picture_size() == (side, side)
@@ -141,11 +139,10 @@ def test_source_view_shows_a_large_high_dpi_scan(app, tmp_path):
 
 
 def test_source_view_shows_the_detected_outline(
-    app, tmp_path, new_window, wait, crop_view_marks
+    app, tmp_path, new_window, wait, crop_view_marks, qt_images
 ):
     """Step 1 shows what background removal found, without the margin and tab of the
     miniature, and forgets it when another image is shown."""
-    from papermini.gui.views.images import load_qimage
 
     im = np.full((900, 700, 3), 255, np.uint8)
     cv2.ellipse(im, (350, 450), (200, 300), 0, 0, 360, (60, 60, 60), -1)
@@ -178,17 +175,17 @@ def test_source_view_shows_the_detected_outline(
     cv.set_busy(True)  # a model runs: dimmed, no outline
     assert len(crop_view_marks(cv)) == 1
     cv.set_busy(False)
-    cv.set_image(load_qimage(tmp_path / "b.png"))  # another image: no stale outline
+    cv.set_image(qt_images.load(tmp_path / "b.png"))  # another image: no stale outline
     assert crop_view_marks(cv) == []
 
 
-def _crop_view(app, size=(400, 300)):
+def _crop_view(app, themes, size=(400, 300)):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QImage
 
     from papermini.gui.views.crop_view import CropView
 
-    v = CropView()
+    v = CropView(themes)
     v.setAttribute(Qt.WA_DontShowOnScreen)
     v.resize(500, 400)
     v.show()
@@ -224,15 +221,15 @@ def _mouse(v, kind, scene_pt, button=None):
     }[kind](ev)
 
 
-def test_crop_view_hint_can_be_turned_off(app):
-    v = _crop_view(app)
+def test_crop_view_hint_can_be_turned_off(app, themes):
+    v = _crop_view(app, themes)
     v.set_hint_enabled(False)
     assert not v.show_hint()
     v.set_hint_enabled(True)
     assert v.show_hint()
 
 
-def test_crop_view_gives_the_image_in_the_original_pixels(app):
+def test_crop_view_gives_the_image_in_the_original_pixels(app, themes):
     """The image's rectangle is in the original's pixels, also for a smaller preview,
     and empty without an image."""
     from PySide6.QtCore import QRectF
@@ -240,19 +237,19 @@ def test_crop_view_gives_the_image_in_the_original_pixels(app):
 
     from papermini.gui.views.crop_view import CropView
 
-    assert CropView().image_rect().isEmpty()
-    v = _crop_view(app)
+    assert CropView(themes).image_rect().isEmpty()
+    v = _crop_view(app, themes)
     assert v.image_rect() == QRectF(0, 0, 400, 300)
     v.set_image(QImage(200, 150, QImage.Format_RGB32), size=(800, 600))
     assert v.image_rect() == QRectF(0, 0, 800, 600)
 
 
-def test_crop_view_guides_the_user(app):
+def test_crop_view_guides_the_user(app, themes):
     """Without a crop box a hint says to drag one; over the image, guide lines show
     where a new box would start; over the box, the part a drag grabs is shown."""
     from PySide6.QtCore import QRectF, Qt
 
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     cursor = lambda: v.viewport().cursor().shape()
     assert v.show_hint()  # no box yet: say how...
     img = QRectF(v.mapFromScene(v.sceneRect()).boundingRect())
@@ -272,17 +269,17 @@ def test_crop_view_guides_the_user(app):
     assert cursor() == Qt.CursorShape.SizeFDiagCursor  # on a corner handle
     lit = v.grab().toImage()
     v.leaveEvent(None)
-    untouched = _crop_view(app)
+    untouched = _crop_view(app, themes)
     untouched.set_crop([0.25, 0.25, 0.75, 0.75])
     left = v.grab().toImage()
     assert left != lit and left == untouched.grab().toImage()  # nothing lit any more
     untouched.close()
 
 
-def test_a_click_on_the_crop_view_changes_nothing(app):
+def test_a_click_on_the_crop_view_changes_nothing(app, themes):
     """A click (or a press that barely moves) never draws, moves or clears a box, so it
     never starts a model run by accident; a real drag does."""
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     got = []
     v.cropChanged.connect(got.append)
     _mouse(v, "press", (200, 150))
@@ -318,12 +315,12 @@ HANDLES = {
 
 
 @pytest.mark.parametrize("handle", list(HANDLES))
-def test_each_crop_handle_shows_its_cursor_and_resizes_its_sides(app, handle):
+def test_each_crop_handle_shows_its_cursor_and_resizes_its_sides(app, handle, themes):
     """A handle moves only its own sides of the crop box; the others stay put."""
     from PySide6.QtCore import Qt
 
     (x, y), cursor, (left, top, right, bottom) = HANDLES[handle]
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     got = []
     v.cropChanged.connect(got.append)
     v.set_crop([0.25, 0.25, 0.75, 0.75])
@@ -341,9 +338,9 @@ def test_each_crop_handle_shows_its_cursor_and_resizes_its_sides(app, handle):
     )
 
 
-def test_dragging_a_crop_handle_past_the_opposite_side_flips_the_box(app):
+def test_dragging_a_crop_handle_past_the_opposite_side_flips_the_box(app, themes):
     """The left handle dragged past the right side makes that side the left one."""
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     got = []
     v.cropChanged.connect(got.append)
     v.set_crop([0.25, 0.25, 0.75, 0.75])
@@ -372,12 +369,12 @@ def _middle(v, kind, view_pt):
         )
 
 
-def test_the_middle_button_pans_the_crop_view(app):
+def test_the_middle_button_pans_the_crop_view(app, themes):
     """Dragging with the middle button scrolls the image with the mouse and leaves
     the crop box alone; the hand cursor shows while it pans."""
     from PySide6.QtCore import QPoint, Qt
 
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     v.set_crop([0.25, 0.25, 0.75, 0.75])
     box = v.crop_box()
     got = []
@@ -418,10 +415,10 @@ def _wheel(v, steps):
     v.wheelEvent(ev)
 
 
-def test_zoom_buttons_zoom_around_the_middle_of_the_view(app):
+def test_zoom_buttons_zoom_around_the_middle_of_the_view(app, themes):
     """Zooming in or out scales the view by the factor given, keeps the point in the
     middle of the view in place, and reports the zoom."""
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     zooms = []
     v.zoomChanged.connect(zooms.append)
     v.zoom_by(3)
@@ -437,9 +434,9 @@ def test_zoom_buttons_zoom_around_the_middle_of_the_view(app):
     assert v.zoom() == pytest.approx(z, rel=1e-6)
 
 
-def test_the_mouse_wheel_zooms_by_a_fifth_per_notch(app):
+def test_the_mouse_wheel_zooms_by_a_fifth_per_notch(app, themes):
     """Each notch of the wheel zooms in or out by a factor of 1.2."""
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     zooms = []
     v.zoomChanged.connect(zooms.append)
     z = v.zoom()
@@ -453,10 +450,10 @@ def test_the_mouse_wheel_zooms_by_a_fifth_per_notch(app):
 
 
 @pytest.mark.parametrize("by_wheel", [False, True], ids=["buttons", "wheel"])
-def test_zooming_stops_at_its_limits(app, by_wheel):
+def test_zooming_stops_at_its_limits(app, by_wheel, themes):
     """Zooming never goes past 400 screen pixels per scene unit, nor below 0.05,
     but still reports the zoom."""
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     zooms = []
     v.zoomChanged.connect(zooms.append)
     zoom_in = (lambda: _wheel(v, 4)) if by_wheel else (lambda: v.zoom_by(2))
@@ -472,12 +469,12 @@ def test_zooming_stops_at_its_limits(app, by_wheel):
     assert len(zooms) == 90
 
 
-def test_fit_shows_the_whole_image_in_the_middle_of_the_view(app):
+def test_fit_shows_the_whole_image_in_the_middle_of_the_view(app, themes):
     """Fit zooms back to where the whole image shows, centred, with room around it;
     actual size shows one scene unit as one millimetre of the screen."""
     from PySide6.QtCore import QRectF
 
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     fitted = v.zoom()
     zooms = []
     v.zoomChanged.connect(zooms.append)
@@ -498,10 +495,10 @@ def test_fit_shows_the_whole_image_in_the_middle_of_the_view(app):
     assert v.zoom() == pytest.approx(1.0) and zooms[-1] == pytest.approx(1.0)
 
 
-def test_the_view_refits_on_resize_until_it_is_zoomed(app):
+def test_the_view_refits_on_resize_until_it_is_zoomed(app, themes):
     """A resized view fits the image again, until the user zooms;
     ``refit_on_next_show`` makes it fit on resize again."""
-    v = _crop_view(app)
+    v = _crop_view(app, themes)
     v.resize(700, 600)
     app.processEvents()
     big = v.zoom()

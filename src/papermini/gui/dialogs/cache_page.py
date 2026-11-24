@@ -22,23 +22,7 @@ from ...support.image_fetcher import ImageFetcher
 from .cache_card import CacheCard
 from .download_dialog import DownloadDialog
 from .model_card import ModelCard
-from .model_info import MB, _label, ui_log
-
-
-def _size(files) -> str:
-    """The total size of ``files``, in MB (with a decimal below 10 MB)."""
-    total = 0
-    for f in files:
-        try:
-            total += f.stat().st_size
-        except OSError:
-            pass
-    mb = total / MB
-    return f"{mb:.1f} MB" if mb < 10 else f"{mb:.0f} MB"
-
-
-def _count(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
+from .model_info import MB, ModelInfo, ui_log
 
 
 class CachePage(QWidget):
@@ -77,8 +61,8 @@ class CachePage(QWidget):
         v.setContentsMargins(0, 0, 12, 6)  # (room for the scroll bar)
         v.setSpacing(10)
 
-        v.addWidget(_label("Models and cache", "DialogTitle", wrap=False))
-        about = _label(
+        v.addWidget(ModelInfo.label("Models and cache", "DialogTitle", wrap=False))
+        about = ModelInfo.label(
             "papermini keeps its downloaded models and other cached files in "
             "one folder.",
             "Muted",
@@ -86,7 +70,7 @@ class CachePage(QWidget):
         v.addWidget(about)
         top = QHBoxLayout()
         top.setSpacing(10)
-        self.folder = _label(html.escape(str(CacheFolder.path())), "Hint")
+        self.folder = ModelInfo.label(html.escape(str(CacheFolder.path())), "Hint")
         self.folder.setTextInteractionFlags(Qt.TextSelectableByMouse)
         btn_open = QPushButton("Open folder")
         btn_open.clicked.connect(
@@ -106,9 +90,11 @@ class CachePage(QWidget):
         v.addLayout(top)
 
         v.addSpacing(10)
-        v.addWidget(_label("Background-removal models", "PageSection", wrap=False))
         v.addWidget(
-            _label(
+            ModelInfo.label("Background-removal models", "PageSection", wrap=False)
+        )
+        v.addWidget(
+            ModelInfo.label(
                 "Models are downloaded once and kept on this computer. Delete one to free disk "
                 "space: papermini asks before downloading it again when you next use it.",
                 "Muted",
@@ -120,9 +106,9 @@ class CachePage(QWidget):
             v.addWidget(card)
 
         v.addSpacing(10)
-        v.addWidget(_label("Other cached files", "PageSection", wrap=False))
+        v.addWidget(ModelInfo.label("Other cached files", "PageSection", wrap=False))
         v.addWidget(
-            _label(
+            ModelInfo.label(
                 "papermini keeps these to open figures quickly. Clear them to "
                 "free disk space: papermini makes or downloads them again "
                 "when it needs them.",
@@ -192,14 +178,14 @@ class CachePage(QWidget):
     def refresh_cache(self):
         masks = self._masks.files()
         self.masks.show_state(
-            f"{_count(len(masks), 'mask', 'masks')} · {_size(masks)}"
+            f"{self._count(len(masks), 'mask', 'masks')} · {self._size(masks)}"
             if masks
             else "No masks",
             bool(masks),
         )
         images, kept = self._images_from_web.cached_images(), self._kept()
         text = (
-            f"{_count(len(images), 'image', 'images')} · {_size(images)}"
+            f"{self._count(len(images), 'image', 'images')} · {self._size(images)}"
             if images
             else "No images"
         )
@@ -227,7 +213,7 @@ class CachePage(QWidget):
         ok = QMessageBox.question(
             self,
             "Clear cache",
-            f"Clear the whole cache ({_size(files)})? This also deletes the downloaded "
+            f"Clear the whole cache ({self._size(files)})? This also deletes the downloaded "
             "models, not only the masks and images from links."
             "\n\npapermini asks before downloading a model again, the next time a figure "
             "needs it. Images that open figures use are kept.",
@@ -266,3 +252,19 @@ class CachePage(QWidget):
             self._images_from_web.clear_images(keep=self._kept()),
         )
         self.refresh_cache()
+
+    @staticmethod
+    def _size(files) -> str:
+        """Return the total size of ``files``, in MB (with a decimal below 10 MB)."""
+        total = 0
+        for f in files:
+            try:
+                total += f.stat().st_size
+            except OSError:
+                pass
+        mb = total / MB
+        return f"{mb:.1f} MB" if mb < 10 else f"{mb:.0f} MB"
+
+    @staticmethod
+    def _count(n: int, one: str, many: str) -> str:
+        return f"{n} {one if n == 1 else many}"

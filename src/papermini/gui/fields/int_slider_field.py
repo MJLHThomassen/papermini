@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ...project.option import Option
+from ..theme_service import ThemeService
 from .field import Field
 from .slider_field import SliderField
 
@@ -14,9 +15,12 @@ class IntSliderField(Field):
     option that is worked out automatically gets an Auto checkbox.
     """
 
-    def __init__(self, option: Option, changed: Callable[..., None]) -> None:
+    def __init__(
+        self, option: Option, changed: Callable[..., None], themes: ThemeService
+    ) -> None:
         low, high = (int(v) for v in option.widget)
         self._slider = SliderField(
+            themes,
             low,
             high,
             option.slider if option.slider is not None else high,

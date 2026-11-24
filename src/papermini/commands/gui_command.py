@@ -21,10 +21,10 @@ class GuiCommand:
         """Open the desktop app with the files ``args`` gives, and wait until it
         closes."""
         try:
-            from ..gui.app import run
+            from ..gui.app import App
         except ImportError as e:
             raise SystemExit(
                 f"The desktop app needs PySide6 ({e}). Start it from the source "
                 "folder with: uv run --all-extras papermini-gui"
             ) from None
-        return run(args.files)
+        return App().run(args.files)

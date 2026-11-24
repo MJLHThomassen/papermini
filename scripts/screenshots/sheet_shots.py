@@ -9,7 +9,6 @@ from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QGraphicsScene
 
-from papermini.gui.views.drawing import draw_sheet
 from papermini.output.sheet_layout import SheetLayout
 from papermini.pipeline.mini import Mini
 from papermini.project import sizes
@@ -128,7 +127,7 @@ class SheetShots:
     def _sheet_page(self, lay: SheetLayout, title: str) -> QPixmap:
         """Draw the first page of ``lay`` as in the app."""
         sc = QGraphicsScene()
-        draw_sheet(sc, lay, title, self._ctx.fonts)
+        self._ctx.sheets.draw(sc, lay, title)
         width, height = lay.paper
         return self._page(
             lay.paper, lambda p, r: sc.render(p, r, QRectF(0, 0, width, height))

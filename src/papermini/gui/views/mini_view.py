@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
 )
 
+from ..theme_service import ThemeService
 from .crop_handles import CropHandles
 from .crop_style import CROP_COLOR, GRAB_PX, HANDLE_CURSORS
 from .zoom_view import ZoomView
@@ -25,8 +26,8 @@ class MiniView(ZoomView):
 
     areaChanged = Signal(object)  # the token area [x0, y0, x1, y1] (fractions)
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, themes: ThemeService, parent=None):
+        super().__init__(themes, parent)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self._token = None  # the shown token's TokenInfo (None: not a token)

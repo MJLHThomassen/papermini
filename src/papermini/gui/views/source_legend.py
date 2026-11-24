@@ -4,7 +4,7 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QGridLayout, QLabel
 
-from .. import theme
+from ..theme_service import ThemeService
 from .crop_style import CROP_COLOR, WASH_ALPHA
 
 
@@ -15,8 +15,9 @@ class SourceLegend(QFrame):
 
     SW = 26  # swatch width (px)
 
-    def __init__(self, parent=None):
+    def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.setObjectName("Legend")
         g = QGridLayout(self)
         g.setContentsMargins(10, 8, 12, 8)
@@ -34,7 +35,7 @@ class SourceLegend(QFrame):
         self.refresh_theme()
 
     def refresh_theme(self):
-        t = theme.current
+        t = self._themes.current
         dpr = self.devicePixelRatioF() or 1.0
         for i, sw in enumerate(self.swatches):
             pm = QPixmap(int(self.SW * dpr), int(14 * dpr))

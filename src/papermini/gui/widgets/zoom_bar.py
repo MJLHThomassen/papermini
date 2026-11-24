@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton
 
-from .. import theme
+from ..theme_service import ThemeService
 
 
 class ZoomBar(QFrame):
@@ -14,8 +14,9 @@ class ZoomBar(QFrame):
     fit = Signal()
     actual = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.setObjectName("ZoomBar")
         h = QHBoxLayout(self)
         h.setContentsMargins(4, 3, 4, 3)
@@ -53,7 +54,7 @@ class ZoomBar(QFrame):
 
     def refresh_icons(self):
         for name, b in self.buttons.items():
-            b.setIcon(theme.icon(name, theme.current.text, 16))
+            b.setIcon(self._themes.icon(name, self._themes.current.text, 16))
 
     def set_zoom(self, z: float):
         self.label.setText(f"{z * 100:.0f}%")

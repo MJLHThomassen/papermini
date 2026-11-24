@@ -12,9 +12,8 @@ from ...output.exporter import PIECE_FORMATS
 from ...output.output import Output
 from ...output.paper_sizes import PaperSizes
 from ...output.sheet_layout import SheetLayout
-from ...support.font_library import FontLibrary
 from ..preferences import Preferences
-from ..views.drawing import print_sheet
+from ..views.sheet_renderer import SheetRenderer
 from ..window.figure import Figure
 from .export_dialogs import ExportDialogs
 from .pending_export import PendingExport
@@ -31,8 +30,8 @@ ui_log = logging.getLogger("papermini.ui")  # what the user does
 
 class ExportController(QObject):
     """Exports the figures and the sheet, and prints the sheet, each once its
-    figures are built. ``output`` packs the sheet and writes the files; the printed
-    sheet's text is in its fonts from ``fonts``."""
+    figures are built. ``output`` packs the sheet and writes the files, and ``sheets``
+    prints it."""
 
     status = Signal(str)  # a message for the status bar
     warning = Signal(str)  # a problem to show the user
@@ -43,7 +42,7 @@ class ExportController(QObject):
         window: MainWindow,
         prefs: Preferences,
         dialogs: ExportDialogs,
-        fonts: FontLibrary,
+        sheets: SheetRenderer,
         output: Output,
         printers: Callable[[], QPrinter] | None = None,
     ):
@@ -51,7 +50,7 @@ class ExportController(QObject):
         self._window = window
         self._prefs = prefs
         self._dialogs = dialogs
-        self._fonts = fonts
+        self._sheets = sheets
         self._output = output
         self._printers = printers or self._high_resolution_printer
         self._pending: PendingExport | None = None
@@ -233,7 +232,7 @@ class ExportController(QObject):
             return
         if not self._paper_matches(printer, sh, lay):
             return
-        n = print_sheet(printer, lay, sh.title, self._fonts)
+        n = self._sheets.print_sheet(printer, lay, sh.title)
         name = printer.printerName() or "the printer"
         ui_log.info("Printed %d of %d page(s) on %s", n, lay.pages, name)
         if n:

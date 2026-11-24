@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...output.cut_file_writer import CutFileWriter
-from ...project.figure_entry import safe_name
+from ...project.figure_entry import FigureEntry
 from ..preferences import Preferences
 
 
@@ -62,7 +62,7 @@ class ExportDialog(QDialog):
         holder = QWidget()
         holder.setLayout(row)
         form.addRow("Folder", holder)
-        self.name = QLineEdit(safe_name(title or "minis"))
+        self.name = QLineEdit(FigureEntry.safe_name(title or "minis"))
         form.addRow("Name", self.name)
         v.addLayout(form)
 
@@ -114,7 +114,11 @@ class ExportDialog(QDialog):
 
     # what will be written -------------------------------------------------------------
     def pdf_path(self) -> Path | None:
-        name = safe_name(self.name.text().strip()) if self.name.text().strip() else ""
+        name = (
+            FigureEntry.safe_name(self.name.text().strip())
+            if self.name.text().strip()
+            else ""
+        )
         return Path(self.folder.text().strip()) / f"{name}.pdf" if name else None
 
     def cut_paths(self) -> list[Path]:

@@ -9,7 +9,7 @@ pytest.importorskip("PySide6")
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_the_start_card_keeps_its_width(app, prefs, tmp_path):
+def test_the_start_card_keeps_its_width(app, prefs, tmp_path, themes):
     """Regression: the card was as wide as its recent projects first asked, then shrank
     once their folders were shortened."""
     from papermini.gui.widgets.empty_state import EmptyState
@@ -20,7 +20,7 @@ def test_the_start_card_keeps_its_width(app, prefs, tmp_path):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("figures: []\n")
         paths.append(p)
-    e = EmptyState()
+    e = EmptyState(themes)
     assert e.sizeHint().width() == e.maximumWidth()
     e.set_recent(paths)
     assert e.sizeHint().width() == e.maximumWidth()
@@ -133,10 +133,12 @@ def test_the_panel_layout_is_remembered(app, new_window, settings_store):
         w.close()
 
 
-def test_the_logo_is_in_the_header_the_start_card_and_the_window_icon(app, new_window):
+def test_the_logo_is_in_the_header_the_start_card_and_the_window_icon(
+    app, new_window, themes
+):
     from PySide6.QtCore import QSize
 
-    from papermini.gui import theme
+    from papermini.gui.theme_service import ThemeService
 
     def colors(pm):
         img = pm.toImage()
@@ -148,16 +150,16 @@ def test_the_logo_is_in_the_header_the_start_card_and_the_window_icon(app, new_w
         }
 
     assert (
-        theme.LOGO.is_file()
+        ThemeService.LOGO.is_file()
     )  # shipped as package data (pyproject.toml, papermini.spec)
-    pm = theme.logo_pixmap(64)
+    pm = themes.logo_pixmap(64)
     assert pm.width() == 128  # 2x for sharp rendering on high-DPI screens
     assert {"#fd3c1b", "#000d1d", "#ffffff"} <= colors(
         pm
     )  # full color, not a line icon
     assert pm.toImage().pixelColor(0, 0).alpha() == 0  # transparent around the sticker
 
-    sizes = theme.app_icon().availableSizes()
+    sizes = themes.app_icon().availableSizes()
     assert QSize(16, 16) in sizes and QSize(256, 256) in sizes
 
     w = new_window()
@@ -211,13 +213,11 @@ def test_the_header_steps_stay_centred(app, tmp_path, new_window):
         assert abs(centre - w.width() / 2) <= 2
 
 
-def test_a_theme_asks_for_the_fusion_style_by_name(app, monkeypatch):
+def test_a_theme_asks_for_the_fusion_style_by_name(app, monkeypatch, themes):
     """Applying a theme sets the Fusion style by its name, not with a style object."""
-    from papermini.gui import theme
-
     styles = []
     monkeypatch.setattr(app, "setStyle", styles.append)
     for slow in ("setStyleSheet", "setPalette"):  # (each re-styles every widget)
         monkeypatch.setattr(app, slow, lambda *_: None)
-    theme.apply(app, "light")
+    themes.apply(app, "light")
     assert styles == ["Fusion"]

@@ -18,7 +18,7 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QGuiApplication, QImage, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
-from papermini.gui.theme import LOGO
+from papermini.gui.theme_service import ThemeService
 
 SIZE = 1024
 MARGIN = 0.03  # the logo's white sticker border already gives it room
@@ -28,7 +28,7 @@ def main() -> None:
     app = QGuiApplication([])  # noqa: F841 - needed for painting
     img = QImage(SIZE, SIZE, QImage.Format_ARGB32_Premultiplied)
     img.fill(Qt.transparent)
-    r = QSvgRenderer(str(LOGO))
+    r = QSvgRenderer(str(ThemeService.LOGO))
     vb = r.viewBoxF()
     k = SIZE * (1 - 2 * MARGIN) / max(vb.width(), vb.height())
     w, h = vb.width() * k, vb.height() * k

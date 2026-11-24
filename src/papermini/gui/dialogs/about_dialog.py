@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
 from ... import __version__
 from ...support.font_library import FontLibrary
 from ...support.log_session import LogSession
-from .. import theme
+from ..problem_reporter import ProblemReporter
+from ..theme_service import ThemeService
 from ..updating.update_state import UpdateState
 
 
@@ -32,9 +33,17 @@ class AboutDialog(QDialog):
     restartRequested = Signal()
     checkRequested = Signal()
 
-    def __init__(self, logs: LogSession, parent=None):
+    def __init__(
+        self,
+        logs: LogSession,
+        themes: ThemeService,
+        problems: ProblemReporter,
+        parent=None,
+    ):
         super().__init__(parent)
         self._logs = logs
+        self._themes = themes
+        self._problems = problems
         self.setWindowTitle("About papermini")
         self.setObjectName("AboutDialog")
         v = QVBoxLayout(self)
@@ -43,7 +52,7 @@ class AboutDialog(QDialog):
         top = QHBoxLayout()
         top.setSpacing(14)
         logo = QLabel()
-        logo.setPixmap(theme.logo_pixmap(56))
+        logo.setPixmap(self._themes.logo_pixmap(56))
         logo.setAlignment(Qt.AlignTop)
         top.addWidget(logo)
         col = QVBoxLayout()
@@ -122,8 +131,6 @@ class AboutDialog(QDialog):
 
     def _log_label(self) -> QLabel:
         """Where this session's log is, as a link that opens the log folder."""
-        from ..errors import open_log_folder
-
         s = self._logs.session()
         if s is None:
             label = QLabel("papermini could not write a log this time.")
@@ -134,7 +141,7 @@ class AboutDialog(QDialog):
                 f"<span style='font-size:small'>{html.escape(s.log.name)}</span>"
             )
             label.setTextFormat(Qt.RichText)
-            label.linkActivated.connect(lambda _: open_log_folder(self._logs))
+            label.linkActivated.connect(lambda _: self._problems.open_log_folder())
             label.setToolTip("Open the log folder")
         label.setWordWrap(True)
         label.setFixedWidth(400)

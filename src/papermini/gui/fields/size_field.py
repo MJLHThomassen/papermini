@@ -4,7 +4,7 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QGridLayout, QLabel, QToolButton, QWidget
 
 from ...project.option import Option
-from .. import theme
+from ..theme_service import ThemeService
 from .double_spin_box import DoubleSpinBox
 from .field import Field
 
@@ -25,8 +25,11 @@ class SizeField(QWidget):
         "Unlinked: set height and width separately; the figure is stretched."
     )
 
-    def __init__(self, height: Option, width: Option, parent=None):
+    def __init__(
+        self, themes: ThemeService, height: Option, width: Option, parent=None
+    ):
         super().__init__(parent)
+        self._themes = themes
         g = QGridLayout(self)
         g.setContentsMargins(0, 0, 0, 0)
         g.setHorizontalSpacing(12)
@@ -65,9 +68,9 @@ class SizeField(QWidget):
     def refresh_icons(self):
         on = self.link.isChecked()
         self.link.setIcon(
-            theme.icon(
+            self._themes.icon(
                 "link" if on else "unlink",
-                theme.current.accent if on else theme.current.muted,
+                self._themes.current.accent if on else self._themes.current.muted,
                 18,
             )
         )

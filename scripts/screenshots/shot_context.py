@@ -8,6 +8,12 @@ from pathlib import Path
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 
+from papermini.gui.problem_reporter import ProblemReporter
+from papermini.gui.theme_service import ThemeService
+from papermini.gui.views.mini_renderer import MiniRenderer
+from papermini.gui.views.qt_fonts import QtFonts
+from papermini.gui.views.qt_images import QtImages
+from papermini.gui.views.sheet_renderer import SheetRenderer
 from papermini.output.output import Output
 from papermini.pipeline.pipeline import Pipeline
 from papermini.project.figure_builder import FigureBuilder
@@ -43,6 +49,12 @@ class ShotContext:
     pipeline: Pipeline
     figure_builder: FigureBuilder
     output: Output
+    themes: ThemeService
+    qt_fonts: QtFonts
+    images: QtImages
+    minis: MiniRenderer
+    sheets: SheetRenderer
+    problems: ProblemReporter
 
     @classmethod
     def create(
@@ -54,6 +66,11 @@ class ShotContext:
         images_from_web = ImageFetcher()
         updates = UpdateService()
         pipeline = Pipeline(fonts)
+        logs = LogSession(updates)
+        themes = ThemeService()
+        qt_fonts = QtFonts(fonts)
+        images = QtImages()
+        minis = MiniRenderer(fonts, qt_fonts, themes, images)
         return cls(
             app=app,
             out=out,
@@ -63,11 +80,17 @@ class ShotContext:
             fonts=fonts,
             images_from_web=images_from_web,
             updates=updates,
-            logs=LogSession(updates),
+            logs=logs,
             project_store=ProjectStore(size_calculator, images_from_web),
             pipeline=pipeline,
             figure_builder=FigureBuilder(pipeline),
             output=Output(fonts),
+            themes=themes,
+            qt_fonts=qt_fonts,
+            images=images,
+            minis=minis,
+            sheets=SheetRenderer(minis),
+            problems=ProblemReporter(logs),
         )
 
     def settle(

@@ -10,7 +10,9 @@ pytest.importorskip("PySide6")
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
-def test_the_about_window_shows_each_update_state(app, new_window, tmp_path, logs):
+def test_the_about_window_shows_each_update_state(
+    app, new_window, tmp_path, logs, themes, problems
+):
     from papermini.gui.dialogs.about_dialog import AboutDialog
     from papermini.gui.updating.available_update import AvailableUpdate
     from papermini.gui.updating.download_progress import DownloadProgress
@@ -19,7 +21,7 @@ def test_the_about_window_shows_each_update_state(app, new_window, tmp_path, log
     from papermini.support.release import Release
 
     w = new_window()
-    d = AboutDialog(logs, w)
+    d = AboutDialog(logs, themes, problems, w)
     rel = Release("99.0.0", "")
     ready = ReadyUpdate("99.0.0", tmp_path, "")
     for state, data, text, button in (
@@ -442,7 +444,9 @@ def test_check_for_updates_is_in_the_menu_and_update_automatically_in_the_prefer
     dlg.close()
 
 
-def test_about_names_the_font_licence(app, monkeypatch, new_window, logs):
+def test_about_names_the_font_licence(
+    app, monkeypatch, new_window, logs, themes, problems
+):
     """About lists the bundled fonts and their licence, with a link to their folder."""
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import QLabel
@@ -453,7 +457,7 @@ def test_about_names_the_font_licence(app, monkeypatch, new_window, logs):
     opened = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url))
     w = new_window()
-    d = AboutDialog(logs, w)
+    d = AboutDialog(logs, themes, problems, w)
     label = next(
         lb for lb in d.findChildren(QLabel) if "Open Font License" in lb.text()
     )

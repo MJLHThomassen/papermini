@@ -66,10 +66,10 @@ def test_presets_in_the_preferences(prefs, settings_store, size_calculator):
     assert prefs.user_presets() == [] and prefs.default_table() == sizes.BUILTIN
 
 
-def test_the_builtin_preset_is_read_only(prefs, size_calculator):
+def test_the_builtin_preset_is_read_only(prefs, size_calculator, themes):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(prefs, size_calculator, sizes.BUILTIN)
+    page = SizesPage(prefs, size_calculator, themes, sizes.BUILTIN)
     assert _names(page) == [
         (
             "Standard 1-inch",
@@ -88,11 +88,11 @@ def test_the_builtin_preset_is_read_only(prefs, size_calculator):
 
 
 def test_own_presets_copy_rename_use_default_edit_delete(
-    prefs, monkeypatch, size_calculator
+    prefs, monkeypatch, size_calculator, themes
 ):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(prefs, size_calculator, sizes.BUILTIN)
+    page = SizesPage(prefs, size_calculator, themes, sizes.BUILTIN)
     page.copy_preset()
     assert _names(page)[1] == ("Standard 1-inch copy", "")
     page.grid.setValue(30)
@@ -144,12 +144,14 @@ def test_own_presets_copy_rename_use_default_edit_delete(
     assert "not on this computer" in page.status.text()
 
 
-def test_a_project_table_that_matches_no_preset(prefs, monkeypatch, size_calculator):
+def test_a_project_table_that_matches_no_preset(
+    prefs, monkeypatch, size_calculator, themes
+):
     from papermini.gui.dialogs.sizes_page import SizesPage
 
     prefs.save_user_presets([replace(size_calculator.calculate(30), name="Club")])
     changed = replace(size_calculator.calculate(28), name="Club")  # Club, changed since
-    page = SizesPage(prefs, size_calculator, changed)
+    page = SizesPage(prefs, size_calculator, themes, changed)
     assert _names(page)[-1] == (
         "This project's table",
         "Not a preset · Used in this project",
@@ -267,8 +269,8 @@ def test_the_width_warning(window, tmp_path, figure_image, size_calculator):
     assert w.panel.size_warning.isHidden()
 
 
-def test_the_other_pages(window, prefs):
-    from papermini.gui import theme
+def test_the_other_pages(window, prefs, themes):
+    from papermini.gui.theme import DARK
 
     dlg = window.preferences_dialog("appearance")
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
@@ -282,18 +284,18 @@ def test_the_other_pages(window, prefs):
     assert dlg.stack.currentIndex() == 2
     dark = next(b for b in dlg.theme_group.buttons() if b.text() == "Dark")
     dark.setChecked(True)
-    assert theme.current is theme.DARK and prefs.theme() == "dark"
+    assert themes.current is DARK and prefs.theme() == "dark"
     next(
         b for b in dlg.theme_group.buttons() if b.text() == "Follow system"
     ).setChecked(True)
     assert prefs.theme() == "system"
-    assert theme.current is theme.resolve("system")
+    assert themes.current is themes.resolve("system")
     dlg.show_page("nothing")  # (an unknown page: the first)
     assert dlg.stack.currentIndex() == 0
     dlg.close()
 
 
-def test_a_sizes_page_is_freed(prefs, size_calculator):
+def test_a_sizes_page_is_freed(prefs, size_calculator, themes):
     """Regression: a lambda connected to the preset list kept every page alive until
     Python quit, after the QApplication was gone, and Python crashed on exit."""
     import gc
@@ -301,7 +303,7 @@ def test_a_sizes_page_is_freed(prefs, size_calculator):
 
     from papermini.gui.dialogs.sizes_page import SizesPage
 
-    page = SizesPage(prefs, size_calculator, sizes.BUILTIN)
+    page = SizesPage(prefs, size_calculator, themes, sizes.BUILTIN)
     page.copy_preset()  # (the list is filled again)
     ref = weakref.ref(page)
     del page

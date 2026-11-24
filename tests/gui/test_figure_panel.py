@@ -14,12 +14,12 @@ pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
 def test_choices_show_names_and_store_setting_values(
-    fonts, app, prefs, size_calculator
+    fonts, app, prefs, size_calculator, qt_fonts, themes
 ):
     """Combo boxes show readable names but store the setting values."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     s = FigureSettings(
         tab_shape="round",
         label="",
@@ -66,14 +66,14 @@ def test_choices_show_names_and_store_setting_values(
 
 
 def test_groups_are_switched_on_and_off_in_their_header(
-    fonts, app, prefs, size_calculator
+    fonts, app, prefs, size_calculator, qt_fonts, themes
 ):
     """Back side, Tab and Label each have a checkbox at the right of their header:
     ticked = the group is on (for the tab and label too, whose settings are "no_tab"
     and an empty label); unticked, the group shows only its header."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(), "x", "x")
     heads = {s.header.text(): s for s in p.sections}
     for title, name in (
@@ -140,10 +140,12 @@ def test_settings_side_never_cuts_off_controls(app, tmp_path, new_window):
                 assert right <= p.viewport().width(), box.header.text()
 
 
-def test_a_mask_file_is_a_model_choice(fonts, app, prefs, size_calculator):
+def test_a_mask_file_is_a_model_choice(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(), "x", "x")
     assert not p.is_shown("mask")  # auto: no file field
     combo = p.field("model")
@@ -193,7 +195,7 @@ def test_the_settings_are_hidden_without_a_figure(app, tmp_path, new_window):
 
 
 def test_the_image_adjustments_follow_greyscale_and_reset_together(
-    fonts, app, prefs, size_calculator
+    fonts, app, prefs, size_calculator, qt_fonts, themes
 ):
     """Step 1 has color sliders; greyscale hides saturation and hue (nothing to turn);
     Reset puts all of them back in one change, and is off while there is nothing to reset."""
@@ -201,7 +203,7 @@ def test_the_image_adjustments_follow_greyscale_and_reset_together(
 
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(), "x", "x")
     p.set_step(Step.SOURCE)
     box = next(b for b in p.sections if b.header.text() == "Image adjustments")
@@ -275,12 +277,14 @@ def test_the_settings_follow_the_step(app, tmp_path, new_window):
     assert b.entry.settings.copies == 1  # copies stay per figure
 
 
-def test_strength_and_gap_filling_are_sliders(fonts, app, prefs, size_calculator):
+def test_strength_and_gap_filling_are_sliders(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
     """Strength and gap filling are sliders with a number box; gap filling has an
     Auto checkbox (it used to be a spin box where 0 meant auto, so 0 = off was impossible)."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(strength=60, fill_gaps=None), "x", "x")
     th, cl = p.field("strength"), p.field("fill_gaps")
     assert th.slider.value() == th.spin.value() == 60 and th.auto is None
@@ -310,10 +314,12 @@ def test_strength_and_gap_filling_are_sliders(fonts, app, prefs, size_calculator
     )
 
 
-def test_number_fields_follow_the_back_side(fonts, app, prefs, size_calculator):
+def test_number_fields_follow_the_back_side(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
     from papermini.gui.panels.figure_panel import FigurePanel
 
-    p = FigurePanel(prefs, size_calculator, fonts)
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(
         FigureSettings(double_sided=True, back="number", tab_front="number"), "x", "x"
     )

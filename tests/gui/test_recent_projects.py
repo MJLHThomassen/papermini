@@ -104,13 +104,13 @@ def test_a_recent_project_that_is_gone_warns(window, tmp_path, monkeypatch):
     assert warned and "is no longer there" in warned[0]
 
 
-def test_a_start_screen_row_opens_from_anywhere_on_it(app, tmp_path):
+def test_a_start_screen_row_opens_from_anywhere_on_it(app, tmp_path, themes):
     """Regression: only the name was a link, and a path with & (D&D) came back as
     &amp; and was not found."""
     from papermini.gui.widgets.empty_state import EmptyState
 
     paths = _projects(tmp_path, *[f"D&D/p{i}.yaml" for i in range(7)])
-    e = EmptyState()
+    e = EmptyState(themes)
     e.resize(460, 700)
     e.set_recent(paths)
     assert e.recent_list.count() == EmptyState.RECENT_SHOWN

@@ -1,5 +1,3 @@
-"""Shared labels and texts for the model dialogs."""
-
 from __future__ import annotations
 
 import html
@@ -15,27 +13,35 @@ ui_log = logging.getLogger("papermini.ui")
 MB = 1024 * 1024
 
 
-def _host(model: str) -> str:
-    return (
-        urllib.parse.urlsplit(segment.ONNX_MODELS[model]["url"]).hostname
-        or "the internet"
-    )
+class ModelInfo:
+    """Makes the labels and texts that the model dialogs share."""
 
+    @staticmethod
+    def host(model: str) -> str:
+        """Return the name of the host that ``model`` downloads from."""
+        return (
+            urllib.parse.urlsplit(segment.ONNX_MODELS[model]["url"]).hostname
+            or "the internet"
+        )
 
-def _label(text: str = "", name: str = "", wrap: bool = True) -> QLabel:
-    lab = QLabel(text)
-    if name:
-        lab.setObjectName(name)
-    lab.setWordWrap(wrap)
-    lab.setTextFormat(Qt.RichText)
-    lab.setOpenExternalLinks(True)  # links open in the browser
-    return lab
+    @staticmethod
+    def label(text: str = "", name: str = "", wrap: bool = True) -> QLabel:
+        """Return a rich-text label whose links open in the browser, with the object
+        name ``name``."""
+        lab = QLabel(text)
+        if name:
+            lab.setObjectName(name)
+        lab.setWordWrap(wrap)
+        lab.setTextFormat(Qt.RichText)
+        lab.setOpenExternalLinks(True)
+        return lab
 
-
-def licence_link(model: str) -> str:
-    """ "Licence: <name>" with the name linking to the licence (rich text)."""
-    spec = segment.ONNX_MODELS[model]
-    return (
-        f'Licence: <a href="{html.escape(spec["licence_url"])}">'
-        f"{html.escape(spec['licence'])}</a>"
-    )
+    @staticmethod
+    def licence_link(model: str) -> str:
+        """Return the licence of ``model`` as rich text, its name linked to the
+        licence."""
+        spec = segment.ONNX_MODELS[model]
+        return (
+            f'Licence: <a href="{html.escape(spec["licence_url"])}">'
+            f"{html.escape(spec['licence'])}</a>"
+        )

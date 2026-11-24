@@ -121,7 +121,7 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     run again and the outline stays."""
     from PySide6.QtWidgets import QGraphicsPixmapItem
 
-    from papermini.gui.views.images import PREVIEW_PX
+    from papermini.gui.views.qt_images import QtImages
     from papermini.pipeline.pipeline import Pipeline
 
     im = np.full((2400, 1800, 3), 255, np.uint8)  # larger than a preview
@@ -144,7 +144,9 @@ def test_source_view_shows_the_adjusted_picture_without_running_the_model(
     outline = fig.mini.source_outline
     w.panel.changed.emit(replace(fig.entry.settings, greyscale=True))
     assert wait(lambda: fig.up_to_date and w.crop_view.picture_size() != (1800, 2400))
-    assert max(w.crop_view.picture_size()) == PREVIEW_PX  # a smaller preview...
+    assert (
+        max(w.crop_view.picture_size()) == QtImages.PREVIEW_PX
+    )  # a smaller preview...
     shown = w.crop_view.sceneRect()  # ...in the original's pixels
     assert (shown.width(), shown.height()) == (1800, 2400)
     picture = next(

@@ -8,21 +8,6 @@ from typing import Any
 import numpy as np
 
 
-def _nbytes(v: Any) -> int:
-    if isinstance(v, np.ndarray):
-        return v.nbytes
-    if isinstance(v, (tuple, list)):
-        return sum(_nbytes(x) for x in v)
-    if hasattr(v, "__dataclass_fields__"):  # e.g. a Layout
-        return sum(_nbytes(getattr(v, f)) for f in v.__dataclass_fields__)
-    if isinstance(v, (bytes, bytearray)):
-        return len(v)
-    size = getattr(v, "size", None)  # PIL image
-    if isinstance(size, tuple) and len(size) == 2:
-        return size[0] * size[1] * len(getattr(v, "getbands", lambda: "RGBA")())
-    return 64
-
-
 class LRU:
     """Least-recently-used cache bounded by an approximate byte budget."""
 
@@ -43,7 +28,7 @@ class LRU:
             return default
 
     def put(self, key: Hashable, value: Any) -> Any:
-        n = _nbytes(value)
+        n = self._nbytes(value)
         with self._lock:
             if key in self._d:
                 self._bytes -= self._d.pop(key)[1]
@@ -62,6 +47,22 @@ class LRU:
         with self._lock:
             self._d.clear()
             self._bytes = 0
+
+    @staticmethod
+    def _nbytes(v: Any) -> int:
+        """Return about how many bytes ``v`` takes."""
+        if isinstance(v, np.ndarray):
+            return v.nbytes
+        if isinstance(v, (tuple, list)):
+            return sum(LRU._nbytes(x) for x in v)
+        if hasattr(v, "__dataclass_fields__"):  # e.g. a Layout
+            return sum(LRU._nbytes(getattr(v, f)) for f in v.__dataclass_fields__)
+        if isinstance(v, (bytes, bytearray)):
+            return len(v)
+        size = getattr(v, "size", None)  # PIL image
+        if isinstance(size, tuple) and len(size) == 2:
+            return size[0] * size[1] * len(getattr(v, "getbands", lambda: "RGBA")())
+        return 64
 
 
 _MISSING = object()
