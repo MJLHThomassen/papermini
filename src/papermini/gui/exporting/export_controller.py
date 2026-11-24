@@ -155,6 +155,7 @@ class ExportController(QObject):
     def _write(self, fig: Figure, path: Path, fmt: str) -> list[Path]:
         """Write a figure as ``fmt`` ("svg", "png" or "both") at ``path``, one file per
         numbered copy."""
+        assert fig.mini is not None  # (only built figures are written)
         return self._output.exporter.pieces(
             fig.mini,
             path,

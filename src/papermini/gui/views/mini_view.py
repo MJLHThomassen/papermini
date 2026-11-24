@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainterPath, QPen, QPixmap, QTransform
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QImage, QPainterPath, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPathItem,
@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
 )
 
+from ...pipeline.token_info import TokenInfo
 from ..theme_service import ThemeService
 from .crop_handles import CropHandles
 from .crop_style import CROP_COLOR, GRAB_PX, HANDLE_CURSORS
@@ -30,17 +31,22 @@ class MiniView(ZoomView):
         super().__init__(themes, parent)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
-        self._token = None  # the shown token's TokenInfo (None: not a token)
+        self._token: TokenInfo | None = None  # the shown token (None: not a token)
         self._box: QRectF | None = None  # the figure's box, mm
-        self._box_item = None
+        self._box_item: QGraphicsRectItem | None = None
         self._handles: CropHandles | None = None
-        self._drag = None  # (part, press scene pos, box at the press)
-        self._press = None
+        # (part, press scene pos, box at the press)
+        self._drag: tuple[str, QPointF, QRectF] | None = None
+        self._press: QPoint | None = None
         self._moved = False
-        self._picture = None  # (picture, image size, figure outline, background)
-        self._preview = None  # the figure shown while dragging
+        # (picture, image size, figure outline, background)
+        self._picture: tuple[QImage, tuple[int, int], list, tuple] | None = None
+        # the figure shown while dragging: (clip, holder)
+        self._preview: tuple[QGraphicsPathItem, QGraphicsItem] | None = None
 
-    def set_token(self, info, picture=None, size=None, outline=None, fill=None) -> None:
+    def set_token(
+        self, info: TokenInfo | None, picture=None, size=None, outline=None, fill=None
+    ) -> None:
         """Show the framing of a token (its ``TokenInfo``), or none (``None``). ``picture``
         (a QImage of the image, or a smaller preview of an image of ``size``), the figure's
         ``outline`` (point arrays, image pixels) and ``fill`` (the token's background:
@@ -82,20 +88,20 @@ class MiniView(ZoomView):
 
     def _hit(self, view_pos) -> str | None:
         """The handle a drag from ``view_pos`` grabs: a corner, "move", or None (pan)."""
-        if self._box is None:
+        t = self._token
+        if self._box is None or t is None:
             return None
         for name, p in CropHandles.points(self._box, CropHandles.CORNERS).items():
             v = self.mapFromScene(p)
             if max(abs(v.x() - view_pos.x()), abs(v.y() - view_pos.y())) <= GRAB_PX:
                 return name
-        t = self._token
         s = self.mapToScene(view_pos)
         if (s.x() - t.cx) ** 2 + (s.y() - t.cy) ** 2 <= t.radius_mm**2:
             return "move"
         return None
 
-    def _dragged(self, scene_pos: QPointF) -> QRectF:
-        part, start, box0 = self._drag
+    def _dragged(self, drag: tuple[str, QPointF, QRectF], scene_pos: QPointF) -> QRectF:
+        part, start, box0 = drag
         if part == "move":
             return box0.translated(scene_pos - start)
         c = box0.center()
@@ -107,10 +113,10 @@ class MiniView(ZoomView):
     def _show_preview(self, box: QRectF) -> None:
         """The figure in ``box`` while dragging: the picture cut out along the figure's
         outline, on the token's background, inside the ring."""
-        if self._picture is None:
+        t = self._token
+        if self._picture is None or t is None:
             return
         picture, (W, H), outline, (fill, color) = self._picture
-        t = self._token
         if self._preview is None:
             circle = QPainterPath()
             circle.addEllipse(QPointF(t.cx, t.cy), t.inner_mm, t.inner_mm)
@@ -157,6 +163,7 @@ class MiniView(ZoomView):
         shown area shows it in the box the token was built with."""
         t = self._token
         b0 = self._box
+        assert t is not None and b0 is not None, "no token framing is shown"
         k = box.width() / max(b0.width(), 1e-9)
         d = (box.center().x() - b0.center().x(), box.center().y() - b0.center().y())
         c0 = (b0.center().x(), b0.center().y())
@@ -178,6 +185,7 @@ class MiniView(ZoomView):
         pos = e.position().toPoint()
         part = self._hit(pos) if e.button() == Qt.MouseButton.LeftButton else None
         if part is not None:
+            assert self._box is not None  # (only a shown box has handles)
             self._drag = (part, self.mapToScene(pos), QRectF(self._box))
             self._press, self._moved = pos, False
             e.accept()
@@ -186,12 +194,14 @@ class MiniView(ZoomView):
 
     def mouseMoveEvent(self, e):
         pos = e.position().toPoint()
-        if self._drag is not None:
+        drag = self._drag
+        if drag is not None:
             if not self._moved:  # not a drag until the mouse really moves
+                assert self._press is not None  # (set with the drag)
                 if not CropHandles.is_drag(pos - self._press):
                     return
                 self._moved = True
-            box = self._dragged(self.mapToScene(pos))
+            box = self._dragged(drag, self.mapToScene(pos))
             self._show_box(box)
             self._show_preview(box)
             return
@@ -205,11 +215,13 @@ class MiniView(ZoomView):
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton and self._drag is not None:
-            box = self._dragged(self.mapToScene(e.position().toPoint()))
+        drag = self._drag
+        if e.button() == Qt.MouseButton.LeftButton and drag is not None:
+            box = self._dragged(drag, self.mapToScene(e.position().toPoint()))
             moved = self._moved
             self._drag = None
             if not moved:  # a click: never a change
+                assert self._box is not None  # (set while dragging)
                 self._show_box(self._box)
                 return
             # (the preview stays until the rebuilt token replaces it)
@@ -220,6 +232,7 @@ class MiniView(ZoomView):
     def keyPressEvent(self, e):
         if e.key() == Qt.Key.Key_Escape and self._drag is not None:
             self._drag = None
+            assert self._box is not None  # (set while dragging)
             self._show_box(self._box)
             self._end_preview()
             return

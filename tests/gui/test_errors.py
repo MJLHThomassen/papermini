@@ -50,17 +50,24 @@ def opened(monkeypatch):
 
 
 @pytest.fixture
-def handler(app, monkeypatch, logs, problems):
-    """An installed error handler whose dialogs are recorded instead of shown."""
+def shown_dialogs(app, monkeypatch):
+    """The error dialogs that open, recorded instead of shown."""
     from papermini.gui import error_handler
 
     shown = []
     monkeypatch.setattr(
         error_handler.ErrorDialog, "exec", lambda self: shown.append(self) or 0
     )
+    return shown
+
+
+@pytest.fixture
+def handler(shown_dialogs, logs, problems):
+    """An installed error handler whose dialogs go to ``shown_dialogs``."""
+    from papermini.gui import error_handler
+
     h = error_handler.ErrorHandler(logs, problems)
     h.install()
-    h.shown_dialogs = shown
     yield h
     qInstallMessageHandler(None)
 
@@ -82,14 +89,14 @@ def _raise_later(app, message="boom"):
 
 
 def test_an_uncaught_error_is_logged_and_shown_once_and_the_app_keeps_running(
-    logs, app, handler, wait
+    logs, app, handler, shown_dialogs, wait
 ):
     logs.start()
     handler.started(None)
     for _ in range(2):  # the same error (type and place) twice
         _raise_later(app)
-    assert len(handler.shown_dialogs) == 1
-    dlg = handler.shown_dialogs[0]
+    assert len(shown_dialogs) == 1
+    dlg = shown_dialogs[0]
     assert "RuntimeError: boom" in dlg.details.toPlainText()
     text = _log_text(logs)
     assert text.count("ERROR papermini.error: Unexpected error") == 2
@@ -98,7 +105,7 @@ def test_an_uncaught_error_is_logged_and_shown_once_and_the_app_keeps_running(
     assert wait(lambda: True)  # (still running)
 
 
-def test_errors_from_threads_reach_the_dialog(logs, app, handler, wait):
+def test_errors_from_threads_reach_the_dialog(logs, app, handler, shown_dialogs, wait):
     import threading
 
     logs.start()
@@ -106,13 +113,13 @@ def test_errors_from_threads_reach_the_dialog(logs, app, handler, wait):
     t = threading.Thread(target=lambda: 1 / 0, name="worker")
     t.start()
     t.join()
-    assert wait(lambda: handler.shown_dialogs, 10)
-    assert "ZeroDivisionError" in handler.shown_dialogs[0].details.toPlainText()
+    assert wait(lambda: shown_dialogs, 10)
+    assert "ZeroDivisionError" in shown_dialogs[0].details.toPlainText()
     assert "Unexpected error in thread worker" in _log_text(logs)
 
 
 def test_an_unexpected_error_while_opening_a_project_reaches_the_dialog(
-    logs, app, handler, new_window, project_store, monkeypatch, tmp_path
+    logs, app, handler, shown_dialogs, new_window, project_store, monkeypatch, tmp_path
 ):
     from papermini.gui.window import main_window
 
@@ -131,8 +138,8 @@ def test_an_unexpected_error_while_opening_a_project_reaches_the_dialog(
     QTimer.singleShot(0, lambda: w.load(tmp_path / "p.yaml"))
     app.processEvents()
     app.processEvents()
-    assert len(handler.shown_dialogs) == 1
-    details = handler.shown_dialogs[0].details.toPlainText()
+    assert len(shown_dialogs) == 1
+    details = shown_dialogs[0].details.toPlainText()
     assert "RuntimeError: a bug in the project store" in details
     assert warned == [] and QApplication.overrideCursor() is None
 
@@ -186,7 +193,9 @@ def _folder_name(logs) -> str:
     return logs.session().log.parent.name
 
 
-def test_an_error_while_starting_offers_quit_and_exits(logs, app, handler, monkeypatch):
+def test_an_error_while_starting_offers_quit_and_exits(
+    logs, app, handler, shown_dialogs, monkeypatch
+):
     from papermini.gui import error_handler
 
     exits = []
@@ -196,7 +205,7 @@ def test_an_error_while_starting_offers_quit_and_exits(logs, app, handler, monke
         raise RuntimeError("cannot start")
     except RuntimeError:
         handler.report_exception(*sys.exc_info())
-    dlg = handler.shown_dialogs[0]
+    dlg = shown_dialogs[0]
     assert "Quit" in [b.text() for b in dlg.findChildren(type(dlg.toggle))]
     assert exits == [1]
 

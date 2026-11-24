@@ -16,7 +16,7 @@ class Slider(_WheelGuard, QSlider):
     a short vertical line, snaps to it while dragged close by, and goes back to it on a
     double-click."""
 
-    def __init__(self, themes: ThemeService, parent=None, centre=None):
+    def __init__(self, themes: ThemeService, parent=None, centre: int | None = None):
         super().__init__(Qt.Orientation.Horizontal, parent)
         self._themes = themes
         self._init_guard()
@@ -32,6 +32,7 @@ class Slider(_WheelGuard, QSlider):
             action != QSlider.SliderAction.SliderMove.value or not self.isSliderDown()
         ):  # (an int)
             return  # keys, clicks on the track and typed values are taken as they are
+        assert self.centre is not None  # (connected only with a centre)
         span = max(1, self.width() - self.handle_rect(self.minimum()).width())
         reach = SNAP_PX * (self.maximum() - self.minimum()) / span
         if abs(self.sliderPosition() - self.centre) <= reach:

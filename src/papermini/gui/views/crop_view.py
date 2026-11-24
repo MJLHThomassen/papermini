@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -13,7 +13,12 @@ from PySide6.QtGui import (
     QPixmap,
     QTransform,
 )
-from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsRectItem, QGraphicsView
+from PySide6.QtWidgets import (
+    QGraphicsPathItem,
+    QGraphicsPixmapItem,
+    QGraphicsRectItem,
+    QGraphicsView,
+)
 
 from ..theme_service import ThemeService
 from .crop_handles import CropHandles
@@ -56,12 +61,14 @@ class CropView(ZoomView):
         self.viewport().setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._img_size = None
-        self._pix_item = None  # the picture (its pixmap may be smaller)
+        # the picture (its pixmap may be smaller)
+        self._pix_item: QGraphicsPixmapItem | None = None
         self._box: QRectF | None = None  # image pixels
         self._rect_item: QGraphicsRectItem | None = None
         self._shade: QGraphicsPathItem | None = None
         self._handles: CropHandles | None = None
-        self._drag = None  # (mode, start scene pos, box at start)
+        # (mode, start scene pos, box at start)
+        self._drag: tuple[str, QPointF, QRectF | None] | None = None
         self._pan = None
         self._outline = None  # list of point arrays, image pixels
         self._outline_items: list = []
@@ -80,6 +87,7 @@ class CropView(ZoomView):
         sc = self.scene()
         sc.clear()
         self._rect_item = self._shade = None
+        self._pix_item = None
         self._handles = None
         self._outline, self._outline_items = (
             None,
@@ -110,7 +118,12 @@ class CropView(ZoomView):
     def replace_picture(self, img: QImage):
         """Show another picture of the same image (e.g. with other color adjustments),
         keeping the crop box, outline and zoom; drawn at the original's size."""
-        if self._img_size is None or img is None or img.isNull():
+        if (
+            self._img_size is None
+            or self._pix_item is None
+            or img is None
+            or img.isNull()
+        ):
             return
         self._pix_item.setPixmap(QPixmap.fromImage(img))
         W, H = self._img_size
@@ -120,7 +133,7 @@ class CropView(ZoomView):
 
     def picture_size(self):
         """Size of the picture shown (smaller than the image for an adjusted preview)."""
-        pm = self._pix_item.pixmap() if self._img_size is not None else None
+        pm = self._pix_item.pixmap() if self._pix_item is not None else None
         return None if pm is None or pm.isNull() else (pm.width(), pm.height())
 
     def image_rect(self) -> QRectF:
@@ -267,16 +280,18 @@ class CropView(ZoomView):
             return "move"
         return "new"
 
-    def _clamp_point(self, p: QPointF) -> QPointF:
-        W, H = self._img_size
+    def _clamp_point(self, p: QPointF, W: float, H: float) -> QPointF:
         return QPointF(min(max(p.x(), 0.0), W), min(max(p.y(), 0.0), H))
 
-    def _dragged_box(self, scene_pos: QPointF) -> QRectF:
-        mode, start, box0 = self._drag
+    def _dragged_box(
+        self, drag: tuple[str, QPointF, QRectF | None], scene_pos: QPointF
+    ) -> QRectF:
+        mode, start, box0 = drag
+        assert self._img_size is not None  # (a drag starts only on an image)
         W, H = self._img_size
-        p = self._clamp_point(scene_pos)
+        p = self._clamp_point(scene_pos, W, H)
         if mode == "new" or box0 is None:
-            return QRectF(self._clamp_point(start), p).normalized()
+            return QRectF(self._clamp_point(start, W, H), p).normalized()
         if mode == "move":
             r = box0.translated(scene_pos - start)
             dx = -r.left() if r.left() < 0 else (W - r.right() if r.right() > W else 0)
@@ -321,12 +336,13 @@ class CropView(ZoomView):
             )
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - d.y())
             return
-        if self._drag is not None:
+        drag = self._drag
+        if drag is not None:
             if not self._moved:  # not a drag until the mouse really moves
                 if not CropHandles.is_drag(pos - self._press):
                     return
                 self._moved = True
-            self._set_box(self._dragged_box(self.mapToScene(pos)))
+            self._set_box(self._dragged_box(drag, self.mapToScene(pos)))
             return
         if self._img_size:
             part = self._hit(pos)
@@ -349,9 +365,10 @@ class CropView(ZoomView):
             self._pan = None
             self.viewport().setCursor(Qt.CursorShape.CrossCursor)
             return
-        if e.button() == Qt.MouseButton.LeftButton and self._drag is not None:
-            r = self._dragged_box(self.mapToScene(e.position().toPoint()))
-            old = self._drag[2]
+        drag = self._drag
+        if e.button() == Qt.MouseButton.LeftButton and drag is not None:
+            r = self._dragged_box(drag, self.mapToScene(e.position().toPoint()))
+            old = drag[2]
             self._drag = None
             self.viewport().update()
             if not self._moved:  # a click: never a change (and never a model run)
@@ -407,7 +424,7 @@ class CropView(ZoomView):
         self._hint_enabled = enabled
         self.viewport().update()
 
-    def drawForeground(self, painter: QPainter, rect: QRectF):
+    def drawForeground(self, painter: QPainter, rect: QRectF | QRect):
         if self._img_size is None:
             return
         painter.save()
@@ -480,6 +497,7 @@ class CropView(ZoomView):
         return QRectF(cx - w / 2, y, w, h)
 
     def _fractions(self, r: QRectF) -> list:
+        assert self._img_size is not None  # (a box is drawn only on an image)
         W, H = self._img_size
         return [
             round(r.left() / W, 4),

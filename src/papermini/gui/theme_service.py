@@ -9,6 +9,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontDatabase,
+    QGuiApplication,
     QIcon,
     QPainter,
     QPalette,
@@ -145,7 +146,9 @@ class ThemeService:
         if mode == "light":
             return LIGHT
         app = QApplication.instance()
-        scheme = app.styleHints().colorScheme() if app else Qt.ColorScheme.Light
+        scheme = (
+            QGuiApplication.styleHints().colorScheme() if app else Qt.ColorScheme.Light
+        )
         return DARK if scheme == Qt.ColorScheme.Dark else LIGHT
 
     def apply(self, app: QApplication, mode: str = "system") -> Theme:

@@ -15,7 +15,8 @@ class Spinner(QWidget):
         self._themes = themes
         self.setFixedSize(size, size)
         self._angle = 0
-        self._timer = QTimer(self, interval=50, timeout=self._turn)
+        self._timer = QTimer(self, interval=50)
+        self._timer.timeout.connect(self._turn)
 
     def _turn(self):
         self._angle = (self._angle + 30) % 360
