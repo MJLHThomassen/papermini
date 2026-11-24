@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 
 from ..support.font_library import FontLibrary
+from ..support.read_only import ReadOnly
 from ..support.stage_caches import StageCaches
 from .adjustments import Adjustments
 from .bleed_painter import MAX_BLEED_MM, BleedPainter
@@ -24,7 +25,6 @@ from .mask_options import MaskOptions
 from .mini import Mini
 from .morphology import Morphology
 from .params import Params
-from .read_only import ReadOnly
 from .segmentation.cancellation import Cancellation
 from .segmentation.download_hooks import DownloadHooks
 from .style import Style
