@@ -1,5 +1,7 @@
 """Tests of the input widgets of the settings panels."""
 
+from dataclasses import replace
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -211,7 +213,12 @@ def test_the_model_field_lists_every_built_in_model(app, monkeypatch, themes):
     from papermini.pipeline.segmentation import segment
     from papermini.project.option import Option
 
-    spec = {"about": "A model for the test.", "commercial": True, "mb": 12}
+    spec = replace(
+        segment.ONNX_MODELS["birefnet"],
+        about="A model for the test.",
+        commercial=True,
+        mb=12,
+    )
     monkeypatch.setitem(segment.ONNX_MODELS, "test-model", spec)
     field = ModelField(Option.of(FigureSettings)["model"], lambda: None, themes)
     box = field.widget

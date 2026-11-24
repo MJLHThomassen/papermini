@@ -30,11 +30,11 @@ class ModelCard(QFrame):
         v.setSpacing(3)
         v.addWidget(
             ModelInfo.label(
-                f"<b>{html.escape(spec['title'])}</b>"
+                f"<b>{html.escape(spec.title)}</b>"
                 f"&nbsp;&nbsp;<span style='font-weight:400'>{model}</span>"
             )
         )
-        v.addWidget(ModelInfo.label(html.escape(spec["about"]), "Muted"))
+        v.addWidget(ModelInfo.label(html.escape(spec.about), "Muted"))
         restricted = SegmenterRegistry.non_commercial(model)
         self.licence = ModelInfo.label(
             ModelInfo.licence_link(model), "LicenceNote" if restricted else "Muted"
@@ -66,10 +66,10 @@ class ModelCard(QFrame):
             self.state.setText(f"Downloaded · {size:.0f} MB · {html.escape(path.name)}")
         else:
             self.state.setText(
-                f"Not downloaded · about {spec['mb']} MB from "
+                f"Not downloaded · about {spec.mb} MB from "
                 f"{html.escape(ModelInfo.host(self.model))}"
             )
         self.btn_get.setText("Download again" if have else "Download")
-        self.btn_get.setAccessibleName(f"{self.btn_get.text()} {spec['title']}")
+        self.btn_get.setAccessibleName(f"{self.btn_get.text()} {spec.title}")
         self.btn_del.setEnabled(have)
-        self.btn_del.setAccessibleName(f"Delete {spec['title']}")
+        self.btn_del.setAccessibleName(f"Delete {spec.title}")

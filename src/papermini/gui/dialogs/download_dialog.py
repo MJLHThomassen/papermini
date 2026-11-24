@@ -70,8 +70,8 @@ class DownloadDialog(QDialog):
             model
         )  # (its licence gets a box of its own)
         self.body = ModelInfo.label(
-            f"papermini uses <b>{html.escape(spec['title'])}</b> to separate the figure from "
-            f"the background. It is downloaded once (about {spec['mb']} MB) from "
+            f"papermini uses <b>{html.escape(spec.title)}</b> to separate the figure from "
+            f"the background. It is downloaded once (about {spec.mb} MB) from "
             f"{html.escape(ModelInfo.host(model))} and kept in<br><code>{folder}</code>"
             + ("" if restricted else f"<br><br>{ModelInfo.licence_link(model)}"),
             "Muted",
@@ -84,7 +84,7 @@ class DownloadDialog(QDialog):
             ask = True  # (also from Models and cache: the licence must be accepted)
             rest = SegmenterRegistry.licence_notice(model).split(". ", 1)[1]
             note = ModelInfo.label(
-                f'<b>Licence: <a href="{html.escape(spec["licence_url"])}">'
+                f'<b>Licence: <a href="{html.escape(spec.licence_url)}">'
                 f"non-commercial use only</a>.</b> {html.escape(rest)}",
                 "LicenceBox",
             )
@@ -93,7 +93,7 @@ class DownloadDialog(QDialog):
             note.setMinimumWidth(440)
             v.addWidget(note)
             self.accept_licence = QCheckBox(
-                f"I will only use {spec['title']} non-commercially"
+                f"I will only use {spec.title} non-commercially"
             )
             self.accept_licence.toggled.connect(self._sync_go)
             v.addWidget(self.accept_licence)
@@ -119,7 +119,7 @@ class DownloadDialog(QDialog):
         v.addLayout(row)
 
         if ask:
-            self.title.setText(f"Download the {html.escape(spec['title'])} model?")
+            self.title.setText(f"Download the {html.escape(spec.title)} model?")
             self.bar.hide()
             self.status.hide()
             self._sync_go()
@@ -143,12 +143,12 @@ class DownloadDialog(QDialog):
                 return
             if self.accept_licence.isEnabled():
                 ui_log.info(
-                    "Accepted that %s is for non-commercial use only", spec["title"]
+                    "Accepted that %s is for non-commercial use only", spec.title
                 )
             self.accept_licence.setEnabled(
                 False
             )  # (accepted: a retry needs no new tick)
-        self.title.setText(f"Downloading {html.escape(spec['title'])}…")
+        self.title.setText(f"Downloading {html.escape(spec.title)}…")
         self.bar.setRange(0, 0)  # busy until the size is known
         self.bar.show()
         self.status.setText("Connecting…")

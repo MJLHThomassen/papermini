@@ -20,7 +20,7 @@ class ModelInfo:
     def host(model: str) -> str:
         """Return the name of the host that ``model`` downloads from."""
         return (
-            urllib.parse.urlsplit(segment.ONNX_MODELS[model]["url"]).hostname
+            urllib.parse.urlsplit(segment.ONNX_MODELS[model].url).hostname
             or "the internet"
         )
 
@@ -42,6 +42,6 @@ class ModelInfo:
         licence."""
         spec = segment.ONNX_MODELS[model]
         return (
-            f'Licence: <a href="{html.escape(spec["licence_url"])}">'
-            f"{html.escape(spec['licence'])}</a>"
+            f'Licence: <a href="{html.escape(spec.licence_url)}">'
+            f"{html.escape(spec.licence)}</a>"
         )

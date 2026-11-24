@@ -76,6 +76,7 @@ def test_groups_are_switched_on_and_off_in_their_header(
     p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(), "x", "x")
     heads = {s.header.text(): s for s in p.sections}
+    switches = {}
     for title, name in (
         ("Back side", "double_sided"),
         ("Tab", "no_tab"),
@@ -86,10 +87,13 @@ def test_groups_are_switched_on_and_off_in_their_header(
         assert box.switch.accessibleName().startswith("Print a ")
         assert box.switch.parent() is box  # in the header row
         assert box.switch.toolTip().startswith("Print a ")
+        switches[title] = box.switch
     # a mini always has its outline and cut line: their switches are a token's only
     for title in ("Image outline", "Cut line"):
-        assert heads[title].active() and not heads[title].switch.isVisibleTo(p)
-    tab, label = heads["Tab"].switch, heads["Label"].switch
+        switch = heads[title].switch
+        assert switch is not None
+        assert heads[title].active() and not switch.isVisibleTo(p)
+    tab, label = switches["Tab"], switches["Label"]
     label.setChecked(False)
     assert p.settings().label == "" and not p.is_shown("label_size_mm")
     label.setChecked(True)
@@ -108,7 +112,7 @@ def test_groups_are_switched_on_and_off_in_their_header(
     tab.setChecked(True)  # on: open as it was
     assert not p.settings().no_tab and t.body.isVisibleTo(t) and p.is_shown("label")
     p.set_settings(FigureSettings(no_tab=True, double_sided=False, label=""), "x", "x")
-    assert not any(heads[t].switch.isChecked() for t in ("Back side", "Tab", "Label"))
+    assert not any(switch.isChecked() for switch in switches.values())
 
 
 def test_settings_side_never_cuts_off_controls(app, tmp_path, new_window):

@@ -51,10 +51,10 @@ class CachePage(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        self.scroll = QScrollArea()
-        self.scroll.setObjectName("CacheScroll")
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName("CacheScroll")
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         content.setObjectName("CacheContent")
         v = QVBoxLayout(content)
@@ -132,8 +132,8 @@ class CachePage(QWidget):
         v.addWidget(self.masks)
         v.addWidget(self.images)
         v.addStretch(1)
-        self.scroll.setWidget(content)
-        outer.addWidget(self.scroll, 1)
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area, 1)
         self.refresh_cache()
 
     def download(self, model: str):
@@ -154,8 +154,8 @@ class CachePage(QWidget):
         ok = QMessageBox.question(
             self,
             "Delete model",
-            f"Delete {spec['title']}? papermini asks to download it again "
-            f"(about {spec['mb']} MB) the next time a figure needs it.",
+            f"Delete {spec.title}? papermini asks to download it again "
+            f"(about {spec.mb} MB) the next time a figure needs it.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )

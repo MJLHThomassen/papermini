@@ -21,9 +21,9 @@ def test_birefnet_uses_imagenet_normalisation_and_sigmoid(fake_ort, tmp_path):
     seg = OnnxSegmenter(
         tmp_path / "m.onnx",
         8,
-        spec["mean"],
-        spec["std"],
-        spec["post"],
+        spec.mean,
+        spec.std,
+        spec.post,
         cancellation=Cancellation(),
     )
     logits = np.full((1, 1, 8, 8), -6.0, np.float32)
@@ -32,7 +32,7 @@ def test_birefnet_uses_imagenet_normalisation_and_sigmoid(fake_ort, tmp_path):
     mask = seg(grey(128, (16, 16)))
     x = fake_ort.seen
     assert x.shape == (1, 3, 8, 8) and x.dtype == np.float32
-    expected = (128 / 255 - np.array(spec["mean"])) / np.array(spec["std"])
+    expected = (128 / 255 - np.array(spec.mean)) / np.array(spec.std)
     assert np.allclose(x[0, :, 0, 0], expected, atol=1e-5)  # per-channel mean/std
     assert mask.shape == (16, 16)
     assert mask[8, 8] > 250 and mask[0, 0] < 5  # sigmoid, not min-max

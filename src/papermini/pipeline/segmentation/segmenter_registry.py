@@ -42,25 +42,26 @@ class SegmenterRegistry:
     @staticmethod
     def path(model: str) -> Path:
         """Return where the built-in ``model`` is (or will be) stored."""
-        return CacheFolder.path() / segment.ONNX_MODELS[model]["file"]
+        return CacheFolder.path() / segment.ONNX_MODELS[model].file
 
     @staticmethod
     def non_commercial(model: str) -> bool:
         """Tell whether the built-in ``model`` may only be used non-commercially."""
-        return not segment.ONNX_MODELS.get(model, {}).get("commercial", True)
+        spec = segment.ONNX_MODELS.get(model)
+        return spec is not None and not spec.commercial
 
     @staticmethod
     def free_models() -> list[str]:
         """Return the names of the built-in models that may be used commercially."""
-        return [m for m, s in segment.ONNX_MODELS.items() if s.get("commercial")]
+        return [m for m, s in segment.ONNX_MODELS.items() if s.commercial]
 
     @staticmethod
     def licence_notice(model: str) -> str:
         """Explain in words what a user of a non-commercial built-in ``model`` is
         responsible for."""
-        title = segment.ONNX_MODELS[model]["title"]
+        title = segment.ONNX_MODELS[model].title
         free = " or ".join(
-            segment.ONNX_MODELS[m]["title"] for m in SegmenterRegistry.free_models()
+            segment.ONNX_MODELS[m].title for m in SegmenterRegistry.free_models()
         )
         return (
             f"{title} is licensed for non-commercial use only. You are responsible for "
@@ -83,7 +84,7 @@ class SegmenterRegistry:
             if force or not existed:
                 logger.info("Downloading the %s model", model)
                 self._downloader.download(
-                    segment.ONNX_MODELS[model]["url"],
+                    segment.ONNX_MODELS[model].url,
                     path,
                     progress=progress,
                     cancel=cancel,
@@ -148,10 +149,10 @@ class SegmenterRegistry:
             logger.info("Loading the %s model", model)
             return self._make_segmenter(
                 path,
-                spec["size"],
-                spec["mean"],
-                spec["std"],
-                spec["post"],
+                spec.size,
+                spec.mean,
+                spec.std,
+                spec.post,
                 cancellation=self._cancellation,
             )
         if model.lower().endswith(".onnx"):
