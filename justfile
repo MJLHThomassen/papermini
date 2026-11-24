@@ -19,9 +19,9 @@ uv_run := "uv run --all-extras"
 default:
     @just --list
 
-# make or update the environment, with the test and build tools
-setup:
-    uv sync --all-extras --all-groups
+# make or update the environment, with the test and build tools (extra arguments go to uv sync, e.g. `just setup --no-dev`)
+setup *args:
+    uv sync --all-extras --all-groups {{ args }}
 
 # run the tests (extra arguments go to pytest, e.g. `just test -k sheet`)
 test *args:
@@ -37,11 +37,11 @@ typecheck *args:
 
 # check the code with ruff (extra arguments go to ruff, e.g. `just lint --fix`)
 lint *args:
-    uv run ruff check {{ args }}
+    uv run --only-group dev ruff check {{ args }}
 
 # format the code with ruff (extra arguments go to ruff, e.g. `just format --check`)
 format *args:
-    uv run ruff format {{ args }}
+    uv run --only-group dev ruff format {{ args }}
 
 # start the app from source (e.g. `just gui examples/dragons/dragons.yaml`)
 gui *args:
@@ -81,7 +81,11 @@ fake-update *args:
 
 # show the release notes of a version tag (e.g. `just release-notes v1.2.0`)
 release-notes *args:
-    {{ uv_run }} python scripts/release_notes.py {{ args }}
+    uv run --only-group release python scripts/release_notes.py {{ args }}
+
+# sign a release's checksum list with the key in RELEASE_SIGNING_KEY (see scripts/sign_release.py)
+sign-release *args:
+    uv run --only-group release python scripts/sign_release.py {{ args }}
 
 # make a new key pair that signs releases (see scripts/release_key.py first)
 release-key *args:

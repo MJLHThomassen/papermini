@@ -30,6 +30,12 @@ on:
 permissions:
   contents: read
 
+# The steps run the justfile's recipes, as a developer does (rule R1 of the guide).
+env:
+  JUST_VERSION: "1.59.0"  # the just release that runs the recipes, as in ci.yml
+  UV_LOCKED: "1"  # uv fails when uv.lock is out of date, instead of updating it
+  UV_PROJECT_ENVIRONMENT: .venv  # in the checkout, not the justfile's default
+
 jobs:
   version:
     name: Check version
@@ -116,6 +122,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     # builds take 1-5 minutes; Windows also builds the installer, which takes longer
     timeout-minutes: ${{ matrix.timeout || 10 }}
+    env:
+      # The Install step makes the environment the build is made from; uv run in the
+      # later steps uses it as it is.
+      UV_NO_SYNC: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -140,6 +150,10 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
       - name: Qt system libraries (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -155,13 +169,13 @@ jobs:
         run: |
           # a release run by hand is not tagged yet: give setuptools-scm its version
           if [[ -n "$NEW_VERSION" ]]; then export SETUPTOOLS_SCM_PRETEND_VERSION="$NEW_VERSION"; fi
-          uv sync --locked --extra gui --group build --no-dev --no-editable
+          just setup --no-dev --no-editable
 
       - name: Version
         id: ver
         shell: bash
         run: |
-          version=$(uv run --no-sync python -c "import papermini; print(papermini.__version__)")
+          version=$(uv run python -c "import papermini; print(papermini.__version__)")
           echo "Building papermini $version"
           if [[ "${{ needs.version.outputs.release }}" == "true" && "$version" == *dev* ]]; then
             echo "::error::Release build got a development version ($version)"
@@ -174,7 +188,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build
-        run: uv run --no-sync pyinstaller packaging/papermini.spec --noconfirm
+        run: just build
 
       - name: Smoke test
         shell: bash
@@ -193,7 +207,7 @@ jobs:
           # writers and the bundled fonts, which a missing file would break
           smoke="$RUNNER_TEMP/smoke"
           mkdir -p "$smoke"
-          uv run --no-sync python -c "
+          uv run python -c "
           import sys
           from PIL import Image, ImageDraw
           im = Image.new('RGBA', (200, 300), (0, 0, 0, 0))
@@ -219,7 +233,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           # the name installed copies look for when they update
-          archive=$(uv run --no-sync python -c \
+          archive=$(uv run python -c \
             "import sys; from papermini.support.update_service import UpdateService as U; print(U.asset_name(*sys.argv[1:]))" \
             "$NAME" "$TARGET")
           mkdir -p out
@@ -234,8 +248,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          uv run --no-sync python scripts/build_installer.py --version "${{ steps.ver.outputs.name }}" \
-            --dist dist/papermini --out out
+          just installer --version "${{ steps.ver.outputs.name }}" --dist dist/papermini --out out
           ls -l out
 
       - uses: actions/upload-artifact@v7
@@ -263,12 +276,15 @@ jobs:
         with:
           version-file: pyproject.toml
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
       - name: Release notes
         env:
           TAG: ${{ needs.version.outputs.tag || 'HEAD' }}  # (HEAD: the notes so far)
         run: |
-          uv run --locked --only-group release python scripts/release_notes.py "$TAG" \
-            --repo "$GITHUB_REPOSITORY" -o "$RUNNER_TEMP/notes.md"
+          just release-notes "$TAG" --repo "$GITHUB_REPOSITORY" -o "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
 
       - uses: actions/download-artifact@v8
@@ -284,7 +300,7 @@ jobs:
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          uv run --locked --only-group release python scripts/sign_release.py out/SHA256SUMS.txt
+          just sign-release out/SHA256SUMS.txt
 
       - name: Tag (a release run by hand)
         if: needs.version.outputs.new == 'true'

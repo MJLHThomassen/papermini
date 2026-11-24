@@ -554,6 +554,15 @@ Common tasks, such as setting up, testing, linting, running the app and
 building, each have a recipe in the `justfile`. CI and the docs use the same
 commands, so that what passes locally passes in CI.
 
+- The workflows install just and call the recipes. They don't write out uv
+  commands for a task that has a recipe.
+- Flags that only CI needs, such as ruff's output format for GitHub, go to the
+  recipe as extra arguments. When a workflow needs something a recipe can't
+  take, give the recipe arguments instead of copying its command.
+- The workflows set `UV_LOCKED`, so that uv fails when `uv.lock` is out of
+  date instead of updating it, and `UV_PROJECT_ENVIRONMENT`, so that the
+  environment is in the checkout.
+
 ### R2. CI runs every check
 
 CI runs the tests, the lint and format checks, the coverage report and the type
@@ -583,6 +592,9 @@ never installed globally; everything runs in the project's environment.
   `required-version`, run `uv self update` with the new version, then
   `uv lock` and `just test`, and commit `pyproject.toml` with `uv.lock` if it
   changed.
+- **just.** `JUST_VERSION` at the top of `.github/workflows/ci.yml` and
+  `.github/workflows/release.yml` names the just version CI installs. Change
+  both together.
 - **The build backend.** `build-constraint-dependencies` under `[tool.uv]`
   pins setuptools, setuptools-scm and the packages setuptools-scm works the
   version out with. `uv lock` records the pins in `uv.lock`. Update them
