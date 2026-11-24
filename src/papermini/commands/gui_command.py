@@ -24,6 +24,7 @@ class GuiCommand:
             from ..gui.app import run
         except ImportError as e:
             raise SystemExit(
-                f"The GUI needs PySide6: pip install 'papermini[gui]'  ({e})"
+                f"The desktop app needs PySide6 ({e}). Start it from the source "
+                "folder with: uv run --all-extras papermini-gui"
             ) from None
         return run(args.files)

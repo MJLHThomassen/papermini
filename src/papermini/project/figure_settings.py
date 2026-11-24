@@ -205,9 +205,9 @@ class FigureSettings:
         label="Shows",
         help="double-sided back: mirrored image, blank, text, the copy "
         "number (large), or text_number (the number above the text)",
-        tooltip="mirror: the drawing seen from behind; blank: plain paper; "
-        "text: plain paper with text (a name or stats); number: the copy's number,\n"
-        "large; text and number: the number above the text.",
+        tooltip="Mirrored drawing: the drawing seen from behind. Blank: plain paper.\n"
+        "Text: plain paper with text, such as a name or stats.\n"
+        "Number: the copy's number, large. Text and number: the number above the text.",
         group=_SIZE,
         choices=BACK_MODES,
         kinds=("mini",),

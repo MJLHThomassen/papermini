@@ -95,9 +95,9 @@ class SheetSettings:
         "with alignment marks, plus a cut file (NAME-cut.svg) per page",
         tooltip="By hand: the cut lines are printed on the sheet, for scissors or a "
         "knife.\n"
-        "Machine: the sheet has no cut lines but alignment marks; Export PDF also\n"
-        "writes a cut file (SVG) with the cut lines and the same marks, to line up in\n"
-        "your cutting machine's software.",
+        "Machine: the sheet has alignment marks instead of cut lines. The dialog of\n"
+        "the Export… button can also save a cut file (SVG) with the cut lines and\n"
+        "the same marks, to line up in your cutting machine's software.",
         choices=CUT_MODES,
         choice_labels=("By hand", "Machine"),
     ).field("hand")

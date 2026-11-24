@@ -354,7 +354,7 @@ class FigurePanel(QScrollArea):
             "Copies the settings shown here to every figure"
             + {
                 Step.SOURCE: ", except the crop and mask file",
-                Step.MINIATURE: ", except the label",
+                Step.MINIATURE: ", except the label and a token's Area",
             }[self._step]
         )
 
