@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import html
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from typing import Any
 
 from PySide6.QtWidgets import QCheckBox, QLabel, QWidget
@@ -25,7 +27,8 @@ class Field(ABC):
         self.switch: QCheckBox | None = None  # the switch in its section's header
         self.switch_name = ""  # the name the panel knows the switch by
         self.labels: list[QLabel] = []  # labels in its row, lined up with the form's
-        widget.setToolTip(option.tooltip)
+        self.tooltip = self._tooltip(option)  # its widget's and its labels' tooltip
+        widget.setToolTip(self.tooltip)
 
     @abstractmethod
     def value(self) -> Any:
@@ -42,6 +45,30 @@ class Field(ABC):
     def read(self) -> dict[str, Any]:
         """Return the values of the settings it edits, by name."""
         return {self.name: self.value()}
+
+    def _tooltip(self, option: Option) -> str:
+        """Return the option's tooltip, with a list of its choices when it describes
+        them."""
+        if not option.choice_details:
+            return option.tooltip
+        labels = option.choice_labels or tuple(str(c) for c in option.choices)
+        return self._choice_tooltip(
+            option.tooltip, zip(labels, option.choice_details, strict=True)
+        )
+
+    @staticmethod
+    def _choice_tooltip(intro: str, choices: Iterable[tuple[str, str]]) -> str:
+        """Return a rich-text tooltip: ``intro``, then a table of the ``choices``,
+        each a name and what it does."""
+        rows = "".join(
+            f"<tr><td style='padding-right: 8px'><b>{html.escape(name)}</b></td>"
+            f"<td>{'<br>'.join(map(html.escape, detail.splitlines()))}</td></tr>"
+            for name, detail in choices
+        )
+        return (
+            f"<p>{html.escape(intro)}</p>"
+            f"<table cellspacing='0' cellpadding='3'>{rows}</table>"
+        )
 
     @staticmethod
     def suffix(unit: str) -> str:

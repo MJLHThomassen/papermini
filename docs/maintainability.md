@@ -240,7 +240,8 @@ sync:
 - its field in `FigureSettings` (`project/figure_settings.py`) or
   `SheetSettings`, with an `Option` (`project/option.py`) that holds its
   checks, label, help, tooltip and limits, and how its field in the settings
-  panel shows it, such as its step and the names of its choices. `from_dict`
+  panel shows it, such as its step, the names of its choices and what each
+  choice does, which its tooltip lists. `from_dict`
   checks each value against its option, the settings panels build its field
   from it with `FieldFactory` (`gui/fields/field_factory.py`), and
   `FigureFlags` or `SheetFlags` (`commands/`) build its flag from it with

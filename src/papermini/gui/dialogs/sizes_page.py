@@ -135,10 +135,11 @@ class SizesPage(QWidget):
         v.setSpacing(10)
         v.addWidget(_page_title("Creature sizes"))
         intro = QLabel(
-            "Size table for D&D mini sizes, saved with this project. Click "
-            "Calculate to fill it in from your grid square and Medium height, "
-            "then change any value you need. Figures with a size are updated "
-            "when you close this window."
+            "This page holds the size tables for D&D creature sizes: the table "
+            "saved with this project, and presets you can use in any project. "
+            "Select a table to see or change it. Click Calculate to fill it in "
+            "from your grid square and Medium height, then change any value you "
+            "need. Figures with a size are updated when you close this window."
         )
         intro.setObjectName("Muted")
         intro.setWordWrap(True)

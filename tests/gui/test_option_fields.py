@@ -291,3 +291,44 @@ def test_each_sheet_field_has_a_tooltip(sheet_panel, name):
 
 
 # endregion
+
+
+# region tooltips that list the choices
+
+
+def _choice_tooltip_gaps(panel, settings: type, paths: dict[str, str]) -> dict:
+    """Return the choices whose label or detail the tooltip of their field leaves out,
+    by setting, for each setting of ``settings`` whose option describes its choices."""
+    from html import escape
+
+    from papermini.project.option import Option
+
+    gaps = {}
+    for name, option in Option.of(settings).items():
+        if not option.choice_details:
+            continue
+        tip = _widget(panel, paths[name]).toolTip()
+        missing = [
+            text
+            for pair in zip(option.choice_labels, option.choice_details, strict=True)
+            for text in pair
+            if escape(text) not in tip
+        ]
+        if missing:
+            gaps[name] = missing
+    return gaps
+
+
+def test_a_figure_fields_tooltip_lists_the_choices_its_option_describes(
+    figure_panel,
+):
+    paths = {name: path.split(".")[0] for name, (path, *_) in FIGURE_FIELDS.items()}
+    assert _choice_tooltip_gaps(figure_panel, FigureSettings, paths) == {}
+
+
+def test_a_sheet_fields_tooltip_lists_the_choices_its_option_describes(sheet_panel):
+    paths = {name: path for name, (path, *_) in SHEET_FIELDS.items()}
+    assert _choice_tooltip_gaps(sheet_panel, SheetSettings, paths) == {}
+
+
+# endregion

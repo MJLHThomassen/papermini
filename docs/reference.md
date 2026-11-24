@@ -105,8 +105,8 @@ the desktop app in depth, and how the pipeline works.
   into them, so scrolling the panel never edits values. Decimals use a point
   (`1.6`) whatever your system's language; a typed comma becomes a point.
   The *Apply … to all figures* button copies the settings of the step you are
-  on to every other figure, except the crop, mask file, label, a token's *Area*
-  and amount.
+  on to every other figure. It leaves out the crop and the mask file in
+  1 Source, and the label and a token's *Area* in 2 Miniature.
 - **1 Source.** The original image with the outline that background removal
   found, before any margin or tab (those belong to the miniature). Everything
   outside the outline is faded, so you can spot a clipped sword tip or a

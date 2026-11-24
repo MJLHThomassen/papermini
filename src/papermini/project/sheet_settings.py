@@ -54,10 +54,13 @@ class SheetSettings:
     orientation: str = Option(
         label="Orientation",
         help="portrait or landscape, for a named paper size",
-        tooltip="Portrait: the page upright. Landscape: the page on its side, for wide\n"
-        "figures and rows.",
+        tooltip="Which way the page is turned.",
         choices=PaperSizes.ORIENTATIONS,
         choice_labels=("Portrait", "Landscape"),
+        choice_details=(
+            "The page upright.",
+            "The page on its side, for wide figures and rows.",
+        ),
     ).field("portrait")
     copies: int = Option(
         help="copies of each figure",
@@ -93,13 +96,18 @@ class SheetSettings:
         label="Cut by",
         help="hand: cut lines on the sheet; machine: a sheet without cut lines but "
         "with alignment marks, plus a cut file (NAME-cut.svg) per page",
-        tooltip="By hand: the cut lines are printed on the sheet, for scissors or a "
-        "knife.\n"
-        "Machine: the sheet has no cut lines but alignment marks; Export PDF also\n"
-        "writes a cut file (SVG) with the cut lines and the same marks, to line up in\n"
-        "your cutting machine's software.",
+        tooltip="How you cut out the pieces.",
         choices=CUT_MODES,
         choice_labels=("By hand", "Machine"),
+        choice_details=(
+            "The cut lines are printed on the sheet, for scissors or a knife.",
+            (
+                "The sheet has alignment marks instead of cut lines. The dialog of "
+                "the Export… button can also save a cut file (SVG) with the cut "
+                "lines and the same marks, to line up in your cutting machine's "
+                "software."
+            ),
+        ),
     ).field("hand")
     bleed_mm: float = Option(
         label="Bleed",
@@ -118,13 +126,17 @@ class SheetSettings:
         label="Marks",
         help="--cut machine: alignment marks: corners, Silhouette Studio's "
         "Type 1, or none",
-        tooltip="Corners: an L in each corner and a small square top-left.\n"
-        "Silhouette: Silhouette Studio's Type 1 marks (a square top-left, an L "
-        "top-right\n"
-        "and bottom-left; length 20 mm, thickness 0.5 mm, inset = the margin).\n"
-        "None: no marks; line up the cut file with the page edges.",
+        tooltip="The alignment marks on a sheet cut by machine.",
         choices=MARKS,
         choice_labels=("Corners", "Silhouette", "None"),
+        choice_details=(
+            "An L in each corner and a small square top-left.",
+            (
+                "Silhouette Studio's Type 1 marks: a square top-left, an L top-right "
+                "and bottom-left; length 20 mm, thickness 0.5 mm, inset = the margin."
+            ),
+            "No marks; line up the cut file with the page edges.",
+        ),
     ).field("corners")
     cut_folds: bool = Option(
         label="Fold lines in cut file",
