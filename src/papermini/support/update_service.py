@@ -279,9 +279,9 @@ class UpdateService:
                 ]
             else:
                 install = [
-                    (
-                        f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /R:5 /W:1 '
-                        "/NFL /NDL /NJH /NJS /NP >NUL"
+                    (  # /IS /IT /IM: also files Robocopy sees as the same (size, time)
+                        f'{sys32}\\Robocopy.exe "{new_app}" "{old_app}" /MIR /IS /IT /IM '
+                        "/R:5 /W:1 /NFL /NDL /NJH /NJS /NP >NUL"
                     ),
                     f'if %ERRORLEVEL% LSS 8 rmdir /s /q "{new_app.parent}"',
                 ]
