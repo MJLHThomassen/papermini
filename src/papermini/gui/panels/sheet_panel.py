@@ -122,7 +122,7 @@ class SheetPanel(QScrollArea):
                     label = box.form.labelForField(row)
                     assert isinstance(label, QLabel)
                     label.setObjectName("FormLabel")
-                    label.setToolTip(field.option.tooltip)
+                    label.setToolTip(field.tooltip)
                     labels.append(label)
                 else:
                     box.form.addRow(row)

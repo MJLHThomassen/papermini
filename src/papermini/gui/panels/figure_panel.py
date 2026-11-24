@@ -154,7 +154,7 @@ class FigurePanel(QScrollArea):
         kh.setSpacing(12)
         label = QLabel(kind.label)
         label.setObjectName("FormLabel")
-        label.setToolTip(kind.option.tooltip)
+        label.setToolTip(kind.tooltip)
         kh.addWidget(label)
         kh.addWidget(kind.widget, 1)
         lay.addWidget(self.kind_row)
@@ -198,7 +198,7 @@ class FigurePanel(QScrollArea):
         label = form.labelForField(field.row)
         assert isinstance(label, QLabel)
         label.setObjectName("FormLabel")
-        label.setToolTip(field.option.tooltip)
+        label.setToolTip(field.tooltip)
         self._labels.append((label, indent))
 
     def _add_reset(self, form: QFormLayout, name: str) -> None:

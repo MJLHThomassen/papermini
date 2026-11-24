@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import html
 from collections.abc import Callable
 from typing import ClassVar
 
@@ -40,8 +39,14 @@ class ModelField(Field):
         self._changed = changed
         self._box = ComboBox()
         self._box.setItemDelegate(DetailItemDelegate(self._box))
-        choices = ("auto", *segment.ONNX_MODELS, "alpha", "mask", self.CUSTOM)
-        for choice in choices:
+        self._choices: tuple[str, ...] = (
+            "auto",
+            *segment.ONNX_MODELS,
+            "alpha",
+            "mask",
+            self.CUSTOM,
+        )
+        for choice in self._choices:
             self._box.addItem(self.NAMES.get(choice, choice), choice)
             self._box.setItemData(
                 self._box.count() - 1, self._detail(choice), DETAIL_ROLE
@@ -52,7 +57,6 @@ class ModelField(Field):
         self._file = EditWithButton("…", "path of an .onnx model file")
         self._file.setVisible(False)
         super().__init__(option, self._box)
-        self._box.setToolTip(self._tooltip(option.tooltip, choices))
         self._file.setToolTip(self.DETAILS[self.CUSTOM])
         self.row = QWidget()
         v = QVBoxLayout(self.row)
@@ -104,15 +108,9 @@ class ModelField(Field):
         )
         return f"{spec['about']}\n{licence} · {spec['mb']} MB download"
 
-    def _tooltip(self, intro: str, choices: tuple[str, ...]) -> str:
-        """Return a rich-text tooltip: ``intro``, then a table of ``choices``."""
-        rows = "".join(
-            f"<tr><td style='padding-right: 8px'><b>"
-            f"{html.escape(self.NAMES.get(c, c))}</b></td>"
-            f"<td>{'<br>'.join(map(html.escape, self._detail(c).splitlines()))}</td></tr>"
-            for c in choices
-        )
-        return (
-            f"<p>{html.escape(intro)}</p>"
-            f"<table cellspacing='0' cellpadding='3'>{rows}</table>"
+    def _tooltip(self, option: Option) -> str:
+        """Return the option's tooltip, then a table of every choice."""
+        return self._choice_tooltip(
+            option.tooltip,
+            ((self.NAMES.get(c, c), self._detail(c)) for c in self._choices),
         )

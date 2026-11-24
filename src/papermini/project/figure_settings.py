@@ -38,12 +38,17 @@ class FigureSettings:
         label="Kind",
         help="mini: a standing paper miniature; token: a flat round "
         "token, set up with the token options",
-        tooltip="Standing mini: a paper figure that stands up, on a tab or a base.\n"
-        "Token: a flat round token, the figure in a circle, for the table or a virtual\n"
-        "tabletop.",
+        tooltip="What kind of figure this is.",
         group="kind",
         choices=KINDS,
         choice_labels=("Standing mini", "Token"),
+        choice_details=(
+            "A paper figure that stands up, on a tab or a base.",
+            (
+                "A flat round token, the figure in a circle, for the table or a "
+                "virtual tabletop."
+            ),
+        ),
     ).field("mini")
     size: str = Option(
         label="Creature size",
@@ -174,13 +179,19 @@ class FigureSettings:
         label="Shape",
         help="square: slots into a stand; round: a half disc (--tab-radius-mm) "
         "that folds out into a round base",
-        tooltip="Square: a tab to slot into a (3D printed) stand.\n"
-        "Round: a half disc that folds out into a round base. On a double-sided\n"
-        "mini the two halves fold out to opposite sides and form a full circle.",
+        tooltip="The shape of the stand tab.",
         group=_SIZE,
         choices=TAB_SHAPES,
         kinds=("mini",),
         choice_labels=("Square (stand)", "Round (base)"),
+        choice_details=(
+            "A tab to slot into a (3D printed) stand.",
+            (
+                "A half disc that folds out into a round base. On a double-sided "
+                "mini the two halves fold out to opposite sides and form a full "
+                "circle."
+            ),
+        ),
     ).field("square")
     tab_color: str = Option(
         label="Fill color",
@@ -205,9 +216,7 @@ class FigureSettings:
         label="Shows",
         help="double-sided back: mirrored image, blank, text, the copy "
         "number (large), or text_number (the number above the text)",
-        tooltip="Mirrored drawing: the drawing seen from behind. Blank: plain paper.\n"
-        "Text: plain paper with text, such as a name or stats.\n"
-        "Number: the copy's number, large. Text and number: the number above the text.",
+        tooltip="What the back side shows.",
         group=_SIZE,
         choices=BACK_MODES,
         kinds=("mini",),
@@ -217,6 +226,13 @@ class FigureSettings:
             "Text",
             "Number",
             "Text and number",
+        ),
+        choice_details=(
+            "The drawing seen from behind.",
+            "Plain paper.",
+            "Plain paper with text, such as a name or stats.",
+            "The copy's number, large.",
+            "The number above the text.",
         ),
     ).field("mirror")
     back_text: str | None = Option(
@@ -314,13 +330,15 @@ class FigureSettings:
         label="Margin fill type",
         help="what shows between drawing and cut line: --margin-color "
         "or the original image",
-        tooltip="What fills the margin, the strip between the cut-out drawing and its\n"
-        "cut line:\n"
-        "Color: one solid color (Margin fill color).\n"
-        "Original image: the picture around the figure, as it is in the image.",
+        tooltip="What fills the margin, the strip between the cut-out drawing and its "
+        "cut line.",
         group=_SIZE,
         choices=MARGIN_FILLS,
         choice_labels=("Color", "Original image"),
+        choice_details=(
+            "One solid color (Margin fill color).",
+            "The picture around the figure, as it is in the image.",
+        ),
     ).field("color")
     margin_color: str = Option(
         label="Margin fill color",
@@ -392,23 +410,31 @@ class FigureSettings:
         label="Front tab",
         help="what the front tab shows: the label, the copy number, or "
         "label_number (the number above the label)",
-        tooltip="What the front tab shows: the label, the copy's number, or both (the\n"
-        "number above the label). Each copy on the sheet gets its own number,\n"
-        "1, 2, 3…; this preview shows # where it goes.",
+        tooltip="What the front tab shows. Each copy on the sheet gets its own "
+        "number, 1, 2, 3…; this preview shows # where it goes.",
         group=_OUTPUT,
         choices=TAB_SHOWS,
         kinds=("mini",),
         choice_labels=("Label", "Number", "Label and number"),
+        choice_details=(
+            "The label.",
+            "The copy's number.",
+            "The number above the label.",
+        ),
     ).field("label")
     tab_back: str = Option(
         label="Back tab",
         help="what the back tab of a double-sided mini shows (as --tab-front)",
-        tooltip="What the back tab of a double-sided mini shows: the label, the copy's\n"
-        "number, or both (the number above the label).",
+        tooltip="What the back tab of a double-sided mini shows.",
         group=_OUTPUT,
         choices=TAB_SHOWS,
         kinds=("mini",),
         choice_labels=("Label", "Number", "Label and number"),
+        choice_details=(
+            "The label.",
+            "The copy's number.",
+            "The number above the label.",
+        ),
     ).field("label")
     dpi: int = Option(
         label="Image resolution",
@@ -521,13 +547,15 @@ class FigureSettings:
     token_fill: str = Option(
         label="Background",
         help="behind the figure: --token-fill-color or the original image",
-        tooltip="What fills the circle behind the figure:\n"
-        "Color: one solid color (Background color).\n"
-        "Original image: the picture around the figure, as it is in the image.",
+        tooltip="What fills the circle behind the figure.",
         group=_TOKEN,
         choices=TOKEN_FILLS,
         kinds=("token",),
         choice_labels=("Color", "Original image"),
+        choice_details=(
+            "One solid color (Background color).",
+            "The picture around the figure, as it is in the image.",
+        ),
     ).field("color")
     token_fill_color: str = Option(
         label="Background color",
@@ -582,29 +610,39 @@ class FigureSettings:
     token_text: str = Option(
         label="Shows",
         help="what the token shows: none, the label, the copy number, or label_number",
-        tooltip="What the token shows: the label, the copy's number, or both. Each\n"
-        "copy on the sheet gets its own number, 1, 2, 3…; this preview shows # "
-        "where\n"
-        "it goes.",
+        tooltip="What the token shows. Each copy on the sheet gets its own number, "
+        "1, 2, 3…; this preview shows # where it goes.",
         group=_TOKEN,
         choices=TOKEN_TEXTS,
         kinds=("token",),
         choice_labels=("None", "Label", "Number", "Label and number"),
+        choice_details=(
+            "No text.",
+            "The label.",
+            "The copy's number.",
+            "The label and the copy's number.",
+        ),
     ).field("none")
     token_text_style: str = Option(
         label="Style",
         help="nameplate: the label on a band across the bottom, the number on a "
         "badge; curved: along the ring, which is then at least as "
         "wide as the text needs",
-        tooltip="Nameplate and badge: the label on a band across the bottom, the "
-        "number\n"
-        "in a round badge on the ring.\n"
-        "Curved along the ring: the label along the bottom of the ring, the\n"
-        "number at its top. The ring is then at least as wide as the text needs.",
+        tooltip="Where the token's text goes.",
         group=_TOKEN,
         choices=TOKEN_TEXT_STYLES,
         kinds=("token",),
         choice_labels=("Nameplate and badge", "Curved along the ring"),
+        choice_details=(
+            (
+                "The label on a band across the bottom, the number in a round badge "
+                "on the ring."
+            ),
+            (
+                "The label along the bottom of the ring, the number at its top. The "
+                "ring is then at least as wide as the text needs."
+            ),
+        ),
     ).field("nameplate")
     token_text_mm: float = Option(
         label="Size",

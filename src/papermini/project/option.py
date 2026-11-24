@@ -27,6 +27,7 @@ class Option:
     group: str = ""  # the group of command-line flags it belongs to
     choices: tuple[Any, ...] = ()  # the values it allows; empty: any value
     choice_labels: tuple[str, ...] = ()  # each choice's name in the settings panel
+    choice_details: tuple[str, ...] = ()  # what each choice does, listed in the tooltip
     low: float | None = None  # the least value it allows
     high: float | None = None  # the greatest value it allows
     above: bool = False  # the value must be above ``low``, not equal to it
