@@ -128,7 +128,7 @@ jobs:
       - name: ty
         shell: bash  # with pipefail, so that a ty crash fails the step
         env:
-          TY_FINDINGS: 65
+          TY_FINDINGS: 0
         run: |
           just typecheck --exit-zero --output-format github | tee "$RUNNER_TEMP/ty.txt"
           found=$(grep -c '^::' "$RUNNER_TEMP/ty.txt" || true)
