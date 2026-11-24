@@ -415,8 +415,8 @@ The parts where a mistake costs the most need the most tests:
 - creature sizes and how they fill in a figure.
 
 Untested lines in these parts are findings. `just coverage` lists them, and so
-does the summary of the Linux Python 3.12 test job in CI. Untested GUI glue
-matters less, unless it holds logic.
+does the summary of CI's Linux test job for the first Python version in
+`.python-version`. Untested GUI glue matters less, unless it holds logic.
 
 ### T2. Tests check behaviour, not implementation
 
@@ -570,6 +570,12 @@ CI runs the tests, the lint and format checks, the coverage report and the type
 check, on every Python version and platform the project supports.
 Run the same checks locally before a change is finished, such as `just test`,
 `just lint` and `just format`.
+
+`.python-version` lists the supported Python versions, one per line. CI tests
+each of them and builds a Linux CI image for each. uv picks the first one when
+nothing names another, so local work, the type check, the coverage report and
+the release builds use it. `requires-python` in `pyproject.toml` allows the
+same versions. To support another version, add it to both and run `uv lock`.
 
 The code doesn't pass the type check (`just typecheck`) yet, so CI allows the
 number of findings ty reports on `main`. That number is `TY_FINDINGS` in the
