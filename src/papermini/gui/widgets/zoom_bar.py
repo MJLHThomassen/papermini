@@ -26,7 +26,7 @@ class ZoomBar(QFrame):
             h.addWidget(self._button(name, tip, sig))
         self.label = QLabel("100%")
         self.label.setMinimumWidth(44)
-        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setToolTip("Zoom (100% = actual size)")
         h.addWidget(self.label)
         for name, tip, sig in (
@@ -39,7 +39,7 @@ class ZoomBar(QFrame):
         one.setToolTip("Actual size  (Ctrl+1)")
         one.setAccessibleName("Actual size")
         one.clicked.connect(self.actual)
-        one.setCursor(Qt.PointingHandCursor)
+        one.setCursor(Qt.CursorShape.PointingHandCursor)
         h.addWidget(one)
 
     def _button(self, name, tip, sig):
@@ -47,7 +47,7 @@ class ZoomBar(QFrame):
         b.setToolTip(tip)
         b.setAccessibleName(tip.split("  (")[0])
         b.setIconSize(QSize(16, 16))
-        b.setCursor(Qt.PointingHandCursor)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.clicked.connect(sig)
         self.buttons[name] = b
         return b

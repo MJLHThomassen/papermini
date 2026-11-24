@@ -82,7 +82,10 @@ class SheetRenderer:
         if not chosen or not p.begin(printer):
             return 0
         try:
-            p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
+            p.setRenderHints(
+                QPainter.RenderHint.Antialiasing
+                | QPainter.RenderHint.SmoothPixmapTransform
+            )
             for n, r in enumerate(chosen):
                 if n:
                     printer.newPage()
@@ -100,7 +103,7 @@ class SheetRenderer:
         self._minis.add_paper(scene, r)
         for x, y, w, h in lay.mark_rects():  # alignment marks (cut by machine)
             scene.addRect(
-                QRectF(x, oy + y, w, h), QPen(Qt.NoPen), QBrush(QColor("#000"))
+                QRectF(x, oy + y, w, h), QPen(Qt.PenStyle.NoPen), QBrush(QColor("#000"))
             )
         text(
             scene,

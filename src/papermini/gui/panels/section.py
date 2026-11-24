@@ -35,7 +35,7 @@ class Section(QWidget):
         self._prefs = prefs
         self._title = title
         self.setObjectName("SubSection" if sub else "Section")
-        self.setAttribute(Qt.WA_StyledBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self._active = True
         self.parent_section = None  # the group a sub-group is inside
         v = QVBoxLayout(self)
@@ -44,8 +44,8 @@ class Section(QWidget):
         self.header = QPushButton(title)
         self.header.setObjectName("SectionHeader")
         self.header.setCheckable(True)
-        self.header.setCursor(Qt.PointingHandCursor)
-        self.header.setFocusPolicy(Qt.NoFocus)
+        self.header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.header.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.body = QWidget()
         self.form = QFormLayout(self.body)
         self.form.setContentsMargins(2, 0, 0, 0)
@@ -73,7 +73,7 @@ class Section(QWidget):
         box.setObjectName("SectionSwitch")
         box.setCursor(Qt.CursorShape.PointingHandCursor)
         self.switch = box
-        self._head.addWidget(box, 0, Qt.AlignVCenter)
+        self._head.addWidget(box, 0, Qt.AlignmentFlag.AlignVCenter)
 
     def set_active(self, on: bool):
         """Switched off: only the header, which cannot be opened (there is nothing in
@@ -82,7 +82,9 @@ class Section(QWidget):
             return
         self._active = on
         self.header.setEnabled(on)
-        self.header.setCursor(Qt.PointingHandCursor if on else Qt.ArrowCursor)
+        self.header.setCursor(
+            Qt.CursorShape.PointingHandCursor if on else Qt.CursorShape.ArrowCursor
+        )
         self._toggle(self.header.isChecked(), remember=False)
 
     def active(self) -> bool:

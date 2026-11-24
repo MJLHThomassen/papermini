@@ -168,7 +168,9 @@ def test_a_figure_too_big_for_the_paper_is_listed_and_left_off(
     im.save(tmp_path / "imp.png")
     asked, printed = [], []
     monkeypatch.setattr(
-        QMessageBox, "question", lambda *a, **k: asked.append(a[2]) or QMessageBox.No
+        QMessageBox,
+        "question",
+        lambda *a, **k: asked.append(a[2]) or QMessageBox.StandardButton.No,
     )
     monkeypatch.setattr(
         ExportDialogs,

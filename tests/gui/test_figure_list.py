@@ -139,7 +139,12 @@ def click_copies(w, row: int, which: str, times: int = 1):
     minus, _, plus = lst.itemDelegate().copies_rects(lst.visualItemRect(lst.item(row)))
     at = (plus if which == "+" else minus).center().toPoint()
     for _ in range(times):
-        QTest.mouseClick(lst.viewport(), Qt.LeftButton, Qt.NoModifier, at)
+        QTest.mouseClick(
+            lst.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            at,
+        )
 
 
 def test_the_figure_card_changes_the_copies(app, tmp_path, new_window, unsaved):

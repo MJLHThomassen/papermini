@@ -58,7 +58,9 @@ class DownloadDialog(QDialog):
         self._sig.finished.connect(self._on_finished)
 
         v = QVBoxLayout(self)
-        v.setSizeConstraint(QLayout.SetFixedSize)  # as tall as the content, no gaps
+        v.setSizeConstraint(
+            QLayout.SizeConstraint.SetFixedSize
+        )  # as tall as the content, no gaps
         v.setContentsMargins(22, 20, 22, 18)
         v.setSpacing(10)
         self.title = ModelInfo.label(name="DialogTitle", wrap=False)
@@ -74,7 +76,7 @@ class DownloadDialog(QDialog):
             + ("" if restricted else f"<br><br>{ModelInfo.licence_link(model)}"),
             "Muted",
         )
-        self.body.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.body.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.body.setMinimumWidth(440)  # sets the dialog width (its height follows)
         v.addWidget(self.body)
         self.accept_licence = self.licence_note = None  # (for a non-commercial model)
@@ -86,7 +88,7 @@ class DownloadDialog(QDialog):
                 f"non-commercial use only</a>.</b> {html.escape(rest)}",
                 "LicenceBox",
             )
-            note.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            note.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
             self.licence_note = note
             note.setMinimumWidth(440)
             v.addWidget(note)

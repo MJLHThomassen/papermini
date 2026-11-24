@@ -41,7 +41,9 @@ COLUMNS = (
 )
 
 PROJECT = "project"  # the entry of a project table that matches no preset
-NOTES_ROLE = Qt.UserRole + 1  # a preset entry's notes: what it is used for, a line each
+NOTES_ROLE = (
+    Qt.ItemDataRole.UserRole + 1
+)  # a preset entry's notes: what it is used for, a line each
 
 
 class _EntryDelegate(QStyledItemDelegate):
@@ -79,7 +81,7 @@ class _EntryDelegate(QStyledItemDelegate):
         self.initStyleOption(opt, index)
         opt.text = ""  # (the background and selection only)
         style = opt.widget.style() if opt.widget is not None else QApplication.style()
-        style.drawControl(QStyle.CE_ItemViewItem, opt, p, opt.widget)
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, p, opt.widget)
         name_font, notes_font = self._fonts(option)
         r = option.rect.adjusted(self.PAD_X, self.PAD_Y, -self.PAD_X, -self.PAD_Y)
         p.save()
@@ -88,8 +90,12 @@ class _EntryDelegate(QStyledItemDelegate):
         p.setPen(QColor(self._themes.current.text))
         p.drawText(
             QRect(r.left(), r.top(), r.width(), fm.height()),
-            Qt.AlignLeft | Qt.AlignVCenter,
-            fm.elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, r.width()),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            fm.elidedText(
+                index.data(Qt.ItemDataRole.DisplayRole) or "",
+                Qt.TextElideMode.ElideRight,
+                r.width(),
+            ),
         )
         y = r.top() + fm.height() + 1
         fn = QFontMetrics(notes_font)
@@ -98,8 +104,8 @@ class _EntryDelegate(QStyledItemDelegate):
         for line in self._lines(index):
             p.drawText(
                 QRect(r.left(), y, r.width(), fn.height()),
-                Qt.AlignLeft | Qt.AlignVCenter,
-                fn.elidedText(line, Qt.ElideRight, r.width()),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                fn.elidedText(line, Qt.TextElideMode.ElideRight, r.width()),
             )
             y += fn.height() + 1
         p.restore()
@@ -259,7 +265,7 @@ class SizesPage(QWidget):
             self.b_default,
             self.b_save,
         ):
-            b.setCursor(Qt.PointingHandCursor)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
         self._loading = False
         self._rebuild(self._key_of_project())
 
@@ -287,7 +293,7 @@ class SizesPage(QWidget):
     def _key(self) -> tuple[str, str]:
         item = self.list.currentItem()
         return (
-            item.data(Qt.UserRole)
+            item.data(Qt.ItemDataRole.UserRole)
             if item is not None
             else ("preset", sizes.BUILTIN_NAME)
         )
@@ -318,7 +324,7 @@ class SizesPage(QWidget):
         for key in self._entries():
             name = "This project's table" if key[0] == PROJECT else key[1]
             item = QListWidgetItem(name)
-            item.setData(Qt.UserRole, key)
+            item.setData(Qt.ItemDataRole.UserRole, key)
             item.setData(NOTES_ROLE, self._notes(key))
             item.setToolTip(name)
             self.list.addItem(item)
@@ -330,13 +336,14 @@ class SizesPage(QWidget):
 
     def _refresh_notes(self) -> None:
         if self._entries() != [
-            self.list.item(i).data(Qt.UserRole) for i in range(self.list.count())
+            self.list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.list.count())
         ]:
             self._rebuild(self._key())
             return
         for i in range(self.list.count()):
             item = self.list.item(i)
-            item.setData(NOTES_ROLE, self._notes(item.data(Qt.UserRole)))
+            item.setData(NOTES_ROLE, self._notes(item.data(Qt.ItemDataRole.UserRole)))
         self.list.doItemsLayout()  # (an entry's height follows its notes)
         self._sync_buttons()
 
@@ -493,7 +500,7 @@ class SizesPage(QWidget):
                 f"Delete the preset {name}? Projects that use it keep their own copy of "
                 "the table.",
             )
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         self._user = [t for t in self._user if t.name != name]

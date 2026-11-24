@@ -61,7 +61,7 @@ class SheetPanel(QScrollArea):
         self._themes = themes
         self.setObjectName("SheetPanel")
         self.setWidgetResizable(True)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._factory = FieldFactory(self.SPECIAL_FIELDS, themes)
         self._fields: dict[str, Field] = {}
         self._rows: dict[QWidget, QFormLayout] = {}  # widget -> its form, to hide rows
@@ -136,7 +136,7 @@ class SheetPanel(QScrollArea):
 
     def _build_warnings(self) -> None:
         self.fit_warning = self._warning_under("paper_height_mm")  # a figure too big
-        self.fit_warning.setTextFormat(Qt.RichText)
+        self.fit_warning.setTextFormat(Qt.TextFormat.RichText)
         self.mat_warning = self._warning_under("mat")  # the paper is bigger than it
 
     def _warning_under(self, name: str) -> QLabel:
@@ -171,7 +171,7 @@ class SheetPanel(QScrollArea):
         )
         self.export_btn.clicked.connect(self.exportClicked)
         for b in (self.print_btn, self.export_btn):
-            b.setCursor(Qt.PointingHandCursor)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
             buttons.addWidget(b, 1)
         lay.addLayout(buttons)
         lay.addStretch()

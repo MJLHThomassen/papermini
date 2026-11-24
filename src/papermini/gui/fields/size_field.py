@@ -54,9 +54,9 @@ class SizeField(QWidget):
         self.link.setChecked(True)
         self.link.setToolTip(self.LINK_TIP)
         self.link.setAccessibleName("Keep proportions")
-        self.link.setCursor(Qt.PointingHandCursor)
+        self.link.setCursor(Qt.CursorShape.PointingHandCursor)
         self.link.setIconSize(QSize(18, 18))
-        g.addWidget(self.link, 0, 2, 2, 1, Qt.AlignVCenter)
+        g.addWidget(self.link, 0, 2, 2, 1, Qt.AlignmentFlag.AlignVCenter)
         g.setColumnStretch(1, 1)
         self._lead = "h"  # linked: the field that sets the size
         self._aspect = None  # width / height of the drawing, once built

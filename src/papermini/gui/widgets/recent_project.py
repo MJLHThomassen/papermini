@@ -20,9 +20,9 @@ class RecentProject(QLabel):
         self._themes = themes
         self.path = path
         self._hover = False
-        self.setTextFormat(Qt.RichText)
+        self.setTextFormat(Qt.TextFormat.RichText)
         self.setToolTip(str(path))
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumWidth(1)  # (the folder shrinks; the row never widens the card)
         self._show(False)
 
@@ -31,7 +31,9 @@ class RecentProject(QLabel):
         t = self._themes.current
         fm = self.fontMetrics()
         room = self.width() - fm.horizontalAdvance(self.path.name + "\u00a0\u00a0") - 8
-        folder = fm.elidedText(str(self.path.parent), Qt.ElideMiddle, max(40, room))
+        folder = fm.elidedText(
+            str(self.path.parent), Qt.TextElideMode.ElideMiddle, max(40, room)
+        )
         line = "underline" if hover else "none"
         self.setText(
             f"<span style='color:{t.accent}; text-decoration:{line}'>"
@@ -52,7 +54,7 @@ class RecentProject(QLabel):
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self.rect().contains(
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(
             event.position().toPoint()
         ):
             self.clicked.emit(str(self.path))

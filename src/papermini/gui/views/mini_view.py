@@ -68,7 +68,7 @@ class MiniView(ZoomView):
         sc = self.scene()
         pen = QPen(QColor(CROP_COLOR), 1.5)
         pen.setCosmetic(True)
-        pen.setStyle(Qt.DashLine)
+        pen.setStyle(Qt.PenStyle.DashLine)
         self._box_item = sc.addRect(self._box, pen)
         self._box_item.setZValue(5)
         self._handles = CropHandles(sc, CropHandles.CORNERS, z=6)
@@ -115,19 +115,19 @@ class MiniView(ZoomView):
             circle = QPainterPath()
             circle.addEllipse(QPointF(t.cx, t.cy), t.inner_mm, t.inner_mm)
             clip = QGraphicsPathItem(circle)
-            clip.setPen(QPen(Qt.NoPen))
+            clip.setPen(QPen(Qt.PenStyle.NoPen))
             clip.setBrush(QColor(color) if fill == "color" else QColor("#ffffff"))
-            clip.setFlag(QGraphicsItem.ItemClipsChildrenToShape)
+            clip.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape)
             clip.setZValue(4)
             if fill == "color" and outline:
                 figure = CropHandles.outline_path(outline)
                 holder = QGraphicsPathItem(figure, clip)
             else:  # (the picture is the background too)
                 holder = QGraphicsRectItem(QRectF(0, 0, W, H), clip)
-            holder.setPen(QPen(Qt.NoPen))
-            holder.setFlag(QGraphicsItem.ItemClipsChildrenToShape)
+            holder.setPen(QPen(Qt.PenStyle.NoPen))
+            holder.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsChildrenToShape)
             pix = QGraphicsPixmapItem(QPixmap.fromImage(picture), holder)
-            pix.setTransformationMode(Qt.SmoothTransformation)
+            pix.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
             pix.setTransform(
                 QTransform.fromScale(W / picture.width(), H / picture.height())
             )
@@ -176,7 +176,7 @@ class MiniView(ZoomView):
 
     def mousePressEvent(self, e):
         pos = e.position().toPoint()
-        part = self._hit(pos) if e.button() == Qt.LeftButton else None
+        part = self._hit(pos) if e.button() == Qt.MouseButton.LeftButton else None
         if part is not None:
             self._drag = (part, self.mapToScene(pos), QRectF(self._box))
             self._press, self._moved = pos, False
@@ -199,11 +199,13 @@ class MiniView(ZoomView):
         if part is None:
             self.viewport().unsetCursor()
         else:
-            self.viewport().setCursor(HANDLE_CURSORS.get(part, Qt.SizeAllCursor))
+            self.viewport().setCursor(
+                HANDLE_CURSORS.get(part, Qt.CursorShape.SizeAllCursor)
+            )
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
-        if e.button() == Qt.LeftButton and self._drag is not None:
+        if e.button() == Qt.MouseButton.LeftButton and self._drag is not None:
             box = self._dragged(self.mapToScene(e.position().toPoint()))
             moved = self._moved
             self._drag = None
@@ -216,7 +218,7 @@ class MiniView(ZoomView):
         super().mouseReleaseEvent(e)
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Escape and self._drag is not None:
+        if e.key() == Qt.Key.Key_Escape and self._drag is not None:
             self._drag = None
             self._show_box(self._box)
             self._end_preview()

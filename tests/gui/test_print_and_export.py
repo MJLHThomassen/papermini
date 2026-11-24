@@ -24,7 +24,9 @@ def test_the_print_is_true_to_size_and_follows_the_page_range(
     class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
         def __init__(self, first=0, last=0):
             super().__init__(
-                round(210 / 25.4 * 100), round(297 / 25.4 * 100), QImage.Format_RGB32
+                round(210 / 25.4 * 100),
+                round(297 / 25.4 * 100),
+                QImage.Format.Format_RGB32,
             )
             self.fill(0xFF808080)
             self.range, self.pages = (first, last), 1
@@ -79,7 +81,7 @@ def test_the_print_button_prints_the_sheet(
 
     def fake_dialog(self, parent, printer, pages):  # instead of the print dialog
         seen.append((printer.fullPage(), printer.pageLayout().pageSize().id(), pages))
-        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(str(out))
         return True
 
@@ -92,7 +94,9 @@ def test_the_print_button_prints_the_sheet(
     assert wait(lambda: out.exists() and out.stat().st_size > 1000)
     from PySide6.QtGui import QPageSize
 
-    assert seen == [(True, QPageSize.A4, 1)]  # true size on the sheet's paper
+    assert seen == [
+        (True, QPageSize.PageSizeId.A4, 1)
+    ]  # true size on the sheet's paper
     assert out.read_bytes().startswith(b"%PDF")
 
 
@@ -122,7 +126,7 @@ def test_the_export_dialog_writes_only_the_ticked_files(app, prefs, output, tmp_
     assert d.chosen() == [] and not d.export_btn.isEnabled()
     d.cut.setChecked(True)
     d.export_btn.click()
-    assert d.result() == QDialog.Accepted
+    assert d.result() == QDialog.DialogCode.Accepted
     again = ExportDialog(
         prefs, output.cut_files, tmp_path, "My minis", pages=1, machine=True
     )
@@ -147,7 +151,7 @@ def test_the_print_sets_the_paper_size_and_orientation(
     seen = []
 
     def fake_dialog(self, parent, printer, pages):
-        r = printer.pageLayout().fullRect(QPageLayout.Millimeter)
+        r = printer.pageLayout().fullRect(QPageLayout.Unit.Millimeter)
         seen.append((round(r.width()), round(r.height())))
         return False
 

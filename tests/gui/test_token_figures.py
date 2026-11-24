@@ -106,11 +106,11 @@ def test_a_token_figure_can_be_dragged(app, window, wait):
     cursor = v.viewport().cursor().shape()
     assert cursor == Qt.CursorShape.SizeAllCursor  # a drag moves the figure
     n = items()
-    QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
+    QTest.mousePress(v.viewport(), Qt.MouseButton.LeftButton, pos=pa)
     for k in range(1, 5):
         QTest.mouseMove(v.viewport(), pa + (pb - pa) * (k / 4))
     assert items() > n  # the figure moves with the mouse
-    QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
+    QTest.mouseRelease(v.viewport(), Qt.MouseButton.LeftButton, pos=pb)
     assert w.figures[0].entry.settings.token_area is not None
     m = _built(wait, w)
     b = m.token.figure_box
@@ -118,9 +118,9 @@ def test_a_token_figure_can_be_dragged(app, window, wait):
     # a corner makes it bigger around the box's centre
     pa = v.mapFromScene(QPointF(b[2], b[3]))
     pb = v.mapFromScene(QPointF(b[2] + 2, b[3] + 2))
-    QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
+    QTest.mousePress(v.viewport(), Qt.MouseButton.LeftButton, pos=pa)
     QTest.mouseMove(v.viewport(), pb)
-    QTest.mouseRelease(v.viewport(), Qt.LeftButton, pos=pb)
+    QTest.mouseRelease(v.viewport(), Qt.MouseButton.LeftButton, pos=pb)
     b1 = _built(wait, w).token.figure_box
     assert b1[2] - b1[0] > b[2] - b[0]
     assert ((b1[0] + b1[2]) / 2, (b1[1] + b1[3]) / 2) == pytest.approx(
@@ -129,9 +129,9 @@ def test_a_token_figure_can_be_dragged(app, window, wait):
     # Esc cancels a drag, a click changes nothing
     area = w.figures[0].entry.settings.token_area
     n = items()
-    QTest.mousePress(v.viewport(), Qt.LeftButton, pos=pa)
+    QTest.mousePress(v.viewport(), Qt.MouseButton.LeftButton, pos=pa)
     QTest.mouseMove(v.viewport(), pb)
-    QTest.keyClick(v, Qt.Key_Escape)
+    QTest.keyClick(v, Qt.Key.Key_Escape)
     assert items() == n
     QTest.mouseRelease(v.viewport(), Qt.MouseButton.LeftButton, pos=pb)
     QTest.mouseClick(

@@ -20,7 +20,9 @@ def test_adding_a_folder_adds_its_images(window, monsters, monkeypatch):
     monkeypatch.setattr(
         QMessageBox,
         "question",
-        staticmethod(lambda *a, **k: asked.append(a[2]) or QMessageBox.No),
+        staticmethod(
+            lambda *a, **k: asked.append(a[2]) or QMessageBox.StandardButton.No
+        ),
     )
     assert window.add_folder(monsters) == 5
     assert [f.entry.display_name for f in window.figures] == [
@@ -49,7 +51,9 @@ def test_adding_a_folder_adds_its_images(window, monsters, monkeypatch):
 
     # Yes adds them all again
     monkeypatch.setattr(
-        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes)
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes),
     )
     assert window.add_folder(monsters) == 5 and len(window.figures) == 10
 

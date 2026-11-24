@@ -35,7 +35,7 @@ class QtImages:
         im = im.convert("RGBA")
         data = im.tobytes("raw", "RGBA")
         return QImage(
-            data, im.width, im.height, 4 * im.width, QImage.Format_RGBA8888
+            data, im.width, im.height, 4 * im.width, QImage.Format.Format_RGBA8888
         ).copy()
 
     def load(self, path) -> QImage:
@@ -55,11 +55,11 @@ class QtImages:
             img = img.scaled(
                 self.PREVIEW_PX,
                 self.PREVIEW_PX,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
             )
         img = img.convertToFormat(
-            QImage.Format_RGBA8888
+            QImage.Format.Format_RGBA8888
         )  # straight (not premultiplied) alpha
         w, h = img.width(), img.height()
         a = np.frombuffer(img.constBits(), np.uint8).reshape(h, img.bytesPerLine())[
@@ -68,4 +68,4 @@ class QtImages:
         out = np.ascontiguousarray(
             adjuster.apply(a.reshape(h, w, 4), adj, premultiplied=False)
         )
-        return QImage(out.data, w, h, 4 * w, QImage.Format_RGBA8888).copy()
+        return QImage(out.data, w, h, 4 * w, QImage.Format.Format_RGBA8888).copy()

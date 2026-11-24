@@ -82,8 +82,10 @@ class ExportDialog(QDialog):
         for w in (self.cut, self.cut_files):
             w.setVisible(machine)
 
-        self.buttons = QDialogButtonBox(QDialogButtonBox.Cancel)
-        self.export_btn = self.buttons.addButton("Export", QDialogButtonBox.AcceptRole)
+        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
+        self.export_btn = self.buttons.addButton(
+            "Export", QDialogButtonBox.ButtonRole.AcceptRole
+        )
         self.export_btn.setDefault(True)
         self.buttons.accepted.connect(self._accept)
         self.buttons.rejected.connect(self.reject)
@@ -102,7 +104,7 @@ class ExportDialog(QDialog):
     def _files_label() -> QLabel:
         lab = QLabel()
         lab.setObjectName("Hint")
-        lab.setTextFormat(Qt.RichText)
+        lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setContentsMargins(26, 0, 0, 0)
         lab.setWordWrap(True)
         return lab
@@ -167,7 +169,7 @@ class ExportDialog(QDialog):
                 "Export sheet",
                 "Replace these files?\n\n" + "\n".join(f.name for f in there),
             )
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         self._prefs.set_export_pdf(self.pdf.isChecked())

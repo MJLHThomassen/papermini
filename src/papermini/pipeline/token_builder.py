@@ -97,7 +97,9 @@ class TokenBuilder:
 
         side_mm = token.side_px / PX_PER_MM
         px = max(1, round(side_mm / 25.4 * dpi))
-        art = Image.fromarray(token.rgba, "RGBA").resize((px, px), Image.LANCZOS)
+        art = Image.fromarray(token.rgba, "RGBA").resize(
+            (px, px), Image.Resampling.LANCZOS
+        )
         c = side_mm / 2
         R = o.diameter_mm / 2
         bx0, by0, bx1, by1 = self._morph.bbox(fm.clean)

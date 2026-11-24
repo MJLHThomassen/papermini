@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import sizes
 from .figure_entry import FigureEntry
 from .sheet_settings import SheetSettings
+from .size_table import SizeTable
+from .sizes import BUILTIN
 
 
 @dataclass
@@ -15,7 +16,7 @@ class Project:
     sheet: SheetSettings = field(default_factory=SheetSettings)
     figures: list[FigureEntry] = field(default_factory=list)
     debug: bool = False
-    sizes: sizes.SizeTable = sizes.BUILTIN  # the project's creature size table
+    sizes: SizeTable = BUILTIN  # the project's creature size table
 
     @property
     def base(self) -> Path:

@@ -132,7 +132,9 @@ def test_own_presets_copy_rename_use_default_edit_delete(
     page.rename_preset()
     assert page.project_table().name == "Club" and prefs.default_preset_name() == "Club"
     monkeypatch.setattr(
-        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes)
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes),
     )
     page.delete_preset()
     assert prefs.default_preset_name() == "Standard 1-inch"

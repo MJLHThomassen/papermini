@@ -118,7 +118,9 @@ def test_a_start_screen_row_opens_from_anywhere_on_it(app, tmp_path, themes):
     got = []
     e.recentClicked.connect(got.append)
     row = e.recent_list.itemAt(0).widget()
-    QTest.mouseClick(row, Qt.LeftButton, pos=QPoint(row.width() - 4, row.height() // 2))
+    QTest.mouseClick(
+        row, Qt.MouseButton.LeftButton, pos=QPoint(row.width() - 4, row.height() // 2)
+    )
     assert got == [str(paths[0])] and Path(got[0]).is_file()
     assert (
         row.sizeHint().width() <= e.maximumWidth()

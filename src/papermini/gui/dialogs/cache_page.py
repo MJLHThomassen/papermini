@@ -54,7 +54,7 @@ class CachePage(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setObjectName("CacheScroll")
         self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         content.setObjectName("CacheContent")
         v = QVBoxLayout(content)
@@ -71,7 +71,9 @@ class CachePage(QWidget):
         top = QHBoxLayout()
         top.setSpacing(10)
         self.folder = ModelInfo.label(html.escape(str(CacheFolder.path())), "Hint")
-        self.folder.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.folder.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         btn_open = QPushButton("Open folder")
         btn_open.clicked.connect(
             lambda: QDesktopServices.openUrl(
@@ -85,8 +87,8 @@ class CachePage(QWidget):
         )
         self.btn_all.clicked.connect(self.delete_all)
         top.addWidget(self.folder, 1)
-        top.addWidget(btn_open, 0, Qt.AlignVCenter)
-        top.addWidget(self.btn_all, 0, Qt.AlignVCenter)
+        top.addWidget(btn_open, 0, Qt.AlignmentFlag.AlignVCenter)
+        top.addWidget(self.btn_all, 0, Qt.AlignmentFlag.AlignVCenter)
         v.addLayout(top)
 
         v.addSpacing(10)
@@ -154,10 +156,10 @@ class CachePage(QWidget):
             "Delete model",
             f"Delete {spec['title']}? papermini asks to download it again "
             f"(about {spec['mb']} MB) the next time a figure needs it.",
-            QMessageBox.Yes | QMessageBox.Cancel,
-            QMessageBox.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
         )
-        if ok != QMessageBox.Yes:
+        if ok != QMessageBox.StandardButton.Yes:
             return
         ui_log.info("Deleting the %s model", model)
         try:
@@ -217,10 +219,10 @@ class CachePage(QWidget):
             "models, not only the masks and images from links."
             "\n\npapermini asks before downloading a model again, the next time a figure "
             "needs it. Images that open figures use are kept.",
-            QMessageBox.Yes | QMessageBox.Cancel,
-            QMessageBox.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
         )
-        if ok != QMessageBox.Yes:
+        if ok != QMessageBox.StandardButton.Yes:
             return
         ui_log.info("Clearing the whole cache")
         failed = []

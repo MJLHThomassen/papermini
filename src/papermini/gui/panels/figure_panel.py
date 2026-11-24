@@ -72,7 +72,7 @@ class FigurePanel(QScrollArea):
         self._size_calculator = size_calculator
         self._themes = themes
         self.setWidgetResizable(True)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._s = FigureSettings()
         options = FigureSettings.options()
         self._factory = FieldFactory(
@@ -148,13 +148,13 @@ class FigurePanel(QScrollArea):
         ev.setContentsMargins(12, 0, 12, 0)
         ev.setSpacing(10)
         self.empty_icon = QLabel()
-        self.empty_icon.setAlignment(Qt.AlignCenter)
+        self.empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_title = QLabel("No figure selected")
         self.empty_title.setObjectName("EmptyTitle")
-        self.empty_title.setAlignment(Qt.AlignCenter)
+        self.empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_text = QLabel()
         self.empty_text.setObjectName("Muted")
-        self.empty_text.setAlignment(Qt.AlignCenter)
+        self.empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_text.setWordWrap(True)
         ev.addStretch(2)
         for w in (self.empty_icon, self.empty_title, self.empty_text):
@@ -242,7 +242,7 @@ class FigurePanel(QScrollArea):
             "model", "MethodBox", "LicenceBox"
         )
         for hint in (self.auto_hint, self.licence_hint):
-            hint.setTextFormat(Qt.RichText)
+            hint.setTextFormat(Qt.TextFormat.RichText)
         (self.ring_hint,) = self._hints_under("token_border_mm", "Hint")  # curved text
         (self.overlap_hint,) = self._hints_under("tab_overlap_mm", "Hint")
 
@@ -281,7 +281,7 @@ class FigurePanel(QScrollArea):
             "cutting machine) or a PNG (a picture of the piece, for a virtual tabletop)  "
             "(Ctrl+E)"
         )
-        self.export_piece.setCursor(Qt.PointingHandCursor)
+        self.export_piece.setCursor(Qt.CursorShape.PointingHandCursor)
         self.export_piece.clicked.connect(self.exportPiece)
         lay.addWidget(self.export_piece)
         lay.addStretch()

@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self._make_header())
         root.addWidget(self.updater.bar)
 
-        split = QSplitter(Qt.Horizontal)
+        split = QSplitter(Qt.Orientation.Horizontal)
         split.setHandleWidth(1)
         self.splitter = split
         split.addWidget(self._make_figure_list())
@@ -320,7 +320,7 @@ class MainWindow(QMainWindow):
     def _overlay(w: QWidget, margins=(16, 16, 16, 16)) -> QWidget:
         """Wrap a canvas overlay so it keeps a margin from the canvas edge."""
         box = QWidget()
-        box.setAttribute(Qt.WA_TranslucentBackground)
+        box.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         lay = QVBoxLayout(box)
         lay.setContentsMargins(*margins)
         lay.addWidget(w)
@@ -333,7 +333,7 @@ class MainWindow(QMainWindow):
             tip.split("  (")[0]
         )  # icon-only: name it for screen readers
         b.setIconSize(QSize(size, size))
-        b.setCursor(Qt.PointingHandCursor)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.clicked.connect(slot)
         self._tinted.append((b, icon, "text", size))
         return b
@@ -396,8 +396,8 @@ class MainWindow(QMainWindow):
         self.menu_btn.setToolTip("Menu")
         self.menu_btn.setAccessibleName("Menu")
         self.menu_btn.setIconSize(QSize(18, 18))
-        self.menu_btn.setPopupMode(QToolButton.InstantPopup)
-        self.menu_btn.setCursor(Qt.PointingHandCursor)
+        self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._tinted.append((self.menu_btn, "menu", "text", 18))
         h.addWidget(self.menu_btn)
         return bar
@@ -416,10 +416,10 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(4, 3, 4, 3)
         b = QToolButton()
         b.setIconSize(QSize(16, 16))
-        b.setCursor(Qt.PointingHandCursor)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.clicked.connect(lambda: self.toggle_side(i))
         b.setFocusPolicy(
-            Qt.TabFocus
+            Qt.FocusPolicy.TabFocus
         )  # keyboard focus ring, but no stuck ring after a click
         h.addWidget(b)
         return b, card
@@ -463,13 +463,15 @@ class MainWindow(QMainWindow):
         delegate.copiesChanged.connect(self._copies_changed)
         self.list.setItemDelegate(delegate)
         self.list.setEditTriggers(
-            QAbstractItemView.NoEditTriggers
+            QAbstractItemView.EditTrigger.NoEditTriggers
         )  # (copies: see the delegate)
         self.list.setMouseTracking(True)
-        self.list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.list.setResizeMode(QListView.Adjust)  # cards follow the list's width
-        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.list.setResizeMode(
+            QListView.ResizeMode.Adjust
+        )  # cards follow the list's width
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.list.currentRowChanged.connect(lambda _: self._show_current())
         self.list.model().rowsMoved.connect(self._rows_moved)
         v.addWidget(self.list, 1)
@@ -495,11 +497,13 @@ class MainWindow(QMainWindow):
             "In a browser: right-click the picture, Copy image address."
         )
         self.link_edit.setClearButtonEnabled(True)
-        self._link_icon = self.link_edit.addAction(QIcon(), QLineEdit.LeadingPosition)
+        self._link_icon = self.link_edit.addAction(
+            QIcon(), QLineEdit.ActionPosition.LeadingPosition
+        )
         self.link_edit.returnPressed.connect(self.add_from_link_bar)
         self.link_add = QPushButton("Add")
         self.link_add.setToolTip("Download the image and add it as a figure  (Enter)")
-        self.link_add.setCursor(Qt.PointingHandCursor)
+        self.link_add.setCursor(Qt.CursorShape.PointingHandCursor)
         self.link_add.setEnabled(False)
         self.link_add.clicked.connect(self.add_from_link_bar)
         self.link_edit.textChanged.connect(
@@ -530,7 +534,7 @@ class MainWindow(QMainWindow):
         self.sheet_banner = Banner(self._themes)
         self.sheet_banner_box = self._overlay(self.sheet_banner)
         self.sheet_banner_box.hide()
-        sv.addWidget(self.sheet_banner_box, 0, 0, Qt.AlignCenter)
+        sv.addWidget(self.sheet_banner_box, 0, 0, Qt.AlignmentFlag.AlignCenter)
         # the workflow, one view per step; any step can be opened at any time
         for view, step in zip(
             (self.crop_view, self.mini_view, sheet_page), Step, strict=True
@@ -546,22 +550,32 @@ class MainWindow(QMainWindow):
         self.empty.folderClicked.connect(self.add_folder_dialog)
         self.empty.recentClicked.connect(self._open_recent)
         self.empty.set_recent(self._prefs.recent_projects())
-        grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
+        grid.addWidget(self.empty, 0, 0, Qt.AlignmentFlag.AlignCenter)
         self.banner = Banner(self._themes)
         self.banner_box = self._overlay(self.banner)
         self.banner_box.hide()
-        grid.addWidget(self.banner_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
+        grid.addWidget(
+            self.banner_box,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter,
+        )
         self.busy = QLabel("Building preview…")
         self.busy.setObjectName("Busy")
         self.busy_box = self._overlay(self.busy)
         self.busy_box.hide()
-        grid.addWidget(self.busy_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
+        grid.addWidget(
+            self.busy_box,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter,
+        )
         # slow work (a model run) in the middle of the canvas, with Cancel
         self.work = WorkCard(self._themes)
         self.work.clicked.connect(self._work_clicked)
         self.work_box = self._overlay(self.work)
         self.work_box.hide()
-        grid.addWidget(self.work_box, 0, 0, Qt.AlignCenter)
+        grid.addWidget(self.work_box, 0, 0, Qt.AlignmentFlag.AlignCenter)
         self.zoombar = ZoomBar(self._themes)
         self.zoombar.zoomIn.connect(lambda: self._active_view().zoom_by(1.25))
         self.zoombar.zoomOut.connect(lambda: self._active_view().zoom_by(0.8))
@@ -570,7 +584,12 @@ class MainWindow(QMainWindow):
         # side panel toggles in the bottom corners, next to the panel they control
         # (always shown, so a collapsed panel can be brought back)
         self.btn_left, left_card = self._side_button(self.LEFT)
-        grid.addWidget(self._overlay(left_card), 0, 0, Qt.AlignBottom | Qt.AlignLeft)
+        grid.addWidget(
+            self._overlay(left_card),
+            0,
+            0,
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft,
+        )
         # what the marks on the Source view mean (only there, with an image): above the
         # figure list toggle, clear of the banner at the top and the zoom bar. It lets
         # the mouse through, so a crop handle under it can still be dragged.
@@ -579,12 +598,17 @@ class MainWindow(QMainWindow):
             self.legend, (16, 16, 16, 16 + left_card.sizeHint().height() + 8)
         )
         for w in (self.legend, self.legend_box):
-            w.setAttribute(Qt.WA_TransparentForMouseEvents)
+            w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.legend_box.hide()
-        grid.addWidget(self.legend_box, 0, 0, Qt.AlignBottom | Qt.AlignLeft)
+        grid.addWidget(
+            self.legend_box,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft,
+        )
         self.btn_right, right_card = self._side_button(self.RIGHT)
         self.zoom_box = QWidget()
-        self.zoom_box.setAttribute(Qt.WA_TranslucentBackground)
+        self.zoom_box.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         zb = QHBoxLayout(self.zoom_box)
         zb.setContentsMargins(16, 16, 16, 16)
         zb.setSpacing(8)
@@ -599,14 +623,19 @@ class MainWindow(QMainWindow):
             "Remove the crop box, so background removal looks at "
             "the whole image (Delete). Ctrl+Z undoes a crop change."
         )
-        self.btn_clear_crop.setCursor(Qt.PointingHandCursor)
+        self.btn_clear_crop.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_clear_crop.clicked.connect(lambda: self.panel.set_crop(None))
         cl.addWidget(self.btn_clear_crop)
         self.clear_crop_card.hide()
-        zb.addWidget(self.clear_crop_card, 0, Qt.AlignBottom)
-        zb.addWidget(self.zoombar, 0, Qt.AlignBottom)
-        zb.addWidget(right_card, 0, Qt.AlignBottom)
-        grid.addWidget(self.zoom_box, 0, 0, Qt.AlignBottom | Qt.AlignRight)
+        zb.addWidget(self.clear_crop_card, 0, Qt.AlignmentFlag.AlignBottom)
+        zb.addWidget(self.zoombar, 0, Qt.AlignmentFlag.AlignBottom)
+        zb.addWidget(right_card, 0, Qt.AlignmentFlag.AlignBottom)
+        grid.addWidget(
+            self.zoom_box,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight,
+        )
         for v in (self.crop_view, self.mini_view, self.sheet_view):
             v.zoomChanged.connect(
                 lambda z, v=v: v is self._active_view() and self.zoombar.set_zoom(z)
@@ -624,11 +653,11 @@ class MainWindow(QMainWindow):
             self.addAction(a)  # shortcuts work without a menu bar
             return a
 
-        self.a_new = act("New project", self.new_project, QKeySequence.New)
+        self.a_new = act("New project", self.new_project, QKeySequence.StandardKey.New)
         self.a_open = act(
             "Open…",
             self.open_dialog,
-            QKeySequence.Open,
+            QKeySequence.StandardKey.Open,
             "Open a project (.yaml) or images",
         )
         self.a_add = act("Add images…", self.add_images_dialog, "Ctrl+I")
@@ -647,11 +676,13 @@ class MainWindow(QMainWindow):
         self.a_paste = act(
             "Paste images",
             self.paste,
-            QKeySequence.Paste,
+            QKeySequence.StandardKey.Paste,
             "Add copied image files, or an image or its link copied in a browser",
         )
-        self.a_save = act("Save project", self.save, QKeySequence.Save)
-        self.a_save_as = act("Save project as…", self.save_as, QKeySequence.SaveAs)
+        self.a_save = act("Save project", self.save, QKeySequence.StandardKey.Save)
+        self.a_save_as = act(
+            "Save project as…", self.save_as, QKeySequence.StandardKey.SaveAs
+        )
         self.a_svg = act(
             "Export…",
             self.export_current,
@@ -680,13 +711,15 @@ class MainWindow(QMainWindow):
         self.a_undo_crop = act(
             "Undo crop change",
             self.undo_crop,
-            QKeySequence.Undo,
+            QKeySequence.StandardKey.Undo,
             "Put the crop box back as it was before the last change",
         )
-        self.a_remove = act("Remove figure", self.remove_current, QKeySequence.Delete)
-        self.a_remove.setShortcutContext(Qt.WidgetShortcut)
+        self.a_remove = act(
+            "Remove figure", self.remove_current, QKeySequence.StandardKey.Delete
+        )
+        self.a_remove.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         self.list.addAction(self.a_remove)
-        self.a_quit = act("Quit", self.close, QKeySequence.Quit)
+        self.a_quit = act("Quit", self.close, QKeySequence.StandardKey.Quit)
         self.a_fit = act("Fit to window", self.fit_view, "Ctrl+0")
         self.a_actual = act(
             "Actual size",
@@ -848,7 +881,7 @@ class MainWindow(QMainWindow):
             side = "panel_left" if i == self.LEFT else "panel_right"
             name = side + ("_on" if on else "")
             btn.setIcon(self._themes.icon(name, t.text, 16))
-            key = a.shortcut().toString(QKeySequence.NativeText)
+            key = a.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
             verb = "Hide" if on else "Show"
             btn.setToolTip(f"{verb} the {self.SIDE_NAMES[i]}  ({key})")
             btn.setAccessibleName(f"{verb} the {self.SIDE_NAMES[i]}")
@@ -993,7 +1026,7 @@ class MainWindow(QMainWindow):
         clip = QApplication.clipboard().text().strip()
         if not self.link_edit.text().strip() and ImageFetcher.is_url(clip):
             self.link_edit.setText(clip)
-        self.link_edit.setFocus(Qt.ShortcutFocusReason)
+        self.link_edit.setFocus(Qt.FocusReason.ShortcutFocusReason)
         self.link_edit.selectAll()
 
     def add_from_link_bar(self):
@@ -1048,16 +1081,19 @@ class MainWindow(QMainWindow):
                 QIcon(
                     QPixmap.fromImage(
                         img.scaled(
-                            112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                            112,
+                            112,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
                         )
                     )
                 )
             )
         item.setToolTip(entry.source or str(entry.image))
-        item.setData(Qt.UserRole, fig.uid)
+        item.setData(Qt.ItemDataRole.UserRole, fig.uid)
         item.setData(SUBTITLE_ROLE, "Building…")
         item.setData(COPIES_ROLE, entry.settings.copies)
-        item.setFlags(item.flags() | Qt.ItemIsEditable)  # (the copies box)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)  # (the copies box)
         item.setSizeHint(QSize(0, FigureDelegate.H))
         self.list.addItem(item)
         self.count_label.setText(str(len(self.figures)))
@@ -1087,7 +1123,10 @@ class MainWindow(QMainWindow):
                 item.setIcon(
                     QIcon(
                         fig.pixmap.scaled(
-                            112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                            112,
+                            112,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
                         )
                     )
                 )
@@ -1107,7 +1146,7 @@ class MainWindow(QMainWindow):
     def _rows_moved(self, *_):
         by_uid = {f.uid: f for f in self.figures}
         self.figures = [
-            by_uid[self.list.item(i).data(Qt.UserRole)]
+            by_uid[self.list.item(i).data(Qt.ItemDataRole.UserRole)]
             for i in range(self.list.count())
         ]
         self._set_modified()
@@ -1117,7 +1156,7 @@ class MainWindow(QMainWindow):
 
     def _list_item(self, fig: Figure) -> QListWidgetItem | None:
         for i in range(self.list.count()):
-            if self.list.item(i).data(Qt.UserRole) == fig.uid:
+            if self.list.item(i).data(Qt.ItemDataRole.UserRole) == fig.uid:
                 return self.list.item(i)
         return None
 
@@ -1416,7 +1455,10 @@ class MainWindow(QMainWindow):
             ).exists():  # downloaded meanwhile (Models and cache)
                 answer["ok"] = True
                 return
-            ok = DownloadDialog(model, segmenters, self).exec() == QDialog.Accepted
+            ok = (
+                DownloadDialog(model, segmenters, self).exec()
+                == QDialog.DialogCode.Accepted
+            )
             answer["ok"] = ok
             if not ok:
                 self._declined.add(model)
@@ -1751,7 +1793,7 @@ class MainWindow(QMainWindow):
         m.clear()
         fm = m.fontMetrics()
         for p in self._prefs.recent_projects():
-            folder = fm.elidedText(str(p.parent), Qt.ElideMiddle, 320)
+            folder = fm.elidedText(str(p.parent), Qt.TextElideMode.ElideMiddle, 320)
             a = m.addAction(f"{p.name}\t{folder}".replace("&", "&&"))
             a.setToolTip(str(p))
             a.setData(str(p))
@@ -1778,7 +1820,7 @@ class MainWindow(QMainWindow):
             return
         try:
             # images from links may download
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             try:
                 proj = self._project_store.load(path)
             finally:
@@ -1868,7 +1910,7 @@ class MainWindow(QMainWindow):
                     f"{len(dup)} of the images in {folder.name} {'is' if one else 'are'} already "
                     f"in the project. Add {'it' if one else 'them'} again?",
                 )
-                == QMessageBox.Yes
+                == QMessageBox.StandardButton.Yes
             )
             if not again:
                 left = len(dup)
@@ -1930,11 +1972,13 @@ class MainWindow(QMainWindow):
             self,
             "papermini",
             "Save changes to the project?",
-            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
         )
-        if r == QMessageBox.Save:
+        if r == QMessageBox.StandardButton.Save:
             return self.save()
-        return r == QMessageBox.Discard
+        return r == QMessageBox.StandardButton.Discard
 
     def discard_changes(self) -> None:
         """Forget the unsaved changes, so that closing the window doesn't ask to save

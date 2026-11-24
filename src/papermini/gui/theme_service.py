@@ -98,7 +98,7 @@ class ThemeService:
         color = color or self.current.text
         r = QSvgRenderer(QByteArray(self.icon_svg(name, color).encode()))
         px = QPixmap(int(size * ratio), int(size * ratio))
-        px.fill(Qt.transparent)
+        px.fill(Qt.GlobalColor.transparent)
         p = QPainter(px)
         r.render(p, QRectF(0, 0, px.width(), px.height()))
         p.end()
@@ -108,7 +108,7 @@ class ThemeService:
     def icon(self, name: str, color: str | None = None, size: int = 18) -> QIcon:
         """Return the line icon ``name`` as an icon, muted when disabled."""
         ic = QIcon(self.pixmap(name, color, size))
-        ic.addPixmap(self.pixmap(name, self.current.muted, size), QIcon.Disabled)
+        ic.addPixmap(self.pixmap(name, self.current.muted, size), QIcon.Mode.Disabled)
         return ic
 
     # endregion
@@ -118,7 +118,7 @@ class ThemeService:
         """Return the logo, centred in a ``size`` x ``size`` square."""
         r = QSvgRenderer(str(self.LOGO))
         px = QPixmap(int(size * ratio), int(size * ratio))
-        px.fill(Qt.transparent)
+        px.fill(Qt.GlobalColor.transparent)
         vb = r.viewBoxF()
         k = px.width() / max(vb.width(), vb.height())
         w, h = vb.width() * k, vb.height() * k
@@ -173,27 +173,31 @@ class ThemeService:
 
         pal = QPalette()
         for role, c in (
-            (QPalette.Window, t.bg),
-            (QPalette.Base, t.surface2),
-            (QPalette.AlternateBase, t.surface),
-            (QPalette.WindowText, t.text),
-            (QPalette.Text, t.text),
-            (QPalette.Button, t.surface),
-            (QPalette.ButtonText, t.text),
-            (QPalette.Highlight, t.accent),
-            (QPalette.HighlightedText, t.accent_text),
-            (QPalette.ToolTipBase, t.surface),
-            (QPalette.ToolTipText, t.text),
-            (QPalette.PlaceholderText, t.muted),
-            (QPalette.Mid, t.border),
-            (QPalette.Dark, t.border),
-            (QPalette.Light, t.surface),
-            (QPalette.Link, t.accent),
-            (QPalette.LinkVisited, t.accent),
+            (QPalette.ColorRole.Window, t.bg),
+            (QPalette.ColorRole.Base, t.surface2),
+            (QPalette.ColorRole.AlternateBase, t.surface),
+            (QPalette.ColorRole.WindowText, t.text),
+            (QPalette.ColorRole.Text, t.text),
+            (QPalette.ColorRole.Button, t.surface),
+            (QPalette.ColorRole.ButtonText, t.text),
+            (QPalette.ColorRole.Highlight, t.accent),
+            (QPalette.ColorRole.HighlightedText, t.accent_text),
+            (QPalette.ColorRole.ToolTipBase, t.surface),
+            (QPalette.ColorRole.ToolTipText, t.text),
+            (QPalette.ColorRole.PlaceholderText, t.muted),
+            (QPalette.ColorRole.Mid, t.border),
+            (QPalette.ColorRole.Dark, t.border),
+            (QPalette.ColorRole.Light, t.surface),
+            (QPalette.ColorRole.Link, t.accent),
+            (QPalette.ColorRole.LinkVisited, t.accent),
         ):
             pal.setColor(role, QColor(c))
-        for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
-            pal.setColor(QPalette.Disabled, role, QColor(t.muted))
+        for role in (
+            QPalette.ColorRole.WindowText,
+            QPalette.ColorRole.Text,
+            QPalette.ColorRole.ButtonText,
+        ):
+            pal.setColor(QPalette.ColorGroup.Disabled, role, QColor(t.muted))
         app.setPalette(pal)
         app.setStyleSheet(self.style_sheet(t))
         return t

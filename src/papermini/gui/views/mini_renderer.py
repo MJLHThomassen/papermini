@@ -60,7 +60,7 @@ class MiniRenderer:
         st = m.style
         pm = pixmap or QPixmap.fromImage(self._images.from_pil(m.art))
         art = QGraphicsPixmapItem(pm)
-        art.setTransformationMode(Qt.SmoothTransformation)
+        art.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
         art.setTransform(
             QTransform.fromScale(m.width_mm / pm.width(), m.height_mm / pm.height())
         )
@@ -90,7 +90,7 @@ class MiniRenderer:
             return
         cut = QGraphicsPathItem(self._cut_path(m.cut, x, y))
         pen = QPen(QColor(st.cut_color), st.cut_width_mm)
-        pen.setJoinStyle(Qt.RoundJoin)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         cut.setPen(pen)
         scene.addItem(cut)
 

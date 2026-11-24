@@ -20,7 +20,7 @@ class KindChoice(QWidget):
         self.buttons = {}
         for value, text in kinds:
             b = QRadioButton(text)
-            b.setCursor(Qt.PointingHandCursor)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
             self.group.addButton(b)
             self.buttons[value] = b
             h.addWidget(b)

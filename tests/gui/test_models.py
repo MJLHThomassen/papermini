@@ -36,7 +36,7 @@ def test_download_dialog_asks_then_downloads(app, model_cache, pipeline, wait):
     assert "You are responsible for not using it commercially" in d.licence_note.text()
     assert d.btn_go.text() == "Download"
     d.btn_no.click()  # "Not now"
-    assert d.result() == QDialog.Rejected and model_cache == []
+    assert d.result() == QDialog.DialogCode.Rejected and model_cache == []
 
     d = DownloadDialog("rmbg-1.4", segmenters)
     assert not d.btn_go.isEnabled()  # the licence is not accepted yet
@@ -46,7 +46,7 @@ def test_download_dialog_asks_then_downloads(app, model_cache, pipeline, wait):
     assert d.btn_go.isEnabled()
     d.btn_go.click()  # "Download"
     assert d.btn_no.text() == "Cancel" and not d.accept_licence.isEnabled()
-    assert wait(lambda: d.result() == QDialog.Accepted, 10)
+    assert wait(lambda: d.result() == QDialog.DialogCode.Accepted, 10)
     assert d.bar.value() == 1000 and d.status.text() == "0 of 0 MB"  # 30 bytes
     assert segmenters.path("rmbg-1.4").exists() and model_cache == ["rmbg-1.4.onnx"]
 
@@ -63,11 +63,11 @@ def test_cancelling_a_download_stops_it_and_keeps_no_model(
     gate = fake_downloader.gate = threading.Event()
     d = DownloadDialog("birefnet-lite", pipeline.segmenters, ask=False)
     d.reject()  # Cancel / Esc while downloading
-    assert d.isVisible() is False and d.result() != QDialog.Accepted
+    assert d.isVisible() is False and d.result() != QDialog.DialogCode.Accepted
     assert "Cancelling" in d.status.text()
     gate.set()
     assert wait(lambda: not d.downloading, 10)
-    assert d.result() == QDialog.Rejected
+    assert d.result() == QDialog.DialogCode.Rejected
     assert not pipeline.segmenters.path("birefnet-lite").exists()
 
 
@@ -88,7 +88,7 @@ def test_build_asks_before_downloading(
             asked.append(model)
 
         def exec(self):
-            return QDialog.Rejected
+            return QDialog.DialogCode.Rejected
 
     monkeypatch.setattr("papermini.gui.window.main_window.DownloadDialog", Refuse)
     w = new_window()
@@ -127,7 +127,7 @@ def test_build_asks_before_downloading(
     monkeypatch.setattr(
         cache_page.QMessageBox,
         "question",
-        lambda *a, **k: cache_page.QMessageBox.Yes,
+        lambda *a, **k: cache_page.QMessageBox.StandardButton.Yes,
     )
     card.btn_del.click()
     assert not pipeline.segmenters.path("birefnet-lite").exists()
@@ -178,7 +178,7 @@ def test_the_cache_page_clears_masks_images_and_everything(
     monkeypatch.setattr(
         cache_page.QMessageBox,
         "question",
-        lambda *a, **k: asked.append(a[2]) or cache_page.QMessageBox.Yes,
+        lambda *a, **k: asked.append(a[2]) or cache_page.QMessageBox.StandardButton.Yes,
     )
     dlg.btn_all.click()
     assert "also deletes the downloaded models" in asked[0]
@@ -196,7 +196,7 @@ def test_the_cache_page_scrolls_when_the_window_is_short(app, model_cache, new_w
     w = new_window()
     dlg = w.preferences_dialog("cache")
     assert dlg.isSizeGripEnabled() and dlg.stack.currentWidget() is dlg.cache
-    dlg.setAttribute(Qt.WA_DontShowOnScreen)
+    dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     dlg.show()
     app.processEvents()
     dlg.resize(dlg.width(), 300)  # (as short as the other pages allow)
@@ -246,7 +246,7 @@ def test_a_non_commercial_model_always_asks_to_accept_its_licence(
     assert model_cache == [] and d.bar.isHidden()
     d.accept_licence.setChecked(True)
     d.btn_go.click()
-    assert wait(lambda: d.result() == QDialog.Accepted, 10)
+    assert wait(lambda: d.result() == QDialog.DialogCode.Accepted, 10)
     d = DownloadDialog("birefnet-lite", segmenters)
     assert d.accept_licence is None and d.licence_note is None and d.btn_go.isEnabled()
     card = CachePage(segmenters, masks, images_from_web).cards["rmbg-1.4"]
