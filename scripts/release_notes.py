@@ -11,6 +11,7 @@ uses this instead of GitHub's generated notes, which list only pull request titl
 from __future__ import annotations
 
 import argparse
+import io
 import re
 import subprocess
 import sys
@@ -186,7 +187,8 @@ def main(argv: list[str] | None = None) -> int:
         with open(a.output, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
     else:
-        sys.stdout.reconfigure(encoding="utf-8")
+        if isinstance(sys.stdout, io.TextIOWrapper):
+            sys.stdout.reconfigure(encoding="utf-8")
         sys.stdout.write(text)
     return 0
 
