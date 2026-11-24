@@ -4,21 +4,21 @@
     just fake-update --app dist/papermini     # a real build (Windows, Linux)
     just fake-update --app dist/papermini.app # a real build (macOS)
 
-Writes to papermini-fake-update in the temp folder (outside the project, so a cloud
-sync such as OneDrive cannot lock it):
+``just try-update`` and ``just try-update-source`` do all of this in one go (see
+scripts/try_update.py).
 
-(``just try-update`` and ``just try-update-source`` do all of this in one go, see
-scripts/try_update.py.)
+The script writes to papermini-fake-update in the temp folder, outside the project, so a
+cloud sync such as OneDrive cannot lock it. It writes:
 
-- ``release/``: the "new version" (default 99.0.0): its archive for this computer,
+- ``release/``: the new version (default 99.0.0): its archive for this computer,
   SHA256SUMS.txt signed with a throwaway key, and release.json, a release description
   in GitHub's format that points at these files;
 - without --app also ``installed/papermini``: a pretend installed papermini for a run
   from source to update.
 
 Then it prints the environment variables to set before starting papermini (from
-source, or the frozen app). papermini then finds the new version in About and Check for
-updates, downloads and verifies it, and installs it over the (pretend) installed copy
+source, or the frozen app). When papermini checks for updates, it finds the new
+version, downloads and verifies it, and installs it over the (pretend) installed copy
 when it closes. A real build in --app replaces the frozen app you start.
 """
 
@@ -45,7 +45,8 @@ from fake_release import FakeRelease
 
 
 def pretend_app(where: Path, version: str, note: str) -> Path:
-    """A folder that stands in for papermini (it only has to have the right name)."""
+    """Make a folder that stands in for papermini, and return it. It only has to have
+    the right name."""
     app = where / ("papermini.app" if sys.platform == "darwin" else "papermini")
     if app.exists():
         shutil.rmtree(app)
@@ -87,9 +88,9 @@ def make_release(
     out: Path | None = None,
     setup: Path | None = None,
 ) -> FakeRelease:
-    """Make the fake release (of the build ``app``, or of a pretend app with a pretend
-    installed copy; with ``setup``, of that Windows installer, for an installed
-    papermini)."""
+    """Make the fake release and return it. It holds the build ``app``, or a pretend
+    app with a pretend installed copy. With ``setup`` it holds that Windows installer,
+    for an installed papermini."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 

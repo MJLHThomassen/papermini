@@ -10,17 +10,16 @@
 It builds in the temp folder (papermini-update-build), not in the project's dist/, so a
 cloud sync of the project (such as OneDrive) cannot lock the build. It copies the build
 (papermini, or papermini.app on macOS) to a test folder in the temp folder, which plays
-the installed app, and puts OLD-COPY.txt in it. It makes a
-fake, signed release 99.0.0 of the build (scripts/fake_update.py) and starts the copy,
-pointed at that release. Update it in papermini (the menu's Check for updates, then
-Update and Restart now, or close papermini), and the script then says whether the copy
-was replaced.
+the installed app, and puts OLD-COPY.txt in it. It makes a fake, signed release 99.0.0
+of the build (scripts/fake_update.py) and starts the copy, pointed at that release.
+In papermini, check for updates from the menu, then update and restart (or close
+papermini), and the script then says whether the copy was replaced.
 
 With --installer (Windows, needs Inno Setup 6) it builds the installer of the build and
-installs it silently into a test folder in the temp folder (this is a real install of
-papermini for your user: it shows in Apps & features). The fake release 99.0.0 then holds
-an installer, and the script checks that Apps & features shows 99.0.0 after the update.
-Uninstall it afterwards in Apps & features.
+installs it silently into a test folder in the temp folder. This is a real install of
+papermini for your user, so it shows in the Windows list of installed apps. The fake
+release 99.0.0 then holds an installer, and the script checks that the list of
+installed apps shows 99.0.0 after the update. Uninstall it there afterwards.
 """
 
 from __future__ import annotations
@@ -60,7 +59,8 @@ HOW = (
 
 
 def fresh(folder: Path) -> Path:
-    """An empty ``folder`` (a new one next to it if the old one is still in use)."""
+    """Empty ``folder`` and return it, or return a new one next to it if the old one
+    is still in use."""
     if folder.exists():
         shutil.rmtree(folder, ignore_errors=True)
         if folder.exists():
@@ -84,7 +84,8 @@ def run(app_cmd, env: dict) -> None:
 
 
 def installed_version() -> str:
-    """The version of papermini in Apps & features ("" when it is not installed)."""
+    """Return the version of the installed papermini that Windows lists, or an empty
+    string when it is not installed."""
     import winreg
 
     from papermini.support.update import SETUP_KEY
@@ -98,7 +99,7 @@ def installed_version() -> str:
 
 def try_installer(build: Path) -> None:
     """Install ``build`` with its installer, then update it with the installer of a
-    fake release 99.0.0 and check that Apps & features shows the new version."""
+    fake release 99.0.0 and check that Windows lists the new version."""
     from build_installer import build as build_setup
 
     from papermini import __version__

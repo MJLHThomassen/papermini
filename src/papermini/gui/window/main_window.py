@@ -347,7 +347,8 @@ class MainWindow(QMainWindow):
         h = QHBoxLayout(self._head_right)
         h.setContentsMargins(0, 0, 0, 0)
         h.addStretch(1)
-        # (Export SVG is on the Miniature step's panel, Print and Export on the sheet's)
+        # the export and print buttons sit on the side panels: the figure's export on
+        # the figure panel, the sheet's print and export on the sheet panel
         self._tinted += [
             (self.panel.export_piece, "export", "text", 16),
             (self.sheet_panel.print_btn, "printer", "text", 16),

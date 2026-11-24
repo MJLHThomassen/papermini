@@ -1414,8 +1414,8 @@ with the background removal settings.
 ## Tips
 
 - **Tune with `--debug`.** `debug/<name>_overlay.png` shows red for what will be
-  cut away and light blue for the white margin. It also writes the masks from
-  each step (`0_raw` → `5_cut`).
+  cut away and light blue for the margin around the figure. It also writes the
+  masks from each step (`0_raw` → `5_cut`).
 - **Faint pencil.** Lower `--strength` (for example 25–40) and raise `--fill-gaps` if
   the silhouette has gaps.
 - **Busy background.** Use `--crop` around the figure and try `--strength 60`. A

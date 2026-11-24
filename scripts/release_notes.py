@@ -1,6 +1,6 @@
-"""Release notes for a version tag: every commit since the previous version tag.
+"""Write the release notes for a version tag: every commit since the previous one.
 
-    just release-notes v1.2.0 [--repo owner/name] [-o notes.md]
+    just release-notes <tag> [--repo owner/name] [-o notes.md]
 
 Commits are grouped by their Conventional Commit type (features, fixes, ...), with
 breaking changes also listed first. Each line names the pull request the commit came in
@@ -52,6 +52,8 @@ def git(*args: str, cwd: str | None = None) -> str:
 
 @dataclass
 class Commit:
+    """A commit, with the pull request it came in with."""
+
     sha: str
     subject: str
     body: str
@@ -88,8 +90,8 @@ class Commit:
 def previous_tag(
     rev: str, cwd: str | None = None, inclusive: bool = False
 ) -> str | None:
-    """The newest version tag before ``rev`` in its history (or on it, ``inclusive``),
-    or None for the first."""
+    """Return the newest version tag before ``rev`` in its history (or on it, with
+    ``inclusive``), or None for the first."""
     try:
         return (
             git(
@@ -108,7 +110,8 @@ def previous_tag(
 
 
 def commits(rev_range: str, cwd: str | None = None) -> list[Commit]:
-    """The non-merge commits in ``rev_range``, newest first, each with its pull request."""
+    """Return the non-merge commits in ``rev_range``, newest first, each with its pull
+    request."""
     sep, end = "\x1f", "\x1e"
     out = git(
         "log", "--no-merges", f"--format=%H{sep}%s{sep}%b{end}", rev_range, cwd=cwd
@@ -139,8 +142,8 @@ def commits(rev_range: str, cwd: str | None = None) -> list[Commit]:
 
 
 def notes(tag: str, repo: str | None = None, cwd: str | None = None) -> str:
-    """The notes for ``tag``; a tag that does not exist yet means the current commit, so
-    the notes can be read before tagging."""
+    """Return the notes for ``tag``. A tag that does not exist yet means the current
+    commit, so the notes can be read before tagging."""
     exists = (
         subprocess.run(
             ["git", "rev-parse", "--verify", "-q", f"{tag}^{{commit}}"],

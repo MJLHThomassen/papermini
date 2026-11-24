@@ -130,7 +130,7 @@ class FigureDelegate(QStyledItemDelegate):
         p.setFont(option.font)
         p.setPen(QColor(t.muted))
         sub_w = w
-        if copies is not None:  # in a narrow list the height gives way, then "Amount"
+        if copies is not None:  # when narrow, the height gives way, then COPIES_TEXT
             sub_w = max(0.0, w - self._copies_width(p, self._show_word(p, w)) - 8)
         sub = index.data(SUBTITLE_ROLE) or ""
         sub = p.fontMetrics().elidedText(sub, Qt.ElideRight, int(sub_w))
@@ -144,21 +144,22 @@ class FigureDelegate(QStyledItemDelegate):
     def helpEvent(self, event, view, option, index):
         if index.data(COPIES_ROLE) is not None:
             minus, _, plus = self.copies_rects(option.rect)
-            area = minus.united(plus).adjusted(-60, -2, 0, 2)  # (the word "Amount" too)
+            area = minus.united(plus).adjusted(-60, -2, 0, 2)  # (COPIES_TEXT too)
             if area.contains(event.pos()):
                 QToolTip.showText(event.globalPos(), self.COPIES_TIP, view)
                 return True
         return super().helpEvent(event, view, option, index)
 
     def _copies_width(self, p: QPainter, word: bool = True) -> float:
-        """The control, and the word "Amount" before it."""
+        """Return the width of the control, with COPIES_TEXT before it when ``word``."""
         control = 2 * self.BTN + self.NUM
         return control + (
             p.fontMetrics().horizontalAdvance(self.COPIES_TEXT) + 6 if word else 0
         )
 
     def _show_word(self, p: QPainter, w: float) -> bool:
-        """Whether "Amount" fits beside the control in a text column ``w`` wide."""
+        """Return whether COPIES_TEXT fits beside the control in a text column ``w``
+        wide."""
         return w >= self._copies_width(p) + 8
 
     def _paint_copies(

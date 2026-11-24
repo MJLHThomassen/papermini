@@ -327,7 +327,8 @@ class FigurePanel(QScrollArea):
         return self._step
 
     def step_settings(self) -> set:
-        """The settings shown now, minus the per-image ones "Apply to all" never copies."""
+        """Return the settings shown now, minus the per-image ones that applying
+        settings to all figures never copies."""
         return step_settings(self._step) - PER_IMAGE
 
     def is_token(self) -> bool:

@@ -63,7 +63,7 @@ class SheetLayout:
     mark_inset: float = 0.0  # distance of the marks from the paper edges
     header_x: float = 0.0  # left of the header (right of a top-left mark)
     header_right: float = 0.0  # right end of the header (left of a top-right mark)
-    paper_name: str = ""  # the paper as messages name it, e.g. "A3 landscape"
+    paper_name: str = ""  # the paper's name in messages, plus landscape when turned
     left_out: list[Mini] = field(
         default_factory=list
     )  # too big for the paper (one each)

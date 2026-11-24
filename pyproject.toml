@@ -55,8 +55,9 @@ where = ["src"]
 "papermini" = ["fonts/*/*.ttf", "fonts/*/OFL.txt"]  # the bundled fonts (SIL OFL)
 
 [tool.setuptools_scm]
-# Semantic versioning from git tags: tag v1.2.3 builds version 1.2.3; commits after
-# a tag get a development version such as 1.2.4.dev3+g1a2b3c4.
+# Semantic versioning from git tags: a tag of v and a version builds that version.
+# Commits after a tag get a development version: the next patch version, then .dev
+# and the number of commits since the tag, then +g and the short commit hash.
 version_file = "src/papermini/_version.py"
 fallback_version = "0.0.0"
 
