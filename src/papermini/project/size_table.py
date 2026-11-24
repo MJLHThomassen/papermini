@@ -88,8 +88,8 @@ class SizeTable:
         name = d.get("preset", "")
         if not isinstance(name, str):
             raise ValueError(f"sizes preset must be a name, not {name!r}")
-        grid = _positive(d.get("grid_mm", GRID_MM), "sizes grid_mm")
-        medium = _positive(d.get("medium_mm", MEDIUM_MM), "sizes medium_mm")
+        grid = cls._positive(d.get("grid_mm", GRID_MM), "sizes grid_mm")
+        medium = cls._positive(d.get("medium_mm", MEDIUM_MM), "sizes medium_mm")
         rows = {}
         for s in SIZES:
             if s not in d:
@@ -106,14 +106,14 @@ class SizeTable:
             calc = SizeRow.calculated(s, grid, medium)
             rows[s] = SizeRow(
                 *(
-                    _positive(r.get(k, getattr(calc, k)), f"sizes {s} {k}")
+                    cls._positive(r.get(k, getattr(calc, k)), f"sizes {s} {k}")
                     for k in FIELDS
                 )
             )
         return cls(grid, medium, rows, name.strip())
 
-
-def _positive(v: Any, what: str) -> float:
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
-        raise ValueError(f"{what} must be a number above 0, not {v!r}")
-    return float(v)
+    @staticmethod
+    def _positive(v: Any, what: str) -> float:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
+            raise ValueError(f"{what} must be a number above 0, not {v!r}")
+        return float(v)

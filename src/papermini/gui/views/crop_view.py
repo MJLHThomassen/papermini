@@ -15,7 +15,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QGraphicsPathItem, QGraphicsRectItem, QGraphicsView
 
-from .. import theme
+from ..theme_service import ThemeService
 from .crop_handles import CropHandles
 from .crop_style import (
     CROP_COLOR,
@@ -49,8 +49,8 @@ class CropView(ZoomView):
 
     cropChanged = Signal(object)  # [x0, y0, x1, y1] fractions, or None
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, themes: ThemeService, parent=None):
+        super().__init__(themes, parent)
         self.setDragMode(QGraphicsView.NoDrag)
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -94,7 +94,11 @@ class CropView(ZoomView):
         # on paper with a soft shadow, like the Miniature and Print sheet views (the
         # reach in image pixels: enough for the shadow at the fitted zoom)
         sc.addItem(
-            PaperItem(QRectF(0, 0, *self._img_size), reach=0.05 * max(self._img_size))
+            PaperItem(
+                self._themes,
+                QRectF(0, 0, *self._img_size),
+                reach=0.05 * max(self._img_size),
+            )
         )
         self._pix_item = sc.addPixmap(QPixmap())
         self._pix_item.setTransformationMode(Qt.SmoothTransformation)
@@ -151,7 +155,7 @@ class CropView(ZoomView):
         self._outline_items = []
         if self._img_size is None:
             return
-        t = theme.current
+        t = self._themes.current
         W, H = self._img_size
         area = QPainterPath()
         area.addRect(QRectF(0, 0, W, H))
@@ -436,7 +440,7 @@ class CropView(ZoomView):
                 painter.drawRect(QRectF(pt.x() - h, pt.y() - h, 2 * h, 2 * h))
         if self.show_hint() and not img.isEmpty():
             pill = self.hint_rect()
-            t = theme.current
+            t = self._themes.current
             painter.setFont(self._hint_font())
             painter.setPen(QPen(QColor(t.border), 1))
             painter.setBrush(QColor(t.surface))

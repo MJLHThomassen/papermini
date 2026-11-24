@@ -26,11 +26,12 @@ from ...project import sizes
 from ...project.size_calculator import SizeCalculator
 from ...support.image_fetcher import ImageFetcher
 from ...support.log_session import LogSession
-from .. import errors
 from ..fields.spin_box import SpinBox
 from ..preferences import Preferences
+from ..problem_reporter import ProblemReporter
+from ..theme_service import ThemeService
 from .cache_page import CachePage
-from .page_parts import _hint, _page_title
+from .page_parts import PageParts
 from .sizes_page import SizesPage
 
 
@@ -63,12 +64,15 @@ class PreferencesDialog(QDialog):
         masks: MaskStore,
         images_from_web: ImageFetcher,
         logs: LogSession,
+        themes: ThemeService,
+        problems: ProblemReporter,
         page: str = "sizes",
         parent=None,
     ):
         super().__init__(parent)
         self._prefs = prefs
         self._logs = logs
+        self._problems = problems
         self.setWindowTitle("Preferences")
         self.setObjectName("PreferencesDialog")
         self.setSizeGripEnabled(True)
@@ -81,7 +85,7 @@ class PreferencesDialog(QDialog):
         self.nav.setObjectName("PrefNav")
         self.nav.setFixedWidth(150)
         self.stack = QStackedWidget()
-        self.sizes = SizesPage(prefs, size_calculator, table)
+        self.sizes = SizesPage(prefs, size_calculator, themes, table)
         self.cache = CachePage(segmenters, masks, images_from_web, in_use=in_use)
         self.cache.changed.connect(self.modelsChanged)
         pages = (
@@ -123,7 +127,7 @@ class PreferencesDialog(QDialog):
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)
-        v.addWidget(_page_title(title))
+        v.addWidget(PageParts.title(title))
         return w, v
 
     def _images(self) -> QWidget:
@@ -136,7 +140,7 @@ class PreferencesDialog(QDialog):
         self.subfolders.toggled.connect(self._prefs.set_add_subfolders)
         v.addWidget(self.subfolders)
         v.addWidget(
-            _hint(
+            PageParts.hint(
                 "When you add a folder (Add folder\u2026 in the menu, or by dropping "
                 "it on the window), also add the images in its subfolders. The "
                 "command line always does, unless you give --no-subfolders."
@@ -188,7 +192,7 @@ class PreferencesDialog(QDialog):
             b.toggled.connect(lambda on, m=mode: on and self._png_mode(m))
         self._png_mode(self._prefs.png_size_mode())
         v.addWidget(
-            _hint(
+            PageParts.hint(
                 "How big an exported PNG is. For a virtual tabletop: this many pixels "
                 "for each grid square, so a Medium figure covers one square and a "
                 "Large one two; set it to your tabletop's grid size (for example 100 "
@@ -231,7 +235,7 @@ class PreferencesDialog(QDialog):
         self.auto_updates.toggled.connect(self.autoUpdatesChanged)
         v.addWidget(self.auto_updates)
         v.addWidget(
-            _hint(
+            PageParts.hint(
                 "Look for a new version once a day, download it in the "
                 "background and install it when papermini closes. Check for "
                 "updates in the menu looks right away."
@@ -249,7 +253,7 @@ class PreferencesDialog(QDialog):
         self.detailed_log.toggled.connect(self._logs.set_detailed)
         v.addWidget(self.detailed_log)
         v.addWidget(
-            _hint(
+            PageParts.hint(
                 "Write more to the log, until papermini closes. Turn it on "
                 "before you repeat a problem you want to report."
                 if on
@@ -259,7 +263,7 @@ class PreferencesDialog(QDialog):
         folder = QPushButton("Open log folder")
         folder.setEnabled(on)
         folder.setCursor(Qt.PointingHandCursor)
-        folder.clicked.connect(lambda: errors.open_log_folder(self._logs))
+        folder.clicked.connect(lambda: self._problems.open_log_folder())
         row = QHBoxLayout()
         row.addWidget(folder)
         row.addStretch(1)

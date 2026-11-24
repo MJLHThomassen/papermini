@@ -13,13 +13,12 @@ pytestmark = pytest.mark.usefixtures("fake_default_model")
 
 
 def test_the_print_is_true_to_size_and_follows_the_page_range(
-    output, fonts, app, square_mini
+    output, fonts, app, square_mini, sheets
 ):
     """The printed sheet must be exactly to scale: its calibration bar is as long on
     paper as its label says."""
     from PySide6.QtGui import QColor, QImage
 
-    from papermini.gui.views.drawing import print_sheet
     from papermini.output.sheet_layout import BAR_ABOVE_MM, BAR_MM
 
     class ImagePrinter(QImage):  # a "printer" that prints onto an image, 100 dpi
@@ -47,7 +46,7 @@ def test_the_print_is_true_to_size_and_follows_the_page_range(
     lay = output.packer.pack([(m, 30)], "a4", 12, 7)
     assert lay.pages > 1
     pr = ImagePrinter()
-    assert print_sheet(pr, lay, "test", fonts) == lay.pages == pr.pages
+    assert sheets.print_sheet(pr, lay, "test") == lay.pages == pr.pages
     k = 100 / 25.4
     y = round((12 + lay.header_mm - BAR_ABOVE_MM) * k)  # the scale bar's row
     dark = [x for x in range(pr.width()) if QColor(pr.pixel(x, y)).lightness() < 100]
@@ -60,7 +59,7 @@ def test_the_print_is_true_to_size_and_follows_the_page_range(
     assert QColor(pr.pixel(2, 2)).lightness() > 250  # white paper from the very corner
 
     pr = ImagePrinter(2, 2)  # "pages 2 to 2" in the dialog
-    assert print_sheet(pr, lay, "test", fonts) == 1 and pr.pages == 1
+    assert sheets.print_sheet(pr, lay, "test") == 1 and pr.pages == 1
 
 
 def test_the_print_button_prints_the_sheet(
@@ -661,7 +660,7 @@ def test_the_print_uses_the_sheets_named_paper(built_window, modal, wait):
 
 
 def test_the_export_controller_prints_on_a_printer_from_its_factory(
-    fonts, output, built_window, prefs, tmp_path
+    fonts, output, built_window, prefs, tmp_path, sheets
 ):
     """The controller prints with the dialogs and the printer factory it is given."""
     from PySide6.QtPrintSupport import QPrinter
@@ -686,7 +685,7 @@ def test_the_export_controller_prints_on_a_printer_from_its_factory(
         built_window,
         prefs,
         PrintEverything(prefs, output.cut_files),
-        fonts,
+        sheets,
         output,
         pdf_printer,
     )

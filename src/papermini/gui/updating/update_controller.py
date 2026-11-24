@@ -15,6 +15,8 @@ from ...support.update import RELEASES
 from ...support.update_service import UpdateService
 from ..dialogs.about_dialog import AboutDialog
 from ..preferences import Preferences
+from ..problem_reporter import ProblemReporter
+from ..theme_service import ThemeService
 from .available_update import AvailableUpdate
 from .download_progress import DownloadProgress
 from .ready_update import ReadyUpdate
@@ -31,7 +33,7 @@ PROGRESS_EVERY_S = 0.1  # the shortest time between two reports of download prog
 class UpdateController(QObject):
     """Checks for, downloads and installs updates of papermini with ``updates``, and
     shows them in the update bar and the About window, which shows the log of
-    ``logs``."""
+    ``logs`` in the colors of ``themes`` and reports problems with ``problems``."""
 
     status = Signal(str)  # a message for the status bar
     stateChanged = Signal(object, object)  # an UpdateState and its payload
@@ -44,12 +46,16 @@ class UpdateController(QObject):
         prefs: Preferences,
         updates: UpdateService,
         logs: LogSession,
+        themes: ThemeService,
+        problems: ProblemReporter,
     ):
         super().__init__(window)
         self._window = window
         self._prefs = prefs
         self._updates = updates
         self._logs = logs
+        self._themes = themes
+        self._problems = problems
         self.bar = UpdateBar()
         self.bar.releasePageRequested.connect(self.open_release_page)
         self.bar.actionRequested.connect(self._bar_action)
@@ -223,7 +229,7 @@ class UpdateController(QObject):
     def show_about(self) -> None:
         """Open the About window and start an update check for it, unless an update is
         already downloaded or a check is running."""
-        about = AboutDialog(self._logs, self._window)
+        about = AboutDialog(self._logs, self._themes, self._problems, self._window)
         about.updateRequested.connect(self.download)
         about.releasePageRequested.connect(self.open_release_page)
         about.restartRequested.connect(self.restart)

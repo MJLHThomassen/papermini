@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
 
+from ..theme_service import ThemeService
 from .slider import Slider
 from .spin_box import SpinBox
 
@@ -16,6 +17,7 @@ class SliderField(QWidget):
 
     def __init__(
         self,
+        themes: ThemeService,
         lo: int,
         hi: int,
         slider_hi: int,
@@ -33,7 +35,7 @@ class SliderField(QWidget):
         h.setSpacing(10)
         v.addLayout(h)
         self.auto = QCheckBox("Auto (scales with the image)") if auto else None
-        self.slider = Slider(centre=0 if lo < 0 < hi else None)
+        self.slider = Slider(themes, centre=0 if lo < 0 < hi else None)
         self.slider.setRange(
             lo, min(hi, slider_hi)
         )  # larger values: type them in the box

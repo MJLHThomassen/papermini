@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QVBoxLayout
 
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
-from .model_info import MB, _host, _label, licence_link
+from .model_info import MB, ModelInfo
 
 if TYPE_CHECKING:
     from .cache_page import CachePage
@@ -29,21 +29,21 @@ class ModelCard(QFrame):
         v = QVBoxLayout()
         v.setSpacing(3)
         v.addWidget(
-            _label(
+            ModelInfo.label(
                 f"<b>{html.escape(spec['title'])}</b>"
                 f"&nbsp;&nbsp;<span style='font-weight:400'>{model}</span>"
             )
         )
-        v.addWidget(_label(html.escape(spec["about"]), "Muted"))
+        v.addWidget(ModelInfo.label(html.escape(spec["about"]), "Muted"))
         restricted = SegmenterRegistry.non_commercial(model)
-        self.licence = _label(
-            licence_link(model), "LicenceNote" if restricted else "Muted"
+        self.licence = ModelInfo.label(
+            ModelInfo.licence_link(model), "LicenceNote" if restricted else "Muted"
         )
         self.licence.setTextInteractionFlags(Qt.TextBrowserInteraction)
         if restricted:
             self.licence.setToolTip(SegmenterRegistry.licence_notice(model))
         v.addWidget(self.licence)
-        self.state = _label("", "Hint")
+        self.state = ModelInfo.label("", "Hint")
         self.state.setTextInteractionFlags(Qt.TextSelectableByMouse)
         v.addWidget(self.state)
         h.addLayout(v, 1)
@@ -65,7 +65,7 @@ class ModelCard(QFrame):
         else:
             self.state.setText(
                 f"Not downloaded · about {spec['mb']} MB from "
-                f"{html.escape(_host(self.model))}"
+                f"{html.escape(ModelInfo.host(self.model))}"
             )
         self.btn_get.setText("Download again" if have else "Download")
         self.btn_get.setAccessibleName(f"{self.btn_get.text()} {spec['title']}")

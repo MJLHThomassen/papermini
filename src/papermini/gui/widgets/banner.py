@@ -3,14 +3,15 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel
 
-from .. import theme
+from ..theme_service import ThemeService
 
 
 class Banner(QFrame):
     """A message card on top of the canvas (e.g. why a miniature could not be built)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.setObjectName("ErrorBanner")
         self.setMaximumWidth(560)
         h = QHBoxLayout(self)
@@ -25,7 +26,9 @@ class Banner(QFrame):
         h.addWidget(self.text, 1)
 
     def show_message(self, title: str, body: str):
-        self.icon.setPixmap(theme.pixmap("warning", theme.current.danger, 20))
+        self.icon.setPixmap(
+            self._themes.pixmap("warning", self._themes.current.danger, 20)
+        )
         self.text.setText(
             f"<p style='margin:0'><b>{title}</b></p>{body}"
         )  # (a list may follow)

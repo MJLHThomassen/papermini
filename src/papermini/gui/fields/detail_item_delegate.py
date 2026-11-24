@@ -4,7 +4,7 @@ from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from .. import theme
+from ..theme_service import ThemeService
 
 # the role that holds an item's detail lines, separated by newlines
 DETAIL_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -14,6 +14,10 @@ _GAP = 2  # space between the name and the detail lines, in px
 
 class DetailItemDelegate(QStyledItemDelegate):
     """Draws a list item as its name with muted detail lines under it."""
+
+    def __init__(self, themes: ThemeService, parent=None):
+        super().__init__(parent)
+        self._themes = themes
 
     def sizeHint(self, option, index):
         name, lines = self._texts(index)
@@ -26,7 +30,7 @@ class DetailItemDelegate(QStyledItemDelegate):
         return QSize(width + 2 * _PAD_X, height + 2 * _PAD_Y)
 
     def paint(self, p: QPainter, option, index):
-        t = theme.current
+        t = self._themes.current
         p.save()
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(option.rect).adjusted(1, 1, -1, -1)

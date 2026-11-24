@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QSlider, QStyle, QStyleOptionSlider
 
-from .. import theme
+from ..theme_service import ThemeService
 from .wheel_guard import _WheelGuard
 
 SNAP_PX = 6  # a dragged centred slider snaps to its centre within this many pixels
@@ -16,8 +16,9 @@ class Slider(_WheelGuard, QSlider):
     a short vertical line, snaps to it while dragged close by, and goes back to it on a
     double-click."""
 
-    def __init__(self, parent=None, centre=None):
+    def __init__(self, themes: ThemeService, parent=None, centre=None):
         super().__init__(Qt.Horizontal, parent)
+        self._themes = themes
         self._init_guard()
         self.centre = centre
         if centre is not None:
@@ -65,7 +66,7 @@ class Slider(_WheelGuard, QSlider):
         opt = self._option()
         opt.subControls = QStyle.SC_SliderGroove
         st.drawComplexControl(QStyle.CC_Slider, opt, p, self)
-        t = theme.current
+        t = self._themes.current
         cy = self.rect().center().y() + 0.5
         cx = self.centre_x()
         vx = self.handle_rect(self.sliderPosition()).center().x() + 0.5

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ...project.option import Option
+from ..theme_service import ThemeService
 from .field import Field
 from .size_field import SizeField
 
@@ -18,8 +19,9 @@ class DimensionsField(Field):
         changed: Callable[..., None],
         height: Option,
         width: Option,
+        themes: ThemeService,
     ) -> None:
-        self._size = SizeField(height, width)
+        self._size = SizeField(themes, height, width)
         super().__init__(option, self._size)
         self.label = ""
         self.labels = list(self._size.labels)

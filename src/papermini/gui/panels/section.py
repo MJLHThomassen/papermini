@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import theme
 from ..preferences import Preferences
+from ..theme_service import ThemeService
 
 SUB_INDENT = 14
 
@@ -22,8 +22,16 @@ class Section(QWidget):
     header and cannot be opened. ``sub``: a group inside another one (indented). Its
     fields go in ``form``, labels on the left."""
 
-    def __init__(self, prefs: Preferences, title: str, parent=None, sub: bool = False):
+    def __init__(
+        self,
+        prefs: Preferences,
+        themes: ThemeService,
+        title: str,
+        parent=None,
+        sub: bool = False,
+    ):
         super().__init__(parent)
+        self._themes = themes
         self._prefs = prefs
         self._title = title
         self.setObjectName("SubSection" if sub else "Section")
@@ -84,8 +92,10 @@ class Section(QWidget):
         shown = open_ and self._active
         self.body.setVisible(shown)
         self.header.setIcon(
-            theme.icon(
-                "chevron_down" if shown else "chevron_right", theme.current.muted, 14
+            self._themes.icon(
+                "chevron_down" if shown else "chevron_right",
+                self._themes.current.muted,
+                14,
             )
         )
         if remember:

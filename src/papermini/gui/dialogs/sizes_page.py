@@ -26,10 +26,10 @@ from ...project import sizes
 from ...project.size_calculator import SizeCalculator
 from ...project.size_row import SizeRow
 from ...project.size_table import GRID_MM, MEDIUM_MM
-from .. import theme
 from ..fields.double_spin_box import DoubleSpinBox
 from ..preferences import Preferences
-from .page_parts import _hint, _page_title
+from ..theme_service import ThemeService
+from .page_parts import PageParts
 
 ui_log = logging.getLogger("papermini.ui")
 
@@ -44,16 +44,6 @@ PROJECT = "project"  # the entry of a project table that matches no preset
 NOTES_ROLE = Qt.UserRole + 1  # a preset entry's notes: what it is used for, a line each
 
 
-def _spin(value: float, lo: float = 0.5, hi: float = 600.0) -> DoubleSpinBox:
-    w = DoubleSpinBox()  # ("." as the decimal point, as in the settings)
-    w.setRange(lo, hi)
-    w.setDecimals(2)
-    w.setSingleStep(0.5)
-    w.setSuffix(" mm")
-    w.setValue(value)
-    return w
-
-
 class _EntryDelegate(QStyledItemDelegate):
     """Paints a preset list entry: the name, and below it, smaller and muted, a line for
     each thing it is used for (``NOTES_ROLE``). Painted rather than a widget per entry:
@@ -61,6 +51,10 @@ class _EntryDelegate(QStyledItemDelegate):
     when papermini quits."""
 
     PAD_X, PAD_Y = 8, 5
+
+    def __init__(self, themes: ThemeService, parent=None):
+        super().__init__(parent)
+        self._themes = themes
 
     @staticmethod
     def _fonts(option) -> tuple[QFont, QFont]:
@@ -91,7 +85,7 @@ class _EntryDelegate(QStyledItemDelegate):
         p.save()
         fm = QFontMetrics(name_font)
         p.setFont(name_font)
-        p.setPen(QColor(theme.current.text))
+        p.setPen(QColor(self._themes.current.text))
         p.drawText(
             QRect(r.left(), r.top(), r.width(), fm.height()),
             Qt.AlignLeft | Qt.AlignVCenter,
@@ -100,7 +94,7 @@ class _EntryDelegate(QStyledItemDelegate):
         y = r.top() + fm.height() + 1
         fn = QFontMetrics(notes_font)
         p.setFont(notes_font)
-        p.setPen(QColor(theme.current.muted))
+        p.setPen(QColor(self._themes.current.muted))
         for line in self._lines(index):
             p.drawText(
                 QRect(r.left(), y, r.width(), fn.height()),
@@ -119,6 +113,7 @@ class SizesPage(QWidget):
         self,
         prefs: Preferences,
         size_calculator: SizeCalculator,
+        themes: ThemeService,
         project_table: sizes.SizeTable,
         parent=None,
     ):
@@ -133,7 +128,7 @@ class SizesPage(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)
-        v.addWidget(_page_title("Creature sizes"))
+        v.addWidget(PageParts.title("Creature sizes"))
         intro = QLabel(
             "This page holds the size tables for D&D creature sizes: the table "
             "saved with this project, and presets you can use in any project. "
@@ -155,7 +150,7 @@ class SizesPage(QWidget):
         self.list = QListWidget()
         self.list.setObjectName("PresetList")
         self.list.setFixedWidth(230)
-        self.list.setItemDelegate(_EntryDelegate(self.list))
+        self.list.setItemDelegate(_EntryDelegate(themes, self.list))
         self.list.currentItemChanged.connect(self._show_selected)
         left.addWidget(self.list, 1)
         tools = QGridLayout()
@@ -184,20 +179,20 @@ class SizesPage(QWidget):
         self.title = QLabel()
         self.title.setObjectName("PageSection")
         right.addWidget(self.title)
-        self.status = _hint()
+        self.status = PageParts.hint()
         right.addWidget(self.status)
         top = QHBoxLayout()
         top.setSpacing(8)
         top.addWidget(QLabel("Grid square"))
-        self.grid = _spin(GRID_MM, 5, 200)
+        self.grid = self._spin(GRID_MM, 5, 200)
         self.grid.setToolTip("The size of one square of your battle map's grid")
         self.grid.valueChanged.connect(self._sync_inch)
         top.addWidget(self.grid)
-        self.inch = _hint()
+        self.inch = PageParts.hint()
         top.addWidget(self.inch)
         top.addSpacing(10)
         top.addWidget(QLabel("Medium height"))
-        self.medium = _spin(MEDIUM_MM, 5, 300)
+        self.medium = self._spin(MEDIUM_MM, 5, 300)
         self.medium.setToolTip(
             "How tall a Medium figure is. The other sizes are calculated from it."
         )
@@ -227,7 +222,7 @@ class SizesPage(QWidget):
             squares.setObjectName("Muted")
             g.addWidget(squares, r, 1)
             for c, (key, text) in enumerate(COLUMNS, start=2):
-                w = _spin(1)
+                w = self._spin(1)
                 w.setAccessibleName(f"{sizes.LABELS[s]} {text.lower()}")
                 g.addWidget(w, r, c)
                 self.spins[s, key] = w
@@ -529,3 +524,13 @@ class SizesPage(QWidget):
             return
         self._project = replace(self._project, name=name)
         self._add(self._project)
+
+    @staticmethod
+    def _spin(value: float, lo: float = 0.5, hi: float = 600.0) -> DoubleSpinBox:
+        w = DoubleSpinBox()  # ("." as the decimal point, as in the settings)
+        w.setRange(lo, hi)
+        w.setDecimals(2)
+        w.setSingleStep(0.5)
+        w.setSuffix(" mm")
+        w.setValue(value)
+        return w

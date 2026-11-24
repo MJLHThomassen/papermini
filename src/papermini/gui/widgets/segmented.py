@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton
 
-from .. import theme
+from ..theme_service import ThemeService
 
 
 class Segmented(QFrame):
@@ -13,8 +13,9 @@ class Segmented(QFrame):
 
     changed = Signal(int)
 
-    def __init__(self, labels, parent=None, steps: bool = False):
+    def __init__(self, themes: ThemeService, labels, parent=None, steps: bool = False):
         super().__init__(parent)
+        self._themes = themes
         self.setObjectName("Segmented")
         h = QHBoxLayout(self)
         h.setContentsMargins(3, 3, 3, 3)
@@ -41,7 +42,9 @@ class Segmented(QFrame):
 
     def refresh_icons(self):
         for arrow in self._chevrons:
-            arrow.setPixmap(theme.pixmap("chevron_right", theme.current.muted, 14))
+            arrow.setPixmap(
+                self._themes.pixmap("chevron_right", self._themes.current.muted, 14)
+            )
 
     def set_index(self, i: int):
         self.group.button(i).setChecked(True)

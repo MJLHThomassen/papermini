@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
-from .. import theme
+from ..theme_service import ThemeService
 from .elided_label import ElidedLabel
 from .spinner import Spinner
 
@@ -14,15 +14,16 @@ class WorkCard(QFrame):
 
     clicked = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.setObjectName("WorkCard")
         self.setMinimumWidth(440)  # room for a figure name before it ends in "…"
         self.setMaximumWidth(520)
         h = QHBoxLayout(self)
         h.setContentsMargins(16, 14, 14, 14)
         h.setSpacing(14)
-        self.spinner = Spinner()
+        self.spinner = Spinner(themes)
         self.icon = QLabel()
         text = QVBoxLayout()
         text.setSpacing(2)
@@ -47,7 +48,9 @@ class WorkCard(QFrame):
 
     def show_stopped(self, title: str, detail: str, button: str):
         self.spinner.hide()
-        self.icon.setPixmap(theme.pixmap("warning", theme.current.muted, 20))
+        self.icon.setPixmap(
+            self._themes.pixmap("warning", self._themes.current.muted, 20)
+        )
         self.icon.show()
         self._set(title, detail, button)
 

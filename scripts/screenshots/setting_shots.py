@@ -8,7 +8,6 @@ from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QGraphicsScene
 
-from papermini.gui.views.drawing import draw_mini
 from papermini.pipeline.mini import Mini
 from papermini.project import sizes
 from papermini.project.figure_settings import FigureSettings
@@ -446,7 +445,7 @@ class SettingShots:
         (mm), at ``px_per_mm`` logical pixels per mm."""
         ratio = self._ctx.ratio
         sc = QGraphicsScene()
-        draw_mini(sc, m, self._ctx.fonts)
+        self._ctx.minis.draw(sc, m)
         r = rect or QRectF(0, 0, m.width_mm, m.height_mm)
         r = r.adjusted(-PAPER_MM, -PAPER_MM, PAPER_MM, PAPER_MM)
         img = QImage(

@@ -378,11 +378,11 @@ def test_build_images_cut_by_machine_writes_the_cut_file(hero_figure, tmp_path):
 def test_no_command_opens_the_app(monkeypatch, command_line):
     """One program for both: without a command (double-clicked, or with files dropped on
     it) papermini opens the desktop app; with a command it runs the command line."""
-    import papermini.gui.app
+    from papermini.gui.app import App
 
     opened = []
     monkeypatch.setattr(
-        papermini.gui.app, "run", lambda files=None: opened.append(list(files)) or 0
+        App, "run", lambda self, files=None: opened.append(list(files)) or 0
     )
     assert cli.main([]) == 0 and opened[-1] == []
     assert cli.main(["hero.png", "lair.yaml"]) == 0 and opened[-1] == [

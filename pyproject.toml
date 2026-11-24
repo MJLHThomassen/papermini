@@ -45,7 +45,7 @@ release = ["cryptography>=42"]  # signs the checksums of a release
 papermini = "papermini.cli:main"
 
 [project.gui-scripts]
-papermini-gui = "papermini.gui.app:main"
+papermini-gui = "papermini.gui.app:App.main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

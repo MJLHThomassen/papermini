@@ -33,16 +33,16 @@ def no_blocking_dialogs(monkeypatch, downloaded_default_model):
 @pytest.fixture
 def opened(monkeypatch):
     """Links and folders papermini opens, and the messages it shows (nothing opens)."""
-    from papermini.gui import errors
+    from papermini.gui import problem_reporter
 
     got = {"urls": [], "info": []}
     monkeypatch.setattr(
-        errors.QDesktopServices,
+        problem_reporter.QDesktopServices,
         "openUrl",
         staticmethod(lambda url: got["urls"].append(url.toString()) or True),
     )
     monkeypatch.setattr(
-        errors.QMessageBox,
+        problem_reporter.QMessageBox,
         "information",
         staticmethod(lambda parent, title, text, *a: got["info"].append(text)),
     )
@@ -50,7 +50,7 @@ def opened(monkeypatch):
 
 
 @pytest.fixture
-def handler(app, monkeypatch, logs):
+def handler(app, monkeypatch, logs, problems):
     """An installed error handler whose dialogs are recorded instead of shown."""
     from papermini.gui import error_handler
 
@@ -58,8 +58,8 @@ def handler(app, monkeypatch, logs):
     monkeypatch.setattr(
         error_handler.ErrorDialog, "exec", lambda self: shown.append(self) or 0
     )
-    monkeypatch.setattr(error_handler, "_handler", None)
-    h = error_handler.install(logs)
+    h = error_handler.ErrorHandler(logs, problems)
+    h.install()
     h.shown_dialogs = shown
     yield h
     qInstallMessageHandler(None)
@@ -202,25 +202,24 @@ def test_an_error_while_starting_offers_quit_and_exits(logs, app, handler, monke
 
 
 def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
-    from papermini.gui import app as gui_app
     from papermini.gui import error_handler
+    from papermini.gui.app import App
 
     shown, exits = [], []
     monkeypatch.setattr(
         error_handler.ErrorDialog, "exec", lambda self: shown.append(self) or 0
     )
     monkeypatch.setattr(error_handler.os, "_exit", exits.append)
-    monkeypatch.setattr(error_handler, "_handler", None)
 
     started = []
 
-    def fail(app, files, updates, logs):
+    def fail(self, app, files, updates, logs, problems):
         started.append(logs)
         raise RuntimeError("no window")
 
-    monkeypatch.setattr(gui_app, "_start", fail)
+    monkeypatch.setattr(App, "_start", fail)
     try:
-        assert gui_app.run([]) == 1
+        assert App().run([]) == 1
     finally:
         qInstallMessageHandler(None)
         for logs in started:
@@ -231,8 +230,10 @@ def test_run_reports_a_failing_start_and_returns_1(app, monkeypatch):
     ).read_text(encoding="utf-8")
 
 
-def test_a_crash_is_offered_once_and_names_its_files(logs, app, opened, monkeypatch):
-    from papermini.gui import errors
+def test_a_crash_is_offered_once_and_names_its_files(
+    logs, app, opened, monkeypatch, problems
+):
+    from papermini.gui import problem_reporter
 
     d = Path(os.environ[log_session.LOG_ENV])
     crash = d / f"papermini-20261111-100000-77{log_session.CRASH}"
@@ -245,8 +246,8 @@ def test_a_crash_is_offered_once_and_names_its_files(logs, app, opened, monkeypa
         asked.append(box.text())
         next(b for b in box.buttons() if b.text() == "Report a problem…").click()
 
-    monkeypatch.setattr(errors.QMessageBox, "exec", answer)
-    errors.offer_crash_report(logs, None)
+    monkeypatch.setattr(problem_reporter.QMessageBox, "exec", answer)
+    problems.offer_crash_report(None)
     assert asked == ["papermini closed unexpectedly"]
     assert opened["urls"][0].startswith(NEW_ISSUE)
     info = opened["info"][0]
@@ -254,7 +255,7 @@ def test_a_crash_is_offered_once_and_names_its_files(logs, app, opened, monkeypa
         logs.reported(crash).name in info and "papermini-20261111-100000-77.log" in info
     )
     assert not crash.exists() and logs.reported(crash).exists()
-    errors.offer_crash_report(logs, None)  # once only
+    problems.offer_crash_report(None)  # once only
     assert len(asked) == 1
 
 
@@ -285,14 +286,14 @@ def test_without_a_log_the_menu_still_reports(
     assert len(opened["urls"]) == 1 and "could not write a log" in opened["info"][0]
 
 
-def test_about_shows_where_the_log_is(logs, app, new_window):
+def test_about_shows_where_the_log_is(logs, app, new_window, themes, problems):
     from PySide6.QtWidgets import QLabel
 
     from papermini.gui.dialogs.about_dialog import AboutDialog
 
     s = logs.start()
     w = new_window()
-    d = AboutDialog(logs, w)
+    d = AboutDialog(logs, themes, problems, w)
     texts = " ".join(lb.text() for lb in d.findChildren(QLabel))
     assert s.log.name in texts and "Log:" in texts
     d.close()

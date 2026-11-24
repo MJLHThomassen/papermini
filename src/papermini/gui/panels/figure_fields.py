@@ -11,11 +11,9 @@ from ...project.figure_settings import FigureSettings
 from ...project.option import Option
 from ..fields.area_field import AreaField
 from ..fields.choice_field import ChoiceField
-from ..fields.dimensions_field import DimensionsField
 from ..fields.field_factory import FieldMaker
 from ..fields.kind_field import KindField
 from ..fields.mask_file_field import MaskFileField
-from ..fields.model_field import ModelField
 from ..fields.switch_field import SwitchField
 from ..fields.switched_field import SwitchedField
 from ..fields.text_field import TextField
@@ -39,7 +37,7 @@ SECTIONS = [
     ),
     (
         Step.MINIATURE,
-        "Size",  # first (after the Kind): how big the figure prints
+        "Size",  # first, after the kind of figure: how big the figure prints
         ("size", "dimensions", "token_diameter_mm", "dpi"),
     ),
     (
@@ -130,20 +128,8 @@ KIND_SECTIONS = {
     "Token text": "token",
 }
 
-# kept per figure by "Apply to all"
+# kept per figure when a step's settings are copied to every figure
 PER_IMAGE = {"label", "crop", "mask", "copies", "token_area"}
-
-
-def step_settings(step: Step) -> set:
-    """The FigureSettings fields edited in ``step`` (the Kind is at the top of Miniature)."""
-    return {
-        k
-        for st, _, names in SECTIONS
-        if st == step
-        for name in names
-        if name not in RESETS
-        for k in FIELD_SETTINGS.get(name, (name,))
-    } | ({"kind"} if step == Step.MINIATURE else set())
 
 
 # the option of each field: a setting's own, or the label and tooltip of a field that is
@@ -176,19 +162,15 @@ _TOKEN_TEXT_SWITCH = Option(
     tooltip="Print text on the token: its label, its copy number or both.",
 )
 
-# the fields not built from their option alone (FigurePanel adds the font field, which
-# needs the fonts)
+# the fields not built from their option alone (FigurePanel adds the fields that need
+# a service: the font, the dimensions and the model)
 SPECIAL_FIELDS: dict[str, FieldMaker] = {
     "kind": KindField,
-    "dimensions": partial(
-        DimensionsField, height=_SETTINGS["height_mm"], width=_SETTINGS["width_mm"]
-    ),
     "crop": partial(AreaField, placeholder="whole image - drag a box on it"),
     "token_area": partial(
         AreaField, placeholder="whole figure, fitted - drag it in the view"
     ),
     "mask": MaskFileField,
-    "model": ModelField,
     "back_text": partial(TextField, placeholder="the label (or file name)"),
     "double_sided": SwitchField,
     "token_outline": SwitchField,

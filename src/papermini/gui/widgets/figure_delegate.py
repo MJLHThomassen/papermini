@@ -4,7 +4,7 @@ from PySide6.QtCore import QEvent, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QSpinBox, QStyle, QStyledItemDelegate, QToolTip
 
-from .. import theme
+from ..theme_service import ThemeService
 
 SUBTITLE_ROLE = Qt.UserRole + 1
 COPIES_ROLE = Qt.UserRole + 2  # copies on the sheet (None: no copies control)
@@ -24,6 +24,10 @@ class FigureDelegate(QStyledItemDelegate):
         "Click − or +, or click the number to type one."
     )
     copiesChanged = Signal(object, int)  # figure uid (Qt.UserRole), copies
+
+    def __init__(self, themes: ThemeService, parent=None):
+        super().__init__(parent)
+        self._themes = themes
 
     def sizeHint(self, option, index):
         return QSize(option.rect.width(), self.H)
@@ -85,7 +89,7 @@ class FigureDelegate(QStyledItemDelegate):
         editor.setGeometry(num.toRect().adjusted(-2, -1, 2, 1))
 
     def paint(self, p: QPainter, option, index):
-        t = theme.current
+        t = self._themes.current
         p.save()
         p.setRenderHint(QPainter.Antialiasing)
         r = QRectF(option.rect).adjusted(6, 3, -6, -3)

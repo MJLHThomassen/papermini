@@ -24,15 +24,19 @@ from ...project import sizes
 from ...project.figure_settings import FigureSettings
 from ...project.size_calculator import SizeCalculator
 from ...support.font_library import FontLibrary
-from .. import theme
+from ..fields.dimensions_field import DimensionsField
 from ..fields.field import Field
 from ..fields.field_factory import FieldFactory
 from ..fields.font_field import FontField
+from ..fields.model_field import ModelField
 from ..fields.size_field import SizeField
 from ..preferences import Preferences
 from ..step import Step
+from ..theme_service import ThemeService
+from ..views.qt_fonts import QtFonts
 from ..widgets.elided_label import ElidedLabel
 from .figure_fields import (
+    FIELD_SETTINGS,
     KIND_SECTIONS,
     OPTIONS,
     PER_IMAGE,
@@ -42,7 +46,6 @@ from .figure_fields import (
     SUBSECTIONS,
     TOKEN_SWITCHES,
     TWINS,
-    step_settings,
 )
 from .section import SUB_INDENT, Section
 
@@ -60,16 +63,31 @@ class FigurePanel(QScrollArea):
         prefs: Preferences,
         size_calculator: SizeCalculator,
         fonts: FontLibrary,
+        qt_fonts: QtFonts,
+        themes: ThemeService,
         parent=None,
     ):
         super().__init__(parent)
         self._prefs = prefs
         self._size_calculator = size_calculator
+        self._themes = themes
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._s = FigureSettings()
+        options = FigureSettings.options()
         self._factory = FieldFactory(
-            {**SPECIAL_FIELDS, "font": partial(FontField, fonts=fonts)}
+            {
+                **SPECIAL_FIELDS,
+                "font": partial(FontField, fonts=fonts, qt_fonts=qt_fonts),
+                "dimensions": partial(
+                    DimensionsField,
+                    height=options["height_mm"],
+                    width=options["width_mm"],
+                    themes=themes,
+                ),
+                "model": partial(ModelField, themes=themes),
+            },
+            themes,
         )
         self._fields: dict[str, Field] = {}
         self._shown: dict[str, Any] = {}  # field values as last shown or emitted
@@ -164,7 +182,7 @@ class FigurePanel(QScrollArea):
         self.sections: list[Section] = []
         boxes: dict[str, Section] = {}
         for _, title, names in SECTIONS:
-            box = Section(self._prefs, title, sub=title in SUBSECTIONS)
+            box = Section(self._prefs, self._themes, title, sub=title in SUBSECTIONS)
             indent = SUB_INDENT if title in SUBSECTIONS else 0
             for name in names:
                 if name in RESETS:
@@ -329,7 +347,20 @@ class FigurePanel(QScrollArea):
     def step_settings(self) -> set:
         """Return the settings shown now, minus the per-image ones that applying
         settings to all figures never copies."""
-        return step_settings(self._step) - PER_IMAGE
+        return self._step_fields(self._step) - PER_IMAGE
+
+    @staticmethod
+    def _step_fields(step: Step) -> set:
+        """Return the FigureSettings fields edited in ``step``, with the kind of figure
+        in the miniature step."""
+        return {
+            k
+            for st, _, names in SECTIONS
+            if st == step
+            for name in names
+            if name not in RESETS
+            for k in FIELD_SETTINGS.get(name, (name,))
+        } | ({"kind"} if step == Step.MINIATURE else set())
 
     def is_token(self) -> bool:
         """Whether the figure shown is a token (its Kind field)."""
@@ -360,7 +391,9 @@ class FigurePanel(QScrollArea):
         )
 
     def refresh_icons(self):
-        self.empty_icon.setPixmap(theme.pixmap("sliders", theme.current.muted, 40))
+        self.empty_icon.setPixmap(
+            self._themes.pixmap("sliders", self._themes.current.muted, 40)
+        )
         self.size_field.refresh_icons()
 
     # region values

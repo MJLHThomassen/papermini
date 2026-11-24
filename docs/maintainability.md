@@ -75,7 +75,8 @@ src/papermini/       the package, one class per file (S15)
     fields/          the fields of the settings panels, built from the options,
                      and their input widgets
     panels/          the figure and sheet settings panels
-    views/           the zoom, crop and mini views
+    views/           the zoom, crop and mini views, and drawing the miniatures
+                     and the sheet in them
     dialogs/         the dialogs and their pages
     exporting/       exporting and printing, and the dialogs they open
     updating/        checking for, downloading and installing updates, and the
@@ -349,7 +350,10 @@ them. Module-level constants are fine.
 
 *Example:* `Pipeline` in `pipeline/pipeline.py` creates the pipeline's services
 and wires them together. The command line and the desktop app each create one,
-and pass on the services their code uses.
+and pass on the services their code uses. `App` in `gui/app.py` creates the
+desktop app's own services, such as the `ThemeService` with the theme's colors
+and icons. It passes them to the main window, which passes each widget the ones
+it uses.
 
 ## Qt and the GUI
 

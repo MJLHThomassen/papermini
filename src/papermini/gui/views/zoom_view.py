@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QTransform
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView
 
-from .. import theme
+from ..theme_service import ThemeService
 
 
 class ZoomView(QGraphicsView):
@@ -19,8 +19,9 @@ class ZoomView(QGraphicsView):
     MIN_SCALE = 0.05
     MAX_SCALE = 400
 
-    def __init__(self, parent=None):
+    def __init__(self, themes: ThemeService, parent=None):
         super().__init__(parent)
+        self._themes = themes
         self.setScene(QGraphicsScene(self))
         self.setRenderHints(
             QPainter.Antialiasing
@@ -37,7 +38,7 @@ class ZoomView(QGraphicsView):
         self._fit_pending = True
 
     def drawBackground(self, painter: QPainter, rect: QRectF):
-        t = theme.current
+        t = self._themes.current
         painter.save()
         painter.resetTransform()
         vp = self.viewport().rect()

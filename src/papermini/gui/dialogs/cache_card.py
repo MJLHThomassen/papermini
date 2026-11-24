@@ -5,7 +5,7 @@ import html
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QVBoxLayout
 
-from .model_info import _label
+from .model_info import ModelInfo
 
 
 class CacheCard(QFrame):
@@ -20,9 +20,9 @@ class CacheCard(QFrame):
         h.setSpacing(14)
         v = QVBoxLayout()
         v.setSpacing(3)
-        v.addWidget(_label(f"<b>{html.escape(title)}</b>"))
-        v.addWidget(_label(html.escape(about), "Muted"))
-        self.state = _label("", "Hint")
+        v.addWidget(ModelInfo.label(f"<b>{html.escape(title)}</b>"))
+        v.addWidget(ModelInfo.label(html.escape(about), "Muted"))
+        self.state = ModelInfo.label("", "Hint")
         v.addWidget(self.state)
         h.addLayout(v, 1)
         self.btn_clear = QPushButton("Clear")

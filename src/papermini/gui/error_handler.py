@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, QtMsgType, Signal, qInstallMessageHandler
 
 from ..support.log_session import LogSession
 from .dialogs.error_dialog import ErrorDialog
-from .errors import report_problem
+from .problem_reporter import ProblemReporter
 
 logger = logging.getLogger("papermini.error")
 qt_logger = logging.getLogger("papermini.qt")
@@ -35,10 +35,11 @@ class ErrorHandler:
     and Qt's warnings), logs them, and shows one dialog at a time: each error (its type
     and place) once per session, logged every time. Until ``started()`` is called (the
     window is up) the dialog offers Quit instead of Continue. ``logs`` is the session's
-    log."""
+    log, and ``problems`` opens a bug report for an error."""
 
-    def __init__(self, logs: LogSession):
+    def __init__(self, logs: LogSession, problems: ProblemReporter):
         self._logs = logs
+        self._problems = problems
         self.window = None
         self.starting = True
         self.showing = False
@@ -47,6 +48,7 @@ class ErrorHandler:
         self.reporter.error.connect(self._show)
 
     def install(self) -> None:
+        """Catch the app's unexpected errors from now on."""
         sys.excepthook = self._excepthook
         threading.excepthook = self._threadhook
         qInstallMessageHandler(self._qt_message)
@@ -103,7 +105,7 @@ class ErrorHandler:
             )
             box.exec()
             if box.reported:
-                report_problem(self._logs, self.window, details)
+                self._problems.report(self.window, details)
         finally:
             self.showing = False
         if quit_:
@@ -111,15 +113,3 @@ class ErrorHandler:
             os._exit(1)
 
     # endregion
-
-
-_handler: ErrorHandler | None = None
-
-
-def install(logs: LogSession) -> ErrorHandler:
-    """Catch, log in ``logs`` and show the app's unexpected errors from now on (once)."""
-    global _handler
-    if _handler is None:
-        _handler = ErrorHandler(logs)
-        _handler.install()
-    return _handler

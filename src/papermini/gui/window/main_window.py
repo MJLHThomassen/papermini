@@ -60,7 +60,6 @@ from ...support.image_fetcher import ImageFetcher
 from ...support.image_files import ImageFiles
 from ...support.log_session import LogSession
 from ...support.update_service import UpdateService
-from .. import errors, theme
 from ..building.build_queue import BuildQueue
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
@@ -71,18 +70,21 @@ from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
 from ..panels.sheet_panel import SheetPanel
 from ..preferences import Preferences
+from ..problem_reporter import ProblemReporter
 from ..step import Step
+from ..theme_service import ThemeService
 from ..updating.update_controller import UpdateController
 from ..views.crop_view import CropView
-from ..views.drawing import draw_mini_page, draw_sheet
-from ..views.images import adjusted_preview, load_qimage, pil_to_qimage
+from ..views.mini_renderer import MiniRenderer
 from ..views.mini_view import MiniView
+from ..views.qt_fonts import QtFonts
+from ..views.qt_images import QtImages
+from ..views.sheet_renderer import SheetRenderer
 from ..views.source_legend import SourceLegend
 from ..views.zoom_view import ZoomView
 from ..widgets.banner import Banner
 from ..widgets.empty_state import EmptyState
 from ..widgets.figure_delegate import COPIES_ROLE, SUBTITLE_ROLE, FigureDelegate
-from ..widgets.overlay import overlay_wrap
 from ..widgets.segmented import Segmented
 from ..widgets.work_card import WorkCard
 from ..widgets.zoom_bar import ZoomBar
@@ -135,6 +137,12 @@ class MainWindow(QMainWindow):
         images_from_web: ImageFetcher,
         updates: UpdateService,
         logs: LogSession,
+        themes: ThemeService,
+        qt_fonts: QtFonts,
+        images: QtImages,
+        minis: MiniRenderer,
+        sheets: SheetRenderer,
+        problems: ProblemReporter,
     ):
         super().__init__()
         self._prefs = prefs
@@ -145,6 +153,12 @@ class MainWindow(QMainWindow):
         self._output = output
         self._images_from_web = images_from_web
         self._logs = logs
+        self._themes = themes
+        self._qt_fonts = qt_fonts
+        self._images = images
+        self._minis = minis
+        self._sheets = sheets
+        self._problems = problems
         self.resize(1440, 900)
         self.setAcceptDrops(True)
         self.project = self._fresh_project()
@@ -177,12 +191,12 @@ class MainWindow(QMainWindow):
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
         self.exporter = ExportController(
-            self, prefs, ExportDialogs(prefs, output.cut_files), fonts, output
+            self, prefs, ExportDialogs(prefs, output.cut_files), sheets, output
         )
         self.exporter.status.connect(self._status)
         self.exporter.warning.connect(self._warn)
         self.exporter.build.connect(self.builds.queue)
-        self.updater = UpdateController(self, prefs, updates, logs)
+        self.updater = UpdateController(self, prefs, updates, logs, themes, problems)
         self.updater.status.connect(self._status)
         self._closing = threading.Event()  # stops link downloads when the window closes
         self._declined = (
@@ -245,10 +259,16 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self.panel = FigurePanel(self._prefs, self._size_calculator, self._fonts)
+        self.panel = FigurePanel(
+            self._prefs,
+            self._size_calculator,
+            self._fonts,
+            self._qt_fonts,
+            self._themes,
+        )
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
-        self.sheet_panel = SheetPanel(self._prefs)
+        self.sheet_panel = SheetPanel(self._prefs, self._themes)
         self.sheet_panel.changed.connect(self._sheet_changed)
         self.sheet_panel.printClicked.connect(self.print_sheet)
         self.sheet_panel.exportClicked.connect(self.export_pdf)
@@ -296,6 +316,16 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.info)
         self.statusBar().setSizeGripEnabled(False)
 
+    @staticmethod
+    def _overlay(w: QWidget, margins=(16, 16, 16, 16)) -> QWidget:
+        """Wrap a canvas overlay so it keeps a margin from the canvas edge."""
+        box = QWidget()
+        box.setAttribute(Qt.WA_TranslucentBackground)
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(*margins)
+        lay.addWidget(w)
+        return box
+
     def _tool(self, icon: str, tip: str, slot, size: int = 18) -> QToolButton:
         b = QToolButton()
         b.setToolTip(tip)
@@ -321,7 +351,7 @@ class MainWindow(QMainWindow):
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(4)
         self.logo = QLabel()
-        self.logo.setPixmap(theme.logo_pixmap(30))
+        self.logo.setPixmap(self._themes.logo_pixmap(30))
         name = QLabel("papermini")
         name.setObjectName("AppName")
         self.project_label = QLabel()
@@ -338,7 +368,9 @@ class MainWindow(QMainWindow):
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
         h.addStretch(1)
         self.views = Segmented(
-            [(s.title, f"Step {s + 1}: {s.subtitle}") for s in Step], steps=True
+            self._themes,
+            [(s.title, f"Step {s + 1}: {s.subtitle}") for s in Step],
+            steps=True,
         )
         self.views.changed.connect(self.tabs.setCurrentIndex)
         outer.addWidget(self._head_left, 1)
@@ -427,7 +459,7 @@ class MainWindow(QMainWindow):
         v.addLayout(self._make_link_bar())
         self.list = QListWidget()
         self.list.setObjectName("Figures")
-        delegate = FigureDelegate(self.list)
+        delegate = FigureDelegate(self._themes, self.list)
         delegate.copiesChanged.connect(self._copies_changed)
         self.list.setItemDelegate(delegate)
         self.list.setEditTriggers(
@@ -484,20 +516,19 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.tabBar().hide()
         self.tabs.setDocumentMode(True)
-        self.mini_view = MiniView()
+        self.mini_view = MiniView(self._themes)
         self.mini_view.areaChanged.connect(self.panel.set_token_area)
-        self.crop_view = CropView()
+        self.crop_view = CropView(self._themes)
         self.crop_view.cropChanged.connect(self.panel.set_crop)
         sheet_page = QWidget()
         sv = QGridLayout(sheet_page)
         sv.setContentsMargins(0, 0, 0, 0)
         sv.setSpacing(0)
-        self.sheet_view = ZoomView()
+        self.sheet_view = ZoomView(self._themes)
         sv.addWidget(self.sheet_view, 0, 0)
-        self.sheet_banner = (
-            Banner()
-        )  # why the sheet is empty: a figure too big for the paper
-        self.sheet_banner_box = overlay_wrap(self.sheet_banner)
+        # why the sheet is empty: a figure too big for the paper
+        self.sheet_banner = Banner(self._themes)
+        self.sheet_banner_box = self._overlay(self.sheet_banner)
         self.sheet_banner_box.hide()
         sv.addWidget(self.sheet_banner_box, 0, 0, Qt.AlignCenter)
         # the workflow, one view per step; any step can be opened at any time
@@ -508,7 +539,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._tab_changed)
         grid.addWidget(self.tabs, 0, 0)
 
-        self.empty = EmptyState()
+        self.empty = EmptyState(self._themes)
         self.empty.addClicked.connect(self.add_images_dialog)
         self.empty.openClicked.connect(self.open_dialog)
         self.empty.linkClicked.connect(self.focus_link_bar)
@@ -516,22 +547,22 @@ class MainWindow(QMainWindow):
         self.empty.recentClicked.connect(self._open_recent)
         self.empty.set_recent(self._prefs.recent_projects())
         grid.addWidget(self.empty, 0, 0, Qt.AlignCenter)
-        self.banner = Banner()
-        self.banner_box = overlay_wrap(self.banner)
+        self.banner = Banner(self._themes)
+        self.banner_box = self._overlay(self.banner)
         self.banner_box.hide()
         grid.addWidget(self.banner_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
         self.busy = QLabel("Building preview…")
         self.busy.setObjectName("Busy")
-        self.busy_box = overlay_wrap(self.busy)
+        self.busy_box = self._overlay(self.busy)
         self.busy_box.hide()
         grid.addWidget(self.busy_box, 0, 0, Qt.AlignTop | Qt.AlignHCenter)
         # slow work (a model run) in the middle of the canvas, with Cancel
-        self.work = WorkCard()
+        self.work = WorkCard(self._themes)
         self.work.clicked.connect(self._work_clicked)
-        self.work_box = overlay_wrap(self.work)
+        self.work_box = self._overlay(self.work)
         self.work_box.hide()
         grid.addWidget(self.work_box, 0, 0, Qt.AlignCenter)
-        self.zoombar = ZoomBar()
+        self.zoombar = ZoomBar(self._themes)
         self.zoombar.zoomIn.connect(lambda: self._active_view().zoom_by(1.25))
         self.zoombar.zoomOut.connect(lambda: self._active_view().zoom_by(0.8))
         self.zoombar.fit.connect(self.fit_view)
@@ -539,12 +570,12 @@ class MainWindow(QMainWindow):
         # side panel toggles in the bottom corners, next to the panel they control
         # (always shown, so a collapsed panel can be brought back)
         self.btn_left, left_card = self._side_button(self.LEFT)
-        grid.addWidget(overlay_wrap(left_card), 0, 0, Qt.AlignBottom | Qt.AlignLeft)
+        grid.addWidget(self._overlay(left_card), 0, 0, Qt.AlignBottom | Qt.AlignLeft)
         # what the marks on the Source view mean (only there, with an image): above the
         # figure list toggle, clear of the banner at the top and the zoom bar. It lets
         # the mouse through, so a crop handle under it can still be dragged.
-        self.legend = SourceLegend()
-        self.legend_box = overlay_wrap(
+        self.legend = SourceLegend(self._themes)
+        self.legend_box = self._overlay(
             self.legend, (16, 16, 16, 16 + left_card.sizeHint().height() + 8)
         )
         for w in (self.legend, self.legend_box):
@@ -693,14 +724,14 @@ class MainWindow(QMainWindow):
         )
         self.a_report = act(
             "Report a problem…",
-            lambda: errors.report_problem(self._logs, self),
+            lambda: self._problems.report(self),
             None,
             "Open a new issue on GitHub with your papermini version and "
             "system filled in, and the log folder to attach the log from",
         )
         self.a_open_logs = act(
             "Open log folder",
-            lambda: errors.open_log_folder(self._logs),
+            lambda: self._problems.open_log_folder(),
             None,
             "Show papermini's logs (they stay on your computer)",
         )
@@ -808,7 +839,7 @@ class MainWindow(QMainWindow):
         """Toggle buttons and menu checks follow the panels, however they were moved."""
         if not hasattr(self, "a_left"):
             return
-        t = theme.current
+        t = self._themes.current
         for i, btn, a in (
             (self.LEFT, self.btn_left, self.a_left),
             (self.RIGHT, self.btn_right, self.a_right),
@@ -816,7 +847,7 @@ class MainWindow(QMainWindow):
             on = self.side_visible(i)
             side = "panel_left" if i == self.LEFT else "panel_right"
             name = side + ("_on" if on else "")
-            btn.setIcon(theme.icon(name, t.text, 16))
+            btn.setIcon(self._themes.icon(name, t.text, 16))
             key = a.shortcut().toString(QKeySequence.NativeText)
             verb = "Hide" if on else "Show"
             btn.setToolTip(f"{verb} the {self.SIDE_NAMES[i]}  ({key})")
@@ -834,7 +865,7 @@ class MainWindow(QMainWindow):
         self._prefs.set_theme(mode)
         app = QApplication.instance()
         if app is not None:
-            theme.apply(app, mode)
+            self._themes.apply(app, mode)
         self._refresh_theme()
 
     def _system_scheme_changed(self, *_):
@@ -842,13 +873,15 @@ class MainWindow(QMainWindow):
             self.set_theme("system")
 
     def _refresh_theme(self):
-        t = theme.current
-        self._link_icon.setIcon(theme.icon("link", theme.current.muted, 16))
+        t = self._themes.current
+        self._link_icon.setIcon(
+            self._themes.icon("link", self._themes.current.muted, 16)
+        )
         for w, name, token, size in self._tinted:
             if isinstance(w, QLabel):
-                w.setPixmap(theme.pixmap(name, getattr(t, token), size))
+                w.setPixmap(self._themes.pixmap(name, getattr(t, token), size))
             else:
-                w.setIcon(theme.icon(name, getattr(t, token), size))
+                w.setIcon(self._themes.icon(name, getattr(t, token), size))
         self.zoombar.refresh_icons()
         self.legend.refresh_theme()
         self.empty.refresh_icons()
@@ -1009,7 +1042,7 @@ class MainWindow(QMainWindow):
         fig = Figure(next(self._uids), entry, bleed_mm=self.project.sheet.figure_bleed)
         self.figures.append(fig)
         item = QListWidgetItem(entry.display_name)
-        img = load_qimage(entry.image)
+        img = self._images.load(entry.image)
         if not img.isNull():
             item.setIcon(
                 QIcon(
@@ -1262,7 +1295,7 @@ class MainWindow(QMainWindow):
         self._update_work()  # (hides it again behind a work card)
 
     def _on_built(self, fig: Figure, mini: Mini):
-        fig.pixmap = QPixmap.fromImage(pil_to_qimage(mini.art))
+        fig.pixmap = QPixmap.fromImage(self._images.from_pil(mini.art))
         self._refresh_card(fig)
         if fig is self.current():
             self._show_mini(fig)
@@ -1494,7 +1527,7 @@ class MainWindow(QMainWindow):
             self.crop_view.set_outline(None)
             return
         first = sc.itemsBoundingRect().isEmpty() or self.mini_view._fit_pending
-        draw_mini_page(sc, m, self._fonts)
+        self._minis.draw_page(sc, m)
         sc.setSceneRect(sc.itemsBoundingRect())
         # a token's framing handles (only on a piece built from the settings shown)
         if m.kind == "token" and fig.up_to_date:
@@ -1544,12 +1577,12 @@ class MainWindow(QMainWindow):
         with color adjustments a smaller adjusted preview of it."""
         path = fig.entry.image
         if self._original[0] != path:
-            self._original = (path, load_qimage(path))
+            self._original = (path, self._images.load(path))
         img = self._original[1]
         adj = fig.entry.settings.adjustments()
         if adj.is_identity() or img.isNull():
             return img, None
-        return adjusted_preview(img, adj, self._pipeline.adjuster), (
+        return self._images.adjusted_preview(img, adj, self._pipeline.adjuster), (
             img.width(),
             img.height(),
         )
@@ -1637,9 +1670,7 @@ class MainWindow(QMainWindow):
             )
             return
         first = sc.itemsBoundingRect().isEmpty()
-        draw_sheet(
-            sc, lay, sh.title, self._fonts, {id(f.mini.art): f.pixmap for f in ready}
-        )
+        self._sheets.draw(sc, lay, sh.title, {id(f.mini.art): f.pixmap for f in ready})
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.sheet_view.fit()
@@ -1946,6 +1977,8 @@ class MainWindow(QMainWindow):
             self._pipeline.masks,
             self._images_from_web,
             self._logs,
+            self._themes,
+            self._problems,
             page,
             self,
         )
