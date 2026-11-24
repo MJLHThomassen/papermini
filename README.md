@@ -199,9 +199,9 @@ stands and bases, double-sided minis and tips for tricky drawings.
 
 You need [uv](https://docs.astral.sh/uv/getting-started/installation/), in the
 version that `required-version` in `pyproject.toml` names. Another version
-stops with an error that says which version to install. uv installs the Python
-version in `.python-version` by itself when your system doesn't have it. Clone
-the repository:
+stops with an error that says which version to install. uv installs the first
+Python version in `.python-version` by itself when your system doesn't have it.
+Clone the repository:
 
 ```bash
 git clone https://github.com/MJLHThomassen/papermini.git
@@ -254,8 +254,8 @@ just test
 ```
 
 See which lines the tests don't run. CI shows the same report in the summary
-of its Linux Python 3.12 test job. Both fail when the total drops below
-`fail_under` in `pyproject.toml`:
+of its Linux test job for the first Python version in `.python-version`. Both
+fail when the total drops below `fail_under` in `pyproject.toml`:
 
 ```bash
 just coverage

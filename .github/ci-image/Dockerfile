@@ -2,12 +2,12 @@
 # system libraries Qt needs, so the tests do not download them from the Ubuntu
 # package mirror on every run.
 #
-#   docker build --build-arg PYTHON=3.12 -t papermini-ci:py3.12 .github/ci-image
+#   docker build --build-arg PYTHON=<version> -t papermini-ci .github/ci-image
 #
-# CI builds it for each tested Python version, tagged with a hash of this file, and
-# pushes it to ghcr.io the first time a version of this file is used: change this
-# file and the next CI run builds the new image.
-ARG PYTHON=3.12
+# CI builds it for each Python version in .python-version, tagged with a hash of this
+# file, and pushes it to ghcr.io the first time a version of this file is used:
+# change this file and the next CI run builds the new image.
+ARG PYTHON
 FROM python:${PYTHON}-slim-bookworm
 
 LABEL org.opencontainers.image.source="https://github.com/MJLHThomassen/papermini"

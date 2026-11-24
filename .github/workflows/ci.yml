@@ -22,15 +22,41 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The tested Python versions are the lines of .python-version. uv picks the first
+  # one when nothing else names a version, so the types job and the release builds
+  # use it, and the Linux job for it reports the coverage.
+  python:
+    name: Python versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      versions: ${{ steps.read.outputs.versions }}  # a JSON list
+      first: ${{ steps.read.outputs.first }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .python-version
+          sparse-checkout-cone-mode: false
+
+      - id: read
+        shell: bash
+        run: |
+          versions=$(sed 's/#.*//' .python-version | tr -d ' \t\r' | grep . | jq -R . | jq -sc .)
+          [[ "$versions" != "[]" ]] || { echo "::error::.python-version names no Python"; exit 1; }
+          echo "Tested Pythons: $versions"
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          echo "first=$(jq -r '.[0]' <<< "$versions")" >> "$GITHUB_OUTPUT"
+
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: python
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
-        python: ["3.12"]
+        os: [windows-latest, macos-latest, macos-15-intel]  # the release's Intel Mac runner
+        python: ${{ fromJSON(needs.python.outputs.versions) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -88,7 +114,6 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           version-file: pyproject.toml
-          python-version: "3.12"
           enable-cache: true
 
       - uses: extractions/setup-just@v4
@@ -117,16 +142,20 @@ jobs:
 
   # The Linux tests run in papermini's CI image (.github/ci-image): Python and Qt's
   # system libraries, ready made, instead of downloading them from the Ubuntu mirror
-  # every run. The image is tagged with a hash of its Dockerfile and built only when
-  # that version has no image on ghcr.io yet.
+  # every run. There is one image for each tested Python, tagged with a hash of the
+  # Dockerfile and built only when that version has no image on ghcr.io yet.
   image:
-    name: CI image (Linux)
+    name: CI image (Linux, Python ${{ matrix.python }})
+    needs: python
     runs-on: ubuntu-latest
     timeout-minutes: 10  # (a new image takes about a minute; an existing one seconds)
     permissions:
       contents: read
       packages: write  # push a new image (pull requests from forks only read)
-    outputs:
+    strategy:
+      matrix:
+        python: ${{ fromJSON(needs.python.outputs.versions) }}
+    outputs:  # (the same for every Python)
       image: ${{ steps.ref.outputs.image }}
       tag: ${{ steps.ref.outputs.tag }}
     steps:
@@ -143,7 +172,7 @@ jobs:
         env:
           IMAGE: ${{ steps.ref.outputs.image }}
           TAG: ${{ steps.ref.outputs.tag }}
-          PYTHON: "3.12"
+          PYTHON: ${{ matrix.python }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
@@ -156,9 +185,9 @@ jobs:
           fi
 
   test-linux:
-    name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
-    needs: image
-    runs-on: ${{ matrix.os }}
+    name: Test (ubuntu-latest, Python ${{ matrix.python }})
+    needs: [python, image]
+    runs-on: ubuntu-latest
     timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
     container:
       image: ${{ needs.image.outputs.image }}:py${{ matrix.python }}-${{ needs.image.outputs.tag }}
@@ -168,10 +197,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            python: "3.12"
-            coverage: true
+        python: ${{ fromJSON(needs.python.outputs.versions) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -191,14 +217,14 @@ jobs:
         run: just setup
 
       - name: Test
-        if: ${{ !matrix.coverage }}
+        if: matrix.python != needs.python.outputs.first
         run: just test -q
         env:
           QT_QPA_PLATFORM: offscreen
 
       # the coverage report goes to the log and, as a table, to the job summary
       - name: Test with coverage
-        if: matrix.coverage
+        if: matrix.python == needs.python.outputs.first
         run: >-
           just coverage -q --cov-report=term
           "--cov-report=markdown-append:$GITHUB_STEP_SUMMARY"
