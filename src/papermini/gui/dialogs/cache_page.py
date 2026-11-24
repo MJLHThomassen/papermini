@@ -154,8 +154,8 @@ class CachePage(QWidget):
         ok = QMessageBox.question(
             self,
             "Delete model",
-            f"Delete {spec['title']}? papermini asks to download it again "
-            f"(about {spec['mb']} MB) the next time a figure needs it.",
+            f"Delete {spec.title}? papermini asks to download it again "
+            f"(about {spec.mb} MB) the next time a figure needs it.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )

@@ -106,10 +106,8 @@ class ModelField(Field):
         if choice in self.DETAILS:
             return self.DETAILS[choice]
         spec = segment.ONNX_MODELS[choice]
-        licence = (
-            "Free for any use" if spec["commercial"] else "Non-commercial use only"
-        )
-        return f"{spec['about']}\n{licence} · {spec['mb']} MB download"
+        licence = "Free for any use" if spec.commercial else "Non-commercial use only"
+        return f"{spec.about}\n{licence} · {spec.mb} MB download"
 
     def _tooltip(self, option: Option) -> str:
         """Return the option's tooltip, then a table of every choice."""

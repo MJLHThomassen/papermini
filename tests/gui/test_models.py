@@ -214,10 +214,10 @@ def test_the_model_licences_are_links(images_from_web, app, model_cache, pipelin
 
     segmenters = pipeline.segmenters
     for model, spec in segment.ONNX_MODELS.items():
-        assert spec["licence_url"].startswith("https://")
+        assert spec.licence_url.startswith("https://")
         d = DownloadDialog(model, segmenters)
         label = d.licence_note if segmenters.non_commercial(model) else d.body
-        assert f'<a href="{spec["licence_url"]}">' in label.text()
+        assert f'<a href="{spec.licence_url}">' in label.text()
         assert label.openExternalLinks()
     dlg = CachePage(segmenters, pipeline.masks, images_from_web)
     card = dlg.cards["birefnet"]
