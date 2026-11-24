@@ -269,8 +269,8 @@ just lint
 just format
 ```
 
-Check the types with [ty](https://docs.astral.sh/ty/). CI runs it too, but its
-findings don't block a merge yet:
+Check the types with [ty](https://docs.astral.sh/ty/). CI runs it too, and a
+finding blocks a merge:
 
 ```bash
 just typecheck
