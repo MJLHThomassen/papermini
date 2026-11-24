@@ -73,6 +73,17 @@ def test_a_figure_without_an_image_is_refused(tmp_path, project_store):
         project_store.load(path)
 
 
+@pytest.mark.parametrize("key", ["image", "name", "mask", "model"])
+def test_a_figure_value_that_is_not_text_is_refused(tmp_path, project_store, key):
+    path = tmp_path / "proj.yaml"
+    figure = {"image": "goblin.png", key: [42]}
+    path.write_text(f"figures:\n  - {figure}\n", encoding="utf-8")
+    with pytest.raises(
+        ValueError, match=rf"^proj.yaml: a figure's '{key}' must be text, not \[42\]$"
+    ):
+        project_store.load(path)
+
+
 def test_a_file_that_is_not_a_project_is_refused(tmp_path, project_store):
     path = tmp_path / "list.yaml"
     path.write_text("- a.png\n- b.png\n", encoding="utf-8")

@@ -114,13 +114,13 @@ class UpdateService:
 
     def unsupported(self) -> str | None:
         """Why this copy of papermini cannot update itself, or None when it can."""
-        if self.install_dir() is None:
+        where = self.install_dir()
+        if where is None:
             return "papermini runs from source; update it with git or pip."
         if self.target() is None:
             return "There is no download of papermini for this computer."
         if not self._public_key():
             return "This version of papermini cannot check the signature of an update."
-        where = self.install_dir()
         if not os.access(where.parent, os.W_OK) or not os.access(where, os.W_OK):
             return (
                 f"papermini may not write to {where.parent}, so it cannot replace "
@@ -234,15 +234,18 @@ class UpdateService:
         root = self.updates_dir()
         if not root.is_dir():
             return None
-        best = None
+        best: tuple[str, Path] | None = None
+        best_version = (0, 0, 0)
         for d in root.iterdir():
-            if (d / READY).is_file() and Release.is_newer(d.name, __version__):
+            version = Release.parse_version(d.name)
+            if (
+                version is not None
+                and (d / READY).is_file()
+                and Release.is_newer(d.name, __version__)
+            ):
                 app = self._new_app(d / "new")
-                if app is not None and (
-                    best is None
-                    or Release.parse_version(d.name) > Release.parse_version(best[0])
-                ):
-                    best = (d.name, app)
+                if app is not None and (best is None or version > best_version):
+                    best, best_version = (d.name, app), version
         return best
 
     def forget_old(self) -> None:
@@ -332,17 +335,20 @@ class UpdateService:
                 "papermini runs from source; it does not install updates."
             )
         _, cmd = self.install_script(new_app, old, os.getpid(), restart)
-        quiet = {
-            "stdin": subprocess.DEVNULL,
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
-            "close_fds": True,
-        }
         if sys.platform == "win32":  # a hidden console: a batch script needs one to run
             flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
-            subprocess.Popen(cmd, creationflags=flags, **quiet)
+            new_session = False
         else:
-            subprocess.Popen(cmd, start_new_session=True, **quiet)
+            flags, new_session = 0, True
+        subprocess.Popen(
+            cmd,
+            creationflags=flags,
+            start_new_session=new_session,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
 
     # endregion
 

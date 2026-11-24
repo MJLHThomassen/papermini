@@ -20,12 +20,12 @@ class FigureScaler:
         Height only or width only keep the drawing's proportions; both stretch it
         sideways to that width (the height sets the scale).
         """
-        if not height_mm and not width_mm:
-            raise ValueError("give a figure height, a width or both")
+        if not height_mm:
+            if not width_mm:
+                raise ValueError("give a figure height, a width or both")
+            return width_mm * h_px / w_px, 1.0
         if not width_mm:
             return float(height_mm), 1.0
-        if not height_mm:
-            return width_mm * h_px / w_px, 1.0
         return float(height_mm), (width_mm / height_mm) / (w_px / h_px)
 
     def stretch_x(

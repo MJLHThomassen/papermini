@@ -698,9 +698,9 @@ def media_box_mm():
     whole millimetres."""
 
     def media_box_mm(pdf) -> tuple:
-        w, h = re.search(
-            rb"/MediaBox \[ 0 0 ([\d.]+) ([\d.]+) \]", pdf.read_bytes()
-        ).groups()
+        box = re.search(rb"/MediaBox \[ 0 0 ([\d.]+) ([\d.]+) \]", pdf.read_bytes())
+        assert box is not None, "the PDF has no media box"
+        w, h = box.groups()
         return round(float(w) / 72 * 25.4), round(float(h) / 72 * 25.4)
 
     return media_box_mm
@@ -793,6 +793,7 @@ class FakeSession:
         FakeSession.seen = feeds["input"]
         if FakeSession.block is not None:  # a long run: wait until it is terminated
             FakeSession.block.set()
+            assert run_options is not None
             while not run_options.terminate:
                 time.sleep(0.01)
             raise RuntimeError("Exiting due to terminate flag being set to true.")

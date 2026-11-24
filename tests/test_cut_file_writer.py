@@ -38,14 +38,14 @@ def test_cut_files_match_the_sheet(output, tmp_path, square_mini):
     root = ET.parse(paths[0]).getroot()
     assert root.get("width") == "210mm" and root.get("viewBox") == "0 0 210 297"
     rects = [
-        tuple(float(r.get(k)) for k in ("x", "y", "width", "height"))
+        tuple(float(r.attrib[k]) for k in ("x", "y", "width", "height"))
         for r in root.findall("s:g[@id='registration']/s:rect", ns)
     ]
     assert np.allclose(rects, lay.mark_rects(), atol=1e-3)  # the same marks as the PDF
     cuts = root.findall("s:g[@id='cut']/s:path", ns)
     first = [p for p in lay.placements if p.page == 0]
     assert len(cuts) == len(first)
-    xy = [float(v) for v in re.findall(r"[-\d.]+", cuts[0].get("d"))[:2]]
+    xy = [float(v) for v in re.findall(r"[-\d.]+", cuts[0].attrib["d"])[:2]]
     assert xy == pytest.approx(
         [first[0].x, first[0].y], abs=1e-3
     )  # placed as on the page

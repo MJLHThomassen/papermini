@@ -125,6 +125,7 @@ def make_release(
             out / "installed", "0.0.1", "installed before the update"
         )
     if setup is None:
+        assert app is not None  # the build, or the pretend app made above
         archive = rel / UpdateService.asset_name(version, tgt)
         pack(app, archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()

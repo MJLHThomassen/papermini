@@ -381,9 +381,7 @@ def test_no_command_opens_the_app(monkeypatch, command_line):
     from papermini.gui.app import App
 
     opened = []
-    monkeypatch.setattr(
-        App, "run", lambda self, files=None: opened.append(list(files)) or 0
-    )
+    monkeypatch.setattr(App, "run", lambda self, files: opened.append(list(files)) or 0)
     assert cli.main([]) == 0 and opened[-1] == []
     assert cli.main(["hero.png", "lair.yaml"]) == 0 and opened[-1] == [
         "hero.png",

@@ -171,7 +171,9 @@ class SheetSettings:
         """The paper for ``SheetPacker.pack``: its name, or a custom (width, height)
         mm."""
         if self.paper == "custom":
-            return (self.paper_width_mm, self.paper_height_mm)
+            w, h = self.paper_width_mm, self.paper_height_mm
+            assert w is not None and h is not None, "a custom paper has a size"
+            return (w, h)
         return self.paper
 
     def paper_text(self) -> str:

@@ -42,6 +42,7 @@ def fake_release(tmp_path: Path, private: str, sign, version: str = "9.9.9") -> 
     """A release of a pretend app for this computer, signed with ``sign``; returns its
     release.json."""
     tgt = UpdateService.target()
+    assert tgt is not None, "papermini has no download for this computer"
     app_name = "papermini.app" if sys.platform == "darwin" else "papermini"
     src = tmp_path / "src" / app_name
     src.mkdir(parents=True)
@@ -106,7 +107,7 @@ def test_only_an_installed_copy_updates_itself(updates, monkeypatch, tmp_path, k
     (tmp_path / "papermini").mkdir()
     monkeypatch.delenv(update.KEY_ENV, raising=False)
     keyless = UpdateService(public_key="")
-    assert "signature" in keyless.unsupported()  # no key to check updates with
+    assert "signature" in (keyless.unsupported() or "")  # no key to check updates with
     monkeypatch.setenv(update.KEY_ENV, keys[1])
     assert keyless.unsupported() is None
 

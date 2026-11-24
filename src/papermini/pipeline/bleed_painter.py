@@ -27,12 +27,13 @@ class BleedPainter:
         core = cv2.erode(inside.astype(np.uint8), self._morph.disk(e)) > 0
         if not core.any():
             core, e = inside, 0
-        dist, lab = cv2.distanceTransformWithLabels(
+        dist, labels = cv2.distanceTransformWithLabels(
             np.where(core, 0, 255).astype(np.uint8),
             cv2.DIST_L2,
             cv2.DIST_MASK_5,
             labelType=cv2.DIST_LABEL_PIXEL,
         )
+        lab = np.asarray(labels, dtype=np.int32)
         ys, xs = np.nonzero(core)  # every core pixel has its own label
         n = int(lab.max()) + 1
         near_y = np.zeros(n, np.int32)

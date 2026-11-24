@@ -66,10 +66,10 @@ class ProjectStore:
             if isinstance(entry, str):
                 entry = {"image": entry}
             o = {**defaults, **Option.norm_keys(entry)}
-            if "image" not in o:
+            src = self._text(o.pop("image", None), "image", path.name)
+            if src is None:
                 raise ValueError(f"{path.name}: every figure needs an 'image'")
-            src = o.pop("image")
-            source = str(src).strip() if ImageFetcher.is_url(src) else None
+            source = src.strip() if ImageFetcher.is_url(src) else None
             image = (
                 self._images_from_web.fetch_image(source)
                 if source
@@ -80,12 +80,14 @@ class ProjectStore:
                     f"{path.name}: {src} is a folder: list its images one by one, "
                     "or add the folder in the app"
                 )
-            name = o.pop("name", None)
+            name = self._text(o.pop("name", None), "name", path.name)
             o.setdefault("copies", sheet.copies)
-            if o.get("mask"):
-                o["mask"] = str((base / o["mask"]).resolve())
-            if str(o.get("model", "")).endswith(".onnx"):
-                o["model"] = str((base / o["model"]).resolve())
+            mask = self._text(o.get("mask"), "mask", path.name)
+            if mask:
+                o["mask"] = str((base / mask).resolve())
+            model = self._text(o.get("model"), "model", path.name)
+            if model and model.endswith(".onnx"):
+                o["model"] = str((base / model).resolve())
             try:
                 s = self._size_calculator.settings_with_size(o, table)
             except ValueError as e:
@@ -155,6 +157,17 @@ class ProjectStore:
         )
         p.path = path
         return path
+
+    @staticmethod
+    def _text(value: Any, key: str, name: str) -> str | None:
+        """Return a figure's ``value`` for ``key``, or None when it has none.
+
+        Raise a ValueError that starts with the file ``name`` when the value is not
+        text.
+        """
+        if value is None or isinstance(value, str):
+            return value
+        raise ValueError(f"{name}: a figure's {key!r} must be text, not {value!r}")
 
     def _check_format(self, cfg: dict[str, Any], name: str) -> str:
         """Refuse a project in a format this papermini cannot read, naming the papermini

@@ -235,7 +235,9 @@ class TokenRenderer:
             )
             gx, gy = a.shape[1] / w, a.shape[0] / h
         c = n / 2
-        M = np.float32([[f / gx, 0, c - cx * f], [0, f / gy, c - cy * f]])
+        M = np.array(
+            [[f / gx, 0, c - cx * f], [0, f / gy, c - cy * f]], dtype=np.float32
+        )
         return cv2.warpAffine(
             a, M, (n, n), flags=interp, borderMode=cv2.BORDER_CONSTANT, borderValue=fill
         )
