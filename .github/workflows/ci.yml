@@ -185,7 +185,7 @@ jobs:
           fi
 
   test-linux:
-    name: Test (debian-bookworm, Python ${{ matrix.python }})  # the image's base
+    name: Test (ubuntu-latest, Python ${{ matrix.python }})
     needs: [python, image]
     runs-on: ubuntu-latest
     timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
