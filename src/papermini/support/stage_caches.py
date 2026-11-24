@@ -16,10 +16,14 @@ class StageCaches:
     * raw mask  - image + model (auto/alpha/AI model/mask file) + crop
     * clean     - raw mask + strength, gap filling, keep-all, min-area
     * working   - clean + figure height (bounded working resolution)
-    * layout    - working + shape settings (margin, tab, ...) -> cut shape and path
+    * adjusted  - working + color adjustments (brightness, contrast, saturation, hue,
+      greyscale)
+    * layout    - working + color adjustments + shape settings (margin, tab, ...)
+      -> cut shape and path
 
-    so a geometry-only change (height, margin, tab, label...) never redoes the
-    mask stages, and the AI model never runs twice for the same image and crop.
+    so a geometry-only change (height, margin, tab, label...) or a color adjustment
+    never redoes the mask stages, and the AI model never runs twice for the same
+    image and crop.
     """
 
     def __init__(self):

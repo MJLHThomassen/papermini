@@ -1,7 +1,7 @@
 """Build the Windows installer of papermini with Inno Setup (packaging/papermini.iss).
 
     just installer         # dist/papermini -> dist/
-    just installer --version 1.2.3 --dist dist/papermini --out out
+    just installer --version <version> --dist dist/papermini --out out
 
 Build the app first (just build). The installer is named like the release downloads:
 papermini-<version>-windows-x64-setup.exe. The version defaults to this papermini's.
@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def find_iscc() -> Path | None:
-    """Inno Setup's command-line compiler, or None when it is not installed."""
+    """Return Inno Setup's command-line compiler, or None when it is not installed."""
     on_path = shutil.which("iscc")
     if on_path:
         return Path(on_path)
@@ -38,8 +38,8 @@ def find_iscc() -> Path | None:
 
 
 def build(version: str, dist: Path, out: Path) -> Path:
-    """Build the installer of the app in ``dist``, as ``version``, into ``out``;
-    returns the installer."""
+    """Build the installer of the app in ``dist``, as ``version``, into ``out``, and
+    return the installer."""
     from papermini.support.update_service import UpdateService
 
     iscc = find_iscc()

@@ -225,9 +225,10 @@ class LayoutBuilder:
     ):
         """Return the paper color, the artwork and the tab's area.
 
-        The artwork is the drawing where the figure is, the paper color in margin and
-        tab (or the original image in the margin), and the tab in its own color. With
-        the image in the margin, the tab and a blank back are plain white.
+        The artwork is the drawing where the figure is, and ``margin_color`` or the
+        original image in the margin. The tab below the fold, outside the drawing, is
+        painted in ``tab_color``. With the image in the margin, the paper color is
+        white.
         """
         paper = (
             HexColor.to_rgb(prm.margin_color)

@@ -1,14 +1,14 @@
 # Builds standalone binaries for Windows, macOS and Linux.
 #
-# - Run it by hand on main (Actions > Release > Run workflow) with a version
-#   (MAJOR.MINOR.PATCH, e.g. 1.2.0, or 1.2.0-rc.1 for a pre-release), or push a
-#   version tag (v1.2.0): tests run, binaries are built, and a GitHub release is
-#   created with the archives, the Windows installer (Inno Setup,
+# - Run it by hand on main from the repository's Actions tab with a version
+#   (MAJOR.MINOR.PATCH, with -PRERELEASE after it for a pre-release), or push a
+#   version tag (v and the version): tests run, binaries are built, and a GitHub
+#   release is created with the archives, the Windows installer (Inno Setup,
 #   packaging/papermini.iss), their SHA-256 checksums, and notes listing every
 #   commit since the previous version tag (scripts/release_notes.py). A run by hand
-#   tags the commit it ran on (v1.2.0) just before it creates the release. A pushed
-#   tag must be on main and newer than the latest version tag, like a version
-#   entered by hand.
+#   tags the commit it ran on with v and the version just before it creates the
+#   release. A pushed tag must be on main and newer than the latest version tag,
+#   like a version entered by hand.
 # - Run it by hand without a version to build the binaries as workflow artifacts
 #   without making a release. On main, such a run also writes the release notes,
 #   the checksums and their signature, so it tests every step but tagging and
@@ -44,8 +44,8 @@ jobs:
     outputs:
       release: ${{ steps.tag.outputs.release }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
-      tag: ${{ steps.tag.outputs.tag }}          # v1.2.0
-      version: ${{ steps.tag.outputs.version }}  # 1.2.0
+      tag: ${{ steps.tag.outputs.tag }}          # v and the version
+      version: ${{ steps.tag.outputs.version }}  # MAJOR.MINOR.PATCH[-PRERELEASE]
       new: ${{ steps.tag.outputs.new }}          # true: the release job makes the tag
     steps:
       - uses: actions/checkout@v7

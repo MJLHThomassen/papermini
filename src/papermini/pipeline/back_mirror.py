@@ -27,9 +27,9 @@ class BackMirror:
         The fold line runs across all the paper that joins the halves there (the top
         bridge, and a wing or head that reaches the fold beside it).
         The cut shape is always mirrored (so the halves line up when glued); with
-        any other ``back`` the back half shows white paper instead of the mirrored
-        drawing, and "text", "number" and "text_number" also report where they fit
-        (``back_box``).
+        any other ``back`` the back half is filled with ``back_rgb`` instead of the
+        mirrored drawing, except the tab, which keeps its color. "text", "number" and
+        "text_number" also report where they fit (``back_box``).
         """
         if back not in BACK_MODES:
             raise ValueError(

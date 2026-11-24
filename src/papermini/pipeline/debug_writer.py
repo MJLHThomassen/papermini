@@ -32,8 +32,8 @@ class DebugWriter:
         )
 
     def overlay(self, lay: Layout, path_px: CutPath) -> np.ndarray:
-        """Return an RGB preview: red = cut away, light blue = white margin, black = cut
-        line."""
+        """Return an RGB preview: red = cut away, light blue = the margin around the
+        figure, black = cut line, green = fold lines."""
         rgb = lay.rgb
         outside = (lay.cut == 0)[..., None]
         margin = ((lay.cut > 0) & (lay.figure == 0))[..., None]

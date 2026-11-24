@@ -14,10 +14,11 @@ from PySide6.QtWidgets import (
 
 
 class ErrorDialog(QDialog):
-    """ "Something went wrong": what happened in a sentence, the traceback folded away
-    (Show details unfolds it in a large box, and the window can then be resized), and
-    Report a problem… beside Continue (or Quit while papermini is starting). After
-    ``exec()``, ``reported`` says whether Report a problem… was clicked."""
+    """The dialog for an unexpected error: what happened in a sentence, and the
+    traceback folded away. A button unfolds the traceback in a large box, and the
+    window can then be resized. Beside the button that closes the dialog (or quits
+    while papermini is starting) is one to report the problem. After ``exec()``,
+    ``reported`` says whether the user chose to report it."""
 
     def __init__(self, parent, summary: str, details: str, quit_: bool = False):
         super().__init__(parent)
