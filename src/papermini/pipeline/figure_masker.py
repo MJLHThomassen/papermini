@@ -5,12 +5,12 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from ..support.image_loader import ImageLoader
+from ..support.read_only import ReadOnly
 from ..support.stage_caches import StageCaches
 from .figure_mask import FigureMask
-from .image_loader import ImageLoader
 from .mask_cleaner import MaskCleaner
 from .mask_options import MaskOptions
-from .read_only import ReadOnly
 from .segmentation.background_remover import BackgroundRemover
 from .segmentation.cancellation import Cancellation
 from .segmentation.download_hooks import DownloadHooks

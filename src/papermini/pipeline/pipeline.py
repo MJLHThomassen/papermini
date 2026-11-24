@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..support.font_library import FontLibrary
+from ..support.image_loader import ImageLoader
 from ..support.stage_caches import StageCaches
 from .art_composer import ArtComposer
 from .back_mirror import BackMirror
@@ -11,7 +12,6 @@ from .figure_masker import FigureMasker
 from .figure_scaler import FigureScaler
 from .font_checker import FontChecker
 from .image_adjuster import ImageAdjuster
-from .image_loader import ImageLoader
 from .layout_builder import LayoutBuilder
 from .mask_cleaner import MaskCleaner
 from .mini_builder import MiniBuilder

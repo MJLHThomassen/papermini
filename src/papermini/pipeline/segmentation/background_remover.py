@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
-from ..image_loader import ImageLoader
+from ...support.image_loader import ImageLoader
 from .cancellation import Cancellation
 from .download_hooks import DownloadHooks
 from .mask_store import MaskStore
