@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QSpinBox, QStyle, QStyledItemDelegate, QToolTip
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QSpinBox,
+    QStyle,
+    QStyledItemDelegate,
+    QToolTip,
+)
 
 from ..theme_service import ThemeService
 
@@ -64,10 +70,9 @@ class FigureDelegate(QStyledItemDelegate):
             if plus.contains(pos):
                 self._set_copies(index, n + 1)
                 return True
-            if num.contains(pos):
-                self.parent().edit(
-                    index
-                )  # (a spin box over the number, see createEditor)
+            view = self.parent()
+            if num.contains(pos) and isinstance(view, QAbstractItemView):
+                view.edit(index)  # (a spin box over the number, see createEditor)
                 return True
         return super().editorEvent(event, model, option, index)
 

@@ -117,7 +117,10 @@ def test_a_start_screen_row_opens_from_anywhere_on_it(app, tmp_path, themes):
     e.show()
     got = []
     e.recentClicked.connect(got.append)
-    row = e.recent_list.itemAt(0).widget()
+    item = e.recent_list.itemAt(0)
+    assert item is not None
+    row = item.widget()
+    assert row is not None
     QTest.mouseClick(
         row, Qt.MouseButton.LeftButton, pos=QPoint(row.width() - 4, row.height() // 2)
     )

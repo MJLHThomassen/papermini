@@ -12,7 +12,7 @@ from typing import ClassVar
 
 import yaml
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QGuiApplication, QIcon, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -184,9 +184,8 @@ class MainWindow(QMainWindow):
         self.builds.ready.connect(self._show_mini)
         self.builds.held.connect(self._update_work)
         self.builds.status.connect(self._status)
-        self._work_timer = QTimer(
-            self, interval=WORK_REFRESH_MS, timeout=self._update_work
-        )
+        self._work_timer = QTimer(self, interval=WORK_REFRESH_MS)
+        self._work_timer.timeout.connect(self._update_work)
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
@@ -210,34 +209,26 @@ class MainWindow(QMainWindow):
             object, tuple
         ] = {}  # uid or "sheet" -> (name, old settings)
         self._settings_log_timer = QTimer(
-            self,
-            singleShot=True,
-            interval=SETTINGS_LOG_DELAY_MS,
-            timeout=self._flush_settings_log,
+            self, singleShot=True, interval=SETTINGS_LOG_DELAY_MS
         )
-        self._sheet_timer = QTimer(
-            self, singleShot=True, interval=SHEET_DELAY_MS, timeout=self._refresh_sheet
-        )
+        self._settings_log_timer.timeout.connect(self._flush_settings_log)
+        self._sheet_timer = QTimer(self, singleShot=True, interval=SHEET_DELAY_MS)
+        self._sheet_timer.timeout.connect(self._refresh_sheet)
         # the Source view's picture follows the color sliders, a moment after they move
-        self._picture_timer = QTimer(
-            self,
-            singleShot=True,
-            interval=PICTURE_DELAY_MS,
-            timeout=self._refresh_picture,
-        )
-        self._original = (
-            None,
-            None,
-        )  # (image path, QImage): the shown image, loaded once
+        self._picture_timer = QTimer(self, singleShot=True, interval=PICTURE_DELAY_MS)
+        self._picture_timer.timeout.connect(self._refresh_picture)
+        # (image path, QImage): the shown image, loaded once
+        self._original: tuple[Path, QImage] | None = None
 
         self._theme_mode = prefs.theme()
         self._make_ui()
         self._make_actions()
         self._restore_layout()
         self._refresh_theme()
-        app = QApplication.instance()
-        if app is not None:
-            app.styleHints().colorSchemeChanged.connect(self._system_scheme_changed)
+        if QApplication.instance() is not None:
+            QGuiApplication.styleHints().colorSchemeChanged.connect(
+                self._system_scheme_changed
+            )
         self.tabs.currentChanged.connect(self.views.set_index)
         self.sheet_panel.set_settings(self.project.sheet)
         self._sync_size_label()
@@ -824,10 +815,12 @@ class MainWindow(QMainWindow):
         sizes = self.splitter.sizes()
         if (sizes[i] > 0) != show:
             if show:
+                side = self.splitter.widget(i)
+                assert side is not None  # (i is a side panel's index)
                 w = max(
                     self._side_width[i],
-                    self.splitter.widget(i).minimumSizeHint().width(),
-                    self.splitter.widget(i).minimumWidth(),
+                    side.minimumSizeHint().width(),
+                    side.minimumWidth(),
                 )
                 sizes[i], sizes[self.CANVAS] = w, max(sizes[self.CANVAS] - w, 0)
             else:
@@ -897,7 +890,7 @@ class MainWindow(QMainWindow):
         self._theme_mode = mode
         self._prefs.set_theme(mode)
         app = QApplication.instance()
-        if app is not None:
+        if isinstance(app, QApplication):
             self._themes.apply(app, mode)
         self._refresh_theme()
 
@@ -940,10 +933,9 @@ class MainWindow(QMainWindow):
 
     def _base_settings(self, settings: FigureSettings | None) -> FigureSettings | None:
         """New figures start from the selected figure's settings (or ``settings``)."""
+        fig = self.current()
         return (
-            self.current().entry.settings
-            if (settings is None and self.current())
-            else settings
+            fig.entry.settings if (settings is None and fig is not None) else settings
         )
 
     def _new_settings(self, base: FigureSettings | None) -> FigureSettings:
@@ -1594,9 +1586,11 @@ class MainWindow(QMainWindow):
             self.panel.set_overlap_hint("narrow", m.tab_joint_mm)
         stale = "" if fig.up_to_date else "  (updating…)"
         if m.kind == "token":
+            token = m.token
+            assert token is not None  # (a token piece has its TokenInfo)
             self.info.setText(
                 f"token \u2300 {m.figure_height_mm:.1f} mm · ring "
-                f"{m.token.radius_mm - m.token.inner_mm:.1f} mm{stale}"
+                f"{token.radius_mm - token.inner_mm:.1f} mm{stale}"
             )
             return
         self.info.setText(
@@ -1618,7 +1612,7 @@ class MainWindow(QMainWindow):
         """(picture, original size or None) for the Source view: the image itself, or
         with color adjustments a smaller adjusted preview of it."""
         path = fig.entry.image
-        if self._original[0] != path:
+        if self._original is None or self._original[0] != path:
             self._original = (path, self._images.load(path))
         img = self._original[1]
         adj = fig.entry.settings.adjustments()
@@ -1655,7 +1649,9 @@ class MainWindow(QMainWindow):
             if fig is None:
                 continue  # removed since
             if fig is not self.current():
-                self.list.setCurrentItem(self._list_item(fig))
+                item = self._list_item(fig)
+                assert item is not None  # (every figure has its list item)
+                self.list.setCurrentItem(item)
             self._undoing = True
             try:
                 self.panel.set_crop(crop)
@@ -1673,7 +1669,9 @@ class MainWindow(QMainWindow):
         for f in missing:
             self.builds.queue(f)
         # stale pieces stay visible while they rebuild, but not when their settings fail
-        ready = [f for f in self.figures if f.mini is not None and f not in failed]
+        ready = [
+            (f, f.mini) for f in self.figures if f.mini is not None and f not in failed
+        ]
         sh = self.project.sheet
         sc = self.sheet_view.scene()
         for w in (
@@ -1693,7 +1691,7 @@ class MainWindow(QMainWindow):
         try:
             lay = sh.layout(
                 self._output.packer,
-                [(f.mini, f.entry.settings.copies) for f in ready],
+                [(m, f.entry.settings.copies) for f, m in ready],
                 leave_out=True,
             )
         except ValueError as e:
@@ -1712,7 +1710,7 @@ class MainWindow(QMainWindow):
             )
             return
         first = sc.itemsBoundingRect().isEmpty()
-        self._sheets.draw(sc, lay, sh.title, {id(f.mini.art): f.pixmap for f in ready})
+        self._sheets.draw(sc, lay, sh.title, {id(m.art): f.pixmap for f, m in ready})
         sc.setSceneRect(sc.itemsBoundingRect())
         if first:
             self.sheet_view.fit()
@@ -1802,7 +1800,9 @@ class MainWindow(QMainWindow):
         m.addAction("Clear list", self._clear_recent)
 
     def _open_recent_action(self) -> None:
-        self._open_recent(self.sender().data())
+        action = self.sender()
+        if isinstance(action, QAction):
+            self._open_recent(action.data())
 
     def _open_recent(self, path: str) -> None:
         if not Path(path).is_file():  # (gone since the list was shown)

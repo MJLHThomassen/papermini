@@ -131,7 +131,8 @@ class ExportDialog(QDialog):
 
     def chosen(self) -> list[Path]:
         """Every file the export writes, with the boxes as they are ticked."""
-        out = [self.pdf_path()] if self.pdf.isChecked() and self.pdf_path() else []
+        pdf = self.pdf_path()
+        out = [pdf] if self.pdf.isChecked() and pdf else []
         return out + (
             self.cut_paths() if self._machine and self.cut.isChecked() else []
         )

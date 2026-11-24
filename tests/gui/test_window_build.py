@@ -2,9 +2,11 @@
 for the default model."""
 
 import sys
+import threading
 import time
 import types
 from dataclasses import replace
+from typing import ClassVar
 
 import cv2
 import numpy as np
@@ -171,7 +173,7 @@ class SlowSegmenter:
     block = True
     calls = 0
     running = 0  # runs in progress
-    started = None  # threading.Event, set when a run starts
+    started: ClassVar[threading.Event]  # set when a run starts
 
     def __init__(self, path, providers=None):
         pass
@@ -281,7 +283,8 @@ class SlowLoadSegmenter:
     """A model that takes until ``loaded`` is set to load, then segments by
     darkness at once."""
 
-    loading = loaded = None  # threading.Event
+    loading: ClassVar[threading.Event]
+    loaded: ClassVar[threading.Event]
     calls = 0
 
     def __init__(self, *a, **k):

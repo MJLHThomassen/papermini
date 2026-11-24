@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QTransform
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView
 
@@ -37,7 +37,7 @@ class ZoomView(QGraphicsView):
         )  # the dot grid is screen-fixed
         self._fit_pending = True
 
-    def drawBackground(self, painter: QPainter, rect: QRectF):
+    def drawBackground(self, painter: QPainter, rect: QRectF | QRect):
         t = self._themes.current
         painter.save()
         painter.resetTransform()

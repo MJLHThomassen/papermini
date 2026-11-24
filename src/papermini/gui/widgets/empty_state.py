@@ -97,9 +97,10 @@ class EmptyState(QFrame):
         """Show up to ``RECENT_SHOWN`` recent projects (newest first), or none: each its
         name and its folder, shortened in the middle to fit."""
         self._recent = list(paths)[: self.RECENT_SHOWN]
-        while self.recent_list.count():
-            w = self.recent_list.takeAt(0).widget()
-            w.deleteLater()
+        while (item := self.recent_list.takeAt(0)) is not None:
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
         for p in self._recent:
             row = RecentProject(self._themes, p)
             row.clicked.connect(self.recentClicked)
@@ -112,10 +113,11 @@ class EmptyState(QFrame):
         the recent projects' folders are shortened), so it never changes size while they
         are laid out; as tall as its contents are at that width."""
         w = self.maximumWidth()
+        lay = self.layout()
         return QSize(
             w,
-            self.layout().heightForWidth(w)
-            if self.layout().hasHeightForWidth()
+            lay.heightForWidth(w)
+            if lay is not None and lay.hasHeightForWidth()
             else super().sizeHint().height(),
         )
 
