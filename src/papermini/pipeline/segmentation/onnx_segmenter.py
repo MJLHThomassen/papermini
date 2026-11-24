@@ -82,7 +82,7 @@ class OnnxSegmenter:
         with self._cancellation.model_run(ro):
             try:
                 self._cancellation.check()
-                return self.sess.run(None, {self.input_name: x}, ro)[0]
+                return np.asarray(self.sess.run(None, {self.input_name: x}, ro)[0])
             except Exception:
                 if ro.terminate:
                     raise Cancelled("cancelled") from None
