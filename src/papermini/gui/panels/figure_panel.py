@@ -30,21 +30,16 @@ from ..fields.field_factory import FieldFactory
 from ..fields.font_field import FontField
 from ..fields.size_field import SizeField
 from ..preferences import Preferences
+from ..step import Step
 from ..widgets.elided_label import ElidedLabel
 from .figure_fields import (
     KIND_SECTIONS,
-    MINIATURE,
     OPTIONS,
     PER_IMAGE,
-    PRINT,
     RESETS,
     SECTIONS,
-    SOURCE,
     SPECIAL_FIELDS,
-    STEP_HINTS,
-    STEPS,
     SUBSECTIONS,
-    TOKEN_STEP_HINT,
     TOKEN_SWITCHES,
     TWINS,
     step_settings,
@@ -83,7 +78,7 @@ class FigurePanel(QScrollArea):
         self._switches: dict[str, tuple[QCheckBox, Section]] = {}
         self._resets: dict[str, QPushButton] = {}
         self._labels: list[tuple[QLabel, int]] = []  # form labels and their indent
-        self._step = SOURCE
+        self._step = Step.SOURCE
         self._empty = True
         self._measuring = False  # (all sections shown, of both kinds of figure)
         self._auto_method: str | None = None
@@ -109,7 +104,7 @@ class FigurePanel(QScrollArea):
         self._loading = False
         self.refresh_icons()
         self._min_width = self._widest_step()
-        self.set_step(SOURCE)
+        self.set_step(Step.SOURCE)
         self.set_empty(True)
 
     # region building
@@ -291,7 +286,7 @@ class FigurePanel(QScrollArea):
         self._measuring = True
         for box in self.sections:  # (a folded group still needs its room when opened)
             box.body.setVisible(True)
-        for step in range(len(STEPS)):
+        for step in Step:
             self._step = step
             self._sync_sections()
             body.layout().activate()
@@ -316,19 +311,19 @@ class FigurePanel(QScrollArea):
         self._empty = empty
         for w in (self.title, self.subtitle, self.step_hint, self.apply_all):
             w.setVisible(not empty)
-        self.export_piece.setVisible(not empty and self._step == MINIATURE)
+        self.export_piece.setVisible(not empty and self._step == Step.MINIATURE)
         self.empty_box.setVisible(empty)
         self.empty_text.setText(message)
         self._sync_sections()
 
-    def set_step(self, step: int):
-        """Show the settings of one workflow step (SOURCE, MINIATURE or PRINT)."""
+    def set_step(self, step: Step):
+        """Show the settings of one workflow step."""
         self._step = step
-        self.export_piece.setVisible(not self._empty and step == MINIATURE)
+        self.export_piece.setVisible(not self._empty and step == Step.MINIATURE)
         self._sync_sections()
         self.verticalScrollBar().setValue(0)
 
-    def step(self) -> int:
+    def step(self) -> Step:
         return self._step
 
     def step_settings(self) -> set:
@@ -341,7 +336,7 @@ class FigurePanel(QScrollArea):
 
     def _sync_sections(self):
         kind = "token" if self.is_token() else "mini"
-        self.kind_row.setVisible(not self._empty and self._step == MINIATURE)
+        self.kind_row.setVisible(not self._empty and self._step == Step.MINIATURE)
         for box, (step, title, _) in zip(self.sections, SECTIONS, strict=True):
             box.setVisible(
                 not self._empty
@@ -349,19 +344,17 @@ class FigurePanel(QScrollArea):
                 and (KIND_SECTIONS.get(title, kind) == kind or self._measuring)
             )
         self.step_hint.setText(
-            TOKEN_STEP_HINT
-            if self._step == MINIATURE and kind == "token"
-            else STEP_HINTS[self._step]
+            self._step.token_hint if kind == "token" else self._step.hint
         )
-        if self._step == PRINT:
+        if self._step == Step.SHEET:
             return  # the window shows the sheet panel in this step
-        names = {SOURCE: "source", MINIATURE: "miniature"}
-        self.apply_all.setText(f"Apply {names[self._step]} settings to all figures")
+        title = self._step.title.lower()
+        self.apply_all.setText(f"Apply {title} settings to all figures")
         self.apply_all.setToolTip(
             "Copies the settings shown here to every figure"
             + {
-                SOURCE: ", except the crop and mask file",
-                MINIATURE: ", except the label",
+                Step.SOURCE: ", except the crop and mask file",
+                Step.MINIATURE: ", except the label",
             }[self._step]
         )
 

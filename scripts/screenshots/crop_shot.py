@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from papermini.gui.step import Step
+
 from .panel import Panel
 from .picture_composer import PictureComposer
 from .shot_context import STAT_BLOCK, ShotContext
@@ -20,9 +22,9 @@ class CropShot:
     def run(self) -> None:
         """Save the picture of cropping."""
         w = self._windows.open("light")
-        self._windows.show(w, STAT_BLOCK, w.SOURCE)
+        self._windows.show(w, STAT_BLOCK, Step.SOURCE)
         crop_box = self._composer.view_shot(w.crop_view, w.crop_view.image_rect())
-        self._windows.show(w, STAT_BLOCK, w.MINI)
+        self._windows.show(w, STAT_BLOCK, Step.MINIATURE)
         cropped = self._composer.view_shot(
             w.mini_view, w.mini_view.scene().itemsBoundingRect(), pad=8
         )

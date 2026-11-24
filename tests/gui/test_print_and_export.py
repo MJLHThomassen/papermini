@@ -7,6 +7,7 @@ from PIL import Image
 
 pytest.importorskip("PySide6")
 
+from papermini.gui.step import Step
 
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
@@ -86,7 +87,7 @@ def test_the_print_button_prints_the_sheet(
     monkeypatch.setattr(ExportDialogs, "print_options", fake_dialog)
     w = new_window()
     w.add_images([tmp_path / "hero.png"])
-    w.tabs.setCurrentIndex(w.SHEET)
+    w.tabs.setCurrentIndex(Step.SHEET)
     assert w.sheet_panel.print_btn.isVisibleTo(w.sheet_panel)
     w.sheet_panel.print_btn.click()  # builds first if needed, then prints
     assert wait(lambda: out.exists() and out.stat().st_size > 1000)

@@ -71,6 +71,7 @@ from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
 from ..panels.sheet_panel import SheetPanel
 from ..preferences import Preferences
+from ..step import Step
 from ..updating.update_controller import UpdateController
 from ..views.crop_view import CropView
 from ..views.drawing import draw_mini_page, draw_sheet
@@ -101,6 +102,22 @@ BUILD_ADVICE: dict[type[Exception], str] = {
     "menu, or pick another model.",
 }
 ui_log = logging.getLogger("papermini.ui")  # what the user does
+
+# how often the work card follows a running build, and when it first looks
+WORK_REFRESH_MS = 500
+FIRST_WORK_REFRESH_MS = 300
+# how long the window waits for a run of changes to settle before it acts on them
+SETTINGS_LOG_DELAY_MS = 250
+SHEET_DELAY_MS = 150
+PICTURE_DELAY_MS = 60
+# when the update check starts, after the window is up
+UPDATE_CHECK_DELAY_MS = 2000
+# the widths of the window's panes when it opens; a collapsed side panel reopens at the
+# width it last had, or at its width here
+LEFT_PANEL_PX = 290
+CANVAS_PX = 790
+RIGHT_PANEL_PX = 380
+CROP_UNDO_STEPS = 50  # the crop changes Ctrl+Z can undo
 
 
 class MainWindow(QMainWindow):
@@ -153,7 +170,9 @@ class MainWindow(QMainWindow):
         self.builds.ready.connect(self._show_mini)
         self.builds.held.connect(self._update_work)
         self.builds.status.connect(self._status)
-        self._work_timer = QTimer(self, interval=500, timeout=self._update_work)
+        self._work_timer = QTimer(
+            self, interval=WORK_REFRESH_MS, timeout=self._update_work
+        )
         self.sig.status.connect(self._status)
         self.sig.ask_download.connect(self._ask_download)
         self.sig.link_done.connect(self._on_link_done)
@@ -177,14 +196,20 @@ class MainWindow(QMainWindow):
             object, tuple
         ] = {}  # uid or "sheet" -> (name, old settings)
         self._settings_log_timer = QTimer(
-            self, singleShot=True, interval=250, timeout=self._flush_settings_log
+            self,
+            singleShot=True,
+            interval=SETTINGS_LOG_DELAY_MS,
+            timeout=self._flush_settings_log,
         )
         self._sheet_timer = QTimer(
-            self, singleShot=True, interval=150, timeout=self._refresh_sheet
+            self, singleShot=True, interval=SHEET_DELAY_MS, timeout=self._refresh_sheet
         )
         # the Source view's picture follows the color sliders, a moment after they move
         self._picture_timer = QTimer(
-            self, singleShot=True, interval=60, timeout=self._refresh_picture
+            self,
+            singleShot=True,
+            interval=PICTURE_DELAY_MS,
+            timeout=self._refresh_picture,
         )
         self._original = (
             None,
@@ -204,18 +229,13 @@ class MainWindow(QMainWindow):
         self._sync_size_label()
         self._update_title()
         self._show_current()
-        QTimer.singleShot(2000, self.updater.start_up)  # (after the window is up)
+        QTimer.singleShot(UPDATE_CHECK_DELAY_MS, self.updater.start_up)
         self.sig.fonts_found.connect(self.panel.set_installed_fonts)
         threading.Thread(target=self._find_fonts, daemon=True).start()
 
     # region ui
-    # the workflow, one view per step; any step can be opened at any time
-    VIEWS: ClassVar = [
-        ("Source", "Step 1: the picture, and the figure found in it"),
-        ("Miniature", "Step 2: the piece as it will print"),
-        ("Print sheet", "Step 3: the pages to print"),
-    ]
-    SOURCE, MINI, SHEET = range(3)
+    # the panes of the splitter, by index: the side panels and the canvas between them
+    LEFT, CANVAS, RIGHT = range(3)
 
     def _make_ui(self):
         self._tinted = []  # (widget, icon name, color token, size): re-tinted on theme change
@@ -260,14 +280,15 @@ class MainWindow(QMainWindow):
             )
         )
         split.addWidget(right)
-        split.setStretchFactor(1, 1)
-        split.setSizes([290, 790, 380])
+        split.setStretchFactor(self.CANVAS, 1)
+        split.setSizes([LEFT_PANEL_PX, CANVAS_PX, RIGHT_PANEL_PX])
         # the side panels can be dragged shut (and back open); the canvas cannot
-        split.setCollapsible(0, True)
-        split.setCollapsible(1, False)
-        split.setCollapsible(2, True)
+        split.setCollapsible(self.LEFT, True)
+        split.setCollapsible(self.CANVAS, False)
+        split.setCollapsible(self.RIGHT, True)
         split.splitterMoved.connect(lambda *_: self._side_dragged())
-        self._side_width = {0: 260, 2: 380}  # width to reopen a collapsed panel at
+        # width to reopen a collapsed panel at
+        self._side_width = {self.LEFT: LEFT_PANEL_PX, self.RIGHT: RIGHT_PANEL_PX}
         root.addWidget(split, 1)
         self.setCentralWidget(central)
 
@@ -316,7 +337,9 @@ class MainWindow(QMainWindow):
         )
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
         h.addStretch(1)
-        self.views = Segmented(self.VIEWS, steps=True)
+        self.views = Segmented(
+            [(s.title, f"Step {s + 1}: {s.subtitle}") for s in Step], steps=True
+        )
         self.views.changed.connect(self.tabs.setCurrentIndex)
         outer.addWidget(self._head_left, 1)
         outer.addWidget(self.views)
@@ -476,10 +499,11 @@ class MainWindow(QMainWindow):
         self.sheet_banner_box = overlay_wrap(self.sheet_banner)
         self.sheet_banner_box.hide()
         sv.addWidget(self.sheet_banner_box, 0, 0, Qt.AlignCenter)
-        for view, (label, tip) in zip(
-            (self.crop_view, self.mini_view, sheet_page), self.VIEWS
+        # the workflow, one view per step; any step can be opened at any time
+        for view, step in zip(
+            (self.crop_view, self.mini_view, sheet_page), Step, strict=True
         ):
-            self.tabs.addTab(view, label)
+            self.tabs.addTab(view, step.title)
         self.tabs.currentChanged.connect(self._tab_changed)
         grid.addWidget(self.tabs, 0, 0)
 
@@ -513,7 +537,7 @@ class MainWindow(QMainWindow):
         self.zoombar.actual.connect(self._actual)
         # side panel toggles in the bottom corners, next to the panel they control
         # (always shown, so a collapsed panel can be brought back)
-        self.btn_left, left_card = self._side_button(0)
+        self.btn_left, left_card = self._side_button(self.LEFT)
         grid.addWidget(overlay_wrap(left_card), 0, 0, Qt.AlignBottom | Qt.AlignLeft)
         # what the marks on the Source view mean (only there, with an image): above the
         # figure list toggle, clear of the banner at the top and the zoom bar. It lets
@@ -526,7 +550,7 @@ class MainWindow(QMainWindow):
             w.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.legend_box.hide()
         grid.addWidget(self.legend_box, 0, 0, Qt.AlignBottom | Qt.AlignLeft)
-        self.btn_right, right_card = self._side_button(2)
+        self.btn_right, right_card = self._side_button(self.RIGHT)
         self.zoom_box = QWidget()
         self.zoom_box.setAttribute(Qt.WA_TranslucentBackground)
         zb = QHBoxLayout(self.zoom_box)
@@ -640,13 +664,13 @@ class MainWindow(QMainWindow):
         )
         self.a_left = act(
             "Figure list",
-            lambda on: self.set_side_visible(0, on),
+            lambda on: self.set_side_visible(self.LEFT, on),
             "Ctrl+B",
             "Show or hide the figure list",
         )
         self.a_right = act(
             "Settings",
-            lambda on: self.set_side_visible(2, on),
+            lambda on: self.set_side_visible(self.RIGHT, on),
             "Ctrl+Alt+B",
             "Show or hide the settings panel",
         )
@@ -722,7 +746,7 @@ class MainWindow(QMainWindow):
     # endregion
 
     # region side panels
-    SIDE_NAMES: ClassVar = {0: "figure list", 2: "settings"}
+    SIDE_NAMES: ClassVar = {LEFT: "figure list", RIGHT: "settings"}
 
     def side_visible(self, i: int) -> bool:
         return self.splitter.sizes()[i] > 0
@@ -740,10 +764,10 @@ class MainWindow(QMainWindow):
                     self.splitter.widget(i).minimumSizeHint().width(),
                     self.splitter.widget(i).minimumWidth(),
                 )
-                sizes[i], sizes[1] = w, max(sizes[1] - w, 0)
+                sizes[i], sizes[self.CANVAS] = w, max(sizes[self.CANVAS] - w, 0)
             else:
                 self._side_width[i] = sizes[i]
-                sizes[1] += sizes[i]
+                sizes[self.CANVAS] += sizes[i]
                 sizes[i] = 0
             self.splitter.setSizes(sizes)
         self._sync_sides()
@@ -753,10 +777,10 @@ class MainWindow(QMainWindow):
         state = self._prefs.splitter_state()
         if state is not None:
             self.splitter.restoreState(state)
-            self.splitter.setCollapsible(1, False)  # (not part of the saved state)
+            self.splitter.setCollapsible(self.CANVAS, False)  # (not in the saved state)
         for i, w in (
-            (0, self._prefs.left_panel_width()),
-            (2, self._prefs.right_panel_width()),
+            (self.LEFT, self._prefs.left_panel_width()),
+            (self.RIGHT, self._prefs.right_panel_width()),
         ):
             if w > 0:
                 self._side_width[i] = w
@@ -768,8 +792,8 @@ class MainWindow(QMainWindow):
             if sizes[i] > 0:
                 self._side_width[i] = sizes[i]
         self._prefs.set_splitter_state(self.splitter.saveState())
-        self._prefs.set_left_panel_width(self._side_width[0])
-        self._prefs.set_right_panel_width(self._side_width[2])
+        self._prefs.set_left_panel_width(self._side_width[self.LEFT])
+        self._prefs.set_right_panel_width(self._side_width[self.RIGHT])
 
     def _side_dragged(self):
         # remember open widths while dragging, so a panel dragged shut reopens at the
@@ -785,11 +809,12 @@ class MainWindow(QMainWindow):
             return
         t = theme.current
         for i, btn, a in (
-            (0, self.btn_left, self.a_left),
-            (2, self.btn_right, self.a_right),
+            (self.LEFT, self.btn_left, self.a_left),
+            (self.RIGHT, self.btn_right, self.a_right),
         ):
             on = self.side_visible(i)
-            name = ("panel_left" if i == 0 else "panel_right") + ("_on" if on else "")
+            side = "panel_left" if i == self.LEFT else "panel_right"
+            name = side + ("_on" if on else "")
             btn.setIcon(theme.icon(name, t.text, 16))
             key = a.shortcut().toString(QKeySequence.NativeText)
             verb = "Hide" if on else "Show"
@@ -930,7 +955,7 @@ class MainWindow(QMainWindow):
     def focus_link_bar(self):
         """Show the figure list and put the cursor in its link field, with a copied
         link already filled in."""
-        self.set_side_visible(0, True)
+        self.set_side_visible(self.LEFT, True)
         clip = QApplication.clipboard().text().strip()
         if not self.link_edit.text().strip() and ImageFetcher.is_url(clip):
             self.link_edit.setText(clip)
@@ -1094,7 +1119,7 @@ class MainWindow(QMainWindow):
             self._picture_timer.start()  # (the model is not involved: no rebuild of the mask)
         if s.crop != old.crop and not self._undoing:  # a crop change can be undone
             self._crop_undo.append((fig.uid, old.crop))
-            del self._crop_undo[:-50]
+            del self._crop_undo[:-CROP_UNDO_STEPS]
         if s.model != old.model:
             self._declined.clear()  # a new model choice may ask again
             ui_log.info("%s: model %s → %s", fig.entry.image.name, old.model, s.model)
@@ -1242,7 +1267,7 @@ class MainWindow(QMainWindow):
             self._show_mini(fig)
         self._status("Ready")
         self.exporter.check()
-        if self.tabs.currentIndex() == self.SHEET:
+        if self.tabs.currentIndex() == Step.SHEET:
             self._sheet_timer.start()
 
     def _on_failed(self, fig: Figure, msg: str):
@@ -1271,7 +1296,8 @@ class MainWindow(QMainWindow):
 
     def _on_run_started(self):
         self._work_timer.start()
-        QTimer.singleShot(300, self._update_work)  # cached masks come back at once
+        # (cached masks come back at once)
+        QTimer.singleShot(FIRST_WORK_REFRESH_MS, self._update_work)
 
     def _on_run_ended(self):
         self._work_timer.stop()
@@ -1286,7 +1312,7 @@ class MainWindow(QMainWindow):
         if run is not None and run.seconds() < 0.25:
             run = None  # (cached masks come back at once)
         mode = None
-        if fig is not None and self.tabs.currentIndex() != self.SHEET:
+        if fig is not None and self.tabs.currentIndex() != Step.SHEET:
             if run and run.uid == fig.uid and run.mask_key == fig.mask_key():
                 mode = "working"
             elif fig.stopped and not fig.up_to_date:
@@ -1371,7 +1397,7 @@ class MainWindow(QMainWindow):
                 f.error = None
                 self._refresh_card(f)
         self.builds.build_current()
-        if self.tabs.currentIndex() == self.SHEET:
+        if self.tabs.currentIndex() == Step.SHEET:
             self._sheet_timer.start()
 
     def _download_progress(self, done, total, msg):
@@ -1488,7 +1514,7 @@ class MainWindow(QMainWindow):
         self.panel.set_auto_fill_gaps(m.close_px)
         if not m.tab_overlap_used:
             self.panel.set_overlap_hint("unused")
-        elif m.tab_width_mm and m.tab_joint_mm < min(10.0, 0.6 * m.tab_width_mm):
+        elif m.joint_is_narrow:
             self.panel.set_overlap_hint("narrow", m.tab_joint_mm)
         stale = "" if fig.up_to_date else "  (updating…)"
         if m.kind == "token":
@@ -1504,11 +1530,11 @@ class MainWindow(QMainWindow):
         )
 
     def _tab_changed(self, i):
-        self.panel.set_step(i)
-        self.side.setCurrentWidget(self.sheet_panel if i == self.SHEET else self.panel)
+        self.panel.set_step(Step(i))
+        self.side.setCurrentWidget(self.sheet_panel if i == Step.SHEET else self.panel)
         self._update_work()
         self._sync_legend()
-        if i == self.SHEET:
+        if i == Step.SHEET:
             self._refresh_sheet()
         QTimer.singleShot(0, self._tab_zoom)
 
@@ -1537,11 +1563,11 @@ class MainWindow(QMainWindow):
         Clear crop button, while that image has a crop box."""
         fig = self.current()
         self.legend_box.setVisible(
-            fig is not None and self.tabs.currentIndex() == self.SOURCE
+            fig is not None and self.tabs.currentIndex() == Step.SOURCE
         )
         cropped = fig is not None and bool(fig.entry.settings.crop)
         self.clear_crop_card.setVisible(
-            cropped and self.tabs.currentIndex() == self.SOURCE
+            cropped and self.tabs.currentIndex() == Step.SOURCE
         )
 
     def undo_crop(self):
@@ -1564,7 +1590,7 @@ class MainWindow(QMainWindow):
         self._status("No crop change to undo")
 
     def _refresh_sheet(self):
-        if self.tabs.currentIndex() != self.SHEET:
+        if self.tabs.currentIndex() != Step.SHEET:
             return
         missing = [f for f in self.figures if not f.up_to_date and f.error is None]
         failed = [f for f in self.figures if not f.up_to_date and f.error is not None]

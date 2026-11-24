@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from papermini.gui.window.main_window import MainWindow
+from papermini.gui.step import Step
 
 from .shot_context import FLYING, RED, ShotContext
 from .window_driver import WindowDriver
@@ -16,10 +16,10 @@ class AppShots:
 
     def run(self) -> None:
         """Save the screenshots of the window."""
-        self._shot("light", "app-miniature", FLYING, MainWindow.MINI)
-        self._shot("light", "app-source", FLYING, MainWindow.SOURCE)
-        self._shot("light", "app-sheet", FLYING, MainWindow.SHEET)
-        self._shot("dark", "app-dark", RED, MainWindow.MINI)
+        self._shot("light", "app-miniature", FLYING, Step.MINIATURE)
+        self._shot("light", "app-source", FLYING, Step.SOURCE)
+        self._shot("light", "app-sheet", FLYING, Step.SHEET)
+        self._shot("dark", "app-dark", RED, Step.MINIATURE)
 
     def _shot(self, mode: str, name: str, row: int, tab: int) -> None:
         w = self._windows.open(mode)

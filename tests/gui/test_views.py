@@ -9,6 +9,7 @@ from PIL import Image
 
 pytest.importorskip("PySide6")
 
+from papermini.gui.step import Step
 from papermini.project.figure_settings import FigureSettings
 
 pytestmark = pytest.mark.usefixtures("fake_default_model")
@@ -156,7 +157,7 @@ def test_source_view_shows_the_detected_outline(
         "Miniature",
         "Print sheet",
     ]
-    assert w.tabs.currentIndex() == w.SOURCE  # the first step
+    assert w.tabs.currentIndex() == Step.SOURCE  # the first step
     assert [b.text() for b in w.views.group.buttons()] == [
         "1  Source",
         "2  Miniature",
@@ -533,9 +534,9 @@ def test_crop_changes_can_be_undone_and_cleared(app, tmp_path, new_window):
     w.crop_view.cropChanged.emit([0.2, 0.2, 0.8, 0.8])
     assert a.entry.settings.crop == [0.2, 0.2, 0.8, 0.8]
     assert w.clear_crop_card.isVisibleTo(w)
-    w.tabs.setCurrentIndex(w.MINI)  # only on the Source view
+    w.tabs.setCurrentIndex(Step.MINIATURE)  # only on the Source view
     assert not w.clear_crop_card.isVisibleTo(w)
-    w.tabs.setCurrentIndex(w.SOURCE)
+    w.tabs.setCurrentIndex(Step.SOURCE)
     w.list.setCurrentRow(1)
     w.btn_clear_crop.click()  # nothing to clear on b...
     assert b.entry.settings.crop is None
@@ -573,9 +574,9 @@ def test_the_source_view_explains_its_marks_in_a_legend(app, tmp_path, new_windo
     assert w.legend_box.testAttribute(Qt.WA_TransparentForMouseEvents)
     w.crop_view.cropChanged.emit([0.1, 0.1, 0.9, 0.9])  # a crop box drawn
     assert [t.text() for t in legend.texts] == texts  # the same words
-    w.tabs.setCurrentIndex(w.MINI)  # only on the Source view
+    w.tabs.setCurrentIndex(Step.MINIATURE)  # only on the Source view
     assert not w.legend_box.isVisibleTo(w)
-    w.tabs.setCurrentIndex(w.SOURCE)
+    w.tabs.setCurrentIndex(Step.SOURCE)
     assert w.legend_box.isVisibleTo(w)
     w.panel.changed.emit(replace(w.current().entry.settings, crop=None))
     assert [t.text() for t in legend.texts] == texts

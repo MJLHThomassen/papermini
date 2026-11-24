@@ -7,6 +7,7 @@ from PIL import Image
 
 pytest.importorskip("PySide6")
 
+from papermini.gui.step import Step
 from papermini.project.figure_settings import FigureSettings
 
 pytestmark = pytest.mark.usefixtures("fake_default_model")
@@ -198,12 +199,11 @@ def test_the_image_adjustments_follow_greyscale_and_reset_together(
     Reset puts all of them back in one change, and is off while there is nothing to reset."""
     from PySide6.QtWidgets import QPushButton
 
-    from papermini.gui.panels.figure_fields import SOURCE
     from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel(prefs, size_calculator, fonts)
     p.set_settings(FigureSettings(), "x", "x")
-    p.set_step(SOURCE)
+    p.set_step(Step.SOURCE)
     box = next(b for b in p.sections if b.header.text() == "Image adjustments")
     assert box.isVisibleTo(p)
     reset = box.findChild(QPushButton, "ResetButton")
@@ -228,8 +228,6 @@ def test_the_image_adjustments_follow_greyscale_and_reset_together(
 
 def test_the_settings_follow_the_step(app, tmp_path, new_window):
     """Each step shows its own settings; "Apply to all" copies only those."""
-    from papermini.gui.panels.figure_fields import MINIATURE, PRINT, SOURCE
-
     for n in "ab":
         Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / f"{n}.png")
     w = new_window()
@@ -254,11 +252,12 @@ def test_the_settings_follow_the_step(app, tmp_path, new_window):
         w.views.group.button(i).click()  # the step buttons in the header
         assert w.tabs.currentIndex() == i and p.step() == i and titles() == want
         # the Print sheet step shows the sheet's own settings instead
-        assert w.side.currentWidget() is (w.sheet_panel if i == PRINT else p)
-        assert p.export_piece.isVisibleTo(p) == (i == MINIATURE)  # (this figure's file)
-        assert p.kind_row.isVisibleTo(p) == (i == MINIATURE)
-    w.tabs.setCurrentIndex(w.SOURCE)
-    assert "Crop" in p.step_hint.text() and p.step() == SOURCE
+        assert w.side.currentWidget() is (w.sheet_panel if i == Step.SHEET else p)
+        # (exports this figure's file)
+        assert p.export_piece.isVisibleTo(p) == (i == Step.MINIATURE)
+        assert p.kind_row.isVisibleTo(p) == (i == Step.MINIATURE)
+    w.tabs.setCurrentIndex(Step.SOURCE)
+    assert "Crop" in p.step_hint.text() and p.step() == Step.SOURCE
 
     a, b = w.figures
     w.list.setCurrentRow(0)
@@ -266,7 +265,7 @@ def test_the_settings_follow_the_step(app, tmp_path, new_window):
         replace(a.entry.settings, height_mm=30, margin_mm=3, strength=90)
     )
     w.list.itemDelegate().copiesChanged.emit(a.uid, 4)  # (set on its card)
-    w.tabs.setCurrentIndex(w.MINI)
+    w.tabs.setCurrentIndex(Step.MINIATURE)
     assert "miniature" in p.apply_all.text()
     p.apply_all.click()
     assert b.entry.settings.height_mm == 30  # the Miniature step's settings...

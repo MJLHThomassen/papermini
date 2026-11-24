@@ -9,6 +9,7 @@ from PIL import Image
 
 pytest.importorskip("PySide6")
 
+from papermini.gui.step import Step
 
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
@@ -178,7 +179,7 @@ def test_a_figure_too_big_for_the_paper_is_listed_and_left_off(
     w.add_images([tmp_path / "hero.png", tmp_path / "imp.png"])
     hero, _imp = w.figures
     hero.entry.settings = replace(hero.entry.settings, height_mm=150, label="Hero")
-    w.tabs.setCurrentIndex(w.SHEET)  # (builds what is missing)
+    w.tabs.setCurrentIndex(Step.SHEET)  # (builds what is missing)
     assert wait(lambda: all(f.mini is not None and f.up_to_date for f in w.figures))
     w.sheet_panel.changed.emit(SheetSettings(paper="a5", orientation="landscape"))
     sp = w.sheet_panel

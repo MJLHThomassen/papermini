@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 
 from papermini.gui import theme
 from papermini.gui.preferences import Preferences
+from papermini.gui.step import Step
 from papermini.gui.window.main_window import MainWindow
 
 from .shot_context import ShotContext
@@ -41,7 +42,7 @@ class WindowDriver:
         w.resize(*size)
         w.show()
         w.load(ctx.project)
-        w.tabs.setCurrentIndex(w.SHEET)  # the sheet builds every figure
+        w.tabs.setCurrentIndex(Step.SHEET)  # the sheet builds every figure
         ctx.settle(lambda: all(f.up_to_date for f in w.figures))
         return w
 

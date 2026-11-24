@@ -69,8 +69,8 @@ src/papermini/       the package, one class per file (S15)
   cli.py             the command line
   commands/          the commands of the command line, and the flags they share
   fonts/             the bundled font files and their licences
-  gui/               the PySide6 desktop app, built on the core; the theme,
-                     preferences, error handling and start-up
+  gui/               the PySide6 desktop app, built on the core; the workflow
+                     steps, the theme, preferences, error handling and start-up
     widgets/         small reusable widgets
     fields/          the fields of the settings panels, built from the options,
                      and their input widgets
