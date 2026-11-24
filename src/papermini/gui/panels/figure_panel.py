@@ -299,6 +299,9 @@ class FigurePanel(QScrollArea):
         """The width that shows every control of every step, measured with each step's
         groups shown (hidden widgets do not count in a minimum size)."""
         body = self.widget()
+        assert body is not None  # (set in __init__)
+        layout = body.layout()
+        assert layout is not None
         widths = []
         self._empty = False
         self._measuring = True
@@ -307,7 +310,7 @@ class FigurePanel(QScrollArea):
         for step in Step:
             self._step = step
             self._sync_sections()
-            body.layout().activate()
+            layout.activate()
             widths.append(body.minimumSizeHint().width())
         self._measuring = False
         for box in self.sections:

@@ -32,6 +32,7 @@ def test_download_dialog_asks_then_downloads(app, model_cache, pipeline, wait):
     d = DownloadDialog("rmbg-1.4", segmenters)
     assert "Download the BRIA RMBG-1.4 model?" in d.title.text()
     assert "176 MB" in d.body.text()
+    assert d.licence_note is not None
     assert "non-commercial use only" in d.licence_note.text()
     assert "You are responsible for not using it commercially" in d.licence_note.text()
     assert d.btn_go.text() == "Download"
@@ -39,6 +40,7 @@ def test_download_dialog_asks_then_downloads(app, model_cache, pipeline, wait):
     assert d.result() == QDialog.DialogCode.Rejected and model_cache == []
 
     d = DownloadDialog("rmbg-1.4", segmenters)
+    assert d.accept_licence is not None
     assert not d.btn_go.isEnabled()  # the licence is not accepted yet
     d.start()  # (Enter: still nothing happens)
     assert model_cache == [] and d.title.text().startswith("Download the")
@@ -217,6 +219,7 @@ def test_the_model_licences_are_links(images_from_web, app, model_cache, pipelin
         assert spec.licence_url.startswith("https://")
         d = DownloadDialog(model, segmenters)
         label = d.licence_note if segmenters.non_commercial(model) else d.body
+        assert label is not None
         assert f'<a href="{spec.licence_url}">' in label.text()
         assert label.openExternalLinks()
     dlg = CachePage(segmenters, pipeline.masks, images_from_web)
