@@ -347,7 +347,8 @@ repository secret `RELEASE_SIGNING_KEY`; its public key is in
 `src/papermini/support/update.py`. `just release-key` makes a new pair (and says
 how to store the secret). The workflow stops when the secret does not
 belong to the public key in the code. A new key pair means that versions with
-the old public key no longer update themselves.
+the old public key no longer update themselves. [SECURITY.md](SECURITY.md)
+says what to do if the key leaks, and how to report a vulnerability.
 
 ## Building the binaries locally
 
