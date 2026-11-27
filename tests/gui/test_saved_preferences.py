@@ -10,8 +10,10 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import QByteArray
 
 from papermini.project.size_table import SizeTable
+from papermini.project.style_preset import StylePreset
 
 CLUB = SizeTable(grid_mm=30.0, name="Club")
+DARK = StylePreset("Dark tabs", {"tab_color": "#000000"})
 
 # (preference, its key, its default, a value, the value as stored)
 SAVED = [
@@ -37,10 +39,19 @@ SAVED = [
     ("auto_updates", "updates/auto", True, False, False),
     ("history_open", "layout/history_open", True, False, False),
     ("undo_steps", "history/undo_steps", 100, 250, 250),
+    (
+        "user_styles",
+        "styles/presets",
+        [],
+        [DARK],
+        json.dumps({"Dark tabs": {"tab_color": "#000000"}}),
+    ),
+    ("default_style_name", "styles/default", "Standing mini", "Token", "Token"),
 ]
 SETTERS = {
     "add_subfolders": "set_add_subfolders",
     "user_presets": "save_user_presets",
+    "user_styles": "save_user_styles",
 }
 
 
@@ -102,3 +113,17 @@ def test_the_png_scale_follows_the_size_mode(prefs):
     prefs.set_png_size_mode("dpi")
     prefs.set_png_dpi(254)
     assert prefs.png_px_per_mm(50) == pytest.approx(10)
+
+
+def test_style_presets_that_cannot_be_read_or_have_a_built_in_name_are_left_out(
+    prefs, settings_store
+):
+    stored = {
+        "Big": {"height_mm": 50},
+        "Token": {},
+        "Dark tabs": {"tab_color": "#000000"},
+    }
+    settings_store.setValue("styles/presets", json.dumps(stored))
+    assert prefs.user_styles() == [DARK]
+    settings_store.setValue("styles/presets", "not json")
+    assert prefs.user_styles() == []

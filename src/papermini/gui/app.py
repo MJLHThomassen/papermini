@@ -58,9 +58,11 @@ class App:
         from ..project.figure_builder import FigureBuilder
         from ..project.project_store import ProjectStore
         from ..project.size_calculator import SizeCalculator
+        from ..project.style_preset_file import StylePresetFile
         from ..support.font_library import FontLibrary
         from ..support.image_fetcher import ImageFetcher
         from .preferences import Preferences
+        from .style_library import StyleLibrary
         from .theme_service import ThemeService
         from .views.mini_renderer import MiniRenderer
         from .views.qt_fonts import QtFonts
@@ -95,6 +97,8 @@ class App:
             minis,
             SheetRenderer(minis),
             problems,
+            StyleLibrary(prefs),
+            StylePresetFile(),
         )
         if files:
             w.open_paths(files)

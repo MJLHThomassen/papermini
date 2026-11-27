@@ -120,6 +120,8 @@ FLAGS = [
         ]
     ),
     ("add", "--no-subfolders", "no_subfolders", False, None, True),
+    ("add", "--preset", "preset", None, "Token", "Token"),
+    ("build", "--preset", "preset", None, "Token", "Token"),
     ("build", "--no-subfolders", "no_subfolders", False, None, True),
     ("build", "-o", "output", None, "out", "out"),
     ("build", "--output", "output", None, "out", "out"),
@@ -295,6 +297,12 @@ def test_build_debug_writes_next_to_the_image(build, tmp_path):
     assert build("--debug").options["debug_dir"] == tmp_path / "debug"
 
 
+def test_build_preset_gives_the_images_its_style_under_the_flags_given(build):
+    built = build("--preset", "Standing mini - dark mode", "--tab-color", "#ff0000")
+    assert built.settings.margin_color == "#000000"  # the preset's
+    assert built.settings.tab_color == "#ff0000"  # the flag's, over the preset's
+
+
 def test_build_grid_scales_the_creature_size_to_a_tenth_of_a_mm(build):
     assert build("--grid-mm", "30").settings.height_mm == 37.8  # 32 mm * 30 / 25.4
 
@@ -399,7 +407,7 @@ def test_each_sheet_setting_is_in_the_reference(reference, name):
 
 # Settings guide entries, by heading and first flag, about a control of the app that
 # is not an option of its own.
-GUIDE_ENTRIES_WITHOUT_AN_OPTION: set[str] = set()
+GUIDE_ENTRIES_WITHOUT_AN_OPTION = {"Style: --preset NAME_OR_FILE"}
 
 # Settings guide entries, by heading and first flag, whose heading is not the label of
 # their option. The headings are what the app shows: the token's field for the label,
@@ -585,7 +593,9 @@ BUILD_FLAGS_NOT_IN_THE_BUILD_TABLE = {"-o"}  # (named in the --output row)
         flag
         for command, flag, *_ in FLAGS
         if command == "build"
-        and flag not in {f for f, *_ in [*FIGURE_FLAGS, *SHEET_FLAGS]} | {"--grid-mm"}
+        and flag
+        not in {f for f, *_ in [*FIGURE_FLAGS, *SHEET_FLAGS]}
+        | {"--grid-mm", "--preset"}
     ],
 )
 def test_each_build_flag_is_in_the_build_options_table(flag):

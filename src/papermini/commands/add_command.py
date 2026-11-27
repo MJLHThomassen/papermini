@@ -58,8 +58,11 @@ class AddCommand:
             else Project(path=path.resolve())
         )
         project.sizes = self._figure_flags.table(args, project.sizes)
-        settings = self._figure_flags.settings(args, project.sizes)
+        preset = self._figure_flags.preset(args, project.presets)
+        settings = self._figure_flags.settings(args, project.sizes, preset)
         sources = self._images.sources(args.images, not args.no_subfolders)
+        if preset is not None and sources and project.keep_preset(preset):
+            print(f"  style preset {preset.name} replaced")
         for src in sources:
             project.figures.append(
                 FigureEntry(src.image, replace(settings), src.name, src.link)

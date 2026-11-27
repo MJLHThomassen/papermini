@@ -7,6 +7,8 @@ from pathlib import Path
 from PySide6.QtCore import QByteArray, QSettings
 
 from ..project import sizes
+from ..project.style_preset import StylePreset
+from ..project.styles import BUILTIN_STYLES, DEFAULT_STYLE
 
 
 class Preferences:
@@ -32,6 +34,8 @@ class Preferences:
     _PNG_DPI = "png_dpi"
     _SIZE_PRESETS = "sizes/presets"
     _DEFAULT_PRESET = "sizes/default_preset"
+    _STYLES = "styles/presets"
+    _DEFAULT_STYLE = "styles/default"
     _EXPORT_PDF = "export/pdf"
     _EXPORT_CUT = "export/cut"
     _LAST_UPDATE_CHECK = "updates/last_check"
@@ -256,6 +260,39 @@ class Preferences:
     @staticmethod
     def _find(tables: list[sizes.SizeTable], name: str) -> sizes.SizeTable | None:
         return next((t for t in tables if t.name == name), None)
+
+    # endregion
+
+    # region style presets
+    def user_styles(self) -> list[StylePreset]:
+        """Return the user's own style presets. Presets that cannot be read are left
+        out, and so are presets with the name of a built-in one."""
+        text = str(self._store().value(self._STYLES, "", type=str))
+        try:
+            data = json.loads(text) if text else {}
+        except ValueError:
+            return []
+        out, seen = [], {p.name for p in BUILTIN_STYLES}
+        for name, values in data.items() if isinstance(data, dict) else ():
+            try:
+                preset = StylePreset.from_dict(name, values)
+            except ValueError:
+                continue
+            if preset.name not in seen:
+                seen.add(preset.name)
+                out.append(preset)
+        return out
+
+    def save_user_styles(self, presets: list[StylePreset]) -> None:
+        self._set(self._STYLES, json.dumps(StylePreset.dict_of(presets)))
+
+    def default_style_name(self) -> str:
+        """Return the name of the style preset that new figures get when no figure is
+        selected."""
+        return str(self._store().value(self._DEFAULT_STYLE, DEFAULT_STYLE, type=str))
+
+    def set_default_style_name(self, name: str) -> None:
+        self._set(self._DEFAULT_STYLE, name)
 
     # endregion
 

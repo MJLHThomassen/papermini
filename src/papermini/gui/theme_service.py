@@ -62,6 +62,9 @@ class ThemeService:
         '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>'
         '<circle cx="13" cy="17" r="2"/>',
         "menu": '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
+        "more": '<circle cx="6" cy="12" r="1.3" fill="currentColor"/>'
+        '<circle cx="12" cy="12" r="1.3" fill="currentColor"/>'
+        '<circle cx="18" cy="12" r="1.3" fill="currentColor"/>',
         "link": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
         '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
         "unlink": '<path d="M15.5 13.5l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3"/>'
@@ -249,6 +252,7 @@ QPushButton[primary="true"]:disabled {{ background: {t.surface2}; color: {t.mute
 QToolButton {{ border: none; border-radius: 6px; padding: 4px; background: transparent; }}
 QToolButton:hover {{ background: {t.surface2}; }}
 QToolButton:focus {{ border: 2px solid {t.accent}; padding: 2px; }}
+QToolButton#StyleMenu::menu-indicator {{ image: none; width: 0; }}
 
 /* inputs */
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{

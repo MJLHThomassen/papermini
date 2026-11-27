@@ -56,6 +56,8 @@ from ...project.figure_settings import FigureSettings
 from ...project.project import Project
 from ...project.project_store import ProjectStore
 from ...project.size_calculator import SizeCalculator
+from ...project.style_preset import StylePreset
+from ...project.style_preset_file import StylePresetFile
 from ...support.font_library import FontLibrary
 from ...support.image_fetcher import ImageFetcher
 from ...support.image_files import ImageFiles
@@ -64,6 +66,7 @@ from ...support.update_service import UpdateService
 from ..building.build_queue import BuildQueue
 from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
+from ..dialogs.style_name_prompt import StyleNamePrompt
 from ..exporting.export_controller import ExportController
 from ..exporting.export_dialogs import ExportDialogs
 from ..history.history_controller import HistoryController
@@ -75,6 +78,7 @@ from ..panels.sheet_panel import SheetPanel
 from ..preferences import Preferences
 from ..problem_reporter import ProblemReporter
 from ..step import Step
+from ..style_library import StyleLibrary
 from ..theme_service import ThemeService
 from ..updating.update_controller import UpdateController
 from ..views.crop_view import CropView
@@ -145,8 +149,13 @@ class MainWindow(QMainWindow):
         minis: MiniRenderer,
         sheets: SheetRenderer,
         problems: ProblemReporter,
+        styles: StyleLibrary,
+        preset_files: StylePresetFile,
     ):
         super().__init__()
+        self._styles = styles
+        self._preset_files = preset_files
+        self._style_names = StyleNamePrompt(styles)
         self._prefs = prefs
         self._project_store = project_store
         self._size_calculator = size_calculator
@@ -157,6 +166,7 @@ class MainWindow(QMainWindow):
         self._logs = logs
         self._themes = themes
         self._qt_fonts = qt_fonts
+        self._installed_fonts: list[str] | None = None  # once they are found
         self._images = images
         self._minis = minis
         self._sheets = sheets
@@ -237,6 +247,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self.views.set_index)
         self.sheet_panel.set_settings(self.project.sheet)
         self._sync_size_label()
+        self._sync_styles()
         self.history.bind(
             self.a_undo, self.a_redo, self.btn_undo, self.btn_redo, self.a_history
         )
@@ -245,6 +256,7 @@ class MainWindow(QMainWindow):
         self._show_current()
         QTimer.singleShot(UPDATE_CHECK_DELAY_MS, self.updater.start_up)
         self.sig.fonts_found.connect(self.panel.set_installed_fonts)
+        self.sig.fonts_found.connect(self._keep_installed_fonts)
         threading.Thread(target=self._find_fonts, daemon=True).start()
 
     # region ui
@@ -268,6 +280,10 @@ class MainWindow(QMainWindow):
         )
         self.panel.changed.connect(self._settings_changed)
         self.panel.applyToAll.connect(self._apply_to_all)
+        self.panel.styleChosen.connect(self.apply_style)
+        self.panel.styleToAll.connect(self.apply_style_to_all)
+        self.panel.styleSave.connect(self.save_style)
+        self.panel.stylesManage.connect(lambda: self.show_preferences("styles"))
         self.sheet_panel = SheetPanel(self._prefs, self._themes)
         self.sheet_panel.changed.connect(self._sheet_changed)
         self.sheet_panel.printClicked.connect(self.print_sheet)
@@ -973,9 +989,10 @@ class MainWindow(QMainWindow):
         )
 
     def _new_settings(self, base: FigureSettings | None) -> FigureSettings:
-        if base is None:  # Medium, from the project's size table
+        if base is None:  # Medium, from the project's size table, in the default style
+            style = self._styles.default_style().applied_to(FigureSettings())
             return self._size_calculator.apply(
-                FigureSettings(), sizes.DEFAULT_SIZE, self.project.sizes
+                style, sizes.DEFAULT_SIZE, self.project.sizes
             )
         return replace(base, label=None, crop=None, mask=None)
 
@@ -1296,6 +1313,92 @@ class MainWindow(QMainWindow):
         self._status(f"Applied settings to {len(self.figures) - 1} other figure(s)")
         self._sheet_timer.start()
 
+    # endregion
+
+    # region style presets
+    def _sync_styles(self) -> None:
+        """Offer the built-in presets, the user's and this project's in the settings
+        panel."""
+        self.panel.set_styles(self._styles.offered(self.project.presets))
+
+    def apply_style(self, name: str) -> None:
+        """Give the selected figure the style preset called ``name``, as one step, and
+        keep the preset in the project."""
+        fig = self.current()
+        preset = self._styles.find(name, self.project.presets)
+        if fig is None or preset is None:
+            return
+        with self.history.change(
+            f"applying the style {name}", f"Applied the style {name}"
+        ):
+            self.project.keep_preset(preset)
+            self.apply_settings(preset.applied_to(fig.entry.settings))
+        self._sync_styles()
+        ui_log.info("%s: applied the style %s", fig.entry.image.name, name)
+
+    def apply_style_to_all(self) -> None:
+        """Give every figure the selected figure's style, as one step."""
+        cur = self.current()
+        if cur is None:
+            return
+        name = self.panel.style_name()
+        preset = StylePreset.of(name, cur.entry.settings)
+        what = f"the style {name}" if name else "this style"
+        with self.history.change(
+            f"applying {what} to all figures", f"Applied {what} to all figures"
+        ):
+            if name:
+                self.project.keep_preset(
+                    self._styles.find(name, self.project.presets) or preset
+                )
+            for f in self.figures:
+                new = preset.applied_to(f.entry.settings)
+                if new != f.entry.settings:
+                    f.entry.settings = new
+                    f.invalidate()
+                    self._refresh_card(f)
+        ui_log.info(
+            "Applied the style of %s (%s) to every figure",
+            cur.entry.image.name,
+            name or "custom",
+        )
+        self._status(f"Applied {what} to all {len(self.figures)} figures")
+        self._sync_styles()
+        self._show_current()
+        self.builds.build_soon()
+        self._sheet_timer.start()
+
+    def save_style(self) -> None:
+        """Save the selected figure's style as a preset of the user's own, under the
+        name they give, and keep it in the project."""
+        fig = self.current()
+        if fig is None:
+            return
+        name = self._style_names.ask(
+            self, "Save style preset", self.panel.style_name() or "My style"
+        )
+        if not name:
+            return
+        preset = StylePreset.of(name, fig.entry.settings)
+        self._styles.save_users(preset)
+        with self.history.change(f"saving the style {name}", f"Saved the style {name}"):
+            self.project.keep_preset(preset)
+        self._sync_styles()
+        ui_log.info("Saved the style of %s as %s", fig.entry.image.name, name)
+        self._status(f"Saved the style preset {name}")
+
+    def set_project_styles(self, presets: list[StylePreset]) -> None:
+        """Give the project the style presets ``presets``, as one step."""
+        if presets != self.project.presets:
+            with self.history.change(
+                "changing the style presets", "Changed the style presets"
+            ):
+                self.project.presets = list(presets)
+        self._sync_styles()
+
+    # endregion
+
+    # region sheet
     def _sheet_changed(self, s):
         self._note_settings("sheet", "sheet", self.project.sheet)
         with self.history.change():
@@ -1354,6 +1457,9 @@ class MainWindow(QMainWindow):
     def _names(self) -> dict:
         """The figures' names, by ``id(mini.art)`` (as the sheet's minis share it)."""
         return {id(f.mini.art): f.entry.display_name for f in self.figures if f.mini}
+
+    def _keep_installed_fonts(self, names) -> None:
+        self._installed_fonts = list(names)
 
     def _find_fonts(self):
         """Look for the fonts installed on this computer (a worker thread)."""
@@ -1781,7 +1887,9 @@ class MainWindow(QMainWindow):
         )
 
     def _snapshot(self) -> ProjectSnapshot:
-        return ProjectSnapshot.of(self.figures, self.project.sheet, self.project.sizes)
+        return ProjectSnapshot.of(
+            self.figures, self.project.sheet, self.project.sizes, self.project.presets
+        )
 
     def _restore(self, target: ProjectSnapshot) -> None:
         """Put the project back as ``target`` holds it. When the change touched one
@@ -1796,6 +1904,9 @@ class MainWindow(QMainWindow):
         if target.sheet != now.sheet:
             self.project.sheet = target.sheet
             self.sheet_panel.set_settings(target.sheet)
+        if target.presets != now.presets:
+            self.project.presets = list(target.presets)
+            self._sync_styles()
         for uid in target.order:
             self._restore_figure(target.kept[uid], target.settings[uid])
         if target.order != now.order:
@@ -1970,6 +2081,7 @@ class MainWindow(QMainWindow):
                 self._append(e)
         self.sheet_panel.set_settings(proj.sheet)
         self._sync_size_label()
+        self._sync_styles()
         self.history.reset(self._start_text())
         self._modified = False
         if self.figures:
@@ -2132,6 +2244,7 @@ class MainWindow(QMainWindow):
             self.set_size_table(table)
         else:
             self._sync_size_label()  # (a preset may have been renamed or deleted)
+        self.set_project_styles(dlg.styles.project_presets())
         self.history.follow_steps()
 
     def preferences_dialog(self, page: str = "sizes") -> PreferencesDialog:
@@ -2147,9 +2260,17 @@ class MainWindow(QMainWindow):
             self._logs,
             self._themes,
             self._problems,
+            self._styles,
+            self._preset_files,
+            self._fonts,
+            self._qt_fonts,
+            self.project.presets,
+            self.project.base if self.project.path else Path.home(),
             page,
             self,
         )
+        if self._installed_fonts is not None:
+            dlg.styles.set_installed_fonts(self._installed_fonts)
         dlg.themeChanged.connect(self.set_theme)
         dlg.autoUpdatesChanged.connect(self.updater.set_auto_updates)
         dlg.modelsChanged.connect(self._models_changed)

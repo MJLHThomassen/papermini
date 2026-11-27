@@ -344,3 +344,29 @@ def test_project_with_a_dead_link_says_which(fake_web, tmp_path, project_store):
     )
     with pytest.raises(ValueError, match="gone.png: 404"):
         project_store.load(tmp_path / "p.yaml")
+
+
+def test_a_projects_style_presets_read_back_as_they_were_saved(tmp_path, project_store):
+    from papermini.project.style_preset import StylePreset
+
+    dark = StylePreset("Dark tabs", {"tab_color": "#000000", "margin_mm": 2.0})
+    p = Project(presets=[dark, StylePreset("Plain", {})])
+    path = project_store.save(p, tmp_path / "proj.yaml")
+    text = path.read_text(encoding="utf-8")
+    assert "  Dark tabs: {tab_color: '#000000', margin_mm: 2.0}\n" in text
+    assert project_store.load(path).presets == p.presets
+
+
+def test_a_project_without_style_presets_writes_none(tmp_path, project_store):
+    path = project_store.save(Project(), tmp_path / "proj.yaml")
+    assert "presets" not in path.read_text(encoding="utf-8")
+    assert project_store.load(path).presets == []
+
+
+def test_a_project_with_a_style_preset_that_is_not_valid_is_refused(
+    tmp_path, project_store
+):
+    path = tmp_path / "proj.yaml"
+    path.write_text("presets:\n  Big: {height_mm: 50}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="style preset Big: height_mm is not part of"):
+        project_store.load(path)

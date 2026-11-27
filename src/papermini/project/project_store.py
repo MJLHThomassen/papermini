@@ -13,6 +13,7 @@ from .project import Project
 from .sheet_settings import SheetSettings
 from .size_calculator import SizeCalculator
 from .size_table import SizeTable
+from .style_preset import StylePreset
 
 # Saved projects carry this format and the papermini version that saved them. The format
 # changes only when a project from an older papermini could no longer be read as it is.
@@ -28,6 +29,8 @@ class ProjectStore:
         format: 1
         output: minis
         sheet: {output: minis/sheet.pdf, paper: a4, copies: 1}
+        presets:
+          Dark tabs: {tab_color: '#000000', label_color: '#ffffff'}
         defaults: {height_mm: 42}
         figures:
           - image: dragon.png
@@ -58,6 +61,7 @@ class ProjectStore:
         try:
             sheet = SheetSettings.from_dict(cfg.get("sheet") or {})
             table = SizeTable.from_dict(cfg.get("sizes"))
+            presets = StylePreset.all_from_dict(cfg.get("presets"))
         except ValueError as e:
             raise ValueError(f"{path.name}: {e}{newer}") from None
         defaults = Option.norm_keys(cfg.get("defaults"))
@@ -100,6 +104,7 @@ class ProjectStore:
             figures,
             bool(cfg.get("debug", False)),
             table,
+            presets,
         )
 
     def save(self, p: Project, path: Path) -> Path:
@@ -150,6 +155,11 @@ class ProjectStore:
             k: _Flow(v) if isinstance(v, dict) else v  # (a size per line)
             for k, v in p.sizes.to_dict().items()
         }
+        if p.presets:
+            cfg["presets"] = {
+                name: _Flow(values)  # (a preset per line)
+                for name, values in StylePreset.dict_of(p.presets).items()
+            }
         cfg["figures"] = figures
         path.write_text(
             yaml.dump(cfg, Dumper=self._dumper, sort_keys=False, allow_unicode=True),

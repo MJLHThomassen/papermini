@@ -175,7 +175,11 @@ class BuildCommand:
 
     def _project(self, args: argparse.Namespace) -> tuple[Project, list[Path]]:
         """The project file ``args`` names, and the folder of each figure's piece."""
-        if self._figure_flags.given(args) or args.grid_mm is not None:
+        if (
+            self._figure_flags.given(args)
+            or args.grid_mm is not None
+            or args.preset is not None
+        ):
             raise SystemExit(
                 "the figure flags are for images: a project file holds its figures' "
                 "settings (change them with papermini add, in the file or in the app)"
@@ -196,7 +200,8 @@ class BuildCommand:
                 "use -o DIR"
             )
         table = self._figure_flags.table(args, Project().sizes)
-        settings = self._figure_flags.settings(args, table)
+        preset = self._figure_flags.preset(args)
+        settings = self._figure_flags.settings(args, table, preset)
         project = Project(
             sizes=table,
             figures=[

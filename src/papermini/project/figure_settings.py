@@ -52,6 +52,7 @@ class FigureSettings:
                 "virtual tabletop."
             ),
         ),
+        style=True,
     ).field("mini")
     size: str = Option(
         label="Creature size",
@@ -101,6 +102,7 @@ class FigureSettings:
         widget=(0, 15),
         unit="mm",
         step=0.1,
+        style=True,
     ).field(1.6)
     smooth_mm: float = Option(
         label="Rounding",
@@ -110,6 +112,7 @@ class FigureSettings:
         widget=(0, 5),
         unit="mm",
         step=0.1,
+        style=True,
     ).field(0.6)
     tab_width_mm: float = Option(
         label="Width",
@@ -158,6 +161,7 @@ class FigureSettings:
         kinds=("mini",),
         step=0.5,
         decimals=1,
+        style=True,
     ).field(0.0)
     fold_mm: float = Option(
         label="Fold above lowest point",
@@ -169,6 +173,7 @@ class FigureSettings:
         kinds=("mini",),
         step=0.1,
         decimals=1,
+        style=True,
     ).field(0.0)
     no_tab: bool = Option(
         label="Print a tab",
@@ -177,6 +182,7 @@ class FigureSettings:
         "Off for slotted or magnetic bases.",
         group=_SIZE,
         kinds=("mini",),
+        style=True,
     ).field(False)
     tab_shape: str = Option(
         label="Shape",
@@ -195,6 +201,7 @@ class FigureSettings:
                 "circle."
             ),
         ),
+        style=True,
     ).field("square")
     tab_color: str = Option(
         label="Fill color",
@@ -205,6 +212,7 @@ class FigureSettings:
         group=_SIZE,
         kinds=("mini",),
         color=True,
+        style=True,
     ).field("#ffffff")
     double_sided: bool = Option(
         label="Print a back side",
@@ -214,6 +222,7 @@ class FigureSettings:
         "glued back to back. Off for the front only.",
         group=_SIZE,
         kinds=("mini",),
+        style=True,
     ).field(True)
     back: str = Option(
         label="Shows",
@@ -237,6 +246,7 @@ class FigureSettings:
             "The copy's number, large.",
             "The number above the text.",
         ),
+        style=True,
     ).field("mirror")
     back_text: str | None = Option(
         label="Text",
@@ -256,6 +266,7 @@ class FigureSettings:
         group=_SIZE,
         kinds=("mini",),
         color=True,
+        style=True,
     ).field("#ffffff")
     back_text_color: str = Option(
         label="Text color",
@@ -264,6 +275,7 @@ class FigureSettings:
         group=_SIZE,
         kinds=("mini",),
         color=True,
+        style=True,
     ).field("#000000")
     model: str = Option(
         label="Model",
@@ -344,6 +356,7 @@ class FigureSettings:
                 "the edges of the image, its background goes on."
             ),
         ),
+        style=True,
     ).field("color")
     margin_color: str = Option(
         label="Fill color",
@@ -351,6 +364,7 @@ class FigureSettings:
         tooltip="The color of the margin between the drawing and the cut line.",
         group=_SIZE,
         color=True,
+        style=True,
     ).field("#ffffff")
     greyscale: bool = Option(
         label="Greyscale (black and white)",
@@ -427,6 +441,7 @@ class FigureSettings:
             "The number above the label.",
             "A plain tab in its fill color.",
         ),
+        style=True,
     ).field("label")
     tab_back: str = Option(
         label="Tab shows",
@@ -450,6 +465,7 @@ class FigureSettings:
             "The number above the back tab's own text.",
             "A plain tab in its fill color.",
         ),
+        style=True,
     ).field("same")
     back_label: str | None = Option(
         label="Text",
@@ -469,6 +485,7 @@ class FigureSettings:
         kinds=("mini",),
         step=0.1,
         decimals=1,
+        style=True,
     ).field(3.4)
     back_label_color: str = Option(
         label="Color",
@@ -477,6 +494,7 @@ class FigureSettings:
         group=_OUTPUT,
         kinds=("mini",),
         color=True,
+        style=True,
     ).field("#000000")
     dpi: int = Option(
         label="Image resolution",
@@ -486,6 +504,7 @@ class FigureSettings:
         widget=(72, 2400),
         unit="dpi",
         step=50,
+        style=True,
     ).field(300)
     simplify_mm: float = Option(
         label="Detail",
@@ -495,6 +514,7 @@ class FigureSettings:
         group=_OUTPUT,
         unit="mm",
         kinds=("mini",),
+        style=True,
     ).field(0.15)
     no_smooth: bool = Option(
         label="Straight segments only (no curves)",
@@ -502,6 +522,7 @@ class FigureSettings:
         tooltip="Cut line made of straight segments instead of smooth curves.",
         group=_OUTPUT,
         kinds=("mini",),
+        style=True,
     ).field(False)
     cut_color: str = Option(
         label="Color",
@@ -509,6 +530,7 @@ class FigureSettings:
         tooltip="Color of the line printed along the cut, for cutting by hand.",
         group=_OUTPUT,
         color=True,
+        style=True,
     ).field("#000000")
     cut_width_mm: float = Option(
         label="Border line",
@@ -520,6 +542,7 @@ class FigureSettings:
         widget=(0.01, 2),
         unit="mm",
         step=0.05,
+        style=True,
     ).field(0.3)
     label_color: str = Option(
         label="Color",
@@ -528,6 +551,7 @@ class FigureSettings:
         group=_OUTPUT,
         kinds=("mini",),
         color=True,
+        style=True,
     ).field("#000000")
     label_size_mm: float = Option(
         label="Size",
@@ -539,6 +563,7 @@ class FigureSettings:
         kinds=("mini",),
         step=0.1,
         decimals=1,
+        style=True,
     ).field(3.4)
     font: str = Option(
         label="Font",
@@ -549,6 +574,7 @@ class FigureSettings:
         "Without Arial, a similar sans-serif prints instead. A font installed only on\n"
         "this computer prints in Arial elsewhere.",
         group=_OUTPUT,
+        style=True,
     ).field("Arial")
     copies: int = Option(
         label="Copies",
@@ -597,6 +623,7 @@ class FigureSettings:
             "One solid color (Background color).",
             "The picture around the figure, as it is in the image.",
         ),
+        style=True,
     ).field("color")
     token_fill_color: str = Option(
         label="Background color",
@@ -605,6 +632,7 @@ class FigureSettings:
         group=_TOKEN,
         kinds=("token",),
         color=True,
+        style=True,
     ).field("#ffffff")
     token_border_mm: float = Option(
         label="Ring width",
@@ -619,6 +647,7 @@ class FigureSettings:
         kinds=("token",),
         step=0.5,
         decimals=1,
+        style=True,
     ).field(2.0)
     token_border_color: str = Option(
         label="Ring color",
@@ -627,6 +656,7 @@ class FigureSettings:
         group=_TOKEN,
         kinds=("token",),
         color=True,
+        style=True,
     ).field("#000000")
     token_outline: bool = Option(
         label="Print an outline",
@@ -637,6 +667,7 @@ class FigureSettings:
         "mini's margin.",
         group=_TOKEN,
         kinds=("token",),
+        style=True,
     ).field(False)
     token_cut_line: bool = Option(
         label="Print a cut line",
@@ -647,6 +678,7 @@ class FigureSettings:
         "cut. A sheet cut by machine never prints cut lines.",
         group=_TOKEN,
         kinds=("token",),
+        style=True,
     ).field(False)
     token_text: str = Option(
         label="Shows",
@@ -663,6 +695,7 @@ class FigureSettings:
             "The copy's number.",
             "The label and the copy's number.",
         ),
+        style=True,
     ).field("none")
     token_text_style: str = Option(
         label="Style",
@@ -684,6 +717,7 @@ class FigureSettings:
                 "ring is then at least as wide as the text needs."
             ),
         ),
+        style=True,
     ).field("nameplate")
     token_text_mm: float = Option(
         label="Size",
@@ -701,6 +735,7 @@ class FigureSettings:
         kinds=("token",),
         step=0.1,
         decimals=1,
+        style=True,
     ).field(2.5)
     token_text_color: str = Option(
         label="Color",
@@ -709,6 +744,7 @@ class FigureSettings:
         group=_TOKEN,
         kinds=("token",),
         color=True,
+        style=True,
     ).field("#ffffff")
 
     @classmethod
@@ -865,3 +901,6 @@ SIZE_KEYS = ("size",) + tuple(
 TOKEN_SIZE_KEYS = tuple(
     k for k, o in _OPTIONS.items() if o.sized and "mini" not in (o.kinds or KINDS)
 )
+
+# the settings a style preset holds: the look of the piece, without its size or text
+STYLE_KEYS = tuple(k for k, o in _OPTIONS.items() if o.style)

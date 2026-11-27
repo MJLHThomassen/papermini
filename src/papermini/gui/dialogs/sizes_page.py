@@ -3,10 +3,8 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 
-from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QApplication,
     QGridLayout,
     QHBoxLayout,
     QInputDialog,
@@ -15,9 +13,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
-    QStyle,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -30,6 +25,12 @@ from ..fields.double_spin_box import DoubleSpinBox
 from ..preferences import Preferences
 from ..theme_service import ThemeService
 from .page_parts import PageParts
+from .preset_entry_delegate import (
+    LIST_MAX_WIDTH,
+    LIST_MIN_WIDTH,
+    NOTES_ROLE,
+    PresetEntryDelegate,
+)
 
 ui_log = logging.getLogger("papermini.ui")
 
@@ -41,74 +42,6 @@ COLUMNS = (
 )
 
 PROJECT = "project"  # the entry of a project table that matches no preset
-NOTES_ROLE = (
-    Qt.ItemDataRole.UserRole + 1
-)  # a preset entry's notes: what it is used for, a line each
-
-
-class _EntryDelegate(QStyledItemDelegate):
-    """Paints a preset list entry: the name, and below it, smaller and muted, a line for
-    each thing it is used for (``NOTES_ROLE``). Painted rather than a widget per entry:
-    item widgets of a list that is filled again are deleted later, which can crash Qt
-    when papermini quits."""
-
-    PAD_X, PAD_Y = 8, 5
-
-    def __init__(self, themes: ThemeService, parent=None):
-        super().__init__(parent)
-        self._themes = themes
-
-    @staticmethod
-    def _fonts(option) -> tuple[QFont, QFont]:
-        notes = QFont(option.font)
-        notes.setPointSizeF(8.5)  # (as #Hint)
-        return QFont(option.font), notes
-
-    @staticmethod
-    def _lines(index) -> list[str]:
-        return [n for n in (index.data(NOTES_ROLE) or "").split("\n") if n]
-
-    def sizeHint(self, option, index) -> QSize:
-        name, notes = self._fonts(option)
-        lines = self._lines(index)
-        h = QFontMetrics(name).height() + len(lines) * (
-            QFontMetrics(notes).height() + 1
-        )
-        return QSize(200, h + 2 * self.PAD_Y)
-
-    def paint(self, p, option, index) -> None:
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        opt.text = ""  # (the background and selection only)
-        style = opt.widget.style() if opt.widget is not None else QApplication.style()
-        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, p, opt.widget)
-        name_font, notes_font = self._fonts(option)
-        r = option.rect.adjusted(self.PAD_X, self.PAD_Y, -self.PAD_X, -self.PAD_Y)
-        p.save()
-        fm = QFontMetrics(name_font)
-        p.setFont(name_font)
-        p.setPen(QColor(self._themes.current.text))
-        p.drawText(
-            QRect(r.left(), r.top(), r.width(), fm.height()),
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            fm.elidedText(
-                index.data(Qt.ItemDataRole.DisplayRole) or "",
-                Qt.TextElideMode.ElideRight,
-                r.width(),
-            ),
-        )
-        y = r.top() + fm.height() + 1
-        fn = QFontMetrics(notes_font)
-        p.setFont(notes_font)
-        p.setPen(QColor(self._themes.current.muted))
-        for line in self._lines(index):
-            p.drawText(
-                QRect(r.left(), y, r.width(), fn.height()),
-                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                fn.elidedText(line, Qt.TextElideMode.ElideRight, r.width()),
-            )
-            y += fn.height() + 1
-        p.restore()
 
 
 class SizesPage(QWidget):
@@ -135,16 +68,6 @@ class SizesPage(QWidget):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)
         v.addWidget(PageParts.title("Creature sizes"))
-        intro = QLabel(
-            "This page holds the size tables for D&D creature sizes: the table "
-            "saved with this project, and presets you can use in any project. "
-            "Select a table to see or change it. Click Calculate to fill it in "
-            "from your grid square and Medium height, then change any value you "
-            "need. Figures with a size are updated when you close this window."
-        )
-        intro.setObjectName("Muted")
-        intro.setWordWrap(True)
-        v.addWidget(intro)
 
         body = QHBoxLayout()
         body.setSpacing(16)
@@ -155,8 +78,12 @@ class SizesPage(QWidget):
         left.addWidget(head)
         self.list = QListWidget()
         self.list.setObjectName("PresetList")
-        self.list.setFixedWidth(230)
-        self.list.setItemDelegate(_EntryDelegate(themes, self.list))
+        self.list.setMinimumWidth(LIST_MIN_WIDTH)
+        self.list.setMaximumWidth(LIST_MAX_WIDTH)
+        self.list.setHorizontalScrollBarPolicy(  # (its entries are elided)
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.list.setItemDelegate(PresetEntryDelegate(themes, self.list))
         self.list.currentItemChanged.connect(self._show_selected)
         left.addWidget(self.list, 1)
         tools = QGridLayout()

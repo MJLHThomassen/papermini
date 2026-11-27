@@ -277,6 +277,7 @@ def test_the_other_pages(window, prefs, themes):
     dlg = window.preferences_dialog("appearance")
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
         "Creature sizes",
+        "Style presets",
         "Images",
         "Undo history",
         "Appearance",
@@ -284,7 +285,7 @@ def test_the_other_pages(window, prefs, themes):
         "Logging",
         "Models and cache",
     ]
-    assert dlg.stack.currentIndex() == 3
+    assert dlg.stack.currentIndex() == 4
     dark = next(b for b in dlg.theme_group.buttons() if b.text() == "Dark")
     dark.setChecked(True)
     assert themes.current is DARK and prefs.theme() == "dark"
