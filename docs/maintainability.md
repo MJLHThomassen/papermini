@@ -581,14 +581,9 @@ nothing names another, so local work, the type check, the coverage report and
 the release builds use it. `requires-python` in `pyproject.toml` allows the
 same versions. To support another version, add it to both and run `uv lock`.
 
-The code doesn't pass the type check (`just typecheck`) yet, so CI allows the
-number of findings ty reports on `main`. That number is `TY_FINDINGS` in the
-ty step of `.github/workflows/ci.yml`. The step fails when ty reports more,
-and writes the count to the job summary. Don't add new findings:
-
-- A pull request that fixes findings lowers `TY_FINDINGS` to the new count.
-- A pull request that changes the ty version in `pyproject.toml` sets
-  `TY_FINDINGS` to the count the new version reports.
+The type check (`just typecheck`) reports no findings, and CI fails when it
+reports any. A pull request that changes the ty version in `pyproject.toml`
+fixes the findings the new version reports.
 
 ### R3. Builds are reproducible
 

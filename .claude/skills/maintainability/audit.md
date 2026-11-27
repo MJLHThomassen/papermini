@@ -74,10 +74,7 @@ unless the maintainer picks another order. For each batch:
 
 ## 6. Tighten the checks
 
-- After a batch that adds tests, set `fail_under` under
-  `[tool.coverage.report]` in `pyproject.toml` to the new coverage total,
-  rounded down to a whole percent. Take the lower of the totals from the CI
-  report and from `just coverage`, since they measure slightly differently.
-- Once `just typecheck` reports nothing, remove `continue-on-error` from the
-  ty step in `.github/workflows/ci.yml`, so that the type check blocks a merge
-  like the other checks.
+After a batch that adds tests, set `fail_under` under
+`[tool.coverage.report]` in `pyproject.toml` to the new coverage total, rounded
+down to a whole percent. Take the lower of the totals from the CI report and
+from `just coverage`, since they measure slightly differently.

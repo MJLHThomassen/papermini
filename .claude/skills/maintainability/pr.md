@@ -39,9 +39,7 @@ report" section lists.
 - `just test`
 - `just lint`
 - `just format --check`
-- `just typecheck`. CI fails only when the total number of findings goes up
-  (rule R2), so compare it with the base: the branch must not add new findings
-  in the code it changes.
+- `just typecheck`, which must report no findings (rule R2).
 - If the change can alter output or the window, the other checks of
   "Proving a change is safe" in the guide.
 
