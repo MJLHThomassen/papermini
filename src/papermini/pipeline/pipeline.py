@@ -12,6 +12,7 @@ from .figure_masker import FigureMasker
 from .figure_scaler import FigureScaler
 from .font_checker import FontChecker
 from .image_adjuster import ImageAdjuster
+from .image_extender import ImageExtender
 from .layout_builder import LayoutBuilder
 from .mask_cleaner import MaskCleaner
 from .mini_builder import MiniBuilder
@@ -65,7 +66,11 @@ class Pipeline:
         self.adjuster = ImageAdjuster()
         self.composer = ArtComposer(self.morphology)
         self.layouts = LayoutBuilder(
-            self.morphology, self.scaler, self.composer, BackMirror(self.morphology)
+            self.morphology,
+            self.scaler,
+            self.composer,
+            BackMirror(self.morphology),
+            ImageExtender(self.morphology),
         )
         self.tracer = CutPathTracer()
         self.bleed = BleedPainter(self.morphology)

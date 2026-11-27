@@ -66,10 +66,12 @@ class OptionFlags:
     def shown(self, value: Any, unit: str = "", none_means: str = "") -> str:
         """Return how a help names the default ``value``, a number in ``unit``.
 
-        None is ``none_means``, or none when that is empty.
+        None is ``none_means``, or none when that is empty. Empty text is none.
         """
         if value is None:
             return none_means or "none"
+        if value == "":
+            return "none"
         if isinstance(value, bool):
             return "on" if value else "off"
         if isinstance(value, int | float):

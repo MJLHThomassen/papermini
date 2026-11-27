@@ -31,14 +31,7 @@ def test_the_kind_switches_the_settings_groups(
     assert p.kind_row.isVisibleTo(p) and p.is_shown("dimensions")
     p.field("kind").buttons["token"].click()
     assert got[-1].kind == "token" and got[-1].label == "Boss"  # (the label is kept)
-    assert shown() == [
-        "Size",
-        "Token",
-        "Token text",
-        "Image outline",
-        "Cut line",
-        "Text",
-    ]
+    assert shown() == ["Size", "Token", "Token text", "Border", "Text"]
     assert p.is_shown("token_diameter_mm") and not p.is_shown("dimensions")
     assert "token" in p.step_hint.text()
     # token text: off is "none"; on, it shows the label first
@@ -53,11 +46,17 @@ def test_the_kind_switches_the_settings_groups(
         2.5
     ) and ring.value() == TokenOptions.min_ring_mm(2.5)
     assert p.ring_hint.isVisibleTo(p) and "3.5 mm" in p.ring_hint.text()
-    # a token can switch its outline and cut line off; both off by default
-    for name in ("token_outline", "token_cut_line"):
-        switch = p.field(name)
-        box = next(b for b in p.sections if b.switch is switch)
-        assert switch.isVisibleTo(p) and not box.active()
+    # a token can leave its outline and cut line out; both off by default, and
+    # each hides its fields
+    assert not p.is_shown("cut_detail")  # (a token is cut along a circle)
+    for check, field in (
+        ("token_outline", "margin_mm"),
+        ("token_cut_line", "cut_width_mm"),
+    ):
+        box = p.field(check)
+        assert p.is_shown(check) and not box.isChecked() and not p.is_shown(field)
+        box.setChecked(True)
+        assert getattr(got[-1], check) and p.is_shown(field)
     p.field("kind").buttons["mini"].click()
     assert got[-1].kind == "mini" and "Back side" in shown()
 

@@ -67,6 +67,9 @@ FIGURE_FLAGS = (
     "cut_width_mm",
     "label_color",
     "label_size_mm",
+    "back_label",
+    "back_label_color",
+    "back_label_size_mm",
 )
 
 

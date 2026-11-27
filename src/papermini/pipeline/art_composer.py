@@ -16,7 +16,6 @@ class ArtComposer:
         self,
         img: np.ndarray,
         fig: np.ndarray,
-        sil: np.ndarray,
         paper: tuple[int, int, int],
         pxmm: float,
         image_margin: bool,
@@ -25,6 +24,9 @@ class ArtComposer:
 
         ``img`` is RGB, or premultiplied RGBA for images with transparency (used as
         real transparency, never flattened onto white).
+
+        With ``image_margin``, the artwork is the whole picture, and its transparent
+        parts show the margin color.
 
         The inside of the drawing keeps its own colors (a white ghost stays white).
         Around its edge - a thin rim inside the outline and a 0.25 mm band beyond it,
@@ -37,8 +39,7 @@ class ArtComposer:
         S = img[..., :3].astype(np.float32)  # (premultiplied) color
         a = img[..., 3:4].astype(np.float32) / 255.0 if img.shape[2] == 4 else 1.0
         if image_margin:
-            w = (sil > 0).astype(np.float32)[..., None]
-            art = w * S + (1.0 - w) * a * P
+            art = S
         else:
             sigma = max(0.5, 0.12 * pxmm)
             soft = lambda m: cv2.GaussianBlur(

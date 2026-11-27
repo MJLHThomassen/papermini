@@ -26,8 +26,10 @@ class Option:
     tooltip: str = ""  # the settings panel's tooltip
     group: str = ""  # the group of command-line flags it belongs to
     choices: tuple[Any, ...] = ()  # the values it allows; empty: any value
-    choice_labels: tuple[str, ...] = ()  # each choice's name in the settings panel
-    choice_details: tuple[str, ...] = ()  # what each choice does, listed in the tooltip
+    choice_labels: tuple[str, ...] = ()  # each choice's or stop's name in the panel
+    choice_details: tuple[
+        str, ...
+    ] = ()  # what each choice or stop does, in the tooltip
     low: float | None = None  # the least value it allows
     high: float | None = None  # the greatest value it allows
     above: bool = False  # the value must be above ``low``, not equal to it
@@ -35,6 +37,7 @@ class Option:
     step: float = 1  # how much one click on the field's arrows changes it
     decimals: int = 2  # the decimals the field shows
     slider: int | None = None  # the field's slider goes up to this; None: no slider
+    stops: tuple[dict[str, Any], ...] = ()  # the settings each step of a slider sets
     unit: str = ""  # the unit its value is in, such as mm or px
     auto: bool = False  # None means the value is worked out automatically
     sized: bool = False  # a creature size fills it in

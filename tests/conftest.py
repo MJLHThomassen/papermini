@@ -884,16 +884,31 @@ def pipeline_mini(pipeline, params, mask_options):
     """Returns ``pipeline_mini(image, prm, mask, **arguments)``, which builds the mini
     of ``image`` with the ``pipeline`` fixture's ``MiniBuilder`` and logs nothing.
     ``prm`` and ``mask`` default to ``params()`` and ``mask_options()``, and every other
-    argument not given comes from the default figure settings."""
+    argument not given comes from the default figure settings. The tab labels can be
+    given as the settings they come from, such as ``label`` and ``tab_front``."""
+    from dataclasses import replace
+
     from papermini.project.figure_settings import FigureSettings
 
+    tab_settings = {
+        "label",
+        "tab_front",
+        "tab_back",
+        "label_color",
+        "label_size_mm",
+        "back_label",
+        "back_label_color",
+        "back_label_size_mm",
+    }
+
     def pipeline_mini(image, prm=None, mask=None, **arguments):
-        s = FigureSettings()
+        tabs = {k: arguments.pop(k) for k in tab_settings & set(arguments)}
+        s = replace(FigureSettings(), **tabs)
+        front_tab, back_tab = s.tab_labels()
         defaults: dict[str, Any] = {
-            "label": s.label,
+            "front_tab": front_tab,
+            "back_tab": back_tab,
             "back_text": s.back_text,
-            "tab_front": s.tab_front,
-            "tab_back": s.tab_back,
             "dpi": s.dpi,
             "simplify_mm": s.simplify_mm,
             "smooth_path": not s.no_smooth,

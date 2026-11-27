@@ -22,7 +22,7 @@ def test_choices_show_names_and_store_setting_values(
     p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     s = FigureSettings(
         tab_shape="round",
-        label="",
+        tab_front="none",
         tab_color="#3b6e2a",
         margin_fill="image",
         double_sided=True,
@@ -32,11 +32,11 @@ def test_choices_show_names_and_store_setting_values(
     assert p.field("tab_shape").currentText().startswith("Round")
     assert p.settings() == s
     assert not p.is_shown("tab_height_mm")  # a half disc has no separate height
-    assert not p.is_shown("margin_color")  # the image fills the margin
-    assert p.is_shown("tab_color") and not p.is_shown("label_size_mm")
+    assert p.field("margin_color").isHidden()  # the image fills the margin
+    assert p.is_shown("tab_color") and p.is_shown("tab_front")
     assert p.is_shown("back_text") and p.is_shown("back_color")
-    assert not p.label_switch.isChecked()  # no label = a plain colored tab
-    assert not p.is_shown("label") and p.is_shown("no_label")
+    # a plain tab in its fill color: none of the label's fields
+    assert not any(p.is_shown(n) for n in ("label", "label_size_mm", "label_color"))
     assert p.is_shown("tab_radius_mm") and not p.is_shown("tab_width_mm")
     got = []
     p.changed.connect(got.append)
@@ -49,61 +49,97 @@ def test_choices_show_names_and_store_setting_values(
     # no back side at all: none of the back options
     p.field("double_sided").setChecked(False)
     assert not any(p.is_shown(n) for n in ("back", "back_color", "back_text"))
-    # no tab: none of the tab options, and the label group cannot be turned on
+    # no tab: none of the tab options, and no Front
     p.field("no_tab").setChecked(False)
     assert p.settings().no_tab
     assert not any(
         p.is_shown(n)
-        for n in (
-            "tab_shape",
-            "tab_width_mm",
-            "tab_color",
-            "no_label",
-            "label",
-            "label_color",
-        )
+        for n in ("tab_shape", "tab_width_mm", "tab_color", "tab_front", "label")
     )
+
+
+def test_tab_shows_decides_which_label_fields_show(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
+    """Front and back each show the label's color, text and size only where the tab
+    prints them; a back tab that is the same as the front shows none of its own."""
+    from papermini.gui.panels.figure_panel import FigurePanel
+
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
+    label = ("label_color", "label", "label_size_mm")
+    back = ("back_label_color", "back_label", "back_label_size_mm")
+    shown = lambda names: [p.is_shown(n) for n in names]
+    p.set_settings(FigureSettings(), "x", "x")
+    assert shown(label) == [True, True, True]
+    assert p.is_shown("tab_back") and shown(back) == [False, False, False]
+    got = []
+    p.changed.connect(got.append)
+    for side, names, value, want in (
+        ("tab_front", label, "number", [True, False, False]),
+        ("tab_front", label, "none", [False, False, False]),
+        ("tab_back", back, "label", [True, True, True]),
+        ("tab_back", back, "number", [True, False, False]),
+    ):
+        combo = p.field(side)
+        combo.setCurrentIndex(combo.findData(value))
+        assert getattr(got[-1], side) == value and shown(names) == want, value
+    p.field("back_label").setText("Ember")
+    p.field("back_label").editingFinished.emit()
+    assert got[-1].back_label == "Ember"
+
+
+def test_the_border_rows_set_two_settings_each(
+    fonts, app, prefs, size_calculator, qt_fonts, themes
+):
+    """The Detail slider sets how far the cut line strays and whether it is straight;
+    Fill shows its color only for a color; Border line holds the width and the color."""
+    from papermini.gui.panels.figure_panel import FigurePanel
+
+    p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
+    p.set_settings(FigureSettings(simplify_mm=0.25), "x", "x")
+    slider = p.field("simplify_mm")
+    assert slider is p.field("no_smooth") and slider.value() == 1  # Fine, the nearest
+    assert p.settings().simplify_mm == 0.25  # (kept until the slider moves)
+    got = []
+    p.changed.connect(got.append)
+    slider.setValue(3)
+    assert (got[-1].simplify_mm, got[-1].no_smooth) == (0.6, True)  # Straight
+    slider.setValue(0)
+    assert (got[-1].simplify_mm, got[-1].no_smooth) == (0.05, False)  # Exact
+    assert not p.field("margin_color").isHidden()
+    fill = p.field("margin_fill")
+    fill.setCurrentIndex(fill.findData("image"))
+    assert got[-1].margin_fill == "image" and p.field("margin_color").isHidden()
+    p.field("cut_width_mm").setValue(0.5)
+    assert got[-1].cut_width_mm == 0.5 and got[-1].cut_color == "#000000"
 
 
 def test_groups_are_switched_on_and_off_in_their_header(
     fonts, app, prefs, size_calculator, qt_fonts, themes
 ):
-    """Back side, Tab and Label each have a checkbox at the right of their header:
-    ticked = the group is on (for the tab and label too, whose settings are "no_tab"
-    and an empty label); unticked, the group shows only its header."""
+    """Back side and Tab each have a checkbox at the right of their header: ticked =
+    the group is on (for the tab too, whose setting is "no_tab"); unticked, the group
+    shows only its header."""
     from papermini.gui.panels.figure_panel import FigurePanel
 
     p = FigurePanel(prefs, size_calculator, fonts, qt_fonts, themes)
     p.set_settings(FigureSettings(), "x", "x")
     heads = {s.header.text(): s for s in p.sections}
     switches = {}
-    for title, name in (
-        ("Back side", "double_sided"),
-        ("Tab", "no_tab"),
-        ("Label", "no_label"),
-    ):
+    for title, name in (("Back side", "double_sided"), ("Tab", "no_tab")):
         box = heads[title]
         assert box.switch is not None and box.switch.isChecked()  # all on by default
         assert box.switch.accessibleName().startswith("Print a ")
         assert box.switch.parent() is box  # in the header row
         assert box.switch.toolTip().startswith("Print a ")
         switches[title] = box.switch
-    # a mini always has its outline and cut line: their switches are a token's only
-    for title in ("Image outline", "Cut line"):
-        switch = heads[title].switch
-        assert switch is not None
-        assert heads[title].active() and not switch.isVisibleTo(p)
-    tab, label = switches["Tab"], switches["Label"]
-    label.setChecked(False)
-    assert p.settings().label == "" and not p.is_shown("label_size_mm")
-    label.setChecked(True)
-    assert p.settings().label is None and p.is_shown("label_size_mm")
-    # Label is a sub-group at the end of Tab: no tab, no label group either
-    assert heads["Label"].parent_section is heads["Tab"]
-    assert heads["Tab"].body.isAncestorOf(heads["Label"])
+    # a mini always has its outline and cut line: their checkboxes are a token's only
+    assert heads["Border"].switch is None
+    assert not p.is_shown("token_outline") and not p.is_shown("token_cut_line")
+    tab = switches["Tab"]
     tab.setChecked(False)
-    assert p.settings().no_tab and not p.is_shown("no_label")
-    assert not p.is_shown("label") and not p.is_shown("tab_shape")
+    assert p.settings().no_tab and not p.is_shown("tab_front")
+    assert not p.is_shown("tab_back") and not p.is_shown("tab_shape")
     # a group that is off has nothing to show: its header cannot open it
     t = heads["Tab"]
     assert not t.body.isVisibleTo(t) and not t.header.isEnabled()
@@ -111,7 +147,7 @@ def test_groups_are_switched_on_and_off_in_their_header(
     assert not t.body.isVisibleTo(t)
     tab.setChecked(True)  # on: open as it was
     assert not p.settings().no_tab and t.body.isVisibleTo(t) and p.is_shown("label")
-    p.set_settings(FigureSettings(no_tab=True, double_sided=False, label=""), "x", "x")
+    p.set_settings(FigureSettings(no_tab=True, double_sided=False), "x", "x")
     assert not any(switch.isChecked() for switch in switches.values())
 
 
@@ -159,11 +195,6 @@ def test_a_mask_file_is_a_model_choice(
     combo.setCurrentText("mask image file")
     combo.activated.emit(0)
     assert p.is_shown("mask") and p.settings().model == "mask"
-    # no label: the Label group's switch
-    p.label_switch.setChecked(False)
-    assert p.settings().label == "" and not p.is_shown("label")
-    p.label_switch.setChecked(True)
-    assert p.settings().label is None and p.is_shown("label")
 
 
 def test_the_settings_are_hidden_without_a_figure(app, tmp_path, new_window):
@@ -242,16 +273,7 @@ def test_the_settings_follow_the_step(app, tmp_path, new_window):
     titles = lambda: [s.header.text() for s in p.sections if s.isVisibleTo(p)]
     expected = [
         ["Crop", "Background removal", "Image adjustments"],
-        [
-            "Size",
-            "Back side",
-            "Image outline",
-            "Cut line",
-            "Tab",
-            "Label",
-            "Text",
-            "Number",
-        ],
+        ["Size", "Border", "Text", "Tab", "Front", "Back side"],
         [],
     ]
     for i, want in enumerate(expected):

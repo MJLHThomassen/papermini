@@ -303,8 +303,6 @@ QRadioButton::indicator:checked {{ border-color: {t.accent}; background: qradial
 #SectionSwitch {{ padding: 10px 0 6px 0; }}
 #SectionSwitch::indicator {{ width: 18px; height: 18px; }}
 #SectionHeader:disabled {{ color: {t.muted}; }}
-#SubSection {{ border-left: 2px solid {t.border}; }}
-#SubSection #SectionHeader {{ padding-top: 8px; }}
 #SubHeading {{ color: {t.muted}; font-size: 8.5pt; font-weight: 600; padding-top: 6px; }}
 #FormLabel {{ color: {t.muted}; }}
 QListWidget#Figures {{ background: transparent; border: none; outline: none; }}

@@ -23,7 +23,7 @@ figures:
   # black margin and a round black base, like the printed dragon in the README
   - image: dragon-flying.webp
     name: machine-flying-dragon
-    label: ""
+    tab_front: none
     height_mm: 36
     margin_color: "#000000"
     tab_shape: round

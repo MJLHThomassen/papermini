@@ -28,6 +28,7 @@ from .params import Params
 from .segmentation.cancellation import Cancellation
 from .segmentation.download_hooks import DownloadHooks
 from .style import Style
+from .tab_label import TabLabel
 from .text_fitter import TextFitter
 from .text_item import TextItem
 
@@ -82,10 +83,9 @@ class MiniBuilder:
         prm: Params,
         mask_options: MaskOptions,
         *,
-        label: str | None,
+        front_tab: TabLabel,
+        back_tab: TabLabel,
         back_text: str | None,
-        tab_front: str,
-        tab_back: str,
         dpi: int,
         simplify_mm: float,
         smooth_path: bool,
@@ -101,7 +101,8 @@ class MiniBuilder:
         """Build one miniature. ``on_stage(name, data)``, if given, hears about
         progress: ``("segment", model)`` just before a model runs (it may take a while)
         and ``("outline", (contours, close_px))`` once the figure is found, before the
-        layout. ``downloads`` asks before a built-in model downloads, and hears its
+        layout. ``front_tab`` and ``back_tab`` say what each tab prints; the front
+        tab's label is also the back text when ``back_text`` is empty. ``downloads`` asks before a built-in model downloads, and hears its
         progress."""
         image_path = Path(image_path)
         style = self._font_checker.checked(style, image_path.name, log)
@@ -133,8 +134,10 @@ class MiniBuilder:
         piece = self._art(lay, path_px, style, bleed_mm, dpi)
         s = 1.0 / lay.px_per_mm
         x0, y0 = piece.x0, piece.y0
-        label = image_path.stem if label is None else label
+        stem = image_path.stem
+        label = stem if front_tab.text is None else front_tab.text
         max_w = lay.label_max_w_px * s if prm.tab else piece.width_mm
+        max_h = lay.label_max_h_px * s
         mini = Mini(
             name=image_path.stem,
             width_mm=piece.width_mm,
@@ -146,13 +149,6 @@ class MiniBuilder:
             if prm.tab
             else [],
             label=label,
-            label_size_mm=TextFitter.label_size(
-                self._fonts,
-                label,
-                max_w,
-                min(style.label_size_mm, lay.label_max_h_px * s or style.label_size_mm),
-                style.font,
-            ),
             style=style,
             figure_height_mm=lay.figure_height_px * s,
             figure_width_mm=height_mm * bw * stretch / bh,
@@ -166,7 +162,12 @@ class MiniBuilder:
             tab_width_mm=lay.tab_width_px * s if prm.tab else 0.0,
             close_px=fm.close_px,
             # (the front tab's label is upright, the back tab's upside down)
-            tab_shows=[tab_front if r == 0 else tab_back for _, _, r in lay.labels]
+            tab_labels=[
+                self._fitted_tab(
+                    front_tab if r == 0 else back_tab, stem, max_w, max_h, style.font
+                )
+                for _, _, r in lay.labels
+            ]
             if prm.tab
             else [],
             tab_room=(max_w, lay.label_max_h_px * s) if prm.tab else (0.0, 0.0),
@@ -279,6 +280,17 @@ class MiniBuilder:
         size = (max(1, round(w_mm / 25.4 * dpi)), max(1, round(h_mm / 25.4 * dpi)))
         art_im = Image.fromarray(art, "RGBA").resize(size, Image.Resampling.LANCZOS)
         return _Piece(art_im, x0, y0, w_mm, h_mm)
+
+    def _fitted_tab(
+        self, tab: TabLabel, stem: str, max_w: float, max_h: float, font: str
+    ) -> TabLabel:
+        """Return ``tab`` with its text set (``stem`` for None) and its label's size
+        shrunk to fit ``max_w`` by ``max_h`` mm (no height limit for 0)."""
+        text = stem if tab.text is None else tab.text
+        size = TextFitter.label_size(
+            self._fonts, text, max_w, min(tab.size_mm, max_h or tab.size_mm), font
+        )
+        return replace(tab, text=text, size_mm=size)
 
     def _add_back(
         self,

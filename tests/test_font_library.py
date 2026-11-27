@@ -1,4 +1,5 @@
-"""Tests of the fonts: Times, the bundled fonts and the installed-font index."""
+"""Tests of the fonts: Arial, Times, the bundled fonts and the installed-font
+index."""
 
 import os
 import shutil
@@ -39,9 +40,10 @@ def font_folder(tmp_path, monkeypatch, fonts):
 
 def test_the_bundled_fonts_come_with_their_licence(fonts):
     found = fonts.bundled()
-    assert found[0] == FontLibrary.TIMES and found[0].regular is None
-    assert [f.name for f in found[1:]] == list(FontLibrary.BUNDLED)
-    for f in found[1:]:
+    assert found[:2] == [FontLibrary.ARIAL, FontLibrary.TIMES]
+    assert found[0].regular is None and found[1].regular is None
+    assert [f.name for f in found[2:]] == list(FontLibrary.BUNDLED)
+    for f in found[2:]:
         assert f.regular.is_file() and (f.bold is None or f.bold.is_file())
         assert (f.regular.parent / "OFL.txt").is_file()
 
@@ -97,7 +99,25 @@ def test_an_installed_font_is_found_and_printed(
 def test_an_svg_names_the_font_family_with_a_fallback(fonts):
     assert fonts.svg_family("Times") == "Times New Roman, Times, serif"
     assert fonts.svg_family("Kalam") == "'Kalam', serif"
-    assert fonts.svg_family("No Such Font") == "Times New Roman, Times, serif"
+    assert fonts.svg_family("Arial") == "Arial, Helvetica, sans-serif"
+    assert fonts.svg_family("No Such Font") == "Arial, Helvetica, sans-serif"
+
+
+def test_arial_prints_in_helvetica_without_its_files(fonts):
+    font, found = fonts.resolve("Arial")
+    assert found and font.sans and font.regular is None
+    assert fonts.pdf_name("Arial") == "Helvetica"
+    assert fonts.pdf_name("Arial", bold=True) == "Helvetica-Bold"
+    assert fonts.resolve("No Such Font") == (font, False)
+
+
+def test_arial_prints_with_its_own_files_where_it_is_installed(fonts, font_folder):
+    folder, add, _ = font_folder
+    add("arial.ttf", "Arial")
+    font, found = fonts.resolve("Arial")
+    assert found and font.sans and font.regular == folder / "arial.ttf"
+    assert fonts.pdf_name("Arial").startswith("papermini-")  # (its own file)
+    assert fonts.svg_family("Arial") == "Arial, Helvetica, sans-serif"
 
 
 def test_a_library_with_folders_of_its_own_looks_only_there(tmp_path):
