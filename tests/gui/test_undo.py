@@ -119,7 +119,7 @@ def test_undo_and_redo_are_disabled_with_nothing_to_do(new_window):
     w = new_window()
     assert not w.a_undo.isEnabled() and not w.a_redo.isEnabled()
     assert not w.btn_undo.isEnabled()
-    w.undo()  # from the keyboard: nothing happens
+    w.history.undo()  # from the keyboard: nothing happens
     assert w.figures == []
 
 
@@ -161,7 +161,7 @@ def test_the_history_pane_lists_the_steps_and_jumps_to_one(two):
     w = two
     a = w.figures[0]
     _set(w, a, margin_mm=3.0)
-    view = w.history_pane.view
+    view = w.history.pane.view
     model = view.model()
     rows = [model.index(r, 0).data() for r in range(model.rowCount())]
     assert rows == ["New project", "Added 2 images", "Changed Margin"]
@@ -173,12 +173,12 @@ def test_the_history_pane_lists_the_steps_and_jumps_to_one(two):
 
 def test_the_history_pane_folds_to_its_header_and_stays_so(app, new_window, prefs):
     w = new_window()
-    pane = w.history_pane
+    pane = w.history.pane
     pane.header.click()
     assert not pane.view.isVisibleTo(w) and pane.header.isVisibleTo(w)
     assert not w.a_history.isChecked() and prefs.history_open() is False
     again = new_window()
-    assert not again.history_pane.is_open()
+    assert not again.history.pane.is_open()
     again.a_history.trigger()
-    assert again.history_pane.view.isVisibleTo(again)
+    assert again.history.pane.view.isVisibleTo(again)
     assert prefs.history_open() is True

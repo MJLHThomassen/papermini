@@ -83,8 +83,9 @@ src/papermini/       the package, one class per file (S15)
                      update bar
     building/        building the figures' miniatures in the background, and
                      cancelling their model runs
-    history/         the project's undo history, its snapshots and the
-                     history pane
+    history/         undo and redo: the project's history and its snapshots,
+                     the history pane, and the controller that runs them for
+                     the window
     window/          the main window
 tests/               the pytest suite, one file per module (T3): synthetic masks,
                      no network or model (T4)
@@ -125,8 +126,9 @@ manages recent files and folders, and handles drag and drop. Someone who wants
 to change how recent files work has to find their way through a class of about
 1,900 lines. Better: separate collaborators that the window creates and wires
 together, the way it creates `BuildQueue` in `gui/building/` for builds,
-`ExportController` in `gui/exporting/` for exporting and printing, and
-`UpdateController` in `gui/updating/` for updates.
+`ExportController` in `gui/exporting/` for exporting and printing,
+`UpdateController` in `gui/updating/` for updates, and `HistoryController` in
+`gui/history/` for undo and redo.
 
 ### S2. A function does one thing at one level of detail
 

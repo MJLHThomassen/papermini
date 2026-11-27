@@ -66,10 +66,8 @@ from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
 from ..exporting.export_controller import ExportController
 from ..exporting.export_dialogs import ExportDialogs
-from ..history.history_pane import HistoryPane
-from ..history.project_history import ProjectHistory
+from ..history.history_controller import HistoryController
 from ..history.project_snapshot import ProjectSnapshot
-from ..history.undo_keys import UndoKeys
 from ..panels.figure_fields import PER_IMAGE
 from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
@@ -124,8 +122,6 @@ UPDATE_CHECK_DELAY_MS = 2000
 LEFT_PANEL_PX = 290
 CANVAS_PX = 790
 RIGHT_PANEL_PX = 380
-HISTORY_SPLIT_PX = 400  # the figure list and the history start equally tall
-FIGURES_MIN_PX = 200  # the figure list keeps this much when the history opens
 
 
 class MainWindow(QMainWindow):
@@ -172,9 +168,11 @@ class MainWindow(QMainWindow):
         self._uids = itertools.count(1)
         self._modified = False
         self.sig = Signals()
-        self.history = ProjectHistory(
-            self._snapshot, self._restore, prefs.undo_steps, parent=self
+        self.history = HistoryController(
+            self._snapshot, self._restore, prefs, themes, parent=self
         )
+        self.history.status.connect(self._status)
+        self.history.modifiedChanged.connect(self._set_modified)
         self.builds = BuildQueue(
             pipeline,
             figure_builder,
@@ -239,18 +237,11 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self.views.set_index)
         self.sheet_panel.set_settings(self.project.sheet)
         self._sync_size_label()
-        for signal in (
-            self.history.stack.indexChanged,
-            self.history.stack.cleanChanged,
-            self.history.stack.undoTextChanged,
-            self.history.stack.redoTextChanged,
-        ):
-            signal.connect(self._sync_history)
-        self._sync_history()
-        self.history_pane.set_start(self._start_text())
-        self._undo_keys = UndoKeys(self)
-        for box in self.findChildren(QAbstractSpinBox):
-            box.installEventFilter(self._undo_keys)
+        self.history.bind(
+            self.a_undo, self.a_redo, self.btn_undo, self.btn_redo, self.a_history
+        )
+        self.history.pane.set_start(self._start_text())
+        self.history.guard(self.findChildren(QAbstractSpinBox))
         self._show_current()
         QTimer.singleShot(UPDATE_CHECK_DELAY_MS, self.updater.start_up)
         self.sig.fonts_found.connect(self.panel.set_installed_fonts)
@@ -375,8 +366,8 @@ class MainWindow(QMainWindow):
             self._tool("open", "Open a project or images  (Ctrl+O)", self.open_dialog)
         )
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
-        self.btn_undo = self._tool("undo", "Undo  (Ctrl+Z)", self.undo)
-        self.btn_redo = self._tool("redo", "Redo  (Ctrl+Y)", self.redo)
+        self.btn_undo = self._tool("undo", "Undo  (Ctrl+Z)", self.history.undo)
+        self.btn_redo = self._tool("redo", "Redo  (Ctrl+Y)", self.history.redo)
         h.addWidget(self.btn_undo)
         h.addWidget(self.btn_redo)
         h.addStretch(1)
@@ -502,15 +493,8 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True)
         hint.setContentsMargins(8, 0, 8, 0)
         v.addWidget(hint)
-        self.history_pane = HistoryPane(self.history.stack, self._themes)
-        self.history_pane.openChanged.connect(self._history_opened)
         self.left_split.addWidget(figures)
-        self.left_split.addWidget(self.history_pane)
-        self.left_split.setCollapsible(0, False)
-        self.left_split.setCollapsible(1, False)
-        self.left_split.setSizes([HISTORY_SPLIT_PX, HISTORY_SPLIT_PX])
-        self._history_px = HISTORY_SPLIT_PX  # its height when open
-        self.left_split.splitterMoved.connect(self._history_dragged)
+        self.history.attach(self.left_split)
         return left
 
     def _make_link_bar(self) -> QHBoxLayout:
@@ -736,8 +720,8 @@ class MainWindow(QMainWindow):
             "Ctrl+Shift+P",
             "Print the sheet at its real size",
         )
-        self.a_undo = act("Undo", self.undo, QKeySequence.StandardKey.Undo)
-        self.a_redo = act("Redo", self.redo)
+        self.a_undo = act("Undo", self.history.undo, QKeySequence.StandardKey.Undo)
+        self.a_redo = act("Redo", self.history.redo)
         self.a_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
         self.a_remove = act(
             "Remove figure", self.remove_current, QKeySequence.StandardKey.Delete
@@ -766,7 +750,7 @@ class MainWindow(QMainWindow):
         )
         self.a_history = act(
             "Undo history",
-            self.set_history_open,
+            self.history.set_open,
             None,
             "Open or fold the list of changes at the bottom of the left panel",
         )
@@ -891,30 +875,7 @@ class MainWindow(QMainWindow):
             if w > 0:
                 self._side_width[i] = w
         self._sync_sides()
-        self.set_history_open(self._prefs.history_open())
-
-    def set_history_open(self, open_: bool) -> None:
-        """Open the undo history at the bottom of the left panel, or fold it to its
-        header."""
-        self.history_pane.set_open(open_)
-        self._history_opened(open_)
-
-    def _history_opened(self, open_: bool) -> None:
-        """Give the history back its height when it opens, and keep its handle still
-        while it is folded."""
-        handle = self.left_split.handle(1)
-        if handle is not None:
-            handle.setEnabled(open_)
-        if open_:
-            total = sum(self.left_split.sizes())
-            h = min(self._history_px, max(total - FIGURES_MIN_PX, 0))
-            self.left_split.setSizes([total - h, h])
-        self.a_history.setChecked(open_)
-        self._prefs.set_history_open(open_)
-
-    def _history_dragged(self, *_) -> None:
-        if self.history_pane.is_open():
-            self._history_px = self.left_split.sizes()[1]
+        self.history.restore_open()
 
     def _save_layout(self):
         sizes = self.splitter.sizes()
@@ -984,7 +945,7 @@ class MainWindow(QMainWindow):
         self.legend.refresh_theme()
         self.empty.refresh_icons()
         self.panel.refresh_icons()
-        self.history_pane.refresh_icons()
+        self.history.refresh_icons()
         self.crop_view.refresh_theme()
         self._sync_sides()
         for sec in self.panel.findChildren(Section):
@@ -1807,57 +1768,8 @@ class MainWindow(QMainWindow):
     # endregion
 
     # region history
-    def undo(self) -> None:
-        """Undo the last change to the project."""
-        stack = self.history.stack
-        if not stack.canUndo():
-            self._status("Nothing to undo")
-            return
-        text = stack.undoText()
-        stack.undo()
-        ui_log.info("Undid %s", text)
-        self._status(f"Undid {text}")
-
-    def redo(self) -> None:
-        """Redo the last undone change to the project."""
-        stack = self.history.stack
-        if not stack.canRedo():
-            self._status("Nothing to redo")
-            return
-        text = stack.redoText()
-        stack.redo()
-        ui_log.info("Redid %s", text)
-        self._status(f"Redid {text}")
-
-    def _sync_history(self, *_) -> None:
-        """Name the next undo and redo on their actions and buttons, enable them when
-        there is something to undo or redo, and mark the project modified unless the
-        history is at the point it was saved."""
-        stack = self.history.stack
-        for action, button, word, key, able, text in (
-            (
-                self.a_undo,
-                self.btn_undo,
-                "Undo",
-                "Ctrl+Z",
-                stack.canUndo(),
-                stack.undoText(),
-            ),
-            (
-                self.a_redo,
-                self.btn_redo,
-                "Redo",
-                "Ctrl+Y",
-                stack.canRedo(),
-                stack.redoText(),
-            ),
-        ):
-            name = f"{word} {text}" if able else word
-            action.setText(name)
-            action.setEnabled(able)
-            button.setEnabled(able)
-            button.setToolTip(f"{name}  ({key})")
-        modified = not stack.isClean()
+    def _set_modified(self, modified: bool) -> None:
+        """Mark the project modified, or not, in the title."""
         if modified != self._modified:
             self._modified = modified
             self._update_title()
@@ -2058,8 +1970,7 @@ class MainWindow(QMainWindow):
                 self._append(e)
         self.sheet_panel.set_settings(proj.sheet)
         self._sync_size_label()
-        self.history.clear()
-        self.history_pane.set_start(self._start_text())
+        self.history.reset(self._start_text())
         self._modified = False
         if self.figures:
             self.list.setCurrentRow(0)
@@ -2152,7 +2063,7 @@ class MainWindow(QMainWindow):
         except OSError as e:
             self._warn(str(e))
             return False
-        self.history.stack.setClean()
+        self.history.mark_saved()
         self._modified = False
         self._update_title()
         self._remember(self.project.path)
@@ -2199,7 +2110,7 @@ class MainWindow(QMainWindow):
     def discard_changes(self) -> None:
         """Forget the unsaved changes, so that closing the window doesn't ask to save
         them."""
-        self.history.stack.setClean()
+        self.history.mark_saved()
         self._modified = False
         self._update_title()
 
