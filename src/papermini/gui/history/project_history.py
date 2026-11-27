@@ -21,9 +21,8 @@ class ProjectHistory(QObject):
     Undo and redo hand a snapshot to ``restore``, which puts the project back as it
     was; changes the window makes meanwhile are not recorded.
 
-    Each step has two names: one for the Undo and Redo actions, such as "change to
-    Margin", and one for the list of changes, such as "Changed Margin".
-    ``steps`` returns how many steps the history keeps. Qt takes a new number only
+    Each step has two names: one that follows the verb on the Undo and Redo actions,
+    and one for the list of changes, in the past tense. ``steps`` returns how many steps the history keeps. Qt takes a new number only
     while the history is empty.
     """
 

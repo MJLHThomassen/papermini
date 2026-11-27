@@ -125,6 +125,7 @@ LEFT_PANEL_PX = 290
 CANVAS_PX = 790
 RIGHT_PANEL_PX = 380
 HISTORY_SPLIT_PX = 400  # the figure list and the history start equally tall
+FIGURES_MIN_PX = 200  # the figure list keeps this much when the history opens
 
 
 class MainWindow(QMainWindow):
@@ -906,7 +907,7 @@ class MainWindow(QMainWindow):
             handle.setEnabled(open_)
         if open_:
             total = sum(self.left_split.sizes())
-            h = min(self._history_px, max(total - HISTORY_SPLIT_PX // 2, 0))
+            h = min(self._history_px, max(total - FIGURES_MIN_PX, 0))
             self.left_split.setSizes([total - h, h])
         self.a_history.setChecked(open_)
         self._prefs.set_history_open(open_)

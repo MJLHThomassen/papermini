@@ -8,6 +8,7 @@ from ..theme_service import ThemeService
 
 CHEVRON_PX = 14
 SAVED_ICON_PX = 14
+NO_MAX_PX = 16777215  # Qt's QWIDGETSIZE_MAX: no maximum height
 
 
 class HistoryPane(QFrame):
@@ -73,7 +74,7 @@ class HistoryPane(QFrame):
         """Show the list, or hide it and keep the pane no taller than its header."""
         self.view.setVisible(open_)
         if open_:
-            self.setMaximumHeight(16777215)  # (QWIDGETSIZE_MAX)
+            self.setMaximumHeight(NO_MAX_PX)
         else:
             m = self._box.contentsMargins()
             self.setMaximumHeight(

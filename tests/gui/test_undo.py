@@ -123,9 +123,10 @@ def test_undo_and_redo_are_disabled_with_nothing_to_do(new_window):
     assert w.figures == []
 
 
-def test_a_new_project_starts_with_an_empty_history(two, monkeypatch):
+def test_a_new_project_starts_with_an_empty_history(two, tmp_path):
     w = two
-    monkeypatch.setattr(w, "_maybe_save", lambda: True)
+    w.project.path = tmp_path / "proj.yaml"
+    assert w.save()  # (so starting a new project does not ask)
     w.new_project()
     assert not w.a_undo.isEnabled() and w.history.stack.count() == 0
 
