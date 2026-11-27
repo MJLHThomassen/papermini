@@ -310,6 +310,169 @@ def test_a_preset_exported_to_a_file_can_be_imported(
     assert page.list.currentItem().text() == "Dark tabs"
 
 
+def test_a_change_typed_in_a_field_is_held_for_save(window, prefs):
+    prefs.save_user_styles([DARK])
+    page = window.preferences_dialog("styles").styles
+    _select(page, "Dark tabs")
+    page.editor.field("margin_mm").setValue(3.0)
+    assert page.b_save_changes.isEnabled()
+    page.save_changes()
+    assert prefs.user_styles()[0].values["margin_mm"] == 3.0
+
+
+def test_a_preset_of_the_users_is_deleted_once_they_agree(window, prefs, answer):
+    prefs.save_user_styles([DARK])
+    page = window.preferences_dialog("styles").styles
+    _select(page, "Dark tabs")
+    asked = answer(ANSWER.No)
+    page.delete_preset()
+    assert asked == ["Delete your style preset Dark tabs?"]
+    assert prefs.user_styles() == [DARK]
+    answer(ANSWER.Yes)
+    page.delete_preset()
+    assert prefs.user_styles() == []
+    assert not page.list.findItems("Dark tabs", Qt.MatchFlag.MatchExactly)
+
+
+def test_a_projects_own_version_can_be_saved_as_the_users_or_removed(
+    figures, prefs, answer
+):
+    w = figures
+    prefs.save_user_styles([DARK])
+    theirs = StylePreset("Dark tabs", {"tab_color": "#222222"})
+    w.project.presets = [theirs, StylePreset("Crypt", {"margin_mm": 3.0})]
+    page = w.preferences_dialog("styles").styles
+    _select(page, "Dark tabs")
+    assert "own version of one of your presets" in page.status.text()
+    asked = answer(ANSWER.Yes)
+    page.save_as_users()
+    assert asked == ["Replace your style preset Dark tabs with this project's version?"]
+    assert prefs.user_styles() == [theirs]
+    assert "one of your own, and it is saved with this project" in page.status.text()
+    _select(page, "Crypt")
+    assert "saved with this project only" in page.status.text()
+    page.remove_from_project()
+    assert page.project_presets() == [theirs]
+
+
+def test_importing_skips_built_in_names_and_presets_the_user_keeps(
+    window, prefs, tmp_path, monkeypatch, answer
+):
+    from PySide6.QtWidgets import QFileDialog
+
+    from papermini.project.style_preset_file import StylePresetFile
+
+    prefs.save_user_styles([DARK])
+    path = StylePresetFile().save(
+        [
+            StylePreset("Token", {}),
+            StylePreset("Dark tabs", {"tab_color": "#111111"}),
+            StylePreset("Crypt", {"margin_mm": 3.0}),
+        ],
+        tmp_path / "presets.yaml",
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(path), ""))
+    )
+    told = []
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda *a, **k: told.append(a[2]))
+    )
+    answer(ANSWER.No)
+    page = window.preferences_dialog("styles").styles
+    page.import_presets()
+    assert [p.name for p in prefs.user_styles()] == ["Dark tabs", "Crypt"]
+    assert prefs.user_styles()[0] == DARK
+    assert told == [
+        "Not imported, because a preset of that name is already here: Token, Dark tabs."
+    ]
+
+
+def test_a_file_that_cannot_be_imported_or_exported_says_why(
+    window, prefs, tmp_path, monkeypatch
+):
+    from PySide6.QtWidgets import QFileDialog
+
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("figures: []\n", encoding="utf-8")
+    warned = []
+    monkeypatch.setattr(
+        QMessageBox, "warning", staticmethod(lambda *a, **k: warned.append(a[2]))
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(bad), ""))
+    )
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(tmp_path), "")),
+    )
+    page = window.preferences_dialog("styles").styles
+    page.import_presets()
+    page.export_preset()  # (to a folder)
+    assert warned[0].startswith("Could not import:\nbad.yaml is not a papermini")
+    assert warned[1].startswith("Could not save:")
+
+
+def test_the_default_style_is_picked_on_the_page(window, prefs):
+    page = window.preferences_dialog("styles").styles
+    page.default_box.setCurrentText("Token")
+    page.default_box.activated.emit(page.default_box.currentIndex())
+    assert prefs.default_style_name() == "Token"
+
+
+def test_a_second_copy_gets_a_name_of_its_own(window, prefs, monkeypatch):
+    offered = []
+
+    def ask(self, parent, title, current="", old=""):
+        offered.append(current)
+        return current
+
+    monkeypatch.setattr(StyleNamePrompt, "ask", ask)
+    page = window.preferences_dialog("styles").styles
+    _select(page, "Token")
+    page.copy_preset()
+    _select(page, "Token")
+    page.copy_preset()
+    assert offered == ["Token copy", "Token copy 2"]
+
+
+def test_the_name_prompt_refuses_built_in_names_and_asks_before_replacing(
+    window, prefs, monkeypatch, answer
+):
+    from PySide6.QtWidgets import QInputDialog
+
+    prefs.save_user_styles([DARK])
+    typed = [("Token", True), ("Dark tabs", True), (" Lair ", True)]
+    monkeypatch.setattr(
+        QInputDialog, "getText", staticmethod(lambda *a, **k: typed.pop(0))
+    )
+    told = []
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda *a, **k: told.append(a[2]))
+    )
+    asked = answer(ANSWER.No)
+    prompt = StyleNamePrompt(StyleLibrary(prefs))
+    assert prompt.ask(window, "Save style preset") == "Lair"
+    assert told == [
+        "Token is a style preset that comes with papermini. Pick another name."
+    ]
+    assert asked == ["You already have a style preset called Dark tabs. Replace it?"]
+    typed[:] = [("Dark tabs", True)]
+    assert prompt.ask(window, "Rename", "Dark tabs", "Dark tabs") == "Dark tabs"
+    typed[:] = [("Lair", False)]
+    assert prompt.ask(window, "Save style preset") == ""
+
+
+def test_the_preset_list_paints_each_name_and_its_note(window):
+    page = window.preferences_dialog("styles").styles
+    page.list.resize(250, 300)
+    image = page.list.grab().toImage()
+    assert not image.isNull()
+    first = page.list.visualItemRect(page.list.item(0))
+    assert first.height() > page.list.fontMetrics().height() * 1.5  # (two lines)
+
+
 def test_the_preferences_window_can_be_made_small(window):
     dlg = window.preferences_dialog("styles")
     assert dlg.minimumSizeHint().width() < 400

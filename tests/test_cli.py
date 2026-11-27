@@ -132,6 +132,23 @@ def test_add_keeps_a_preset_from_a_file_in_the_project(
     assert figures[1].settings.fold_mm == 2
 
 
+def test_add_says_when_a_preset_takes_the_place_of_the_projects(
+    hero_figure, tmp_path, project_store, capsys
+):
+    from papermini.project.style_preset import StylePreset
+    from papermini.project.style_preset_file import StylePresetFile
+
+    img, _ = hero_figure
+    files = StylePresetFile()
+    proj = tmp_path / "minis.yaml"
+    for color in ("#000000", "#222222"):
+        dark = StylePreset("Dark tabs", {"tab_color": color})
+        preset_file = files.save([dark], tmp_path / "dark.yaml")
+        assert main(["add", str(proj), str(img), "--preset", str(preset_file)]) == 0
+    assert "style preset Dark tabs replaced" in capsys.readouterr().out
+    assert project_store.load(proj).presets == [dark]
+
+
 def test_add_refuses_an_unknown_preset(hero_figure, tmp_path):
     img, _ = hero_figure
     with pytest.raises(SystemExit, match="--preset: there is no style preset"):

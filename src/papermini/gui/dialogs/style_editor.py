@@ -159,6 +159,13 @@ class StyleEditor(QWidget):
         changed = {k: v for k, v in read.items() if v != self._shown.get(k)}
         return replace(self._s, **changed)
 
+    def field(self, name: str) -> Any:
+        """Return the input widget of the setting ``name``."""
+        for field in self._fields.values():
+            if name in field.inputs:
+                return field.inputs[name]
+        raise KeyError(name)
+
     def set_installed_fonts(self, names) -> None:
         """List the fonts installed on this computer after the bundled ones."""
         font = self._fields["font"]
