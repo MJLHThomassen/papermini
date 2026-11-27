@@ -17,6 +17,8 @@ class Preferences:
     PNG_PX_RANGE = (16, 4096)  # the PNG size a user can set, pixels per grid square
     PNG_DPI_RANGE = (50, 2400)
     PNG_SIZE_MODES = ("square", "dpi")
+    UNDO_STEPS = 100  # how many changes the undo history keeps, by default
+    UNDO_STEPS_RANGE = (10, 1000)
 
     _THEME = "theme"
     _SPLITTER = "layout/splitter"
@@ -34,6 +36,8 @@ class Preferences:
     _EXPORT_CUT = "export/cut"
     _LAST_UPDATE_CHECK = "updates/last_check"
     _AUTO_UPDATES = "updates/auto"
+    _UNDO_STEPS = "history/undo_steps"
+    _HISTORY_OPEN = "layout/history_open"
 
     # region store
     @staticmethod
@@ -88,6 +92,14 @@ class Preferences:
 
     def set_right_panel_width(self, width: int) -> None:
         self._set(self._RIGHT_WIDTH, width)
+
+    def history_open(self) -> bool:
+        """Tell whether the undo history at the bottom of the left panel is open,
+        rather than folded to its header (open by default)."""
+        return self._bool(self._HISTORY_OPEN, True)
+
+    def set_history_open(self, on: bool) -> None:
+        self._set(self._HISTORY_OPEN, bool(on))
 
     def section_open(self, title: str) -> bool:
         """Tell whether the settings section called ``title`` is open (open by
@@ -282,5 +294,15 @@ class Preferences:
 
     def set_auto_updates(self, on: bool) -> None:
         self._set(self._AUTO_UPDATES, bool(on))
+
+    # endregion
+
+    # region undo history
+    def undo_steps(self) -> int:
+        """Return how many changes the undo history keeps."""
+        return self._int_in(self._UNDO_STEPS, self.UNDO_STEPS, self.UNDO_STEPS_RANGE)
+
+    def set_undo_steps(self, steps: int) -> None:
+        self._set(self._UNDO_STEPS, int(steps))
 
     # endregion

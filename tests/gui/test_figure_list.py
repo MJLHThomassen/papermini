@@ -99,8 +99,8 @@ def test_a_link_pasted_in_the_link_bar_is_added(app, monkeypatch, new_window):
     assert not any("Add images" in t for t in header_tips)
     left = w.splitter.widget(0)
     assert any("Add images" in b.toolTip() for b in left.findChildren(QToolButton))
-    assert w.link_edit.parent() is left and not w.link_add.isEnabled()
-    lay = left.layout()
+    assert left.isAncestorOf(w.link_edit) and not w.link_add.isEnabled()
+    lay = w.link_edit.parentWidget().layout()
     row = [
         i
         for i in range(lay.count())

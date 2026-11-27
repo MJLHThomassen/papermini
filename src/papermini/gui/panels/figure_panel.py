@@ -346,6 +346,11 @@ class FigurePanel(QScrollArea):
         settings to all figures never copies."""
         return self._step_fields(self._step) - PER_IMAGE
 
+    def step_of(self, names: set[str]) -> Step | None:
+        """Return the first step that edits one of the settings ``names``, or None
+        when no step does."""
+        return next((s for s in Step if names & self._step_fields(s)), None)
+
     @staticmethod
     def _step_fields(step: Step) -> set:
         """Return the FigureSettings fields edited in ``step``, with the kind of figure

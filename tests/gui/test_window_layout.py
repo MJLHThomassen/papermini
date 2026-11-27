@@ -129,7 +129,7 @@ def test_the_panel_layout_is_remembered(app, new_window, settings_store):
         assert abs(w.splitter.sizes()[0] - 400) <= 2
         w.set_side_visible(2, True)
         assert abs(w.splitter.sizes()[2] - right) <= 2
-        assert w.btn_left.accessibleName() == "Hide the figure list"
+        assert w.btn_left.accessibleName() == "Hide the figures and history"
         assert w.btn_left.focusPolicy() == Qt.FocusPolicy.TabFocus
     finally:
         w.close()

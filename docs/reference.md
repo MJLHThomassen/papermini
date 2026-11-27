@@ -21,20 +21,22 @@ the desktop app in depth, and how the pipeline works.
 
 ## Desktop app
 
-- **Header.** Open and save on the left; the three steps of the workflow in
-  the middle of the window (**1 Source**, **2 Miniature**, **3 Print sheet**);
+- **Header.** Open, save, undo and redo on the left; the three steps of the
+  workflow in the middle of the window (**1 Source**, **2 Miniature**, **3 Print sheet**);
   the ☰ menu on the right. The steps are in the order you usually work, but you
   can open any of them at any time. Export and print are in the step they
   belong to: **Export…** at the bottom of the Miniature settings (an SVG or a PNG of
   the figure), **Print…** and **Export…** at the bottom of the Print sheet settings.
   The ☰ menu has them too, and holds everything else: new project, **Open recent**,
   **Add folder…**, save as, **Export all…**, **View**
-  (show or hide the side panels, zoom), **Preferences…**, **Check for updates…**,
+  (show or hide the side panels, open or fold the undo history, zoom),
+  **Preferences…**, **Check for updates…**,
   **Report a problem…**, **Open log folder** and about. Keyboard shortcuts work without
   opening the menu: Ctrl+O open, Ctrl+I add images, Ctrl+Shift+I add a folder, Ctrl+L add
   an image from a link,
-  Ctrl+V paste images, Ctrl+S save, Ctrl+Shift+P print, Ctrl+E export the figure,
-  Ctrl+Shift+E export all figures, Ctrl+P export the sheet, Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figure list, Ctrl+Alt+B settings,
+  Ctrl+V paste images, Ctrl+S save, Ctrl+Z undo, Ctrl+Y or Ctrl+Shift+Z redo,
+  Ctrl+Shift+P print, Ctrl+E export the figure,
+  Ctrl+Shift+E export all figures, Ctrl+P export the sheet, Ctrl+0 fit, Ctrl+1 actual size, Ctrl+B figures and history, Ctrl+Alt+B settings,
   Ctrl+, preferences.
 - **Start screen.** A new window shows how to begin: **Add images…**, **Open
   project…**, *or add from a link…* and *or add a folder…*. Under them,
@@ -51,7 +53,8 @@ the desktop app in depth, and how the pipeline works.
   once into `~/.cache/papermini/images/`; the project keeps the link itself, so
   it still works on another computer. A link must point at the image, not at
   the web page that shows it: right-click the picture and copy its address.
-- **Side panels.** Drag the dividers to resize the figure list and the settings,
+- **Side panels.** Drag the dividers to resize the left panel (the figures and the
+  undo history) and the settings,
   or drag them shut. The buttons in the bottom corners of the canvas hide and
   show them (filled = shown) and stay put while a panel is hidden.
 - **Figures** (left). Each figure is a card with a thumbnail of the finished
@@ -64,6 +67,22 @@ the desktop app in depth, and how the pipeline works.
   or a project anywhere in the window. Drag to reorder; **Delete**
   removes the selected one. A new figure starts with the settings of the one
   that is selected.
+- **Undo and redo.** Undo (Ctrl+Z, or the arrow in the header) takes back the
+  last change to the project: a setting of a figure or of the sheet, a crop,
+  adding, removing or reordering figures, or the creature sizes. Redo (Ctrl+Y or
+  Ctrl+Shift+Z) does it again. Typing a number or dragging a slider is one step,
+  and so is *Apply … to all figures*. Undo selects the figure that changed and
+  opens the step that shows the change. A removed figure comes back as it was.
+  Undoing back to where the project was saved clears the unsaved mark. Each
+  project has its own history, which starts empty when you open it or start a new
+  one. It keeps the last 100 changes, which you can change in **Preferences… →
+  Undo history**.
+- **History** (bottom of the left panel). Every change since the project was
+  opened, newest at the bottom; the current state is highlighted and a save icon
+  marks where it was last saved. Click a change to go back or forward to it.
+  Drag the divider above it to resize it. Click its header, or **View → Undo
+  history** in the ☰ menu, to fold it to the header alone or open it again; the
+  app remembers which.
 - **Settings** (right). The options of the step you are on, in sections you
   can fold open and closed (the app remembers which). The
   [settings guide](#settings-guide) explains each of them:
@@ -125,8 +144,8 @@ the desktop app in depth, and how the pipeline works.
   - drag **outside** it to draw a new box;
   - press **Delete** or **Clear crop** (next to the zoom controls) to clear it,
     or **Esc** to cancel a drag;
-  - press **Ctrl+Z** to undo a crop change (one at a time, also for another
-    figure, which is then selected).
+  - press **Ctrl+Z** to undo a crop change (one box at a time, also for another
+    figure, which is then selected; see *Undo and redo*).
 
   Until there is a crop box, a hint above the image says to drag one, and dashed
   guide lines through the mouse show where it would start. Over a box, the part
@@ -183,6 +202,8 @@ the desktop app in depth, and how the pipeline works.
     figure covers one square of a 256-pixel grid and a Large one two), or *At the
     size it prints*, in dpi (300 by default). It is a preference, not saved in the
     project.
+  - **Undo history:** how many changes undo can take back (100 by default). A new
+    number takes effect when you next open a project or start a new one.
   - **Appearance:** the theme: follow the system, light or dark.
   - **Updates:** **Update automatically** turns the daily check and background
     download on or off. See [Updates](#updates).
