@@ -6,7 +6,9 @@ from PySide6.QtCore import Qt
 
 from papermini.gui.preferences import Preferences
 from papermini.gui.step import Step
+from papermini.gui.style_library import StyleLibrary
 from papermini.gui.window.main_window import MainWindow
+from papermini.project.style_preset_file import StylePresetFile
 
 from .shot_context import ShotContext
 
@@ -25,8 +27,9 @@ class WindowDriver:
         built."""
         ctx = self._ctx
         ctx.themes.apply(ctx.app, mode)
+        prefs = Preferences()
         w = MainWindow(
-            Preferences(),
+            prefs,
             ctx.project_store,
             ctx.size_calculator,
             ctx.pipeline,
@@ -42,6 +45,8 @@ class WindowDriver:
             ctx.minis,
             ctx.sheets,
             ctx.problems,
+            StyleLibrary(prefs),
+            StylePresetFile(),
         )
         w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
         w.resize(*size)

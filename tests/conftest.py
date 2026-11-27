@@ -283,8 +283,10 @@ def new_window(
     ``pipeline`` fixture's. With that pipeline, its figures build with the
     ``figure_builder`` fixture's builder. The windows close after the test without
     asking to save."""
+    from papermini.gui.style_library import StyleLibrary
     from papermini.gui.window.main_window import MainWindow
     from papermini.project.figure_builder import FigureBuilder
+    from papermini.project.style_preset_file import StylePresetFile
 
     made = []
     shared = pipeline
@@ -309,6 +311,8 @@ def new_window(
                 minis,
                 sheets,
                 problems,
+                StyleLibrary(prefs),
+                StylePresetFile(),
             )
         )
         return made[-1]

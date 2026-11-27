@@ -41,6 +41,7 @@ class Option:
     unit: str = ""  # the unit its value is in, such as mm or px
     auto: bool = False  # None means the value is worked out automatically
     sized: bool = False  # a creature size fills it in
+    style: bool = False  # a style preset holds it
     kinds: tuple[str, ...] = ()  # the kinds of figure it applies to; empty: all
     color: bool = False  # a #rrggbb color
     parse: Callable[[Any], Any] | None = None  # converts a value, raising ValueError

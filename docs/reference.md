@@ -91,7 +91,9 @@ the desktop app in depth, and how the pipeline works.
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
     [Color adjustments](#color-adjustments)).
   - **Miniature:** at the top, the **Kind**: *Standing mini* or *Token* (see
-    [Tokens](#tokens)). A standing mini has these sections:
+    [Tokens](#tokens)). Under it, the **Style**: the style preset the figure
+    has, or *Custom* (see [Style presets](#style-presets)). A standing mini has
+    these sections:
     - *Size*: creature size, figure height and width, image resolution.
     - *Border*: the printed cut line, the margin, its fill, rounding and detail.
     - *Text*: the font of all the piece's text.
@@ -192,9 +194,12 @@ the desktop app in depth, and how the pipeline works.
   on the *Models and cache* page). See
   [Background removal models](#model-licence).
 - **Preferences…** (☰ menu, Ctrl+,) holds the app's settings, on pages. Changes
-  take effect at once; the window can be resized.
+  take effect at once, except changes to a style preset, which wait for *Save*.
+  The window can be resized, and a page that does not fit scrolls.
   - **Creature sizes:** the size table presets. See
     [Creature sizes](#creature-sizes).
+  - **Style presets:** the style presets, and the **Default style** that new
+    figures get. See [Style presets](#style-presets).
   - **Images:** **Also add the images in subfolders** (on by default): whether
     adding a folder also adds the images in its subfolders (see
     [Adding a folder](#adding-a-folder)); and the **PNG size** of exported PNGs:
@@ -407,6 +412,15 @@ A standing paper miniature, or a flat round token.
 
 At the top of the step. A token has its own groups (*Token* and *Token text*) and
 no back side or tab; see [Tokens](#tokens).
+
+##### Style
+`--preset NAME_OR_FILE`\
+The style preset the figure has: how the piece looks, without its size or text.
+Pick a preset to give it to the figure, or use the **⋯** menu beside it to give
+this style to every figure or save it as a preset. See
+[Style presets](#style-presets).
+
+Under the Kind. It shows *Custom* when the figure matches no preset.
 
 #### Size
 
@@ -1016,6 +1030,7 @@ the value its [creature size](#creature-sizes) fills in.
 |---|---|---|
 | `--size` | medium | D&D creature size (`tiny`, `small`, `medium`, `large`, `huge`, `gargantuan` or `custom`): fills in `--height-mm`, the tab sizes and a token's `--token-diameter-mm` from the built-in size table. An explicit height, tab or diameter flag wins and makes the figure `custom`. Prints a warning when the figure is wider than its squares |
 | `--grid-mm` | 25.4 | grid square for `--size`: the size table is calculated for this grid, bases and heights alike (Medium 32 × grid / 25.4 mm) |
+| `--preset` | none | a [style preset](#style-presets): the name of a built-in one (`Standing mini`, `Standing mini - dark mode` or `Token`, in any case), of one in the project for `add`, or a preset file the app exported. Flags given as well win over it. `add` keeps a preset that is not built in in the project |
 | `--height-mm` | 32 (Medium) | height of the drawn figure, without margin and tab |
 | `--width-mm` | set by the height | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
 | `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
@@ -1250,6 +1265,17 @@ sizes:
   gargantuan: {height_mm: 80.0, base_mm: 100.0, tab_width_mm: 100.0, tab_height_mm: 50.0}
 ```
 
+A project also keeps the [style presets](#style-presets) its figures were given
+or that were saved with it, under `presets`: one line per preset, with the
+settings that differ from the defaults. The built-in presets are not written. In
+that project, its version of a preset wins over a built-in or your own preset of
+the same name.
+
+```yaml
+presets:
+  Green tabs: {margin_mm: 2.0, tab_color: '#3a7d44', label_color: '#ffffff'}
+```
+
 [examples/dragons/samples.yaml](../examples/dragons/samples.yaml) builds the
 sample outputs in [examples/dragons/samples](../examples/dragons/samples), six
 ways to print the same dragon: a default (double-sided) mini, a single-sided
@@ -1358,6 +1384,78 @@ opens the same on any computer.
 table, and for a new project or images the built-in table; `--grid-mm 30`
 calculates it for a 30 mm grid instead, heights included (Medium 32 × 30/25.4
 ≈ 37.8 mm). `papermini add` saves that table in the project.
+
+## Style presets
+
+A style preset is how a piece looks: the kind of figure, the border, the tabs,
+the back side, the text and the colors. It leaves out what belongs to one figure:
+its size (creature size, height, width, tab size and token diameter), its labels
+and back text, a token's area, the copies, and the source settings such as the
+crop and background removal.
+
+papermini comes with three presets:
+
+- *Standing mini*: the default settings;
+- *Standing mini - dark mode*: a black margin, tab and back paper, with white
+  text;
+- *Token*: a round token that shows its label.
+
+**Giving a figure a style.** In **2 Miniature**, the **Style** under the *Kind*
+shows the preset the figure has, or *Custom* when it matches none. Pick a preset
+to give its settings to the figure, as one step in the undo history. Each style
+setting the preset does not hold goes back to its default. The figure gets a copy
+of the settings: changing the figure later leaves the preset as it is, and
+changing the preset leaves the figure as it is. The **⋯** menu beside it has:
+
+- *Apply this style to all figures*: gives every figure the style of this one, as
+  one undo step;
+- *Save this style as a preset…*: keeps the style among your presets, under the
+  name you give;
+- *Manage style presets…*: opens **Preferences… → Style presets**.
+
+A new figure copies the style of the selected figure. With no figure selected,
+it gets the **Default style** from the preferences.
+
+**Managing presets.** **Preferences… → Style presets** has:
+
+- the list of presets: the built-in ones, your own and those saved with the open
+  project, with *Copy*, *Rename*, *Delete*, *Import…* and *Export…*. Under each
+  name it says where the preset comes from;
+- the selected preset's settings, shown and hidden as in the settings panel.
+  Change your own presets and the project's, then click *Save* to keep the
+  changes or *Cancel* to go back. Picking another preset or closing the window
+  with unsaved changes asks whether to save them. The built-in presets cannot be
+  changed: *Copy* one to make your own;
+- *Save as your own* and *Remove from this project* for a preset saved with the
+  project;
+- **Default style**: the style that new figures get when no figure is selected.
+
+Figures that have a preset keep their settings when the preset changes. Pick the
+preset again to give them the new settings.
+
+Your presets are kept on this computer. Giving a figure a preset also saves the
+preset in the project, unless it is a built-in one, so the project opens the same
+on any computer. *Export…* writes a preset file to share, and *Import…* adds the
+presets in one.
+
+**Command line.** `--preset` gives the figures of `papermini add`, or the images
+given to `papermini build`, a preset: a built-in one by name, one in the project
+for `add`, or a preset file. Flags given as well win over it, and `papermini add`
+keeps a preset that is not built in in the project.
+
+```bash
+papermini add lair.yaml goblin.png --preset "Standing mini - dark mode"
+```
+
+A preset file holds the papermini version that wrote it, the format and the
+presets, in the same shape as a project's `presets`:
+
+```yaml
+papermini: 1.0.0
+format: 1
+presets:
+  Green tabs: {margin_mm: 2.0, tab_color: '#3a7d44'}
+```
 
 ## Stands and bases
 

@@ -63,7 +63,7 @@ src/papermini/       the package, one class per file (S15)
                      paths, tokens and image adjustments
     segmentation/    background removal and its models
   output/            sheet packing and the SVG, PNG and PDF writers
-  project/           options, project files and creature sizes
+  project/           options, project files, creature sizes and style presets
   support/           what the other areas share: the cache, fonts, logging,
                      links and updates
   cli.py             the command line

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field, fields
 from ...project.figure_settings import FigureSettings
 from ...project.sheet_settings import SheetSettings
 from ...project.size_table import SizeTable
+from ...project.style_preset import StylePreset
 from ..window.figure import Figure
 from .merge_key import MergeKey
 
@@ -12,8 +13,8 @@ from .merge_key import MergeKey
 @dataclass(frozen=True)
 class ProjectSnapshot:
     """The state of a project that undo puts back: the uids of its figures in
-    order, each figure's settings by uid, the sheet settings and the creature size
-    table.
+    order, each figure's settings by uid, the sheet settings, the creature size
+    table and the project's style presets.
 
     ``kept`` holds each figure by its uid, so that a figure brought back keeps its
     latest build. Two snapshots are equal when all else is.
@@ -23,18 +24,25 @@ class ProjectSnapshot:
     settings: dict[int, FigureSettings] = field(hash=False)
     sheet: SheetSettings
     sizes: SizeTable
+    presets: tuple[StylePreset, ...] = field(default=(), hash=False)
     kept: dict[int, Figure] = field(default_factory=dict, compare=False, hash=False)
 
     @classmethod
     def of(
-        cls, figures: list[Figure], sheet: SheetSettings, sizes: SizeTable
+        cls,
+        figures: list[Figure],
+        sheet: SheetSettings,
+        sizes: SizeTable,
+        presets: list[StylePreset],
     ) -> ProjectSnapshot:
-        """Take a snapshot of ``figures`` and the project's sheet and sizes."""
+        """Take a snapshot of ``figures`` and the project's sheet, sizes and style
+        presets."""
         return cls(
             tuple(f.uid for f in figures),
             {f.uid: f.entry.settings for f in figures},
             sheet,
             sizes,
+            tuple(presets),
             {f.uid: f for f in figures},
         )
 
@@ -62,7 +70,11 @@ class ProjectSnapshot:
         """Return what the change from ``before`` to here edits, when it edits one
         figure's settings or the sheet's and nothing else, or None for any other
         change."""
-        if self.order != before.order or self.sizes != before.sizes:
+        if (
+            self.order != before.order
+            or self.sizes != before.sizes
+            or self.presets != before.presets
+        ):
             return None
         changed = self.changed_figures(before)
         sheet = self.changed_sheet_names(before)

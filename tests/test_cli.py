@@ -102,6 +102,42 @@ def test_add_refuses_a_project_file_that_is_not_yaml(hero_figure, tmp_path):
         main(["add", str(tmp_path / "minis.txt"), str(img)])
 
 
+def test_add_gives_the_figures_a_built_in_preset_without_saving_it(
+    hero_figure, tmp_path, project_store
+):
+    img, _ = hero_figure
+    proj = tmp_path / "minis.yaml"
+    assert main(["add", str(proj), str(img), "--preset", "token"]) == 0
+    p = project_store.load(proj)
+    assert p.figures[0].settings.kind == "token" and p.presets == []
+
+
+def test_add_keeps_a_preset_from_a_file_in_the_project(
+    hero_figure, tmp_path, project_store
+):
+    from papermini.project.style_preset import StylePreset
+    from papermini.project.style_preset_file import StylePresetFile
+
+    img, _ = hero_figure
+    dark = StylePreset("Dark tabs", {"tab_color": "#000000"})
+    preset_file = StylePresetFile().save([dark], tmp_path / "dark.yaml")
+    proj = tmp_path / "minis.yaml"
+    assert main(["add", str(proj), str(img), "--preset", str(preset_file)]) == 0
+    assert project_store.load(proj).presets == [dark]
+    # the project's preset, by name, with a flag that wins over it
+    argv = ["add", str(proj), str(img), "--preset", "dark tabs", "--fold-mm", "2"]
+    assert main(argv) == 0
+    figures = project_store.load(proj).figures
+    assert [f.settings.tab_color for f in figures] == ["#000000", "#000000"]
+    assert figures[1].settings.fold_mm == 2
+
+
+def test_add_refuses_an_unknown_preset(hero_figure, tmp_path):
+    img, _ = hero_figure
+    with pytest.raises(SystemExit, match="--preset: there is no style preset"):
+        main(["add", str(tmp_path / "minis.yaml"), str(img), "--preset", "Gold"])
+
+
 # endregion
 
 # region papermini build: a project file
@@ -270,6 +306,8 @@ def test_build_sheet_flags_change_the_sheet_for_this_build_only(
 def test_build_refuses_figure_flags_for_a_project(built, command_line, square_project):
     with pytest.raises(SystemExit, match="the figure flags are for images"):
         command_line.run(["build", str(square_project), "--label", "Goblin"])
+    with pytest.raises(SystemExit, match="the figure flags are for images"):
+        command_line.run(["build", str(square_project), "--preset", "Token"])
 
 
 def test_build_refuses_a_project_without_figures(tmp_path):

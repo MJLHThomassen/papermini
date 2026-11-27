@@ -37,6 +37,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   alignment marks, plus a cut file with the cut lines and the same marks.
 - **[Creature sizes](docs/reference.md#creature-sizes)**: Tiny to Gargantuan
   fill in the height and the base, from a size table for your grid.
+- **[Style presets](docs/reference.md#style-presets)**: save how a mini looks,
+  such as its border, tab, back and colors, and give that look to other figures.
 - **[Stand tab](docs/reference.md#stands-and-bases)**: square to slot into a
   stand, or round to fold out into a base.
 - **[Double-sided](docs/reference.md#double-sided-minis)**: a mirrored, blank

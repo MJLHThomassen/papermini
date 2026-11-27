@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDialog,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -24,22 +26,28 @@ from ...pipeline.segmentation.mask_store import MaskStore
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
 from ...project import sizes
 from ...project.size_calculator import SizeCalculator
+from ...project.style_preset import StylePreset
+from ...project.style_preset_file import StylePresetFile
+from ...support.font_library import FontLibrary
 from ...support.image_fetcher import ImageFetcher
 from ...support.log_session import LogSession
 from ..fields.spin_box import SpinBox
 from ..preferences import Preferences
 from ..problem_reporter import ProblemReporter
+from ..style_library import StyleLibrary
 from ..theme_service import ThemeService
+from ..views.qt_fonts import QtFonts
 from .cache_page import CachePage
 from .page_parts import PageParts
 from .sizes_page import SizesPage
+from .styles_page import StylesPage
 
 
 class PreferencesDialog(QDialog):
-    """The Preferences window, opened at ``page``. ``table`` is the open project's size
-    table, ``in_use`` returns the images of the open project's figures, and
-    ``segmenters`` and ``masks`` keep the models and masks it lists. The choices that the
-    main window acts on come out as signals."""
+    """The Preferences window, opened at ``page``. ``table`` and ``presets`` are the open
+    project's size table and style presets, ``folder`` is its folder, ``in_use`` returns
+    the images of its figures, and ``segmenters`` and ``masks`` keep the models and
+    masks it lists. The choices that the main window acts on come out as signals."""
 
     themeChanged = Signal(str)
     autoUpdatesChanged = Signal(bool)
@@ -47,6 +55,7 @@ class PreferencesDialog(QDialog):
 
     PAGES = (
         ("sizes", "Creature sizes"),
+        ("styles", "Style presets"),
         ("images", "Images"),
         ("undo", "Undo history"),
         ("appearance", "Appearance"),
@@ -67,6 +76,12 @@ class PreferencesDialog(QDialog):
         logs: LogSession,
         themes: ThemeService,
         problems: ProblemReporter,
+        styles: StyleLibrary,
+        preset_files: StylePresetFile,
+        fonts: FontLibrary,
+        qt_fonts: QtFonts,
+        presets: list[StylePreset],
+        folder: Path,
         page: str = "sizes",
         parent=None,
     ):
@@ -87,10 +102,14 @@ class PreferencesDialog(QDialog):
         self.nav.setFixedWidth(150)
         self.stack = QStackedWidget()
         self.sizes = SizesPage(prefs, size_calculator, themes, table)
+        self.styles = StylesPage(
+            prefs, styles, preset_files, themes, fonts, qt_fonts, presets, folder
+        )
         self.cache = CachePage(segmenters, masks, images_from_web, in_use=in_use)
         self.cache.changed.connect(self.modelsChanged)
         pages = (
             self.sizes,
+            self.styles,
             self._images(),
             self._undo(),
             self._appearance(),
@@ -103,7 +122,8 @@ class PreferencesDialog(QDialog):
             item.setData(Qt.ItemDataRole.UserRole, key)
             item.setSizeHint(QSize(0, 32))
             self.nav.addItem(item)
-            self.stack.addWidget(w)
+            # (the cache page scrolls on its own)
+            self.stack.addWidget(w if w is self.cache else self._scrolled(w))
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         h.addWidget(self.nav)
         h.addWidget(self.stack, 1)
@@ -118,7 +138,23 @@ class PreferencesDialog(QDialog):
         bottom.addWidget(close)
         v.addLayout(bottom)
         self.show_page(page)
-        self.resize(980, 560)
+        self.resize(1080, 600)
+
+    def done(self, result: int) -> None:
+        """Close the window, once unsaved changes to a style preset are saved or
+        dropped."""
+        if self.styles.resolve_pending():
+            super().done(result)
+
+    @staticmethod
+    def _scrolled(page: QWidget) -> QScrollArea:
+        """Return ``page`` in a scroll area, so the window can be made smaller than
+        the page needs."""
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setWidget(page)
+        return area
 
     def show_page(self, key: str) -> None:
         keys = [k for k, _ in self.PAGES]

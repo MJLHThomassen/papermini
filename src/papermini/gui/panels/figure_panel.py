@@ -11,20 +11,23 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QScrollArea,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
-from ...pipeline.tab_label import LABEL_SHOWS
 from ...pipeline.token_options import TokenOptions
 from ...project import sizes
 from ...project.figure_settings import FigureSettings
 from ...project.size_calculator import SizeCalculator
+from ...project.style_preset import StylePreset
 from ...support.font_library import FontLibrary
+from ..fields.combo_box import ComboBox
 from ..fields.dimensions_field import DimensionsField
 from ..fields.field import Field
 from ..fields.field_factory import FieldFactory
@@ -36,17 +39,15 @@ from ..step import Step
 from ..theme_service import ThemeService
 from ..views.qt_fonts import QtFonts
 from ..widgets.elided_label import ElidedLabel
+from .field_visibility import FieldVisibility
 from .figure_fields import (
     FIELD_SETTINGS,
-    KIND_SECTIONS,
     NAME_FIELDS,
     OPTIONS,
     PER_IMAGE,
     RESETS,
     SECTIONS,
     SPECIAL_FIELDS,
-    TAB_SECTIONS,
-    TOKEN_PARTS,
     TWINS,
 )
 from .section import Section
@@ -59,6 +60,10 @@ class FigurePanel(QScrollArea):
     changed = Signal(object)
     applyToAll = Signal(object)  # the settings to copy (those of the shown step)
     exportPiece = Signal()  # the Miniature step's Export button (SVG or PNG)
+    styleChosen = Signal(str)  # the name of the style preset picked
+    styleToAll = Signal()  # give every figure the shown figure's style
+    styleSave = Signal()  # save the shown figure's style as a preset
+    stylesManage = Signal()  # open the style presets in the preferences
 
     def __init__(
         self,
@@ -91,6 +96,7 @@ class FigurePanel(QScrollArea):
             },
             themes,
         )
+        self._visibility = FieldVisibility()
         self._fields: dict[str, Field] = {}
         self._shown: dict[str, Any] = {}  # field values as last shown or emitted
         self._rows: dict[str, tuple[QFormLayout, QWidget]] = {}  # to hide rows
@@ -106,6 +112,7 @@ class FigurePanel(QScrollArea):
         self._size_table = sizes.BUILTIN
         self._size_label = ""
         self._figure_width: float | None = None
+        self._styles: list[StylePreset] = []
         self._loading = True
         body = QWidget()
         lay = QVBoxLayout(body)
@@ -114,6 +121,7 @@ class FigurePanel(QScrollArea):
         self._build_header(lay)
         self._build_empty_state(lay)
         self._build_kind_row(lay)
+        self._build_style_row(lay)
         self._build_sections(lay)
         self._build_hints()
         self._line_up_labels()
@@ -178,6 +186,49 @@ class FigurePanel(QScrollArea):
         kh.addWidget(label)
         kh.addWidget(kind.widget, 1)
         lay.addWidget(self.kind_row)
+        self._labels.append(label)
+
+    def _build_style_row(self, lay: QVBoxLayout) -> None:
+        """Build the Style, under the Kind: the style preset the figure has, and a
+        menu to give it to every figure or save it as a preset."""
+        self.style_row = QWidget()
+        sh = QHBoxLayout(self.style_row)
+        sh.setContentsMargins(2, 0, 0, 12)
+        sh.setSpacing(2)
+        label = QLabel("Style")
+        label.setObjectName("FormLabel")
+        tip = (
+            "A style preset sets how the piece looks: the kind of figure, the border, "
+            "the tabs, the back side, the text and the colors. It leaves the size, the "
+            "labels and the background removal as they are. Pick one to give it to "
+            "this figure."
+        )
+        label.setToolTip(tip)
+        sh.addWidget(label)
+        sh.addSpacing(10)
+        self.style_box = ComboBox()
+        self.style_box.setToolTip(tip)
+        self.style_box.activated.connect(self._style_picked)
+        sh.addWidget(self.style_box, 1)
+        self.style_menu = QMenu(self)
+        self.a_style_all = self.style_menu.addAction(
+            "Apply this style to all figures", self.styleToAll.emit
+        )
+        self.a_style_save = self.style_menu.addAction(
+            "Save this style as a preset…", self.styleSave.emit
+        )
+        self.style_menu.addSeparator()
+        self.style_menu.addAction("Manage style presets…", self.stylesManage.emit)
+        self.style_button = QToolButton()
+        self.style_button.setObjectName("StyleMenu")
+        self.style_button.setToolTip(
+            "Apply this style to all figures, or save it as a preset"
+        )
+        self.style_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.style_button.setMenu(self.style_menu)
+        self.style_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        sh.addWidget(self.style_button)
+        lay.addWidget(self.style_row)
         self._labels.append(label)
 
     def _build_sections(self, lay: QVBoxLayout) -> None:
@@ -314,6 +365,41 @@ class FigurePanel(QScrollArea):
 
     # endregion
 
+    # region style
+    def set_styles(self, presets: list[StylePreset]) -> None:
+        """Offer the style presets ``presets``, in this order."""
+        self._styles = list(presets)
+        self._sync_style()
+
+    def style_name(self) -> str:
+        """Return the name of the style preset the shown figure has, or ""."""
+        return self.style_box.currentData() or ""
+
+    def _sync_style(self) -> None:
+        """List the presets, with the one the shown figure has selected, or Custom at
+        the end when it has none of them."""
+        match = next((p for p in self._styles if p.matches(self._s)), None)
+        box = self.style_box
+        box.blockSignals(True)
+        try:
+            box.clear()
+            for p in self._styles:
+                box.addItem(p.name, p.name)
+            if match is None:
+                box.addItem("Custom", "")
+                box.setCurrentIndex(box.count() - 1)
+            else:
+                box.setCurrentIndex(self._styles.index(match))
+        finally:
+            box.blockSignals(False)
+
+    def _style_picked(self, index: int) -> None:
+        name = self.style_box.itemData(index)
+        if name:
+            self.styleChosen.emit(name)
+
+    # endregion
+
     def minimumSizeHint(self) -> QSize:
         """Never narrower than its widest step, so no control is cut off at the right
         (the header checkboxes are the first to go); the window keeps to this."""
@@ -371,6 +457,7 @@ class FigurePanel(QScrollArea):
     def _sync_sections(self):
         kind = "token" if self.is_token() else "mini"
         self.kind_row.setVisible(not self._empty and self._step == Step.MINIATURE)
+        self.style_row.setVisible(not self._empty and self._step == Step.MINIATURE)
         for box, (step, title, _) in zip(self.sections, SECTIONS, strict=True):
             box.setVisible(
                 not self._empty
@@ -395,15 +482,16 @@ class FigurePanel(QScrollArea):
     def _section_applies(self, title: str, kind: str) -> bool:
         """Whether the section ``title`` does something for a figure of ``kind`` in the
         current state."""
-        if KIND_SECTIONS.get(title, kind) != kind:
-            return False
-        return not (title in TAB_SECTIONS and self._value("no_tab"))
+        return self._visibility.section_applies(
+            title, kind == "token", not self._value("no_tab")
+        )
 
     def refresh_icons(self):
         self.empty_icon.setPixmap(
             self._themes.pixmap("sliders", self._themes.current.muted, 40)
         )
         self.size_field.refresh_icons()
+        self.style_button.setIcon(self._themes.icon("more", self._themes.current.muted))
 
     # region values
     def set_settings(self, s: FigureSettings, title: str = "", stem: str = ""):
@@ -420,6 +508,7 @@ class FigurePanel(QScrollArea):
             self._shown = self._read()
         finally:
             self._loading = False
+        self._sync_style()
 
     def settings(self) -> FigureSettings:
         """Current settings: fields whose widget was not touched keep their exact
@@ -615,54 +704,8 @@ class FigurePanel(QScrollArea):
         token = self.is_token()
         for switch, box in self._switches.values():  # off: only the header
             box.set_active(switch.isChecked())
-        square = val("tab_shape") == "square"
-        double = val("double_sided")
-        own_back_tab = double and tab and val("tab_back") != "same"
-        show = {
-            "mask": val("model") == "mask",
-            "min_area": val("keep_all"),
-            "tab_shape": tab,
-            "tab_width_mm": tab and square,
-            "tab_height_mm": tab and square,
-            "tab_radius_mm": tab and not square,
-            "tab_overlap_mm": tab,
-            "fold_mm": tab,
-            "tab_color": tab,
-            "label_color": val("tab_front") != "none",
-            "label": val("tab_front") in LABEL_SHOWS,
-            "label_size_mm": val("tab_front") in LABEL_SHOWS,
-            "back": double,
-            "back_color": double and val("back") != "mirror",
-            "back_text": double and val("back") in ("text", "text_number"),
-            "back_text_color": double
-            and val("back") in ("text", "number", "text_number"),
-            "tab_back": double and tab,
-            "back_label_color": own_back_tab and val("tab_back") != "none",
-            "back_label": own_back_tab and val("tab_back") in LABEL_SHOWS,
-            "back_label_size_mm": own_back_tab and val("tab_back") in LABEL_SHOWS,
-        }
-        grey = val("greyscale")
-        show["saturation"] = show["hue"] = not grey
-        # a token: its own fields instead of the mini's; the margin makes its outline
+        show = self._visibility.shown(val)
         text = val("token_text")
-        show.update(
-            {
-                "dimensions": not token,
-                "token_diameter_mm": token,
-                "token_fill_color": val("token_fill") == "color",
-                "token_text_style": text != "none",
-                "token_text_mm": text != "none",
-                "token_label": text in ("label", "label_number"),
-                "token_text_color": text != "none",
-                "cut_detail": not token,
-            }
-        )
-        # (a mini always has its outline and its cut line: only a token's can be left
-        # out)
-        for check, names in TOKEN_PARTS.items():
-            show[check] = token
-            for name in names:
-                show[name] = not token or val(check)
         self._sync_ring(
             token and text != "none" and val("token_text_style") == "curved"
         )
@@ -726,6 +769,7 @@ class FigurePanel(QScrollArea):
         self._shown = self._read()
         if new != self._s:
             self._s = new
+            self._sync_style()
             self.changed.emit(new)
 
     # endregion

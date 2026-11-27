@@ -7,6 +7,9 @@ from ..project.figure_settings import FIGURE_OPTIONS, FigureSettings
 from ..project.option_flags import OptionFlags
 from ..project.size_calculator import SizeCalculator
 from ..project.size_table import GRID_MM, SizeTable
+from ..project.style_preset import StylePreset
+from ..project.style_preset_file import StylePresetFile
+from ..project.styles import BUILTIN_STYLES
 from ..support.font_library import FontLibrary
 
 # the figure settings with a flag, in the order the help lists them
@@ -75,10 +78,12 @@ FIGURE_FLAGS = (
 
 class FigureFlags:
     """Adds the flags of a figure's settings to a command, and turns the flags given
-    into settings, the creature size filling in the rest with ``size_calculator``."""
+    into settings: a style preset, read with ``preset_files``, gives the style, and the
+    creature size fills in the rest with ``size_calculator``."""
 
-    def __init__(self, size_calculator: SizeCalculator):
+    def __init__(self, size_calculator: SizeCalculator, preset_files: StylePresetFile):
         self._size_calculator = size_calculator
+        self._preset_files = preset_files
 
     def add_to(self, parser: argparse.ArgumentParser) -> OptionFlags:
         """Add the figure flags and the grid flag to ``parser``. Every flag is None
@@ -92,6 +97,19 @@ class FigureFlags:
                 "grid square for --size: the bases and heights scale with it",
                 GRID_MM,
                 "mm",
+            ),
+        )
+        flags.group_of("kind").add_argument(
+            "--preset",
+            metavar="NAME_OR_FILE",
+            help=flags.with_default(
+                "a style preset: the look of the figure without its size or text. "
+                "The name of a built-in preset ("
+                + ", ".join(p.name for p in BUILTIN_STYLES)
+                + "), of one in the project you add to, or a preset file saved by "
+                "the app; "
+                "figure flags given as well win over it",
+                None,
             ),
         )
         flags.add(*FIGURE_FLAGS[FIGURE_FLAGS.index("height_mm") :])
@@ -119,7 +137,27 @@ class FigureFlags:
             raise SystemExit("--grid-mm must be above 0")
         return self._size_calculator.for_grid(args.grid_mm)
 
-    def settings(self, args: argparse.Namespace, table: SizeTable) -> FigureSettings:
-        """A figure's settings from the flags ``args`` gives, the size from ``table``
-        filling in the rest."""
-        return self._size_calculator.settings_with_size(self.given(args), table)
+    def preset(
+        self, args: argparse.Namespace, known: list[StylePreset] | None = None
+    ) -> StylePreset | None:
+        """Return the style preset ``args`` names, among ``known`` and the built-in
+        presets or as a file, or None when it names none."""
+        if args.preset is None:
+            return None
+        try:
+            return self._preset_files.find(args.preset, known or [])
+        except (ValueError, OSError) as e:
+            raise SystemExit(f"--preset: {e}") from None
+
+    def settings(
+        self,
+        args: argparse.Namespace,
+        table: SizeTable,
+        preset: StylePreset | None = None,
+    ) -> FigureSettings:
+        """A figure's settings from the flags ``args`` gives over the style ``preset``,
+        the size from ``table`` filling in the rest."""
+        style = preset.to_dict() if preset else {}
+        return self._size_calculator.settings_with_size(
+            {**style, **self.given(args)}, table
+        )

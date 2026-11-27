@@ -12,6 +12,7 @@ from ..pipeline.too_many_parts_error import TooManyPartsError
 from ..project.figure_builder import FigureBuilder
 from ..project.project_store import ProjectStore
 from ..project.size_calculator import SizeCalculator
+from ..project.style_preset_file import StylePresetFile
 from ..support.image_fetcher import ImageFetcher
 from .add_command import AddCommand
 from .build_command import BuildCommand
@@ -44,7 +45,7 @@ class CommandLine:
         images_from_web: ImageFetcher,
     ):
         images = ImageArguments(images_from_web)
-        figure_flags = FigureFlags(size_calculator)
+        figure_flags = FigureFlags(size_calculator, StylePresetFile())
         sheet_flags = SheetFlags()
         self._commands = (
             AddCommand(project_store, images, figure_flags, sheet_flags),
