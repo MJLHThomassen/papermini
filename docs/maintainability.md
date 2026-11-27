@@ -251,7 +251,8 @@ sync:
   (`gui/panels/figure_fields.py`) or `SheetPanel.SECTIONS`, and the rules for
   when it is shown. A field that is not built from its option alone is listed
   in `SPECIAL_FIELDS`, or added to it by `FigurePanel` when it needs a service,
-  as the font field needs the `FontLibrary`;
+  as the font field needs the `FontLibrary`. A field that sets more than one
+  setting, such as the Detail slider, lists them in `FIELD_SETTINGS`;
 - the options table in `docs/reference.md`;
 - its entry in the settings guide there, with a comparison picture from
   `SettingShots` (`scripts/screenshots/setting_shots.py`) when its values look

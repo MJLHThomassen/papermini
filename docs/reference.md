@@ -72,18 +72,22 @@ the desktop app in depth, and how the pipeline works.
     brightness, contrast, saturation, hue, and *Reset adjustments*; see
     [Color adjustments](#color-adjustments)).
   - **Miniature:** at the top, the **Kind**: *Standing mini* or *Token* (see
-    [Tokens](#tokens)). A standing mini has *Size* (creature size, figure height
-    and width, image resolution), then *Back side*, *Image outline*, *Cut line*,
-    *Tab* and *Text* (the font of all the piece's text). *Tab* ends with two
-    indented sub-groups: *Label* (the label printed on the tab) and *Number*
-    (the copy numbers on the tabs). *Back side*, *Tab* and *Label* each have a
-    checkbox at the right of their header that turns the whole group on or off
-    (*Print a back side*, *Print a tab*, *Print a label*); all three are on
-    by default. A group that is off shows only its header and cannot be
-    opened; turning the tab off also hides *Label* and *Number*. A token has
-    *Size* (creature size, diameter, image resolution), *Token*, *Token text*,
-    *Image outline*, *Cut line* and *Text*; its *Token text*, *Image outline* and
-    *Cut line* have a checkbox in their header too, all off by default.
+    [Tokens](#tokens)). A standing mini has these sections:
+    - *Size*: creature size, figure height and width, image resolution.
+    - *Border*: the printed cut line, the margin, its fill, rounding and detail.
+    - *Text*: the font of all the piece's text.
+    - *Tab*: what the front and back tab share, such as the shape and size.
+    - *Front*: what the front tab shows, and its label.
+    - *Back side*: what the back shows, and what the back tab shows.
+
+    *Tab* and *Back side* each have a checkbox at the right of their header that
+    turns the whole section on or off (*Print a tab*, *Print a back side*); both
+    are on by default. A section that is off shows only its header and cannot
+    be opened. Without a tab, *Front* and the back tab's settings are hidden. A
+    token has *Size* (creature size, diameter, image resolution), *Token*,
+    *Token text*, *Border* and *Text*. Its *Token text* has a checkbox in its
+    header, and its *Border* has the checkboxes *Print a cut line* and *Print
+    an outline*; all are off by default.
     **Export…** at the bottom saves this figure as an SVG (the piece with its
     cut line, to print or cut) or a PNG (a picture of the piece, for a virtual
     tabletop): pick the file type in the save dialog. A figure that shows
@@ -106,7 +110,8 @@ the desktop app in depth, and how the pipeline works.
   (`1.6`) whatever your system's language; a typed comma becomes a point.
   The *Apply … to all figures* button copies the settings of the step you are
   on to every other figure. It leaves out the crop and the mask file in
-  1 Source, and the label and a token's *Area* in 2 Miniature.
+  1 Source, and in 2 Miniature the labels (the text of the front and back tab)
+  and a token's *Area*.
 - **1 Source.** The original image with the outline that background removal
   found, before any margin or tab (those belong to the miniature). Everything
   outside the outline is faded, so you can spot a clipped sword tip or a
@@ -444,7 +449,7 @@ let go. *Clear* fits it again.
 `--token-fill color|image` [color]\
 What fills the circle behind the figure: one color, or the original image.
 
-![A token on a color, on the original image, and with an image outline](screenshots/settings/token-fill.png)
+![A token on a color, on the original image, and with an outline](screenshots/settings/token-fill.png)
 
 ##### Background color
 `--token-fill-color` [#ffffff (white)]\
@@ -496,54 +501,40 @@ The label on the token, the same as a standing mini's.
 `--token-text-color` [#ffffff (white)]\
 The color of the token's text.
 
-#### Back side
+#### Border
 
-![Four kinds of back: the mirrored drawing, a blank back, a back with text and a back with the copy's number](screenshots/settings/back.png)
+The paper around the drawing, and the line to cut along at its edge. A standing
+mini always has both. A token has them only with their checkboxes, *Print a cut
+line* and *Print an outline*, both off by default.
 
-##### Print a back side
-`--double-sided` / `--no-double-sided` [on]\
-Prints the piece twice, joined at a fold above the head.
+##### Print a cut line
+`--token-cut-line` [off]\
+Prints the cut line around a token.
 
-Fold it over and glue the halves back to back, so the figure looks right from
-both sides. Off prints only the front. See
-[Double-sided minis](#double-sided-minis).
+Shown for a token, above *Border line*. Without it, the ring's edge shows where
+to cut. A token's cut line lies just outside the ring.
 
-##### Shows
-`--back mirror|blank|text|number|text_number` [mirror]\
-What is on the back half.
+##### Border line
+`--cut-width-mm` [0.3 mm]\
+The width of the printed cut line.
 
-*Mirrored drawing* is the figure seen from behind. *Blank* is plain paper in
-*Color*, for example to draw on. *Text* is plain paper with *Text* on it.
-*Number* is plain paper with the copy's number on it, as large as fits, so
-you can tell the goblins apart across the table. *Text and number* puts the
-number above the text. See [Numbered copies](#numbered-copies). The cut line
-is mirrored either way, so the halves always line up.
+For cutting by hand: a thicker line is easier to follow with scissors. Its
+color is beside it, in the same row. A sheet cut by machine prints no cut
+lines; its cut file has them (see [Cut by](#cut-by) in the Print sheet step).
 
 ##### Color
-`--back-color` [#ffffff (white)]\
-The color of a back that is not the mirrored drawing.
+`--cut-color` [#000000 (black)]\
+The color of the printed cut line.
 
-Shown when *Shows* is not *Mirrored drawing*. The back's tab keeps the tab's
-fill color.
+The swatch beside *Border line*.
 
-##### Text
-`--back-text` [the label]\
-The text on a text back.
+##### Print an outline
+`--token-outline` [off]\
+Prints an outline around the figure on a token, made like a standing mini's
+margin.
 
-Shown when *Shows* is *Text* or *Text and number*. It is centred on the body
-and sized as large as fits; a long text wraps. On the sheet it is upside down,
-and it reads the right way up once the piece is folded.
-
-##### Text color
-`--back-text-color` [#2f5597 (blue)]\
-The color of the text and the number on the back.
-
-Shown when *Shows* has text or a number.
-
-#### Image outline
-
-The paper around the drawing: a standing mini always has it, a token only with the
-checkbox in the header (`--token-outline`, off by default).
+Shown for a token, above *Margin*, *Fill* and *Rounding*, which are shown only
+while it is on.
 
 ##### Margin
 `--margin-mm` [1.6 mm]\
@@ -554,74 +545,99 @@ claws and horn tips, stronger.
 
 ![The red dragon with a margin of 0.8, 1.6 and 3.5 mm](screenshots/settings/margin.png)
 
-##### Margin fill type
+##### Fill
 `--margin-fill color|image` [color]\
-What fills the margin: one color, or the original image.
+What fills the paper around the drawing: one color, or the original image.
 
-*Original image* shows the picture around the figure in the margin, as it is
-in the image.
+With *Color*, the color swatch (*Fill color*) is beside it. *Original image*
+fills everything inside the cut line with the picture, as it is in the image.
+Where the border runs past the edge of a picture without transparency, the
+picture's background is continued past its edges: mirrored, with the figure
+painted out, so the figure is never repeated. The tab keeps its own fill color.
 
-![The flying dragon with a blue margin, and with the original picture in the margin](screenshots/settings/margin-fill.png)
+![The flying dragon with a blue border, and with the original picture around it](screenshots/settings/margin-fill.png)
 
-##### Margin fill color
+##### Fill color
 `--margin-color` [#ffffff (white)]\
-The color of the margin.
+The color of the paper around the drawing.
 
-Shown when *Margin fill type* is *Color*. A dark margin hides a cut that is a
+Shown beside *Fill* while it is *Color*. A dark border hides a cut that is a
 little off, as on the printed dragon at the top of the README.
 
-##### Outline smoothing
+##### Rounding
 `--smooth-mm` [0.6 mm]\
-How much the outline is rounded.
+How much the border's outline is rounded.
 
-More smoothing gives a calmer line with fewer bends to cut, but it also pulls
+More rounding gives a calmer line with fewer bends to cut, but it also pulls
 the line closer to thin tips, which then lose their margin.
 
-![The flying dragon's right wing with 0.6 and 2.5 mm smoothing](screenshots/settings/smoothing.png)
+![The flying dragon's right wing with 0.6 and 2.5 mm rounding](screenshots/settings/smoothing.png)
 
-#### Cut line
-
-The line to cut along. A standing mini always prints it (when cut by hand); a token
-only with the checkbox in the header (`--token-cut-line`, off by default), since its
-ring's edge shows where to cut. A token's cut line lies just outside the ring.
-
-##### Straight segments only (no curves)
-`--no-smooth` [off]\
-Makes the cut line from straight lines instead of curves.
-
-By default the SVG cut line uses smooth Bézier curves. Straight segments give
-more points, for a program that handles only those.
-
-##### Simplify
+##### Detail
 `--simplify-mm` [0.15 mm]\
-How far the cut line may stray from the outline to use fewer points.
+How closely the cut line follows the outline.
 
-Higher values give fewer points and less detail; lower values follow the
-outline more closely.
+Shown for a standing mini. A slider with four steps, each of which sets how far
+the cut line may stray from the outline (`--simplify-mm`) and whether it is
+made of curves or of straight lines (`--no-smooth`):
 
-##### Color
-`--cut-color` [#000000 (black)]\
-The color of the printed cut line.
+- *Exact*: 0.05 mm, with curves. It follows every bump of the outline, and has
+  the most corners.
+- *Fine*: 0.15 mm, with curves; the default. It stays close to the outline and
+  smooths over small bumps.
+- *Coarse*: 0.6 mm, with curves. It smooths over larger bumps, with few
+  corners.
+- *Straight*: 0.6 mm, in straight lines only.
 
-For cutting by hand. A sheet cut by machine prints no cut lines; its cut file
-has them (see [Cut by](#cut-by) in the Print sheet step).
+A coarser line has fewer corners, so it is easier to cut by hand. In *Straight*
+every corner is one cut, so it is the quickest to cut with scissors. A value
+between the steps, from a project file or the command line, shows at the
+nearest step and is kept until you move the slider. The command line takes any
+`--simplify-mm`, and `--no-smooth` for straight lines.
 
-##### Width
-`--cut-width-mm` [0.3 mm]\
-The width of the printed cut line.
+![The flying dragon's right wing at Exact, Fine, Coarse and Straight](screenshots/settings/detail.png)
 
-For cutting by hand: a thicker line is easier to follow with scissors.
+#### Text
+
+![The label and number in Arial, Almendra and Kalam](screenshots/settings/font.png)
+
+##### Font
+`--font` [Arial]\
+The font of all the piece's text: the labels, the numbers and the back text.
+
+The list has Arial first, then Times, then the fonts that come with papermini:
+Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua and Kalam.
+These work on every computer. After them come the TrueType fonts installed on
+this computer; each name is shown in its own font. The bundled fonts are free
+under the SIL Open Font License; *About papermini* (☰ menu) names them and
+opens their folder, where each font's licence is. Numbers use the font's bold;
+MedievalSharp and Uncial Antiqua have no bold, so their numbers are regular.
+
+Arial prints with its own files where the computer has it. Elsewhere it prints
+in Helvetica, a sans-serif built into every PDF reader with the same letter
+widths.
+
+The PDF sheet contains the font, so it prints the same anywhere. An SVG file
+names the font but does not contain it, so other programs show it only where
+it is installed. For Arial, an SVG names `Arial, Helvetica, sans-serif`.
+
+A project keeps the font's name. On a computer without the font, the app
+marks it *(not on this computer)* and the figure prints in Arial; the command
+line prints a note.
 
 #### Tab
 
 The tab is the strip under the figure that folds back, so the figure stands
-up. It folds at the dashed line. See [Stands and bases](#stands-and-bases).
+up. It folds at the dashed line. This section holds what the front and back
+tab share; what each tab shows is under *Front* and *Back side*. See
+[Stands and bases](#stands-and-bases).
 
 ##### Print a tab
 `--no-tab` [off (the tab is printed)]\
 Adds a tab under the figure.
 
-Turn it off for a figure that goes into a slotted or magnetic base.
+Turn it off for a figure that goes into a slotted or magnetic base. Without a
+tab, *Front* and the tab settings under *Back side* are hidden.
 
 ##### Shape
 `--tab-shape square|round` [square]\
@@ -686,84 +702,121 @@ to stand on.
 The color of everything below the fold, behind the label.
 
 For example grass green or stone grey for a plain base, as on the round tab
-above. It does not depend on the margin color.
+above, with *Tab shows* set to *Nothing*. It does not depend on the border's
+fill.
 
-#### Label
+#### Front
 
-The label is text on the tab, in a sub-group at the end of *Tab*.
-
-##### Print a label
-`--label ""` [on]\
-Prints a label on the tab.
-
-Turn it off for a plain tab in its fill color. On the command line an empty
-`--label ""` turns it off.
-
-##### Text
-`--label` [the file name]\
-The text on the tab.
-
-On a double-sided mini it is printed on both tabs. It is also the back text
-when *Text* under *Back side* is empty.
-
-##### Size
-`--label-size-mm` [3.4 mm]\
-The largest size of the label.
-
-A long label shrinks to fit the tab.
-
-##### Color
-`--label-color` [#2f5597 (blue)]\
-The color of the label.
-
-Pick one that shows on the tab's fill color: a dark label on a dark tab
-disappears.
-
-#### Number
-
-The copy's number on the tabs, in a sub-group at the end of *Tab*. Each copy
-on the sheet gets its own number: 1, 2, 3 and so on. The preview shows `#`
-where the number goes. See [Numbered copies](#numbered-copies).
+The front tab: what it shows, and its label. Shown for a standing mini with a
+tab.
 
 ![The front tab with the label, with the number and with both](screenshots/settings/tab-number.png)
 
-##### Front tab
-`--tab-front label|number|label_number` [label]\
+##### Tab shows
+`--tab-front label|number|label_number|none` [label]\
 What the front tab shows.
 
 *Label* is the label alone. *Number* is the copy's number, as large as the tab
 allows. *Label and number* puts the number above the label, at least as large
-as the label. The number is bold and in the label's color.
+as the label. *Nothing* leaves a plain tab in its fill color. Each copy on the
+sheet gets its own number: 1, 2, 3 and so on. The preview shows `#` where the
+number goes. The number is bold and in the label's color. See
+[Numbered copies](#numbered-copies).
 
-##### Back tab
-`--tab-back label|number|label_number` [label]\
+##### Color
+`--label-color` [#000000 (black)]\
+The color of the front tab's label and number.
+
+Shown unless *Tab shows* is *Nothing*. Pick one that shows on the tab's fill
+color: a dark label on a dark tab disappears.
+
+##### Text
+`--label` [the file name]\
+The text on the front tab.
+
+Shown when *Tab shows* has the label. Empty, it is the file name. On the
+command line, `--label ""` prints no text. It is also the back text when
+*Text* under *Back side* is empty, and it is printed on the back tab while that
+shows the same as the front.
+
+##### Size
+`--label-size-mm` [3.4 mm]\
+The largest size of the front tab's label.
+
+Shown when *Tab shows* has the label. A long label shrinks to fit the tab.
+
+#### Back side
+
+![Four kinds of back: the mirrored drawing, a blank back, a back with text and a back with the copy's number](screenshots/settings/back.png)
+
+##### Print a back side
+`--double-sided` / `--no-double-sided` [on]\
+Prints the piece twice, joined at a fold above the head.
+
+Fold it over and glue the halves back to back, so the figure looks right from
+both sides. Off prints only the front. See
+[Double-sided minis](#double-sided-minis).
+
+##### Shows
+`--back mirror|blank|text|number|text_number` [mirror]\
+What is on the back half.
+
+*Mirrored drawing* is the figure seen from behind. *Blank* is plain paper in
+*Paper color*, for example to draw on. *Text* is plain paper with *Text* on it.
+*Number* is plain paper with the copy's number on it, as large as fits, so
+you can tell the goblins apart across the table. *Text and number* puts the
+number above the text. See [Numbered copies](#numbered-copies). The cut line
+is mirrored either way, so the halves always line up.
+
+##### Paper color
+`--back-color` [#ffffff (white)]\
+The color of a back that is not the mirrored drawing.
+
+Shown when *Shows* is not *Mirrored drawing*. The back's tab keeps the tab's
+fill color.
+
+##### Text
+`--back-text` [the label]\
+The text on a text back.
+
+Shown when *Shows* is *Text* or *Text and number*. Empty, it is the front
+tab's label. It is centred on the body and sized as large as fits; a long text
+wraps. On the sheet it is upside down, and it reads the right way up once the
+piece is folded.
+
+##### Text color
+`--back-text-color` [#000000 (black)]\
+The color of the text and the number on the back.
+
+Shown when *Shows* has text or a number.
+
+##### Tab shows
+`--tab-back same|label|number|label_number|none` [same]\
 What the back tab shows.
 
-Shown on a double-sided mini. The choices are those of *Front tab*.
+Shown on a double-sided mini with a tab. *Same as front* prints what the front
+tab shows, with its text, size and color. The other choices are those of
+*Tab shows* under *Front*, with the back tab's own *Color*, *Text* and *Size*
+below it.
 
-#### Text
+##### Color
+`--back-label-color` [#000000 (black)]\
+The color of the back tab's label and number.
 
-![The label and number in Times, Almendra and Kalam](screenshots/settings/font.png)
+Shown when *Tab shows* is neither *Same as front* nor *Nothing*.
 
-##### Font
-`--font` [Times]\
-The font of all the piece's text: the label, the numbers and the back text.
+##### Text
+`--back-label` [the file name]\
+The text on the back tab.
 
-The list has Times first, then the fonts that come with papermini: Fira Sans,
-Crimson Text, Almendra, MedievalSharp, Uncial Antiqua and Kalam. These work on
-every computer. After them come the TrueType fonts installed on this computer;
-each name is shown in its own font. The bundled fonts are free under the SIL Open
-Font License; *About papermini* (☰ menu) names them and opens their folder,
-where each font's licence is. Numbers use the font's bold; MedievalSharp
-and Uncial Antiqua have no bold, so their numbers are regular.
+Shown when *Tab shows* has the label. Empty, it is the file name. On the
+command line, `--back-label ""` prints no text.
 
-The PDF sheet contains the font, so it prints the same anywhere. An SVG file
-names the font but does not contain it, so other programs show it only where
-it is installed.
+##### Size
+`--back-label-size-mm` [3.4 mm]\
+The largest size of the back tab's label.
 
-A project keeps the font's name. On a computer without the font, the app
-marks it *(not on this computer)* and the figure prints in Times; the command
-line prints a note.
+Shown when *Tab shows* has the label. A long label shrinks to fit the tab.
 
 ### Step 3, Print sheet
 
@@ -945,7 +998,7 @@ the value its [creature size](#creature-sizes) fills in.
 | `--height-mm` | 32 (Medium) | height of the drawn figure, without margin and tab |
 | `--width-mm` | set by the height | width of the drawn figure. Alone it sets the size by width (the proportions stay); with `--height-mm` the figure is stretched to both |
 | `--margin-mm` | 1.6 | distance between the drawing and the cut line (filled as set by `--margin-fill`) |
-| `--smooth-mm` | 0.6 | how much the outline is rounded |
+| `--smooth-mm` | 0.6 | how much the border's outline is rounded |
 | `--tab-shape` | square | `square` slots into a stand; `round` is a half disc that folds out into a base |
 | `--tab-width-mm` / `--tab-height-mm` | 25 / 12.5 (Medium) | square tab size (height measured below the fold) |
 | `--tab-radius-mm` | 12.5 (Medium) | round tab radius (12.5 makes a 25 mm base) |
@@ -957,35 +1010,37 @@ the value its [creature size](#creature-sizes) fills in.
 | `--back` | mirror | double-sided back: `mirror` (the drawing seen from behind), `blank` (white paper), `text`, `number` (the copy's number) or `text_number` (the number above the text) |
 | `--back-text` | the label | text for `--back text` or `text_number`; auto-sized and wrapped to fit the figure |
 | `--back-color` | #ffffff | color of a back that is not `mirror` |
-| `--back-text-color` | #2f5597 | color of the text and the number on the back |
+| `--back-text-color` | #000000 | color of the text and the number on the back |
 | `--model` | auto | how the figure is separated from the background: `auto` (the image's transparency if it has any, else `rmbg-1.4`), `rmbg-1.4`, `birefnet`, `birefnet-lite`, `alpha` (the image's own transparency), `mask` (with `--mask`) or the path of an `.onnx` model; see [Model](#model) |
 | `--mask` | none | your own mask image (white = figure, black = background) instead of a model |
 | `--crop x0,y0,x1,y1` | the whole image | region the model looks at, as fractions (0–1) or pixels |
 | `--strength` | 40 | background removal strength (0–254): how sure the model must be that a pixel is figure; go lower for faint pencil, higher for busy scenes |
 | `--fill-gaps` | scales with the image, 9 px at 1400 px | fill gaps and notches in the outline up to this many px; 0 = off |
 | `--keep-all` / `--min-area` | off / 1000 | keep detached parts (≥ min-area px) and bridge them to the figure |
-| `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` shows the original picture there |
+| `--margin-fill` | color | `color` fills the margin with `--margin-color`; `image` fills everything inside the cut line with the original picture, its background continued past the picture's edges where the border needs it (the tab keeps `--tab-color`) |
 | `--margin-color` | #ffffff | color of the margin around the drawing |
 | `--greyscale` | off | print in black and white |
 | `--brightness` | 0 | −100 (towards black) to 100 (towards white); white paper stays white, black lines stay black |
 | `--contrast` | 0 | −100 (flat grey) to 100 (hard) |
 | `--saturation` | 0 | −100 (grey) to 100 (twice as colorful) |
 | `--hue` | 0 | turn every color around the color wheel, −180 to 180 degrees (red → yellow → green for positive values) |
-| `--label` | the file name | text on the tab; `--label ""` for none |
-| `--tab-front` / `--tab-back` | label / label | what the front and back tab show: `label`, `number` (the copy's number) or `label_number` (the number above the label) |
-| `--font` | Times | font of all the text: Times, a bundled font (Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua, Kalam) or an installed one; a font that is not found prints in Times |
+| `--label` | the file name | text on the front tab; `--label ""` for none |
+| `--tab-front` / `--tab-back` | label / same | what the front and back tab show: `label`, `number` (the copy's number), `label_number` (the number above the label) or `none` (a plain tab); the back tab also `same`, what the front tab shows, with its text, size and color |
+| `--back-label` | the file name | text on the back tab, when `--tab-back` is not `same`; `--back-label ""` for none |
+| `--back-label-color` / `--back-label-size-mm` | #000000 / 3.4 | color and largest size of the back tab's label and number, when `--tab-back` is not `same`; a long label shrinks to fit the tab |
+| `--font` | Arial | font of all the text: Arial, Times, a bundled font (Fira Sans, Crimson Text, Almendra, MedievalSharp, Uncial Antiqua, Kalam) or an installed one; a font that is not found prints in Arial. Without Arial's own files, Arial prints in Helvetica |
 | `--copies` | 1 | how many of the figure go on the sheet; a figure with numbers writes one file per copy, each with its number (`goblin-1.svg`, `goblin-2.svg`, …) |
 | `--dpi` | 300 | resolution of the embedded artwork |
-| `--simplify-mm` | 0.15 | cut line simplification tolerance |
-| `--no-smooth` | off | straight segments only (by default the cut line uses Bézier curves) |
-| `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | cut line style |
-| `--label-color` / `--label-size-mm` | #2f5597 / 3.4 | color and largest size of the tab label; a long label shrinks to fit the tab |
+| `--simplify-mm` | 0.15 | how far the cut line may stray from the outline; more gives fewer corners, which are easier to cut by hand (the app's *Detail*) |
+| `--no-smooth` | off | a cut line of straight segments only (by default it uses Bézier curves); the app's *Detail* at *Straight* |
+| `--cut-color` / `--cut-width-mm` | #000000 / 0.3 | color and width of the printed cut line, for cutting by hand |
+| `--label-color` / `--label-size-mm` | #000000 / 3.4 | color and largest size of the front tab's label and number; a long label shrinks to fit the tab |
 | `--kind` | mini | `mini` (a standing miniature) or `token` (a flat round token; see [Tokens](#tokens)) |
 | `--token-diameter-mm` | 25 (Medium) | a token's diameter, ring included; filled in from the creature size's base |
 | `--token-area` | the whole figure, fitted | `x0,y0,x1,y1`: the square of the picture that fills the circle, as fractions |
 | `--token-fill` / `--token-fill-color` | color / #ffffff | behind the figure: a `color`, or the original `image` |
 | `--token-border-mm` / `--token-border-color` | 2 / #000000 | the ring; 0 for none |
-| `--token-outline` | off | an image outline around the figure, made with `--margin-mm`, `--margin-fill` and `--margin-color` |
+| `--token-outline` | off | an outline around the figure, made with `--margin-mm`, `--margin-fill` and `--margin-color` |
 | `--token-cut-line` | off | print the cut line (by default the ring's edge shows where to cut) |
 | `--token-text` | none | `none`, `label`, `number` or `label_number` on the token |
 | `--token-text-style` | nameplate | `nameplate` (a band and a badge) or `curved` (along the ring) |
@@ -1296,15 +1351,16 @@ The tab under the figure comes in two shapes:
 
 Either shape has its own color, `--tab-color`. It is white by default,
 independent of the margin color, and covers everything below the fold. The
-label is printed on it; use `--label ""` for a plain tab, for example grass
-green or stone grey.
+label is printed on it; use `--tab-front none` for a plain tab, for example
+grass green or stone grey.
 
 ```bash
-papermini build dragon.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --label ""
+papermini build dragon.png --tab-shape round --tab-radius-mm 12.5 --tab-color "#3b6e2a" --tab-front none
 ```
 
 The margin around the drawing can be any color (`--margin-color "#f3e6c8"`)
-instead of white, or show the original image (`--margin-fill image`).
+instead of white, or the original image can fill everything inside the cut line
+(`--margin-fill image`).
 
 ## Double-sided minis
 
@@ -1312,8 +1368,8 @@ Minis are double-sided by default: the piece is printed twice, joined at a fold
 above the head. Fold it over and glue the halves back to back, so the figure
 looks right from both sides. The cut line is always mirrored, so the halves line
 up. `--no-double-sided` (or unticking the checkbox in the *Back side* header,
-at the top of the app's Miniature step) prints only the front. What shows on
-the back is up to you:
+in the app's Miniature step) prints only the front. What shows on the back is
+up to you:
 
 - `--back mirror` (default) shows the drawing seen from behind.
 - `--back blank` leaves the back plain, in `--back-color` (white by default),
@@ -1331,6 +1387,11 @@ the back is up to you:
   `--back text_number` the number above the text. See
   [Numbered copies](#numbered-copies).
 
+The back tab shows the same as the front tab by default, with its text, size
+and color. To give it its own, pick what it shows under *Tab shows* in *Back
+side* (`--tab-back`), and set its text, color and size there (`--back-label`,
+`--back-label-color`, `--back-label-size-mm`).
+
 ## Numbered copies
 
 Six goblins that look the same are easier to tell apart with a number on each
@@ -1338,17 +1399,17 @@ Six goblins that look the same are easier to tell apart with a number on each
 on, and another figure starts again at 1. The number is printed only where you
 choose. By default no number is printed, also when there are several copies.
 
-- **On the tabs:** `--tab-front` and `--tab-back` (in the app, *Front tab* and
-  *Back tab* under *Number*) show the label, the number, or both, with the
-  number above the label.
+- **On the tabs:** `--tab-front` and `--tab-back` (in the app, *Tab shows*
+  under *Front* and under *Back side*) show the label, the number, or both,
+  with the number above the label.
 - **On the back:** `--back number` or `--back text_number` (in the app, *Shows*
   under *Back side*).
 - **On a token:** `--token-text number` or `label_number` (in the app, *Shows*
   under *Token text*), on a badge or along the ring.
 
 Once a figure shows its number, it is printed on every copy, also on a single
-copy ("1"). Numbers are bold, in the font and color of the label; on the back,
-in the back text's color. A sheet cut by machine prints them too; the cut lines
+copy ("1"). Numbers are bold, in the font of the piece and the color of the
+tab's label; on the back, in the back text's color. A sheet cut by machine prints them too; the cut lines
 stay the same.
 
 ```bash
@@ -1378,7 +1439,7 @@ papermini build goblin.png --kind token --token-text number --copies 6 -o tokens
   bigger or smaller (`--token-area`, the square of the picture that fills the
   circle).
 - **Look:** the background (a color or the original picture), the ring (width and
-  color), an optional image outline around the figure, and text: the label and the
+  color), an optional outline around the figure, and text: the label and the
   copy's number, on a nameplate and badge or curved along the ring.
 - **Print sheet:** tokens go on the same sheet as standing minis, each copy with its
   own number. By default no cut line is printed: cut along the ring's edge. With a
@@ -1393,7 +1454,7 @@ papermini build goblin.png --kind token --token-text number --copies 6 -o tokens
 ## Color adjustments
 
 Greyscale, brightness, contrast, saturation and hue change the colors of what
-is printed: the drawing, a margin filled with the image (`--margin-fill image`)
+is printed: the drawing, a border filled with the image (`--margin-fill image`)
 and the mirrored back. They never change what background removal sees, so the
 outline stays where it is and moving a slider never runs the model again. In
 the app they are in *Image adjustments* in step 1, and the Source view shows the adjusted picture (a

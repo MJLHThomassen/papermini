@@ -45,8 +45,8 @@ Turn images (PNG/JPG) into **print-ready paper miniatures** for tabletop games l
   ring, a nameplate or curved text, for the table or a virtual tabletop.
 - **[Numbered copies](docs/reference.md#numbered-copies)**: a number on the
   tabs or the back of each copy, to tell six goblins apart.
-- **[Fonts](docs/reference.md#font)**: Times, six free fonts that come with
-  papermini, or any TrueType font on your computer.
+- **[Fonts](docs/reference.md#font)**: Arial, Times, six free fonts that come
+  with papermini, or any TrueType font on your computer.
 - **[Color adjustments](docs/reference.md#color-adjustments)**: greyscale,
   brightness, contrast, saturation and hue.
 - **[Print sheets](docs/reference.md#paper)**: PDF pages at real size on A3,
@@ -110,10 +110,11 @@ The downloads are not code-signed, so the first start can need one extra step:
    image, and everything outside it is faded. If the outline is wrong, try a
    lower strength, a tighter crop or another model. A slow model can be
    cancelled. [All Source settings](docs/reference.md#step-1-source).
-3. **Step 2, Miniature.** Set the size, back side, margin, cut line, tab and label.
-   The back side, tab and label each have a checkbox in their header to turn
-   them on or off; all three are on by default, so a mini has a front and a
-   back, folded over the head. The preview updates as you go.
+3. **Step 2, Miniature.** Set the size, the border (cut line and margin), the
+   font, the tab, what the front tab shows and the back side. The tab and the
+   back side each have a checkbox in their header to turn them on or off; both
+   are on by default, so a mini has a front and a back, folded over the head.
+   The preview updates as you go.
    [All Miniature settings](docs/reference.md#step-2-miniature), including
    the tab's [overlap](docs/reference.md#overlap-into-figure) and
    [fold](docs/reference.md#fold-above-lowest-point).
