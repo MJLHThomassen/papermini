@@ -15,6 +15,7 @@ from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QGuiApplication, QIcon, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QAbstractSpinBox,
     QApplication,
     QDialog,
     QFileDialog,
@@ -65,6 +66,10 @@ from ..dialogs.download_dialog import DownloadDialog
 from ..dialogs.preferences_dialog import PreferencesDialog
 from ..exporting.export_controller import ExportController
 from ..exporting.export_dialogs import ExportDialogs
+from ..history.history_pane import HistoryPane
+from ..history.project_history import ProjectHistory
+from ..history.project_snapshot import ProjectSnapshot
+from ..history.undo_keys import UndoKeys
 from ..panels.figure_fields import PER_IMAGE
 from ..panels.figure_panel import FigurePanel
 from ..panels.section import Section
@@ -119,7 +124,7 @@ UPDATE_CHECK_DELAY_MS = 2000
 LEFT_PANEL_PX = 290
 CANVAS_PX = 790
 RIGHT_PANEL_PX = 380
-CROP_UNDO_STEPS = 50  # the crop changes Ctrl+Z can undo
+HISTORY_SPLIT_PX = 400  # the figure list and the history start equally tall
 
 
 class MainWindow(QMainWindow):
@@ -166,6 +171,9 @@ class MainWindow(QMainWindow):
         self._uids = itertools.count(1)
         self._modified = False
         self.sig = Signals()
+        self.history = ProjectHistory(
+            self._snapshot, self._restore, prefs.undo_steps, parent=self
+        )
         self.builds = BuildQueue(
             pipeline,
             figure_builder,
@@ -201,8 +209,6 @@ class MainWindow(QMainWindow):
         self._declined = (
             set()
         )  # models the user did not want to download (until they change model)
-        self._crop_undo = []  # (figure uid, crop before a change), newest last: Ctrl+Z
-        self._undoing = False
 
         # settings changes go to the detailed log once they settle, as old -> new
         self._settings_log: dict[
@@ -232,7 +238,18 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self.views.set_index)
         self.sheet_panel.set_settings(self.project.sheet)
         self._sync_size_label()
-        self._update_title()
+        for signal in (
+            self.history.stack.indexChanged,
+            self.history.stack.cleanChanged,
+            self.history.stack.undoTextChanged,
+            self.history.stack.redoTextChanged,
+        ):
+            signal.connect(self._sync_history)
+        self._sync_history()
+        self.history_pane.set_start(self._start_text())
+        self._undo_keys = UndoKeys(self)
+        for box in self.findChildren(QAbstractSpinBox):
+            box.installEventFilter(self._undo_keys)
         self._show_current()
         QTimer.singleShot(UPDATE_CHECK_DELAY_MS, self.updater.start_up)
         self.sig.fonts_found.connect(self.panel.set_installed_fonts)
@@ -357,6 +374,10 @@ class MainWindow(QMainWindow):
             self._tool("open", "Open a project or images  (Ctrl+O)", self.open_dialog)
         )
         h.addWidget(self._tool("save", "Save project  (Ctrl+S)", self.save))
+        self.btn_undo = self._tool("undo", "Undo  (Ctrl+Z)", self.undo)
+        self.btn_redo = self._tool("redo", "Redo  (Ctrl+Y)", self.redo)
+        h.addWidget(self.btn_undo)
+        h.addWidget(self.btn_redo)
         h.addStretch(1)
         self.views = Segmented(
             self._themes,
@@ -418,7 +439,13 @@ class MainWindow(QMainWindow):
     def _make_figure_list(self) -> QFrame:
         left = QFrame()
         left.setObjectName("SideLeft")
-        v = QVBoxLayout(left)
+        outer = QVBoxLayout(left)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.left_split = QSplitter(Qt.Orientation.Vertical)
+        self.left_split.setHandleWidth(1)
+        outer.addWidget(self.left_split)
+        figures = QWidget()
+        v = QVBoxLayout(figures)
         v.setContentsMargins(10, 14, 10, 10)
         v.setSpacing(8)
         head = QHBoxLayout()
@@ -474,6 +501,15 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True)
         hint.setContentsMargins(8, 0, 8, 0)
         v.addWidget(hint)
+        self.history_pane = HistoryPane(self.history.stack, self._themes)
+        self.history_pane.openChanged.connect(self._history_opened)
+        self.left_split.addWidget(figures)
+        self.left_split.addWidget(self.history_pane)
+        self.left_split.setCollapsible(0, False)
+        self.left_split.setCollapsible(1, False)
+        self.left_split.setSizes([HISTORY_SPLIT_PX, HISTORY_SPLIT_PX])
+        self._history_px = HISTORY_SPLIT_PX  # its height when open
+        self.left_split.splitterMoved.connect(self._history_dragged)
         return left
 
     def _make_link_bar(self) -> QHBoxLayout:
@@ -512,9 +548,9 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().hide()
         self.tabs.setDocumentMode(True)
         self.mini_view = MiniView(self._themes)
-        self.mini_view.areaChanged.connect(self.panel.set_token_area)
+        self.mini_view.areaChanged.connect(self._token_area_dragged)
         self.crop_view = CropView(self._themes)
-        self.crop_view.cropChanged.connect(self.panel.set_crop)
+        self.crop_view.cropChanged.connect(self._crop_drawn)
         sheet_page = QWidget()
         sv = QGridLayout(sheet_page)
         sv.setContentsMargins(0, 0, 0, 0)
@@ -612,10 +648,10 @@ class MainWindow(QMainWindow):
         self.btn_clear_crop.setText("Clear crop")
         self.btn_clear_crop.setToolTip(
             "Remove the crop box, so background removal looks at "
-            "the whole image (Delete). Ctrl+Z undoes a crop change."
+            "the whole image (Delete)."
         )
         self.btn_clear_crop.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_clear_crop.clicked.connect(lambda: self.panel.set_crop(None))
+        self.btn_clear_crop.clicked.connect(lambda: self._crop_drawn(None))
         cl.addWidget(self.btn_clear_crop)
         self.clear_crop_card.hide()
         zb.addWidget(self.clear_crop_card, 0, Qt.AlignmentFlag.AlignBottom)
@@ -699,12 +735,9 @@ class MainWindow(QMainWindow):
             "Ctrl+Shift+P",
             "Print the sheet at its real size",
         )
-        self.a_undo_crop = act(
-            "Undo crop change",
-            self.undo_crop,
-            QKeySequence.StandardKey.Undo,
-            "Put the crop box back as it was before the last change",
-        )
+        self.a_undo = act("Undo", self.undo, QKeySequence.StandardKey.Undo)
+        self.a_redo = act("Redo", self.redo)
+        self.a_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
         self.a_remove = act(
             "Remove figure", self.remove_current, QKeySequence.StandardKey.Delete
         )
@@ -719,10 +752,10 @@ class MainWindow(QMainWindow):
             "Show at real size (depends on your screen's reported DPI)",
         )
         self.a_left = act(
-            "Figure list",
+            "Figures and history",
             lambda on: self.set_side_visible(self.LEFT, on),
             "Ctrl+B",
-            "Show or hide the figure list",
+            "Show or hide the left panel with the figures and the undo history",
         )
         self.a_right = act(
             "Settings",
@@ -730,7 +763,13 @@ class MainWindow(QMainWindow):
             "Ctrl+Alt+B",
             "Show or hide the settings panel",
         )
-        for a in (self.a_left, self.a_right):
+        self.a_history = act(
+            "Undo history",
+            self.set_history_open,
+            None,
+            "Open or fold the list of changes at the bottom of the left panel",
+        )
+        for a in (self.a_left, self.a_right, self.a_history):
             a.setCheckable(True)
             a.setChecked(True)
         self.a_prefs = act(
@@ -773,7 +812,8 @@ class MainWindow(QMainWindow):
             self.a_add_folder,
             self.a_add_link,
             None,
-            self.a_undo_crop,
+            self.a_undo,
+            self.a_redo,
             None,
             self.a_save,
             self.a_save_as,
@@ -786,7 +826,14 @@ class MainWindow(QMainWindow):
         ):
             m.addSeparator() if a is None else m.addAction(a)
         vm = m.addMenu("View")
-        for a in (self.a_left, self.a_right, None, self.a_fit, self.a_actual):
+        for a in (
+            self.a_left,
+            self.a_right,
+            self.a_history,
+            None,
+            self.a_fit,
+            self.a_actual,
+        ):
             vm.addSeparator() if a is None else vm.addAction(a)
         m.addSeparator()
         m.addAction(self.a_prefs)
@@ -802,7 +849,7 @@ class MainWindow(QMainWindow):
     # endregion
 
     # region side panels
-    SIDE_NAMES: ClassVar = {LEFT: "figure list", RIGHT: "settings"}
+    SIDE_NAMES: ClassVar = {LEFT: "figures and history", RIGHT: "settings"}
 
     def side_visible(self, i: int) -> bool:
         return self.splitter.sizes()[i] > 0
@@ -843,6 +890,30 @@ class MainWindow(QMainWindow):
             if w > 0:
                 self._side_width[i] = w
         self._sync_sides()
+        self.set_history_open(self._prefs.history_open())
+
+    def set_history_open(self, open_: bool) -> None:
+        """Open the undo history at the bottom of the left panel, or fold it to its
+        header."""
+        self.history_pane.set_open(open_)
+        self._history_opened(open_)
+
+    def _history_opened(self, open_: bool) -> None:
+        """Give the history back its height when it opens, and keep its handle still
+        while it is folded."""
+        handle = self.left_split.handle(1)
+        if handle is not None:
+            handle.setEnabled(open_)
+        if open_:
+            total = sum(self.left_split.sizes())
+            h = min(self._history_px, max(total - HISTORY_SPLIT_PX // 2, 0))
+            self.left_split.setSizes([total - h, h])
+        self.a_history.setChecked(open_)
+        self._prefs.set_history_open(open_)
+
+    def _history_dragged(self, *_) -> None:
+        if self.history_pane.is_open():
+            self._history_px = self.left_split.sizes()[1]
 
     def _save_layout(self):
         sizes = self.splitter.sizes()
@@ -912,6 +983,7 @@ class MainWindow(QMainWindow):
         self.legend.refresh_theme()
         self.empty.refresh_icons()
         self.panel.refresh_icons()
+        self.history_pane.refresh_icons()
         self.crop_view.refresh_theme()
         self._sync_sides()
         for sec in self.panel.findChildren(Section):
@@ -954,24 +1026,26 @@ class MainWindow(QMainWindow):
         ``names``: a figure name for each path (None: named after the file)."""
         base = self._base_settings(settings)
         links = [str(p).strip() for p in paths if ImageFetcher.is_url(p)]
-        added = 0
+        entries = []
         for p, name in zip(paths, names or [None] * len(paths)):
             if ImageFetcher.is_url(p):
                 continue
             p = ImageFiles.local_path(p).resolve()
-            if not ImageFiles.is_image_file(p):
-                continue
-            self._append(FigureEntry(p, self._new_settings(base), name))
-            added += 1
+            if ImageFiles.is_image_file(p):
+                entries.append(FigureEntry(p, self._new_settings(base), name))
+        added = len(entries)
         if added:
-            names = [f.entry.image.name for f in self.figures[-added:]]
+            what = entries[0].image.name if added == 1 else f"{added} images"
+            with self.history.change(f"adding {what}", f"Added {what}"):
+                for entry in entries:
+                    self._append(entry)
+            names = [e.image.name for e in entries]
             ui_log.info(
                 "Added %d image(s): %s",
                 added,
                 ", ".join(names[:10]) + (", …" if added > 10 else ""),
             )
             self.list.setCurrentRow(len(self.figures) - 1)
-            self._set_modified()
         if links:
             self.add_links(links, base)
         return added
@@ -1005,10 +1079,11 @@ class MainWindow(QMainWindow):
             self._status("Could not add the image")
             self._warn(f"Could not add the image.\n\n{err}")
             return
-        self._append(FigureEntry(Path(path), self._new_settings(base), source=url))
+        name = Path(path).name
+        with self.history.change(f"adding {name}", f"Added {name}"):
+            self._append(FigureEntry(Path(path), self._new_settings(base), source=url))
         ui_log.info("Added %s from %s", Path(path).name, LogSession.link_text(url))
         self.list.setCurrentRow(len(self.figures) - 1)
-        self._set_modified()
         self._status(f"Added {Path(path).name}")
 
     def focus_link_bar(self):
@@ -1066,6 +1141,12 @@ class MainWindow(QMainWindow):
     def _append(self, entry: FigureEntry):
         fig = Figure(next(self._uids), entry, bleed_mm=self.project.sheet.figure_bleed)
         self.figures.append(fig)
+        self._add_item(fig)
+        self.count_label.setText(str(len(self.figures)))
+
+    def _add_item(self, fig: Figure) -> None:
+        """Add the card of ``fig`` at the end of the figure list."""
+        entry = fig.entry
         item = QListWidgetItem(entry.display_name)
         img = self._images.load(entry.image)
         if not img.isNull():
@@ -1088,7 +1169,6 @@ class MainWindow(QMainWindow):
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)  # (the copies box)
         item.setSizeHint(QSize(0, FigureDelegate.H))
         self.list.addItem(item)
-        self.count_label.setText(str(len(self.figures)))
 
     def _refresh_card(self, fig: Figure):
         """Figure list entry: name, a thumbnail of the finished piece, size and copies."""
@@ -1127,21 +1207,22 @@ class MainWindow(QMainWindow):
         r = self.list.currentRow()
         if r < 0:
             return
-        ui_log.info("Removed %s", self.figures[r].entry.image.name)
-        self.figures.pop(r)
+        name = self.figures[r].entry.image.name
+        ui_log.info("Removed %s", name)
+        with self.history.change(f"removing {name}", f"Removed {name}"):
+            self.figures.pop(r)
         self.list.takeItem(r)
         self.count_label.setText(str(len(self.figures)))
-        self._set_modified()
         self._show_current()
         self._sheet_timer.start()
 
     def _rows_moved(self, *_):
         by_uid = {f.uid: f for f in self.figures}
-        self.figures = [
-            by_uid[self.list.item(i).data(Qt.ItemDataRole.UserRole)]
-            for i in range(self.list.count())
-        ]
-        self._set_modified()
+        with self.history.change("reordering the figures", "Reordered the figures"):
+            self.figures = [
+                by_uid[self.list.item(i).data(Qt.ItemDataRole.UserRole)]
+                for i in range(self.list.count())
+            ]
 
     def _figure(self, uid) -> Figure | None:
         return next((f for f in self.figures if f.uid == uid), None)
@@ -1161,9 +1242,9 @@ class MainWindow(QMainWindow):
         if fig is None or n == fig.entry.settings.copies:
             return
         self._note_settings(fig.uid, fig.entry.image.name, fig.entry.settings)
-        fig.entry.settings = replace(fig.entry.settings, copies=n)
+        with self.history.change():
+            fig.entry.settings = replace(fig.entry.settings, copies=n)
         self._refresh_card(fig)
-        self._set_modified()
         self._sheet_timer.start()
 
     def _settings_changed(self, s: FigureSettings):
@@ -1182,21 +1263,18 @@ class MainWindow(QMainWindow):
             self.panel.show_size(s)
         if s.adjustments() != old.adjustments():
             self._picture_timer.start()  # (the model is not involved: no rebuild of the mask)
-        if s.crop != old.crop and not self._undoing:  # a crop change can be undone
-            self._crop_undo.append((fig.uid, old.crop))
-            del self._crop_undo[:-CROP_UNDO_STEPS]
         if s.model != old.model:
             self._declined.clear()  # a new model choice may ask again
             ui_log.info("%s: model %s → %s", fig.entry.image.name, old.model, s.model)
         old_mask = fig.mask_key()
         self._note_settings(fig.uid, fig.entry.image.name, old)
-        fig.entry.settings = s
+        with self.history.change():
+            fig.entry.settings = s
         self.builds.settings_changed(fig, old_mask)
         fig.invalidate()
         self._refresh_card(fig)
         self.crop_view.set_crop(s.crop)
         self._sync_legend()
-        self._set_modified()
         self.builds.build_soon()
         self._sheet_timer.start()  # e.g. copies: no rebuild, but the sheet changes
 
@@ -1237,12 +1315,16 @@ class MainWindow(QMainWindow):
             return
         src = asdict(cur.entry.settings)
         names = set(src) - PER_IMAGE if names is None else set(names) - PER_IMAGE
-        for f in self.figures:
-            if f is cur:
-                continue
-            f.entry.settings = replace(f.entry.settings, **{k: src[k] for k in names})
-            f.invalidate()
-        self._set_modified()
+        with self.history.change(
+            "applying settings to all figures", "Applied settings to all figures"
+        ):
+            for f in self.figures:
+                if f is cur:
+                    continue
+                f.entry.settings = replace(
+                    f.entry.settings, **{k: src[k] for k in names}
+                )
+                f.invalidate()
         ui_log.info(
             "Applied %s of %s to %d other figure(s)",
             ", ".join(sorted(names)),
@@ -1254,16 +1336,20 @@ class MainWindow(QMainWindow):
 
     def _sheet_changed(self, s):
         self._note_settings("sheet", "sheet", self.project.sheet)
-        self.project.sheet = s
-        if any(f.bleed_mm != s.figure_bleed for f in self.figures):
-            for (
-                f
-            ) in self.figures:  # cut by machine (or not): every piece gets its bleed
-                f.bleed_mm = s.figure_bleed
+        with self.history.change():
+            self.project.sheet = s
+        self._follow_bleed()
+        self._sheet_timer.start()
+
+    def _follow_bleed(self) -> None:
+        """Give every figure the sheet's bleed, which it has only when cut by machine,
+        and rebuild the figures whose bleed changes."""
+        bleed = self.project.sheet.figure_bleed
+        if any(f.bleed_mm != bleed for f in self.figures):
+            for f in self.figures:
+                f.bleed_mm = bleed
                 f.invalidate()
             self.builds.build_soon()
-        self._set_modified()
-        self._sheet_timer.start()
 
     def too_big(self, lay) -> tuple[str, list[str], str]:
         """The figures too big for the paper: a line saying so, their names, and what to
@@ -1640,27 +1726,6 @@ class MainWindow(QMainWindow):
             cropped and self.tabs.currentIndex() == Step.SOURCE
         )
 
-    def undo_crop(self):
-        """Ctrl+Z: the crop box as it was before its last change (also of another
-        figure, which is then selected). Text fields keep their own Ctrl+Z."""
-        while self._crop_undo:
-            uid, crop = self._crop_undo.pop()
-            fig = self._figure(uid)
-            if fig is None:
-                continue  # removed since
-            if fig is not self.current():
-                item = self._list_item(fig)
-                assert item is not None  # (every figure has its list item)
-                self.list.setCurrentItem(item)
-            self._undoing = True
-            try:
-                self.panel.set_crop(crop)
-            finally:
-                self._undoing = False
-            self._status("Crop change undone")
-            return
-        self._status("No crop change to undo")
-
     def _refresh_sheet(self):
         if self.tabs.currentIndex() != Step.SHEET:
             return
@@ -1737,6 +1802,153 @@ class MainWindow(QMainWindow):
         return [self.crop_view, self.mini_view, self.sheet_view][
             self.tabs.currentIndex()
         ]
+
+    # endregion
+
+    # region history
+    def undo(self) -> None:
+        """Undo the last change to the project."""
+        stack = self.history.stack
+        if not stack.canUndo():
+            self._status("Nothing to undo")
+            return
+        text = stack.undoText()
+        stack.undo()
+        ui_log.info("Undid %s", text)
+        self._status(f"Undid {text}")
+
+    def redo(self) -> None:
+        """Redo the last undone change to the project."""
+        stack = self.history.stack
+        if not stack.canRedo():
+            self._status("Nothing to redo")
+            return
+        text = stack.redoText()
+        stack.redo()
+        ui_log.info("Redid %s", text)
+        self._status(f"Redid {text}")
+
+    def _sync_history(self, *_) -> None:
+        """Name the next undo and redo on their actions and buttons, enable them when
+        there is something to undo or redo, and mark the project modified unless the
+        history is at the point it was saved."""
+        stack = self.history.stack
+        for action, button, word, key, able, text in (
+            (
+                self.a_undo,
+                self.btn_undo,
+                "Undo",
+                "Ctrl+Z",
+                stack.canUndo(),
+                stack.undoText(),
+            ),
+            (
+                self.a_redo,
+                self.btn_redo,
+                "Redo",
+                "Ctrl+Y",
+                stack.canRedo(),
+                stack.redoText(),
+            ),
+        ):
+            name = f"{word} {text}" if able else word
+            action.setText(name)
+            action.setEnabled(able)
+            button.setEnabled(able)
+            button.setToolTip(f"{name}  ({key})")
+        modified = not stack.isClean()
+        if modified != self._modified:
+            self._modified = modified
+            self._update_title()
+
+    def _start_text(self) -> str:
+        """Name the project as it was before any change."""
+        return (
+            f"Opened {self.project.path.name}" if self.project.path else "New project"
+        )
+
+    def _snapshot(self) -> ProjectSnapshot:
+        return ProjectSnapshot.of(self.figures, self.project.sheet, self.project.sizes)
+
+    def _restore(self, target: ProjectSnapshot) -> None:
+        """Put the project back as ``target`` holds it. When the change touched one
+        figure, select it, and show the step that holds the settings it changed."""
+        now = self._snapshot()
+        changed = target.changed_figures(now)
+        step = self._step_of_change(target, now)
+        row = self.list.currentRow()
+        if target.sizes != now.sizes:
+            self.project.sizes = target.sizes
+            self._sync_size_label()
+        if target.sheet != now.sheet:
+            self.project.sheet = target.sheet
+            self.sheet_panel.set_settings(target.sheet)
+        for uid in target.order:
+            self._restore_figure(target.kept[uid], target.settings[uid])
+        if target.order != now.order:
+            self.figures = [target.kept[uid] for uid in target.order]
+            self._fill_list()
+        if len(changed) == 1:
+            row = target.order.index(changed[0])
+        elif 0 <= row < len(now.order) and now.order[row] in target.order:
+            row = target.order.index(now.order[row])
+        self.list.blockSignals(True)
+        try:
+            self.list.setCurrentRow(min(row, len(self.figures) - 1))
+        finally:
+            self.list.blockSignals(False)
+        if step is not None:
+            self.tabs.setCurrentIndex(step)
+        self._show_current()
+        self.builds.build_soon()
+        self._sheet_timer.start()
+
+    def _crop_drawn(self, crop) -> None:
+        """Record each crop box drawn, or cleared, as a step of its own."""
+        with self.history.change("change to the crop", "Changed the crop"):
+            self.panel.set_crop(crop)
+
+    def _token_area_dragged(self, area) -> None:
+        """Record each drag of a token's framing as a step of its own."""
+        with self.history.change(
+            "change to the token framing", "Changed the token framing"
+        ):
+            self.panel.set_token_area(area)
+
+    def _restore_figure(self, fig: Figure, s: FigureSettings) -> None:
+        """Give ``fig`` the settings ``s`` and the sheet's bleed, and rebuild it when
+        they change."""
+        bleed = self.project.sheet.figure_bleed
+        if fig.entry.settings == s and fig.bleed_mm == bleed:
+            return
+        old_mask = fig.mask_key()
+        fig.entry.settings = s
+        fig.bleed_mm = bleed
+        self.builds.settings_changed(fig, old_mask)
+        fig.invalidate()
+        self._refresh_card(fig)
+
+    def _step_of_change(self, target: ProjectSnapshot, now: ProjectSnapshot):
+        """Return the step that shows the change from ``now`` to ``target``, or None
+        when it changes more than one figure's settings or the sheet's."""
+        key = target.merge_key(now)
+        if key is None:
+            return None
+        if key.figure is None:
+            return Step.SHEET
+        return self.panel.step_of(set(key.names))
+
+    def _fill_list(self) -> None:
+        """Rebuild the figure list from ``figures``."""
+        self.list.blockSignals(True)
+        try:
+            self.list.clear()
+            for f in self.figures:
+                self._add_item(f)
+                self._refresh_card(f)
+        finally:
+            self.list.blockSignals(False)
+        self.count_label.setText(str(len(self.figures)))
 
     # endregion
 
@@ -1845,6 +2057,8 @@ class MainWindow(QMainWindow):
                 self._append(e)
         self.sheet_panel.set_settings(proj.sheet)
         self._sync_size_label()
+        self.history.clear()
+        self.history_pane.set_start(self._start_text())
         self._modified = False
         if self.figures:
             self.list.setCurrentRow(0)
@@ -1937,6 +2151,7 @@ class MainWindow(QMainWindow):
         except OSError as e:
             self._warn(str(e))
             return False
+        self.history.stack.setClean()
         self._modified = False
         self._update_title()
         self._remember(self.project.path)
@@ -1983,13 +2198,9 @@ class MainWindow(QMainWindow):
     def discard_changes(self) -> None:
         """Forget the unsaved changes, so that closing the window doesn't ask to save
         them."""
+        self.history.stack.setClean()
         self._modified = False
         self._update_title()
-
-    def _set_modified(self):
-        if not self._modified:
-            self._modified = True
-            self._update_title()
 
     def _update_title(self):
         name = self.project.path.name if self.project.path else "untitled"
@@ -2009,6 +2220,7 @@ class MainWindow(QMainWindow):
             self.set_size_table(table)
         else:
             self._sync_size_label()  # (a preset may have been renamed or deleted)
+        self.history.follow_steps()
 
     def preferences_dialog(self, page: str = "sizes") -> PreferencesDialog:
         """Build the Preferences window at ``page``, connected to this window."""
@@ -2039,19 +2251,22 @@ class MainWindow(QMainWindow):
     def set_size_table(self, table: sizes.SizeTable) -> None:
         """Use ``table`` for this project: every figure with a creature size takes its
         values from it."""
-        self.project.sizes = table
-        self._sync_size_label()
         changed = 0
-        for f in self.figures:
-            s = f.entry.settings
-            if s.size == sizes.CUSTOM:
-                continue
-            new = self._size_calculator.apply(s, s.size, table)
-            if new != s:
-                f.entry.settings = new
-                f.invalidate()
-                self._refresh_card(f)
-                changed += 1
+        with self.history.change(
+            "changing the creature sizes", "Changed the creature sizes"
+        ):
+            self.project.sizes = table
+            for f in self.figures:
+                s = f.entry.settings
+                if s.size == sizes.CUSTOM:
+                    continue
+                new = self._size_calculator.apply(s, s.size, table)
+                if new != s:
+                    f.entry.settings = new
+                    f.invalidate()
+                    self._refresh_card(f)
+                    changed += 1
+        self._sync_size_label()
         ui_log.info(
             "Changed the creature size table (%s, grid %g mm, Medium %g mm); %d "
             "figure(s) follow it",
@@ -2060,7 +2275,6 @@ class MainWindow(QMainWindow):
             table.medium_mm,
             changed,
         )
-        self._set_modified()
         self._show_current()
         self.builds.build_soon()
         self._sheet_timer.start()

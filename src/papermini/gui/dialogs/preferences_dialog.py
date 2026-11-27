@@ -48,6 +48,7 @@ class PreferencesDialog(QDialog):
     PAGES = (
         ("sizes", "Creature sizes"),
         ("images", "Images"),
+        ("undo", "Undo history"),
         ("appearance", "Appearance"),
         ("updates", "Updates"),
         ("logging", "Logging"),
@@ -91,6 +92,7 @@ class PreferencesDialog(QDialog):
         pages = (
             self.sizes,
             self._images(),
+            self._undo(),
             self._appearance(),
             self._updates(),
             self._logging(),
@@ -208,6 +210,32 @@ class PreferencesDialog(QDialog):
         self._prefs.set_png_size_mode(mode)
         self.png_px.setEnabled(mode == "square")
         self.png_dpi.setEnabled(mode == "dpi")
+
+    def _undo(self) -> QWidget:
+        w, v = self._page("Undo history")
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        self.undo_steps = SpinBox()
+        self.undo_steps.setRange(*Preferences.UNDO_STEPS_RANGE)
+        self.undo_steps.setSingleStep(10)
+        self.undo_steps.setKeyboardTracking(False)
+        self.undo_steps.setFixedWidth(90)
+        self.undo_steps.setValue(self._prefs.undo_steps())
+        self.undo_steps.valueChanged.connect(self._prefs.set_undo_steps)
+        row.addWidget(QLabel("Keep the last"))
+        row.addWidget(self.undo_steps)
+        row.addWidget(QLabel("changes"))
+        row.addStretch(1)
+        v.addLayout(row)
+        v.addWidget(
+            PageParts.hint(
+                f"How many changes Undo can take back. The default is "
+                f"{Preferences.UNDO_STEPS}. A project's history starts empty when you "
+                "open it or start a new one, and a new number takes effect then."
+            )
+        )
+        v.addStretch(1)
+        return w
 
     def _appearance(self) -> QWidget:
         w, v = self._page("Appearance")

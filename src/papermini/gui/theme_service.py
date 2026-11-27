@@ -40,6 +40,8 @@ class ThemeService:
         '<path d="M4.5 15.5l4-4 3.5 3.5 2-2 5.5 5.5"/><path d="M18.5 2.5v6M15.5 5.5h6"/>',
         "save": '<path d="M5.5 4.5h10l4 4v10a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/>'
         '<path d="M8 4.5v4.5h6.5V4.5M8 19.5v-5.5h8v5.5"/>',
+        "undo": '<path d="M9.5 14l-5-5 5-5"/><path d="M4.5 9h9.5a5.5 5.5 0 0 1 0 11H10"/>',
+        "redo": '<path d="M14.5 14l5-5-5-5"/><path d="M19.5 9H10a5.5 5.5 0 0 0 0 11h4"/>',
         "export": '<path d="M12 4v10.5M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14"/>',
         "pdf": '<path d="M6.5 3.5h7.5l4.5 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5z"/>'
         '<path d="M14 3.5V8h4.5M8.5 13h7M8.5 16.5h5"/>',
@@ -306,6 +308,10 @@ QRadioButton::indicator:checked {{ border-color: {t.accent}; background: qradial
 #SubHeading {{ color: {t.muted}; font-size: 8.5pt; font-weight: 600; padding-top: 6px; }}
 #FormLabel {{ color: {t.muted}; }}
 QListWidget#Figures {{ background: transparent; border: none; outline: none; }}
+QUndoView#History {{ background: transparent; border: none; outline: none; }}
+QUndoView#History::item {{ padding: 4px 6px; border-radius: 6px; color: {t.text}; }}
+QUndoView#History::item:hover {{ background: {t.surface2}; }}
+QUndoView#History::item:selected {{ background: {t.accent_soft}; color: {t.text}; }}
 
 /* canvas overlays */
 #ZoomBar {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 9px; }}

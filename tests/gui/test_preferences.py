@@ -278,12 +278,13 @@ def test_the_other_pages(window, prefs, themes):
     assert [dlg.nav.item(i).text() for i in range(dlg.nav.count())] == [
         "Creature sizes",
         "Images",
+        "Undo history",
         "Appearance",
         "Updates",
         "Logging",
         "Models and cache",
     ]
-    assert dlg.stack.currentIndex() == 2
+    assert dlg.stack.currentIndex() == 3
     dark = next(b for b in dlg.theme_group.buttons() if b.text() == "Dark")
     dark.setChecked(True)
     assert themes.current is DARK and prefs.theme() == "dark"
@@ -295,6 +296,23 @@ def test_the_other_pages(window, prefs, themes):
     dlg.show_page("nothing")  # (an unknown page: the first)
     assert dlg.stack.currentIndex() == 0
     dlg.close()
+
+
+def test_the_undo_history_page_sets_how_many_changes_undo_keeps(
+    window, prefs, monkeypatch
+):
+    """A new number is saved at once, and an empty history takes it."""
+    from papermini.gui.dialogs.preferences_dialog import PreferencesDialog
+
+    def set_steps(dlg):
+        assert dlg.undo_steps.value() == 100
+        dlg.undo_steps.setValue(250)
+        return 0
+
+    monkeypatch.setattr(PreferencesDialog, "exec", set_steps)
+    window.show_preferences("undo")
+    assert prefs.undo_steps() == 250
+    assert window.history.stack.undoLimit() == 250
 
 
 def test_a_sizes_page_is_freed(prefs, size_calculator, themes):

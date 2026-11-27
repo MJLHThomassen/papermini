@@ -35,6 +35,8 @@ SAVED = [
     ("export_cut", "export/cut", True, False, False),
     ("last_update_check", "updates/last_check", 0.0, 1.7e9, 1.7e9),
     ("auto_updates", "updates/auto", True, False, False),
+    ("history_open", "layout/history_open", True, False, False),
+    ("undo_steps", "history/undo_steps", 100, 250, 250),
 ]
 SETTERS = {
     "add_subfolders": "set_add_subfolders",
@@ -77,6 +79,7 @@ def test_the_recent_projects_keep_their_key(prefs, settings_store, tmp_path):
         ("png_px_per_square", "png_px_per_square", "many", 256),
         ("png_dpi", "png_dpi", 5000, 300),
         ("png_size_mode", "png_size", "huge", "square"),
+        ("undo_steps", "history/undo_steps", 5, 100),
     ],
 )
 def test_a_stored_value_that_does_not_fit_reads_as_the_default(

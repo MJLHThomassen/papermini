@@ -527,8 +527,9 @@ def test_the_view_refits_on_resize_until_it_is_zoomed(app, themes):
 
 
 def test_crop_changes_can_be_undone_and_cleared(app, tmp_path, new_window):
-    """Ctrl+Z puts the crop back as it was (also for another figure); the Clear crop
-    button on the canvas removes it, and shows only on the Source view with a crop."""
+    """Undo puts the crop back as it was, one drawn box at a time, also from another
+    figure; the Clear crop button on the canvas removes it, and shows only on the
+    Source view with a crop."""
 
     for n in "ab":
         Image.new("RGB", (300, 400), (255, 255, 255)).save(tmp_path / f"{n}.png")
@@ -551,15 +552,14 @@ def test_crop_changes_can_be_undone_and_cleared(app, tmp_path, new_window):
     w.btn_clear_crop.click()  # ...on a it clears the box
     assert a.entry.settings.crop is None and not w.clear_crop_card.isVisibleTo(w)
     w.list.setCurrentRow(1)
-    w.a_undo_crop.trigger()  # back on a, as it was
+    w.a_undo.trigger()  # back on a, as it was
     assert w.current() is a and a.entry.settings.crop == [0.2, 0.2, 0.8, 0.8]
     assert w.crop_view.crop_box() is not None
-    w.a_undo_crop.trigger()
+    w.a_undo.trigger()
     assert a.entry.settings.crop == [0.1, 0.1, 0.9, 0.9]
-    w.a_undo_crop.trigger()
+    w.a_undo.trigger()
     assert a.entry.settings.crop is None
-    w.a_undo_crop.trigger()  # nothing left: no change
-    assert a.entry.settings.crop is None
+    assert "adding" in w.a_undo.text()  # no crop change left
 
 
 def test_the_source_view_explains_its_marks_in_a_legend(app, tmp_path, new_window):
