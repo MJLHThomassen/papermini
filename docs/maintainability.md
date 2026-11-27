@@ -83,6 +83,8 @@ src/papermini/       the package, one class per file (S15)
                      update bar
     building/        building the figures' miniatures in the background, and
                      cancelling their model runs
+    history/         the project's undo history, its snapshots and the
+                     history pane
     window/          the main window
 tests/               the pytest suite, one file per module (T3): synthetic masks,
                      no network or model (T4)
@@ -160,8 +162,8 @@ give it an `Enum`. Names can then be completed by editors and checked by ty.
 Avoid lists of positional tuples and one-letter codes that only a comment
 explains.
 
-*Example:* `MainWindow` keeps the steps of its crop undo as `(uid, crop)`
-tuples.
+*Example:* `SizesPage` keys its list entries as `("preset", name)` tuples,
+with a string code for the kind of entry.
 
 ### S5. Add a variant by adding an entry - SOLID (O)
 
