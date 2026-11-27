@@ -106,6 +106,8 @@ justfile             the common tasks (R1)
 pyproject.toml       package metadata, dependencies and tool settings
 uv.lock              the locked versions of every dependency (R3)
 README.md            what papermini does and how to use it
+SECURITY.md          how to report a vulnerability, and what to do if the
+                     release key leaks
 AGENTS.md            extra rules for coding agents
 ```
 
