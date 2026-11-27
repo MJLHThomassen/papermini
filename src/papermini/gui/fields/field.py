@@ -23,6 +23,7 @@ class Field(ABC):
         self.name = option.name
         self.label = option.label  # the text beside its row; empty: a row without one
         self.widget = widget  # the input widget
+        self.inputs: dict[str, QWidget] = {option.name: widget}  # (of each setting)
         self.row: QWidget | None = widget  # the widget in its row; None: no row
         self.switch: QCheckBox | None = None  # the switch in its section's header
         self.switch_name = ""  # the name the panel knows the switch by

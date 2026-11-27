@@ -538,7 +538,8 @@ def test_build_takes_the_number_options(goblin_figure, tmp_path, read_svg):
         "goblin-3.svg",
     ]
     texts = read_svg(tmp_path / "goblin-3.svg").texts
-    assert [t for kind, t in texts if kind == "number"] == ["3", "3"]
+    # (on the front tab, the back tab, which is the same as the front, and the back)
+    assert [t for kind, t in texts if kind == "number"] == ["3", "3", "3"]
 
 
 def test_build_a_folder_into_an_output_folder(
@@ -575,7 +576,7 @@ def test_build_one_file_only_for_one_image(monsters, tmp_path, built, command_li
         command_line.run(["build", str(monsters), "-o", str(tmp_path / "a.svg")])
 
 
-def test_build_prints_in_the_font_asked_for_or_in_times(
+def test_build_prints_in_the_font_asked_for_or_in_arial(
     goblin_figure, tmp_path, capsys, read_svg
 ):
     img, mask = goblin_figure
@@ -586,7 +587,7 @@ def test_build_prints_in_the_font_asked_for_or_in_times(
             == 0
         )
     assert read_svg(tmp_path / "kalam.svg").font == "'Kalam', serif"
-    assert read_svg(tmp_path / "missing.svg").font == "Times New Roman, Times, serif"
+    assert read_svg(tmp_path / "missing.svg").font == "Arial, Helvetica, sans-serif"
     assert "No Such Font is not on this computer" in capsys.readouterr().out
 
 

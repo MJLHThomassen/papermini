@@ -11,6 +11,7 @@ from .color_field import ColorField
 from .field import Field
 from .int_slider_field import IntSliderField
 from .number_field import NumberField
+from .step_slider_field import StepSliderField
 from .text_field import TextField
 
 FieldMaker = Callable[[Option, Callable[..., None]], Field]
@@ -38,6 +39,8 @@ class FieldFactory:
             return ColorField
         if option.choices:
             return ChoiceField
+        if option.stops:
+            return partial(StepSliderField, themes=self._themes)
         if option.slider is not None:
             return partial(IntSliderField, themes=self._themes)
         if option.widget:

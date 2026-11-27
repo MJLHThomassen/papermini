@@ -46,14 +46,14 @@ class FigureBuilder:
                 on_stage=on_stage,
                 downloads=downloads,
             )
+        front_tab, back_tab = s.tab_labels()
         return self._pipeline.minis.make(
             Path(image),
             s.params(),
             mask_options,
-            label=s.label,
+            front_tab=front_tab,
+            back_tab=back_tab,
             back_text=s.back_text,
-            tab_front=s.tab_front,
-            tab_back=s.tab_back,
             dpi=s.dpi,
             simplify_mm=s.simplify_mm,
             smooth_path=not s.no_smooth,

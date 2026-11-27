@@ -124,7 +124,6 @@ class TokenBuilder:
             art=art,
             cut=CutPath.circle(c, c, R + cut_out),
             label=label,
-            label_size_mm=token.text_mm,
             style=style,
             figure_height_mm=o.diameter_mm,
             figure_width_mm=o.diameter_mm,

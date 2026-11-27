@@ -150,7 +150,7 @@ class TokenRenderer:
                 else (255, 255, 255)
             )
             figart = self._composer.compose(
-                img, fig, sil, paper, p, o.margin_fill == "image"
+                img, fig, paper, p, o.margin_fill == "image"
             )
             soft = cv2.GaussianBlur(sil.astype(np.float32) / 255.0, (0, 0), 0.6)[
                 ..., None
@@ -158,7 +158,7 @@ class TokenRenderer:
             return soft * figart + (1.0 - soft) * bg
         if o.fill == "image":
             return bg
-        return self._composer.compose(img, fig, fig, fill, p, False).astype(np.float32)
+        return self._composer.compose(img, fig, fill, p, False).astype(np.float32)
 
     def _badge(
         self,

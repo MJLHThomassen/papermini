@@ -14,11 +14,12 @@ class QtFonts:
         self._families: dict[str, str] = {}
 
     def family(self, name: str) -> str:
-        """Return the family of the font ``name``: Times New Roman for Times, else the
-        font's own files, registered with Qt once."""
+        """Return the family of the font ``name``: its own files, registered with Qt
+        once, or for a font without files Arial for a sans-serif and Times New Roman
+        for Times."""
         if name not in self._families:
             font, _ = self._fonts.resolve(name)
-            family = "Times New Roman"
+            family = "Arial" if font.sans else "Times New Roman"
             if font.regular is not None:
                 found = []
                 for path in (font.regular, font.bold):

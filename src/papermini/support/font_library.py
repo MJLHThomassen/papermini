@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import ClassVar
 
@@ -22,18 +23,21 @@ SANS_FILES = ("arial.ttf", "DejaVuSans.ttf")
 
 
 class FontLibrary:
-    """The fonts for a miniature's text: Times (the default, built into every PDF
-    reader), the fonts bundled with papermini (free fonts under the SIL Open Font
+    """The fonts for a miniature's text: Arial (the default), Times (built into every
+    PDF reader), the fonts bundled with papermini (free fonts under the SIL Open Font
     Licence, in its fonts folder) and the TrueType fonts installed on this computer.
+
+    Arial prints with its own files where this computer has them. Elsewhere it prints
+    in Helvetica, a sans-serif built into every PDF reader with the same letter widths.
 
     A figure uses one font for all its text (labels, numbers, back text), in bold where
     the font has a bold. Installed fonts are found by scanning ``folders``, by default
     the system's font folders; the result is kept in an index in papermini's cache
     folder, so later scans only read new or changed font files. A font that is not on
-    this computer prints in Times instead.
+    this computer prints in Arial instead.
     """
 
-    DEFAULT = "Times"
+    DEFAULT = "Arial"
     FOLDER = Path(__file__).resolve().parent.parent / "fonts"  # the bundled fonts
     # the bundled fonts: name -> (regular, bold or None), relative to FOLDER
     BUNDLED: ClassVar[dict[str, tuple[str, str | None]]] = {
@@ -47,7 +51,8 @@ class FontLibrary:
         "Uncial Antiqua": ("uncialantiqua/UncialAntiqua-Regular.ttf", None),
         "Kalam": ("kalam/Kalam-Regular.ttf", "kalam/Kalam-Bold.ttf"),
     }
-    TIMES = Font(DEFAULT, bundled=True)
+    TIMES = Font("Times", bundled=True)
+    ARIAL = Font(DEFAULT, bundled=True, sans=True)  # (Helvetica, without its files)
 
     def __init__(self, folders: list[Path] | None = None):
         self._folders = folders
@@ -56,8 +61,8 @@ class FontLibrary:
         self._registered: dict[tuple[str, bool], str] = {}
 
     def bundled(self) -> list[Font]:
-        """Times and the fonts that come with papermini."""
-        return [self.TIMES] + [
+        """Arial, Times and the fonts that come with papermini."""
+        return [self.ARIAL, self.TIMES] + [
             Font(n, self.FOLDER / r, self.FOLDER / b if b else None, True)
             for n, (r, b) in self.BUNDLED.items()
         ]
@@ -89,7 +94,7 @@ class FontLibrary:
 
     def installed(self, refresh: bool = False) -> dict[str, Font]:
         """The TrueType fonts installed on this computer that papermini can print with,
-        by name (the bundled ones and Times left out). The first call scans the font
+        by name (Times and the bundled ones left out, Arial kept). The first call scans the font
         folders (reading only files that are new or changed since the index in the cache
         folder); later calls return what it found. Safe to call from any thread."""
         with self._lock:
@@ -101,25 +106,33 @@ class FontLibrary:
 
     # region finding a font
     def find(self, name: str) -> Font | None:
-        """The font called ``name``, or None when it is not on this computer (Times and
-        the bundled fonts always are; looking for an installed one may scan the font
-        folders)."""
+        """The font called ``name``, or None when it is not on this computer (Arial,
+        Times and the bundled fonts always are; looking for an installed one, or for
+        Arial's own files, may scan the font folders)."""
+        if name == self.ARIAL.name:
+            arial = self.installed().get(name)
+            return replace(arial, bundled=True, sans=True) if arial else self.ARIAL
         for f in self.bundled():
             if f.name == name:
                 return f
         return self.installed().get(name)
 
     def resolve(self, name: str) -> tuple[Font, bool]:
-        """The font to print ``name`` with, and whether it was found (if not: Times)."""
-        f = self.find(name) if name else self.TIMES
-        return (f, True) if f is not None else (self.TIMES, False)
+        """The font to print ``name`` with, and whether it was found (if not: the
+        default)."""
+        f = self.find(name or self.DEFAULT)
+        if f is not None:
+            return f, True
+        default = self.find(self.DEFAULT)
+        assert default is not None  # (the default is always found)
+        return default, False
 
     def pdf_name(self, name: str, bold: bool = False) -> str:
         """The font's name for the PDF writer (and for measuring text), registering its
         file the first time."""
         font, _ = self.resolve(name)
         if font.regular is None:
-            return "Times-Bold" if bold else "Times-Roman"
+            return self._standard(font, bold)
         path = font.bold if bold and font.bold else font.regular
         key = (font.name, bold and font.bold is not None)
         if key not in self._registered:
@@ -131,9 +144,12 @@ class FontLibrary:
                 pdfmetrics.registerFont(TTFont(ident, str(path)))
             except Exception as e:  # noqa: BLE001 - e.g. an outline format reportlab cannot read
                 logger.warning(
-                    "could not use the font %s (%s): printing in Times", font.name, e
+                    "could not use the font %s (%s): printing in %s",
+                    font.name,
+                    e,
+                    "Helvetica" if font.sans else "Times",
                 )
-                ident = "Times-Bold" if bold else "Times-Roman"
+                ident = self._standard(font, bold)
             self._registered[key] = ident
         return self._registered[key]
 
@@ -145,23 +161,35 @@ class FontLibrary:
 
         return stringWidth(text, self.pdf_name(name, bold), size)
 
+    @staticmethod
+    def _standard(font: Font, bold: bool) -> str:
+        """Return the name of the font built into PDF readers that ``font`` prints
+        with when it has no file: Helvetica for a sans-serif, else Times."""
+        if font.sans:
+            return "Helvetica-Bold" if bold else "Helvetica"
+        return "Times-Bold" if bold else "Times-Roman"
+
     def svg_family(self, name: str) -> str:
         """The font-family an SVG file names (with a generic fallback)."""
         font, _ = self.resolve(name)
+        if font.sans:
+            return "Arial, Helvetica, sans-serif"
         if font.regular is None:
             return "Times New Roman, Times, serif"
         return f"'{font.name}', serif"
 
     def file_for(self, name: str, bold: bool = False) -> Path | None:
-        """The font file to draw ``name`` with (None for Times)."""
+        """The font file to draw ``name`` with (None for a font without files)."""
         font, _ = self.resolve(name)
         return font.bold if bold and font.bold else font.regular
 
     def image_font(self, size_px: int, name: str | None = None, bold: bool = False):
         """A font for drawing on an image, ``size_px`` high: the font called ``name``
-        (a serif when it has no file of its own), or a sans-serif without a name."""
-        path = self.file_for(name, bold) if name is not None else None
-        files = SERIF_FILES if name is not None else SANS_FILES
+        (a serif or sans-serif like it when it has no file of its own), or a sans-serif
+        without a name."""
+        font = self.resolve(name)[0] if name is not None else self.ARIAL
+        path = font.bold if bold and font.bold else font.regular
+        files = SANS_FILES if font.sans else SERIF_FILES
         for file in ([str(path)] if path else []) + list(files):
             try:
                 return ImageFont.truetype(file, size_px)
@@ -222,7 +250,7 @@ class FontLibrary:
         for key, (_, _, family, style) in files.items():
             if family:
                 styles.setdefault(family, {}).setdefault(style, Path(key))
-        skip = {self.DEFAULT} | set(self.BUNDLED)
+        skip = {self.TIMES.name} | set(self.BUNDLED)
         out = {}
         for family in sorted(styles, key=str.lower):
             s = styles[family]

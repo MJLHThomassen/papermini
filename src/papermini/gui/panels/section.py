@@ -13,14 +13,11 @@ from PySide6.QtWidgets import (
 from ..preferences import Preferences
 from ..theme_service import ThemeService
 
-SUB_INDENT = 14
-
 
 class Section(QWidget):
     """A settings group with a clickable header that folds it open/closed
     (remembered between sessions). A group with a switch that is off shows only its
-    header and cannot be opened. ``sub``: a group inside another one (indented). Its
-    fields go in ``form``, labels on the left."""
+    header and cannot be opened. Its fields go in ``form``, labels on the left."""
 
     def __init__(
         self,
@@ -28,18 +25,16 @@ class Section(QWidget):
         themes: ThemeService,
         title: str,
         parent=None,
-        sub: bool = False,
     ):
         super().__init__(parent)
         self._themes = themes
         self._prefs = prefs
         self._title = title
-        self.setObjectName("SubSection" if sub else "Section")
+        self.setObjectName("Section")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self._active = True
-        self.parent_section = None  # the group a sub-group is inside
         v = QVBoxLayout(self)
-        v.setContentsMargins(SUB_INDENT if sub else 0, 0, 0, 0 if sub else 10)
+        v.setContentsMargins(0, 0, 0, 10)
         v.setSpacing(2)
         self.header = QPushButton(title)
         self.header.setObjectName("SectionHeader")

@@ -6,10 +6,10 @@ from typing import Any
 
 from ..pipeline.adjustments import Adjustments
 from ..pipeline.mask_options import MaskOptions
-from ..pipeline.mini import TAB_SHOWS
 from ..pipeline.params import BACK_MODES, MARGIN_FILLS, TAB_SHAPES, Params
 from ..pipeline.segmentation.segment import DEFAULT_MODEL, ONNX_MODELS
 from ..pipeline.style import Style
+from ..pipeline.tab_label import TAB_SHOWS, TabLabel
 from ..pipeline.token_options import (
     TOKEN_FILLS,
     TOKEN_TEXT_STYLES,
@@ -22,6 +22,9 @@ from .option import Option
 _MEDIUM = sizes.BUILTIN.row(sizes.DEFAULT_SIZE)
 
 KINDS = ("mini", "token")  # a standing miniature or a flat round token
+
+# what the back tab shows: the same as the front tab, or what a tab shows
+TAB_BACK_SHOWS = ("same", *TAB_SHOWS)
 
 _SIZE = "size and shape"
 _TOKEN = "token (--kind token)"
@@ -93,16 +96,16 @@ class FigureSettings:
         label="Margin",
         help="distance between the drawing and the cut line",
         tooltip="Distance between the drawing and the cut line. The margin is filled\n"
-        "with a color or the original image (see Margin fill type).",
+        "with a color or the original image (see Fill).",
         group=_SIZE,
         widget=(0, 15),
         unit="mm",
         step=0.1,
     ).field(1.6)
     smooth_mm: float = Option(
-        label="Outline smoothing",
+        label="Rounding",
         help="outline rounding, Gaussian sigma",
-        tooltip="Rounds the outline; higher values give a calmer cut line.",
+        tooltip="Rounds the border's outline; higher values give a calmer cut line.",
         group=_SIZE,
         widget=(0, 5),
         unit="mm",
@@ -196,7 +199,7 @@ class FigureSettings:
     tab_color: str = Option(
         label="Fill color",
         help="tab color behind the label, independent of the margin; "
-        "use --label '' for a plain tab",
+        "use --tab-front none for a plain tab",
         tooltip="Color of the tab (everything below the fold), behind the label.\n"
         "Independent of the margin color; e.g. grass green for a plain tab.",
         group=_SIZE,
@@ -245,7 +248,7 @@ class FigureSettings:
         kinds=("mini",),
     ).field(None)
     back_color: str = Option(
-        label="Color",
+        label="Paper color",
         help="color of a back that is not the mirrored image",
         tooltip="Color of a back that is not the mirrored drawing (the back tab keeps "
         "the\n"
@@ -261,7 +264,7 @@ class FigureSettings:
         group=_SIZE,
         kinds=("mini",),
         color=True,
-    ).field("#2f5597")
+    ).field("#000000")
     model: str = Option(
         label="Model",
         help=f"{', '.join(ONNX_MODELS)}, alpha, mask (with --mask) or a .onnx file; "
@@ -327,21 +330,23 @@ class FigureSettings:
         step=100,
     ).field(1000)
     margin_fill: str = Option(
-        label="Margin fill type",
-        help="what shows between drawing and cut line: --margin-color "
+        label="Fill",
+        help="what shows around the drawing, inside the cut line: --margin-color "
         "or the original image",
-        tooltip="What fills the margin, the strip between the cut-out drawing and its "
-        "cut line.",
+        tooltip="What fills the paper around the cut-out drawing, inside its cut line.",
         group=_SIZE,
         choices=MARGIN_FILLS,
         choice_labels=("Color", "Original image"),
         choice_details=(
-            "One solid color (Margin fill color).",
-            "The picture around the figure, as it is in the image.",
+            "One solid color (Fill color), in the margin.",
+            (
+                "The picture around the figure, everywhere inside the cut line. Past "
+                "the edges of the image, its background goes on."
+            ),
         ),
     ).field("color")
     margin_color: str = Option(
-        label="Margin fill color",
+        label="Fill color",
         help="color of the margin around the drawing",
         tooltip="The color of the margin between the drawing and the cut line.",
         group=_SIZE,
@@ -400,42 +405,79 @@ class FigureSettings:
     ).field(0)
     label: str | None = Option(
         label="Text",
-        help="text on the tab; '' for none",
+        help="text on the front tab; '' for none",
         none_means="the file name",
-        tooltip="Text printed on the tab (empty = the file name). Also the default back "
-        "text.",
+        tooltip="Text printed on the front tab (empty = the file name). Also the default "
+        "back text.",
         group=_OUTPUT,
     ).field(None)
     tab_front: str = Option(
-        label="Front tab",
-        help="what the front tab shows: the label, the copy number, or "
-        "label_number (the number above the label)",
+        label="Tab shows",
+        help="what the front tab shows: the label, the copy number, "
+        "label_number (the number above the label), or none (a plain tab)",
         tooltip="What the front tab shows. Each copy on the sheet gets its own "
         "number, 1, 2, 3…; this preview shows # where it goes.",
         group=_OUTPUT,
         choices=TAB_SHOWS,
         kinds=("mini",),
-        choice_labels=("Label", "Number", "Label and number"),
+        choice_labels=("Label", "Number", "Label and number", "Nothing"),
         choice_details=(
             "The label.",
             "The copy's number.",
             "The number above the label.",
+            "A plain tab in its fill color.",
         ),
     ).field("label")
     tab_back: str = Option(
-        label="Back tab",
-        help="what the back tab of a double-sided mini shows (as --tab-front)",
+        label="Tab shows",
+        help="what the back tab of a double-sided mini shows: same (as the front tab, "
+        "in its size and color), or as --tab-front with the --back-label options",
         tooltip="What the back tab of a double-sided mini shows.",
         group=_OUTPUT,
-        choices=TAB_SHOWS,
+        choices=TAB_BACK_SHOWS,
         kinds=("mini",),
-        choice_labels=("Label", "Number", "Label and number"),
-        choice_details=(
-            "The label.",
-            "The copy's number.",
-            "The number above the label.",
+        choice_labels=(
+            "Same as front",
+            "Label",
+            "Number",
+            "Label and number",
+            "Nothing",
         ),
-    ).field("label")
+        choice_details=(
+            "What the front tab shows, in its size and color.",
+            "The back tab's own text.",
+            "The copy's number.",
+            "The number above the back tab's own text.",
+            "A plain tab in its fill color.",
+        ),
+    ).field("same")
+    back_label: str | None = Option(
+        label="Text",
+        help="text on the back tab, when --tab-back is not same; '' for none",
+        none_means="the file name",
+        tooltip="Text printed on the back tab (empty = the file name).",
+        group=_OUTPUT,
+        kinds=("mini",),
+    ).field(None)
+    back_label_size_mm: float = Option(
+        label="Size",
+        help="largest size of the back tab's text; long text shrinks to fit the tab",
+        tooltip="Largest text size on the back tab; long text shrinks to fit the tab.",
+        group=_OUTPUT,
+        widget=(0.5, 20),
+        unit="mm",
+        kinds=("mini",),
+        step=0.1,
+        decimals=1,
+    ).field(3.4)
+    back_label_color: str = Option(
+        label="Color",
+        help="color of the back tab's text and number",
+        tooltip="Color of the text and the number on the back tab.",
+        group=_OUTPUT,
+        kinds=("mini",),
+        color=True,
+    ).field("#000000")
     dpi: int = Option(
         label="Image resolution",
         help="embedded image resolution",
@@ -446,15 +488,13 @@ class FigureSettings:
         step=50,
     ).field(300)
     simplify_mm: float = Option(
-        label="Simplify",
-        help="cut line simplification",
-        tooltip="How far the cut line may deviate to use fewer points.",
+        label="Detail",
+        help="how far the cut line may stray from the outline; more gives fewer "
+        "corners, which are easier to cut by hand",
+        tooltip="How far the cut line may stray from the outline.",
         group=_OUTPUT,
-        widget=(0.01, 2),
         unit="mm",
         kinds=("mini",),
-        step=0.05,
-        decimals=3,
     ).field(0.15)
     no_smooth: bool = Option(
         label="Straight segments only (no curves)",
@@ -466,16 +506,16 @@ class FigureSettings:
     cut_color: str = Option(
         label="Color",
         help="cut line color, for cutting by hand",
-        tooltip="Color of the cut line, for cutting by hand. A sheet cut by machine has "
-        "no\n"
-        "cut lines (see Cut by in the Print sheet step).",
+        tooltip="Color of the line printed along the cut, for cutting by hand.",
         group=_OUTPUT,
         color=True,
     ).field("#000000")
     cut_width_mm: float = Option(
-        label="Width",
+        label="Border line",
         help="cut line width, for cutting by hand",
-        tooltip="Width of the printed cut line, for cutting by hand.",
+        tooltip="The line printed along the cut, for cutting by hand: its width, and its "
+        "color\nbeside it. A sheet cut by machine has no cut lines (see Cut by in the "
+        "Print sheet\nstep).",
         group=_OUTPUT,
         widget=(0.01, 2),
         unit="mm",
@@ -483,16 +523,16 @@ class FigureSettings:
     ).field(0.3)
     label_color: str = Option(
         label="Color",
-        help="color of the tab label",
-        tooltip="Color of the tab label.",
+        help="color of the front tab's label and number",
+        tooltip="Color of the label and the number on the front tab.",
         group=_OUTPUT,
         kinds=("mini",),
         color=True,
-    ).field("#2f5597")
+    ).field("#000000")
     label_size_mm: float = Option(
         label="Size",
-        help="largest size of the tab label; long labels shrink to fit the tab",
-        tooltip="Largest text size; long labels shrink to fit the tab.",
+        help="largest size of the front tab's label; long labels shrink to fit the tab",
+        tooltip="Largest text size on the front tab; long labels shrink to fit the tab.",
         group=_OUTPUT,
         widget=(0.5, 20),
         unit="mm",
@@ -505,10 +545,11 @@ class FigureSettings:
         help="font of all the text: labels, numbers, back text",
         tooltip="The font of all the piece's text: the label, the numbers and the back "
         "text.\n"
-        "Times and the fonts that come with papermini work on every computer; a font\n"
-        "installed only on this computer prints in Times elsewhere.",
+        "Arial, Times and the fonts that come with papermini work on every computer.\n"
+        "Without Arial, a similar sans-serif prints instead. A font installed only on\n"
+        "this computer prints in Arial elsewhere.",
         group=_OUTPUT,
-    ).field("Times")
+    ).field("Arial")
     copies: int = Option(
         label="Copies",
         help="a figure with numbers (--tab-front, --tab-back, --back or "
@@ -734,6 +775,22 @@ class FigureSettings:
             tab_color=self.tab_color,
         )
 
+    def tab_labels(self) -> tuple[TabLabel, TabLabel]:
+        """Return what the front tab and the back tab print. A back tab that shows the
+        same as the front prints the front tab's label."""
+        front = TabLabel(
+            self.tab_front, self.label, self.label_size_mm, self.label_color
+        )
+        if self.tab_back == "same":
+            return front, front
+        back = TabLabel(
+            self.tab_back,
+            self.back_label,
+            self.back_label_size_mm,
+            self.back_label_color,
+        )
+        return front, back
+
     def mask_options(self) -> MaskOptions:
         """Return the background-removal options. Model "mask" uses the mask image
         file, and model "auto" uses it too when one is given."""
@@ -791,8 +848,6 @@ class FigureSettings:
         return Style(
             cut_color=self.cut_color,
             cut_width_mm=self.cut_width_mm,
-            label_color=self.label_color,
-            label_size_mm=self.label_size_mm,
             back_text_color=self.back_text_color,
             font=self.font,
             cut_line=self.kind != "token" or self.token_cut_line,

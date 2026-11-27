@@ -232,7 +232,11 @@ def test_a_mini_shows_its_number_only_where_chosen(fonts, goblin_figure, numbere
         "Goblin",
     )
     m = numbered_mini(
-        goblin_figure, tab_front="number", tab_back="label_number", back="blank"
+        goblin_figure,
+        tab_front="number",
+        tab_back="label_number",
+        back_label="Goblin",
+        back="blank",
     )
     assert m.numbered
     assert _kinds(fonts, m, 0) == [
@@ -260,7 +264,7 @@ def test_number_and_label_share_the_tab(fonts, goblin_figure, numbered_mini):
     alone = numbered_mini(goblin_figure, tab_front="number", back="blank")
     alone.number = 12
     n = next(t for t in alone.text_items(fonts) if t.kind == "number")
-    assert alone.label_size_mm < n.size_mm <= alone.tab_room[1] + 1e-6
+    assert alone.tab_labels[0].size_mm < n.size_mm <= alone.tab_room[1] + 1e-6
 
 
 def test_the_number_is_printed_on_the_back(fonts, goblin_figure, numbered_mini):
@@ -271,19 +275,19 @@ def test_the_number_is_printed_on_the_back(fonts, goblin_figure, numbered_mini):
     m.number = 3
     back = [t for t in m.text_items(fonts) if t.kind == "number"]
     assert [(t.text, t.rot) for t in back] == [("3", 180.0)]
-    assert back[0].size_mm > 2 * m.label_size_mm
+    assert back[0].size_mm > 2 * m.tab_labels[0].size_mm
     # with text: the number above the text (upside down, so further down the sheet)
     both = numbered_mini(goblin_figure, back="text_number", back_text="Goblin boss")
     _cx, cy, w, h = both.number_box
     assert both.texts and all(t.cy < cy - h / 2 for t in both.texts)
 
 
-def test_a_missing_font_prints_in_times(
+def test_a_missing_font_prints_in_arial(
     fonts, goblin_figure, pipeline_mini, mask_options
 ):
-    assert fonts.resolve("No Such Font") == (FontLibrary.TIMES, False)
+    assert fonts.resolve("No Such Font") == (FontLibrary.ARIAL, False)
     assert fonts.resolve("Almendra")[1] and fonts.resolve("Times")[1]
-    assert fonts.pdf_name("No Such Font") == "Times-Roman"
+    assert fonts.pdf_name("No Such Font") == "Helvetica"
     assert fonts.pdf_name("Times", bold=True) == "Times-Bold"
     img, mask = goblin_figure
     notes = []
@@ -294,7 +298,7 @@ def test_a_missing_font_prints_in_times(
         style=Style(font="No Such Font"),
         log=notes.append,
     )
-    assert m.style.font == "Times"
+    assert m.style.font == "Arial"
     assert any("No Such Font is not on this computer" in n for n in notes)
 
 

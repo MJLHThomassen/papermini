@@ -13,6 +13,13 @@ from papermini.project.sheet_settings import SheetSettings
 
 pytestmark = pytest.mark.usefixtures("fake_default_model")
 
+# figure settings shown in the row of another setting, whose label the row has
+SHARED_ROWS = {
+    "margin_color": "margin_fill",
+    "cut_color": "cut_width_mm",
+    "no_smooth": "simplify_mm",
+}
+
 # the sheet panel's widget of each setting
 SHEET_WIDGETS = {
     "paper": "paper",
@@ -120,7 +127,8 @@ def test_each_choice_field_names_its_options_choices(
 def test_each_field_has_its_options_label(settings, figure_widgets, sheet_widgets):
     widgets = figure_widgets if settings is FigureSettings else sheet_widgets
     wrong = {}
-    for name, option in settings.options().items():
+    options = settings.options()
+    for name in options:
         w = widgets.get(name)
         if w is None or name == "kind":
             continue
@@ -128,8 +136,9 @@ def test_each_field_has_its_options_label(settings, figure_widgets, sheet_widget
             shown = w.accessibleName()
         else:
             shown = _label(w)
-        if shown != option.label:
-            wrong[name] = (shown, option.label)
+        label = options[SHARED_ROWS.get(name, name)].label
+        if shown != label:
+            wrong[name] = (shown, label)
     assert wrong == {}
 
 

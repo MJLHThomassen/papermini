@@ -9,6 +9,7 @@ from .art_composer import ArtComposer
 from .back_mirror import BackMirror
 from .figure_scaler import FigureScaler
 from .hex_color import HexColor
+from .image_extender import ImageExtender
 from .layout import Layout
 from .morphology import Morphology
 from .params import Params
@@ -60,11 +61,13 @@ class LayoutBuilder:
         scaler: FigureScaler,
         composer: ArtComposer,
         mirror: BackMirror,
+        extender: ImageExtender,
     ):
         self._morph = morphology
         self._scaler = scaler
         self._composer = composer
         self._mirror = mirror
+        self._extender = extender
 
     def build(self, clean: np.ndarray, rgb: np.ndarray, prm: Params) -> Layout:
         """Build the margin, smoothing and tab around a clean figure mask.
@@ -82,11 +85,20 @@ class LayoutBuilder:
         pxmm = (y1 - y0 + 1) / height_mm
 
         # Work on a canvas around the figure only, padded so neither the margin nor the
-        # tab is clipped by the image border.
+        # tab is clipped by the image border. Under the original image as margin fill,
+        # the picture goes on past its edges.
         base, side, below = self._padding(prm, pxmm)
-        fig, img = self._window(
-            clean, rgb, x0 - side, y0 - base, x1 + side + 1, y1 + below + 1
-        )
+        wx0, wy0 = x0 - side, y0 - base
+        wx1, wy1 = x1 + side + 1, y1 + below + 1
+        fig, img = self._window(clean, rgb, wx0, wy0, wx1, wy1)
+        if prm.margin_fill == "image" and img.shape[2] == 3:
+            inside = (
+                max(0, -wx0),
+                max(0, -wy0),
+                min(in_w, wx1) - wx0,
+                min(in_h, wy1) - wy0,
+            )
+            img = self._extender.extend(img, fig, inside, pxmm)
         sil = self._silhouette(fig, prm, pxmm)
         _, sy0, _, sy1 = self._morph.bbox(sil)
 
@@ -228,19 +240,17 @@ class LayoutBuilder:
     ):
         """Return the paper color, the artwork and the tab's area.
 
-        The artwork is the drawing where the figure is, and ``margin_color`` or the
-        original image in the margin. The tab below the fold, outside the drawing, is
-        painted in ``tab_color``. With the image in the margin, the paper color is
-        white.
+        The artwork is the drawing where the figure is, and ``margin_color`` around
+        it, or the original image everywhere. The tab below the fold, outside the
+        drawing, is painted in ``tab_color``. With the original image, the paper color
+        is white.
         """
         paper = (
             HexColor.to_rgb(prm.margin_color)
             if prm.margin_fill == "color"
             else (255, 255, 255)
         )
-        art = self._composer.compose(
-            img, fig, sil, paper, pxmm, prm.margin_fill == "image"
-        )
+        art = self._composer.compose(img, fig, paper, pxmm, prm.margin_fill == "image")
         tabfill = None
         if prm.tab:
             # the tab has its own color (with or without the label on it): everything

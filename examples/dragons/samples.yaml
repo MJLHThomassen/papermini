@@ -30,7 +30,7 @@ figures:
   # round green base on both halves, text on the back
   - image: dragon.webp
     name: dragon-text-back
-    label: ""
+    tab_front: none
     tab_shape: round
     tab_color: "#3b6e2a"
     back: text
@@ -39,7 +39,7 @@ figures:
   # a dark margin and a green tab, without a label
   - image: dragon.webp
     name: dragon-dark
-    label: ""
+    tab_front: none
     margin_color: "#1d1d2b"
     tab_color: "#3b6e2a"
 

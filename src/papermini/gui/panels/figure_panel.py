@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ...pipeline.segmentation import segment
 from ...pipeline.segmentation.segmenter_registry import SegmenterRegistry
+from ...pipeline.tab_label import LABEL_SHOWS
 from ...pipeline.token_options import TokenOptions
 from ...project import sizes
 from ...project.figure_settings import FigureSettings
@@ -38,16 +39,17 @@ from ..widgets.elided_label import ElidedLabel
 from .figure_fields import (
     FIELD_SETTINGS,
     KIND_SECTIONS,
+    NAME_FIELDS,
     OPTIONS,
     PER_IMAGE,
     RESETS,
     SECTIONS,
     SPECIAL_FIELDS,
-    SUBSECTIONS,
-    TOKEN_SWITCHES,
+    TAB_SECTIONS,
+    TOKEN_PARTS,
     TWINS,
 )
-from .section import SUB_INDENT, Section
+from .section import Section
 
 
 class FigurePanel(QScrollArea):
@@ -92,10 +94,11 @@ class FigurePanel(QScrollArea):
         self._fields: dict[str, Field] = {}
         self._shown: dict[str, Any] = {}  # field values as last shown or emitted
         self._rows: dict[str, tuple[QFormLayout, QWidget]] = {}  # to hide rows
+        self._row_sections: dict[str, str] = {}  # the section each row is in
         # each switch, with the section whose header it is in
         self._switches: dict[str, tuple[QCheckBox, Section]] = {}
         self._resets: dict[str, QPushButton] = {}
-        self._labels: list[tuple[QLabel, int]] = []  # form labels and their indent
+        self._labels: list[QLabel] = []  # the form labels, lined up
         self._step = Step.SOURCE
         self._empty = True
         self._measuring = False  # (all sections shown, of both kinds of figure)
@@ -117,7 +120,6 @@ class FigurePanel(QScrollArea):
         self._build_buttons(lay)
         self.setWidget(body)
         self.size_field: SizeField = self.field("dimensions")
-        self.label_switch = self._switch("label")
         self.token_text_switch = self._switch("token_text")
         self._loading = False
         self.refresh_icons()
@@ -176,29 +178,22 @@ class FigurePanel(QScrollArea):
         kh.addWidget(label)
         kh.addWidget(kind.widget, 1)
         lay.addWidget(self.kind_row)
-        self._labels.append((label, 0))
+        self._labels.append(label)
 
     def _build_sections(self, lay: QVBoxLayout) -> None:
         self.sections: list[Section] = []
-        boxes: dict[str, Section] = {}
         for _, title, names in SECTIONS:
-            box = Section(self._prefs, self._themes, title, sub=title in SUBSECTIONS)
-            indent = SUB_INDENT if title in SUBSECTIONS else 0
+            box = Section(self._prefs, self._themes, title)
             for name in names:
                 if name in RESETS:
                     self._add_reset(box.form, name)
                 else:
-                    self._add_field(box, name, indent)
-            if title in SUBSECTIONS:  # at the end of its section, folded away with it
-                parent = boxes[SUBSECTIONS[title]]
-                box.parent_section = parent
-                parent.form.addRow(box)
-            else:
-                lay.addWidget(box)
-            boxes[title] = box
+                    self._add_field(box, name)
+                    self._row_sections[name] = title
+            lay.addWidget(box)
             self.sections.append(box)
 
-    def _add_field(self, box: Section, name: str, indent: int) -> None:
+    def _add_field(self, box: Section, name: str) -> None:
         field = self._factory.build(name, OPTIONS[name], self._emit)
         form = box.form
         self._fields[name] = field
@@ -208,7 +203,7 @@ class FigurePanel(QScrollArea):
         if field.row is None:
             return
         self._rows[name] = (form, field.row)
-        self._labels += [(label, 0) for label in field.labels]
+        self._labels += field.labels
         if not field.label:
             form.addRow(field.row)
             return
@@ -217,7 +212,7 @@ class FigurePanel(QScrollArea):
         assert isinstance(label, QLabel)
         label.setObjectName("FormLabel")
         label.setToolTip(field.tooltip)
-        self._labels.append((label, indent))
+        self._labels.append(label)
 
     def _add_reset(self, form: QFormLayout, name: str) -> None:
         """Add a button that puts the settings of ``name`` in RESETS back to their
@@ -261,11 +256,10 @@ class FigurePanel(QScrollArea):
         return hints
 
     def _line_up_labels(self) -> None:
-        """Give the labels one width, so the fields form one column, also inside the
-        indented sub-sections."""
-        widest = max((label.sizeHint().width() for label, _ in self._labels), default=0)
-        for label, indent in self._labels:
-            label.setMinimumWidth(widest - indent)
+        """Give the labels one width, so the fields form one column."""
+        widest = max((label.sizeHint().width() for label in self._labels), default=0)
+        for label in self._labels:
+            label.setMinimumWidth(widest)
 
     def _build_buttons(self, lay: QVBoxLayout) -> None:
         lay.addSpacing(12)
@@ -376,7 +370,7 @@ class FigurePanel(QScrollArea):
             box.setVisible(
                 not self._empty
                 and step == self._step
-                and (KIND_SECTIONS.get(title, kind) == kind or self._measuring)
+                and (self._measuring or self._section_applies(title, kind))
             )
         self.step_hint.setText(
             self._step.token_hint if kind == "token" else self._step.hint
@@ -389,9 +383,16 @@ class FigurePanel(QScrollArea):
             "Copies the settings shown here to every figure"
             + {
                 Step.SOURCE: ", except the crop and mask file",
-                Step.MINIATURE: ", except the label and a token's Area",
+                Step.MINIATURE: ", except the labels and a token's Area",
             }[self._step]
         )
+
+    def _section_applies(self, title: str, kind: str) -> bool:
+        """Whether the section ``title`` does something for a figure of ``kind`` in the
+        current state."""
+        if KIND_SECTIONS.get(title, kind) != kind:
+            return False
+        return not (title in TAB_SECTIONS and self._value("no_tab"))
 
     def refresh_icons(self):
         self.empty_icon.setPixmap(
@@ -407,7 +408,7 @@ class FigurePanel(QScrollArea):
             self.title.setText(title)
             for field in self._fields.values():
                 field.show(s)
-            for name in (*TWINS, *TWINS.values()):  # the label's fields
+            for name in NAME_FIELDS:
                 self.field(name).setPlaceholderText(stem or "file name")
             self._sync_visible()
             self.set_empty(False)
@@ -575,7 +576,15 @@ class FigurePanel(QScrollArea):
         self._emit()
 
     def field(self, name: str) -> Any:
-        """Return the input widget of the setting ``name``."""
+        """Return the input widget of the setting ``name``: in the field of that name,
+        or else in the field that edits it with others. Without a setting of that
+        name, return the input widget of the field ``name``."""
+        own = self._fields.get(name)
+        if own is not None and name in own.inputs:
+            return own.inputs[name]
+        for field in self._fields.values():
+            if name in field.inputs:
+                return field.inputs[name]
         return self._fields[name].widget
 
     def _value(self, name: str) -> Any:
@@ -583,33 +592,30 @@ class FigurePanel(QScrollArea):
         return self._fields[name].value()
 
     def is_shown(self, name: str) -> bool:
-        """Whether a field is shown; for a group's switch, whether it can be used."""
-        if name in self._switches:  # usable unless the group it is inside is off
-            box = self._switches[name][1].parent_section
-            return box is None or box.active()
+        """Whether a field is shown in its step: its row, in a section that does
+        something for the figure. A section's switch is always shown."""
+        if name in self._switches:
+            return True
         form, w = self._rows[name]
-        return form.isRowVisible(w)
+        kind = "token" if self.is_token() else "mini"
+        return form.isRowVisible(w) and self._section_applies(
+            self._row_sections[name], kind
+        )
 
     def _sync_visible(self):
         """Only show the fields that do something in the current state; a group that
         is switched off shows only its header."""
         val = self._value
         tab = not val("no_tab")
-        label = tab and self.label_switch.isChecked()
-        # (a mini always has its outline, the margin, and its cut line: only a token's can
-        # be switched off)
         token = self.is_token()
-        for name in TOKEN_SWITCHES:
-            self._switches[name][0].setVisible(token)
-        always = set() if token else set(TOKEN_SWITCHES)
-        for name, (switch, box) in self._switches.items():  # off: only the header
-            box.set_active(switch.isChecked() or name in always)
+        for switch, box in self._switches.values():  # off: only the header
+            box.set_active(switch.isChecked())
         square = val("tab_shape") == "square"
         double = val("double_sided")
+        own_back_tab = double and tab and val("tab_back") != "same"
         show = {
             "mask": val("model") == "mask",
             "min_area": val("keep_all"),
-            "margin_color": val("margin_fill") == "color",
             "tab_shape": tab,
             "tab_width_mm": tab and square,
             "tab_height_mm": tab and square,
@@ -617,15 +623,18 @@ class FigurePanel(QScrollArea):
             "tab_overlap_mm": tab,
             "fold_mm": tab,
             "tab_color": tab,
-            "label": label,
-            "label_size_mm": label,
-            "label_color": label,
+            "label_color": val("tab_front") != "none",
+            "label": val("tab_front") in LABEL_SHOWS,
+            "label_size_mm": val("tab_front") in LABEL_SHOWS,
             "back": double,
             "back_color": double and val("back") != "mirror",
             "back_text": double and val("back") in ("text", "text_number"),
             "back_text_color": double
             and val("back") in ("text", "number", "text_number"),
-            "tab_back": double,
+            "tab_back": double and tab,
+            "back_label_color": own_back_tab and val("tab_back") != "none",
+            "back_label": own_back_tab and val("tab_back") in LABEL_SHOWS,
+            "back_label_size_mm": own_back_tab and val("tab_back") in LABEL_SHOWS,
         }
         grey = val("greyscale")
         show["saturation"] = show["hue"] = not grey
@@ -640,10 +649,15 @@ class FigurePanel(QScrollArea):
                 "token_text_mm": text != "none",
                 "token_label": text in ("label", "label_number"),
                 "token_text_color": text != "none",
-                "no_smooth": not token,
-                "simplify_mm": not token,
+                "cut_detail": not token,
             }
         )
+        # (a mini always has its outline and its cut line: only a token's can be left
+        # out)
+        for check, names in TOKEN_PARTS.items():
+            show[check] = token
+            for name in names:
+                show[name] = not token or val(check)
         self._sync_ring(
             token and text != "none" and val("token_text_style") == "curved"
         )

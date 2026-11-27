@@ -194,12 +194,13 @@ def test_the_font_field_lists_the_fonts_and_keeps_a_missing_one(
     p.set_settings(FigureSettings(font="Georgia"), "x", "x")
     assert w.currentText() == "Georgia" and p.font_warning.isHidden()
     p.set_installed_fonts(["Arial", "Georgia"])
-    assert names()[-2:] == ["Arial", "Georgia"] and w.currentText() == "Georgia"
+    assert names()[-1] == "Georgia" and w.currentText() == "Georgia"
+    assert names().count("Arial") == 1  # (an installed Arial is the bundled one)
     assert p.font_warning.isHidden() and p.settings().font == "Georgia"
     # once they are known, a missing one is marked, and kept in the settings
     p.set_settings(FigureSettings(font="No Such Font"), "x", "x")
     assert w.currentText() == "No Such Font (not on this computer)"
-    assert not p.font_warning.isHidden() and "prints in Times" in p.font_warning.text()
+    assert not p.font_warning.isHidden() and "prints in Arial" in p.font_warning.text()
     assert p.settings().font == "No Such Font"
     p.set_settings(FigureSettings(font="Arial"), "x", "x")
     assert p.font_warning.isHidden()

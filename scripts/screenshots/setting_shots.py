@@ -8,6 +8,7 @@ from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QGraphicsScene
 
+from papermini.gui.panels.figure_fields import OPTIONS
 from papermini.pipeline.mini import Mini
 from papermini.project import sizes
 from papermini.project.figure_settings import FigureSettings
@@ -20,8 +21,8 @@ from .shot_context import DRAGONS, ShotContext
 
 RED, FLY = "dragon.webp", "dragon-flying.webp"
 GREEN = "#3b6e2a"  # a grass-green tab: shows what folds under
-# no back and no label, so that the setting shows
-ONE_SIDE: dict[str, Any] = {"double_sided": False, "label": ""}
+# no back and a plain tab, so that the setting shows
+ONE_SIDE: dict[str, Any] = {"double_sided": False, "tab_front": "none"}
 COLOR_NAMES = {"#ffffff": "white"}  # the colors a caption names in words
 PAPER_MM = 2.5  # the white paper shown around a piece
 PX_PER_MM = 3.6  # logical pixels per mm of a piece, unless a picture zooms in
@@ -44,6 +45,7 @@ class SettingShots:
         self._margin()
         self._margin_fill()
         self._smoothing()
+        self._detail()
         self._bleed()
         self._tab_shape()
         self._tab_number()
@@ -155,7 +157,7 @@ class SettingShots:
         )
 
     def _smoothing(self) -> None:
-        """Compare outline smoothing on the flying dragon's right wing."""
+        """Compare the border's rounding on the flying dragon's right wing."""
         wing = QRectF(36, 0, 36, 22)
         flat: dict[str, Any] = dict(ONE_SIDE, height_mm=36, no_tab=True)
         self._compare(
@@ -163,16 +165,38 @@ class SettingShots:
             [
                 Sample(
                     self._mini(FLY, **flat),
-                    f"Smoothing {self._defaults.smooth_mm:g} mm",
+                    f"Rounding {self._defaults.smooth_mm:g} mm",
                     "the default: follows the wing",
                     wing,
                 ),
                 Sample(
                     self._mini(FLY, smooth_mm=2.5, **flat),
-                    "Smoothing 2.5 mm",
+                    "Rounding 2.5 mm",
                     "fewer bends, but thin tips lose their margin",
                     wing,
                 ),
+            ],
+            7,
+        )
+
+    def _detail(self) -> None:
+        """Compare the cut line's detail steps on the flying dragon's right wing."""
+        wing = QRectF(36, 0, 36, 22)
+        flat: dict[str, Any] = dict(ONE_SIDE, height_mm=36, no_tab=True)
+        detail = OPTIONS["cut_detail"]
+        notes = (
+            "the most corners",
+            "the default",
+            "fewer corners",
+            "straight lines: the quickest to cut",
+        )
+        self._compare(
+            "detail",
+            [
+                Sample(self._mini(FLY, **stop, **flat), name, note, wing)
+                for stop, name, note in zip(
+                    detail.stops, detail.choice_labels, notes, strict=True
+                )
             ],
             7,
         )
@@ -360,7 +384,7 @@ class SettingShots:
                         token_outline=True,
                         **token,
                     ),
-                    "Image outline",
+                    "Print an outline",
                     "a white outline, on the picture",
                 ),
             ],

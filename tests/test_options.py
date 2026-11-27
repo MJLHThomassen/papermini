@@ -85,6 +85,9 @@ FIGURE_FLAGS = [
     ("--cut-width-mm", "cut_width_mm", "0.5", 0.5),
     ("--label-color", "label_color", "#555555", "#555555"),
     ("--label-size-mm", "label_size_mm", "4", 4.0),
+    ("--back-label", "back_label", "Ember", "Ember"),
+    ("--back-label-color", "back_label_color", "#555555", "#555555"),
+    ("--back-label-size-mm", "back_label_size_mm", "4", 4.0),
     ("--font", "font", "Kalam", "Kalam"),
 ]
 
@@ -396,7 +399,7 @@ def test_each_sheet_setting_is_in_the_reference(reference, name):
 
 # Settings guide entries, by heading and first flag, about a control of the app that
 # is not an option of its own.
-GUIDE_ENTRIES_WITHOUT_AN_OPTION = {'Print a label: --label ""'}
+GUIDE_ENTRIES_WITHOUT_AN_OPTION: set[str] = set()
 
 # Settings guide entries, by heading and first flag, whose heading is not the label of
 # their option. The headings are what the app shows: the token's field for the label,

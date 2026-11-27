@@ -66,6 +66,35 @@ def test_the_tab_options_are_checked():
     for bad in ({"tab_front": "digits"}, {"tab_back": ""}, {"back": "numbers"}):
         with pytest.raises(ValueError):
             FigureSettings.from_dict(bad)
+    assert FigureSettings.from_dict({"tab_front": "none"}).tab_front == "none"
+    with pytest.raises(ValueError):
+        FigureSettings.from_dict({"tab_front": "same"})  # (only the back has it)
+
+
+def test_the_back_tab_is_the_same_as_the_front_by_default():
+    s = FigureSettings(label="Wyrm", tab_front="number", label_color="#111111")
+    front, back = s.tab_labels()
+    assert back == front
+    assert (front.shows, front.text, front.color) == ("number", "Wyrm", "#111111")
+
+
+def test_a_back_tab_of_its_own_has_its_own_label():
+    s = FigureSettings(
+        label="Wyrm",
+        tab_back="label",
+        back_label="Ember",
+        back_label_size_mm=5.0,
+        back_label_color="#aa2222",
+    )
+    front, back = s.tab_labels()
+    assert (front.text, front.size_mm) == ("Wyrm", s.label_size_mm)
+    assert (back.shows, back.text, back.size_mm, back.color) == (
+        "label",
+        "Ember",
+        5.0,
+        "#aa2222",
+    )
+    assert FigureSettings(tab_back="label").tab_labels()[1].text is None  # file name
 
 
 def test_from_dict_accepts_dashes_and_rejects_unknown():
@@ -128,7 +157,7 @@ def test_the_tab_and_margin_options_are_checked():
 def test_the_font_option_is_kept_and_checked():
     s = FigureSettings.from_dict({"font": "Kalam"})
     assert s.style().font == "Kalam" and s.to_dict(with_size=False) == {"font": "Kalam"}
-    assert FigureSettings().style().font == "Times"
+    assert FigureSettings().style().font == "Arial"
     assert (
         FigureSettings.from_dict({"font": "No Such Font"}).font == "No Such Font"
     )  # (kept)

@@ -8,19 +8,27 @@ from ..theme_service import ThemeService
 from .wheel_guard import _WheelGuard
 
 SNAP_PX = 6  # a dragged centred slider snaps to its centre within this many pixels
+MARK_RADIUS_PX = 2.5  # the dot that marks each value of a slider with marks
 
 
 class Slider(_WheelGuard, QSlider):
     """A horizontal slider. With a ``centre`` (a range from below to above it, like
     -100..100 around 0) it fills from that centre instead of from the left, marks it with
     a short vertical line, snaps to it while dragged close by, and goes back to it on a
-    double-click."""
+    double-click. With ``marks`` each of its values gets a dot on the groove."""
 
-    def __init__(self, themes: ThemeService, parent=None, centre: int | None = None):
+    def __init__(
+        self,
+        themes: ThemeService,
+        parent=None,
+        centre: int | None = None,
+        marks: bool = False,
+    ):
         super().__init__(Qt.Orientation.Horizontal, parent)
         self._themes = themes
         self._init_guard()
         self.centre = centre
+        self.marks = marks
         if centre is not None:
             self.setProperty(
                 "centred", True
@@ -62,10 +70,14 @@ class Slider(_WheelGuard, QSlider):
         )
 
     def centre_x(self) -> float:
-        return self.handle_rect(self.centre).center().x() + 0.5
+        return self._value_x(self.centre)
+
+    def _value_x(self, value) -> float:
+        """Return the x of the middle of the handle with the slider at ``value``."""
+        return self.handle_rect(value).center().x() + 0.5
 
     def paintEvent(self, e):
-        if self.centre is None:
+        if self.centre is None and not self.marks:
             return super().paintEvent(e)
         st, p = self.style(), QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -74,12 +86,22 @@ class Slider(_WheelGuard, QSlider):
         st.drawComplexControl(QStyle.ComplexControl.CC_Slider, opt, p, self)
         t = self._themes.current
         cy = self.rect().center().y() + 0.5
-        cx = self.centre_x()
-        vx = self.handle_rect(self.sliderPosition()).center().x() + 0.5
+        # the fill: from the centre, or from the lowest value
+        start = self._value_x(self.minimum() if self.centre is None else self.centre)
+        vx = self._value_x(self.sliderPosition())
         fill = QColor(t.accent if self.isEnabled() else t.muted)
-        p.fillRect(QRectF(min(cx, vx), cy - 2, abs(vx - cx), 4), fill)
-        p.setPen(QPen(QColor(t.muted), 1.5))
-        p.drawLine(QPointF(cx, cy - 6), QPointF(cx, cy + 6))  # the centre mark
+        p.fillRect(QRectF(min(start, vx), cy - 2, abs(vx - start), 4), fill)
+        if self.centre is not None:
+            p.setPen(QPen(QColor(t.muted), 1.5))
+            p.drawLine(
+                QPointF(start, cy - 6), QPointF(start, cy + 6)
+            )  # the centre mark
+        if self.marks:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(t.muted))
+            for value in range(self.minimum(), self.maximum() + 1):
+                x = self._value_x(value)
+                p.drawEllipse(QPointF(x, cy), MARK_RADIUS_PX, MARK_RADIUS_PX)
         opt.subControls = QStyle.SubControl.SC_SliderHandle
         st.drawComplexControl(QStyle.ComplexControl.CC_Slider, opt, p, self)
         p.end()

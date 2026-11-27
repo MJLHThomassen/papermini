@@ -9,14 +9,13 @@ from PIL import Image
 
 from .cut_path import CutPath
 from .style import Style
+from .tab_label import LABEL_SHOWS, NUMBER_SHOWS, TabLabel
 from .text_fitter import TextFitter
 from .text_item import NUMBER_PLACEHOLDER, TextItem
 from .token_info import TokenInfo
 
 if TYPE_CHECKING:
     from ..support.font_library import FontLibrary
-
-TAB_SHOWS = ("label", "number", "label_number")  # what a tab shows
 
 
 @dataclass
@@ -38,7 +37,6 @@ class Mini:
         default_factory=list
     )  # cx, cy, rot
     label: str = ""
-    label_size_mm: float = 3.4
     style: Style = field(default_factory=Style)
     # extra lines of text, such as the text on the back of a double-sided mini
     texts: list[TextItem] = field(default_factory=list)
@@ -61,10 +59,10 @@ class Mini:
     # how the figure was found: "alpha" (the image's own transparency), "mask" (a mask
     # image file) or the model that ran; for model "auto", the one it picked
     method: str = ""
-    # numbers: what each tab shows (one per entry of ``labels``: "label", "number" or
-    # "label_number"), the room for text on a tab (w, h mm), where the back side's number
+    # what each tab prints (one per entry of ``labels``, its text set and its size fitted
+    # to the tab), the room for text on a tab (w, h mm), where the back side's number
     # goes (cx, cy, w, h mm), and this copy's number (None: the placeholder)
-    tab_shows: list[str] = field(default_factory=list)
+    tab_labels: list[TabLabel] = field(default_factory=list)
     tab_room: tuple[float, float] = (0.0, 0.0)
     number_box: tuple[float, float, float, float] | None = None
     number: int | None = None
@@ -86,7 +84,9 @@ class Mini:
         """Whether the miniature shows its copy number anywhere."""
         if self.token is not None:
             return self.token.text in ("number", "label_number")
-        return self.number_box is not None or any(s != "label" for s in self.tab_shows)
+        return self.number_box is not None or any(
+            tab.shows in NUMBER_SHOWS for tab in self.tab_labels
+        )
 
     def text_items(self, fonts: FontLibrary) -> list[TextItem]:
         """Every text on the miniature: the tab labels and numbers, the back text and the
@@ -98,16 +98,12 @@ class Mini:
         num = NUMBER_PLACEHOLDER if self.number is None else str(self.number)
         room_w, room_h = self.tab_room
         items: list[TextItem] = []
-        shows = self.tab_shows or ["label"] * len(self.labels)
-        for (cx, cy, rot), what in zip(self.labels, shows):
-            label = self.label if what in ("label", "label_number") else ""
-            number = what in ("number", "label_number")
+        for (cx, cy, rot), tab in zip(self.labels, self.tab_labels):
+            what, color = tab.shows, tab.color
+            label = (tab.text or "") if what in LABEL_SHOWS else ""
+            number = what in NUMBER_SHOWS
             if label and not number:
-                items.append(
-                    TextItem(
-                        "label", label, cx, cy, rot, self.label_size_mm, st.label_color
-                    )
-                )
+                items.append(TextItem("label", label, cx, cy, rot, tab.size_mm, color))
             elif number and not label:
                 items.append(
                     TextItem(
@@ -117,12 +113,12 @@ class Mini:
                         cy,
                         rot,
                         TextFitter.number_size(fonts, num, room_w, room_h, st.font),
-                        st.label_color,
+                        color,
                         True,
                     )
                 )
             elif number:
-                ls, gap = self.label_size_mm, 0.15 * self.label_size_mm
+                ls, gap = tab.size_mm, 0.15 * tab.size_mm
                 ns = max(
                     ls,
                     TextFitter.number_size(
@@ -141,7 +137,7 @@ class Mini:
                         cy + up * (block - ns) / 2,
                         rot,
                         ns,
-                        st.label_color,
+                        color,
                         True,
                     )
                 )
@@ -153,7 +149,7 @@ class Mini:
                         cy - up * (block - ls) / 2,
                         rot,
                         ls,
-                        st.label_color,
+                        color,
                     )
                 )
         items += self.texts

@@ -37,7 +37,8 @@ def test_one_svg_per_numbered_copy(
         "one-1.svg"
     ]
     texts = read_svg(tmp_path / "goblin-2.svg").texts
-    assert [t for kind, t in texts if kind == "number"] == ["2", "2"]
+    # (on the front tab, the back tab, which is the same as the front, and the back)
+    assert [t for kind, t in texts if kind == "number"] == ["2", "2", "2"]
 
 
 def test_the_svg_holds_the_piece(

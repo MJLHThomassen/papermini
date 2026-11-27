@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
     QLineEdit,
+    QSlider,
 )
 
 from papermini.gui.fields.color_button import ColorButton
@@ -46,7 +47,7 @@ def _shown(w):
         return w.value()
     if isinstance(w, QCheckBox):
         return w.isChecked()
-    if isinstance(w, QAbstractSpinBox):
+    if isinstance(w, QAbstractSpinBox | QSlider):
         return w.value()
     if isinstance(w, QComboBox):
         return w.currentText() if w.isEditable() else w.currentData()
@@ -63,7 +64,7 @@ def _enter(w, value, monkeypatch) -> None:
         w.buttons[value].click()
     elif isinstance(w, QCheckBox):
         w.setChecked(value)
-    elif isinstance(w, QAbstractSpinBox):
+    elif isinstance(w, QAbstractSpinBox | QSlider):
         w.setValue(value)
     elif isinstance(w, QComboBox) and w.isEditable():
         w.setCurrentText(value)
@@ -124,9 +125,13 @@ FIGURE_FIELDS: dict[str, tuple[str, Any, Any, dict[str, Any]]] = {
     "label": ("label", "Hero", "Hero", {}),
     "tab_front": ("tab_front", "number", "number", {}),
     "tab_back": ("tab_back", "label_number", "label_number", {}),
+    "back_label": ("back_label", "Ember", "Ember", {"tab_back": "label"}),
+    "back_label_color": ("back_label_color", "#555555", "#555555", {}),
+    "back_label_size_mm": ("back_label_size_mm", 4.0, 4.0, {}),
     "dpi": ("dpi", 150, 150, {}),
-    "simplify_mm": ("simplify_mm", 0.3, 0.3, {}),
-    "no_smooth": ("no_smooth", True, True, {}),
+    # (the Detail slider's steps: Coarse, then Straight)
+    "simplify_mm": ("simplify_mm", 2, 0.6, {}),
+    "no_smooth": ("no_smooth", 3, True, {}),
     "cut_color": ("cut_color", "#ff0000", "#ff0000", {}),
     "cut_width_mm": ("cut_width_mm", 0.5, 0.5, {}),
     "label_color": ("label_color", "#555555", "#555555", {}),
